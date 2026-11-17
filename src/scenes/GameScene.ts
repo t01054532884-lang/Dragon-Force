@@ -2,9 +2,12 @@ import Phaser from 'phaser';
 import { makeTextures } from '../textures';
 import { ENEMIES, type EnemyKind } from '../data/enemies';
 import { BASE_STATS, xpToNext, type RunStats } from '../data/stats';
-import { rollChoices, UPGRADES, type Upgrade } from '../data/upgrades';
+import { rollOffer, UPGRADES, type Upgrade } from '../data/upgrades';
 import { Enemy } from '../objects/Enemy';
 import { Skills } from '../systems/Skills';
+import { BasicAttack } from '../systems/BasicAttack';
+import { resolveDamage, type HitSpec } from '../systems/Damage';
+import type { CombatHost } from '../systems/CombatHost';
 
 const WORLD_SIZE = 4000; // 맵 한 변 길이(px). 화면보다 훨씬 넓고 카메라가 따라다닌다.
 const SPAWN_RADIUS = 820; // 화면 밖(드래곤에서 이만큼 떨어진 곳)에서 적이 나온다.
@@ -17,7 +20,6 @@ export class GameScene extends Phaser.Scene {
   private player!: Phaser.Types.Physics.Arcade.ImageWithDynamicBody;
   private keys!: Record<'up' | 'down' | 'left' | 'right' | 'w' | 'a' | 's' | 'd', Phaser.Input.Keyboard.Key>;
   private enemies!: Phaser.Physics.Arcade.Group;
-  private fireballs!: Phaser.Physics.Arcade.Group;
   private bolts!: Phaser.Physics.Arcade.Group;
   private gems!: Phaser.Physics.Arcade.Group;
 
@@ -29,13 +31,16 @@ export class GameScene extends Phaser.Scene {
   private upgradeLevels = new Map<string, number>(); // 카드별로 몇 번 골랐는지
   private invincibleUntil = 0; // 맞은 직후 잠깐 무적(연속으로 피가 녹지 않게)
   private elapsed = 0; // 판 시작 후 지난 시간(ms). 카드 고르는 동안은 멈춘다.
-  private fireCooldown = 0;
   private spawnCooldown = 0;
   private kills = 0;
   private mode: Mode = 'play';
   private facing = new Phaser.Math.Vector2(0, -1); // 마지막으로 움직인 방향(브레스가 이쪽으로 나감)
   private skills!: Skills;
-
+  private basic!: BasicAttack;
+  private basicEverOffered = false; // 기본공격 카드 보장 규칙용
+  private gold = 0; // 이번 판에 모은 골드(5단계 영구 강화에 사용)
+  /** 전투 로그: 공격 원천별 누적 피해(밸런스 검증용, 기획서 v0.2 CombatTelemetry) */
+  dmgLog: Record<string, number> = {};
   // 화면 고정 UI
   private hpBar!: Phaser.GameObjects.Graphics;
   private timeText!: Phaser.GameObjects.Text;
@@ -62,10 +67,12 @@ export class GameScene extends Phaser.Scene {
     this.level = 1;
     this.xp = 0;
     this.pendingLevelUps = 0;
-    this.upgradeLevels = new Map();
+    this.upgradeLevels = new Map([['basic', 1]]); // 고유 기본공격은 Lv.1로 시작
+    this.basicEverOffered = false;
+    this.gold = 0;
+    this.dmgLog = {};
     this.invincibleUntil = 0;
     this.elapsed = 0;
-    this.fireCooldown = 0;
     this.spawnCooldown = 0;
     this.kills = 0;
     this.mode = 'play';
@@ -88,13 +95,11 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player, true, 0.15, 0.15);
 
     this.enemies = this.physics.add.group();
-    this.fireballs = this.physics.add.group();
     this.bolts = this.physics.add.group();
     this.gems = this.physics.add.group();
 
     // 충돌 규칙: 적끼리는 서로 밀어내고(겹쳐 뭉치지 않게), 나머지는 겹침(overlap)으로 판정만 한다.
     this.physics.add.collider(this.enemies, this.enemies);
-    this.physics.add.overlap(this.fireballs, this.enemies, (fb, en) => this.onFireballHit(fb as Phaser.Physics.Arcade.Image, en as Enemy));
     this.physics.add.overlap(this.player, this.enemies, (_p, en) => this.damagePlayer((en as Enemy).def.contactDamage));
     this.physics.add.overlap(this.player, this.bolts, (_p, b) => {
       const bolt = b as Phaser.Physics.Arcade.Image;
@@ -111,15 +116,17 @@ export class GameScene extends Phaser.Scene {
       if (this.mode === 'choose' && n >= 1 && n <= 3) this.pickChoice(n - 1);
     });
 
-    this.skills = new Skills({
+    const host: CombatHost = {
       scene: this,
       player: this.player,
       facing: this.facing,
       stats: this.stats,
       enemies: () => this.enemies.getChildren() as Enemy[],
       level: (id) => this.upgradeLevels.get(id) ?? 0,
-      damage: (e, amount) => this.damageEnemy(e, amount),
-    });
+      hit: (e, spec) => this.hitEnemy(e, spec),
+    };
+    this.basic = new BasicAttack(host);
+    this.skills = new Skills(host);
 
     this.createHud();
     this.createJoystick();
@@ -134,7 +141,7 @@ export class GameScene extends Phaser.Scene {
     this.killText = this.add.text(690, 24, '처치 0', { ...style, fontSize: '26px' }).setOrigin(1, 0).setScrollFactor(0).setDepth(UI_DEPTH);
     this.levelText = this.add.text(30, 62, 'Lv.1', { ...style, fontSize: '24px' }).setScrollFactor(0).setDepth(UI_DEPTH);
     this.hpText = this.add.text(210, 40, '', { ...style, fontSize: '20px', strokeThickness: 4 }).setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 1);
-    this.skillText = this.add.text(110, 62, '', { ...style, fontSize: '24px' }).setScrollFactor(0).setDepth(UI_DEPTH);
+    this.skillText = this.add.text(110, 62, '', { ...style, fontSize: '22px', lineSpacing: 6 }).setScrollFactor(0).setDepth(UI_DEPTH);
   }
 
   private drawHud(): void {
@@ -152,12 +159,13 @@ export class GameScene extends Phaser.Scene {
     this.killText.setText(`처치 ${this.kills}`);
     this.levelText.setText(`Lv.${this.level}`);
     this.hpText.setText(`${Math.max(0, Math.ceil(this.hp))} / ${Math.round(this.stats.maxHp)}`);
-    // 가진 스킬을 아이콘+레벨로 보여 준다 (예: 🔥3 ⚡1)
-    this.skillText.setText(
-      UPGRADES.filter((u) => u.kind === 'skill' && this.upgradeLevels.has(u.id))
+    // 가진 카드를 아이콘+레벨로: 첫 줄 기본공격·액티브, 둘째 줄 패시브 (예: 🔴3 🔥2 ⚡1 / ❤️1)
+    const icons = (kinds: string[]) =>
+      UPGRADES.filter((u) => kinds.includes(u.kind) && (this.upgradeLevels.get(u.id) ?? 0) > 0)
         .map((u) => `${u.icon}${this.upgradeLevels.get(u.id)}`)
-        .join(' '),
-    );
+        .join(' ');
+    this.skillText.setText(`${icons(['basic', 'active'])}
+${icons(['passive'])}`);
   }
 
   private createJoystick(): void {
@@ -206,7 +214,7 @@ export class GameScene extends Phaser.Scene {
     this.movePlayer();
     this.spawnEnemies(delta);
     this.updateEnemies(delta);
-    this.autoFire(delta);
+    this.basic.update(delta);
     this.skills.update(delta);
     this.pullGems();
     this.drawHud();
@@ -259,6 +267,9 @@ export class GameScene extends Phaser.Scene {
     for (const obj of this.enemies.getChildren()) {
       const e = obj as Enemy;
       if (e.step(target, delta) && e.def.ranged) this.shootBolt(e);
+      // 화상 피해(지속 피해는 치명타 없음)
+      const burnCoef = e.tickBurn(delta);
+      if (burnCoef > 0) this.hitEnemy(e, { source: 'dot', coef: burnCoef, tag: 'burn' });
     }
   }
 
@@ -271,32 +282,19 @@ export class GameScene extends Phaser.Scene {
     this.time.delayedCall(4000, () => bolt.destroy());
   }
 
-  private autoFire(delta: number): void {
-    this.fireCooldown -= delta;
-    if (this.fireCooldown > 0) return;
-
-    // 사거리 안에서 가장 가까운 적을 찾아 쏜다. 없으면 쏘지 않는다.
-    const nearest = this.physics.closest(this.player, this.enemies.getChildren() as Enemy[]) as Enemy | null;
-    if (!nearest || Phaser.Math.Distance.Between(this.player.x, this.player.y, nearest.x, nearest.y) > this.stats.fireRange) return;
-
-    this.fireCooldown = this.stats.fireInterval;
-    const fb = this.physics.add.image(this.player.x, this.player.y, 'fireball').setDepth(9);
-    this.fireballs.add(fb);
-    fb.setCircle(9);
-    this.physics.velocityFromRotation(Phaser.Math.Angle.Between(this.player.x, this.player.y, nearest.x, nearest.y), this.stats.fireSpeed, fb.body.velocity);
-    this.time.delayedCall(1400, () => fb.destroy());
-  }
-
-  private onFireballHit(fb: Phaser.Physics.Arcade.Image, enemy: Enemy): void {
-    if (!fb.active || !enemy.active) return;
-    fb.destroy();
-    this.damageEnemy(enemy, this.stats.fireDamage * this.stats.fireMult);
-  }
-
-  /** 모든 공격(화염탄·스킬)이 적에게 피해를 줄 때 거치는 한 곳 */
-  private damageEnemy(enemy: Enemy, amount: number): void {
+  /** 모든 공격(기본공격·스킬·화상)이 적에게 피해를 줄 때 거치는 한 곳 */
+  private hitEnemy(enemy: Enemy, spec: HitSpec): void {
     if (!enemy.active) return;
+    const { amount, crit } = resolveDamage(this.stats, spec);
+    const tag = spec.tag ?? spec.source;
+    this.dmgLog[tag] = (this.dmgLog[tag] ?? 0) + amount;
+    if (crit) this.popText(enemy.x, enemy.y - 20, `${Math.round(amount)}!`, '#ffd34d');
     if (enemy.hurt(amount)) this.killEnemy(enemy);
+  }
+
+  private popText(x: number, y: number, text: string, color: string): void {
+    const t = this.add.text(x, y, text, { fontFamily: 'sans-serif', fontSize: '26px', fontStyle: 'bold', color, stroke: '#000', strokeThickness: 4 }).setOrigin(0.5).setDepth(50);
+    this.tweens.add({ targets: t, y: y - 40, alpha: 0, duration: 600, onComplete: () => t.destroy() });
   }
 
   private killEnemy(enemy: Enemy): void {
@@ -327,7 +325,7 @@ export class GameScene extends Phaser.Scene {
 
   private collectGem(gem: Phaser.Physics.Arcade.Image): void {
     if (!gem.active) return;
-    this.xp += gem.getData('value') as number;
+    this.xp += (gem.getData('value') as number) * this.stats.xpMult;
     gem.destroy();
     while (this.xp >= xpToNext(this.level)) {
       this.xp -= xpToNext(this.level);
@@ -339,13 +337,9 @@ export class GameScene extends Phaser.Scene {
 
   /** 게임을 멈추고 카드 3장을 보여 준다. */
   private openChoice(): void {
-    const choices = rollChoices(this.upgradeLevels);
-    if (choices.length === 0) {
-      // 모든 카드가 최대 레벨이면 체력 회복으로 대신한다.
-      this.pendingLevelUps = 0;
-      this.hp = this.stats.maxHp;
-      return;
-    }
+    const reached = this.level - this.pendingLevelUps + 1; // 이번 카드로 도달한 레벨
+    const choices = rollOffer({ levels: this.upgradeLevels, playerLevel: reached, basicEverOffered: this.basicEverOffered });
+    if (choices.some((u) => u.kind === 'basic')) this.basicEverOffered = true;
     this.mode = 'choose';
     this.physics.pause();
     this.time.paused = true;
@@ -360,7 +354,7 @@ export class GameScene extends Phaser.Scene {
     add(this.add.rectangle(360, 640, 720, 1280, 0x000000, 0.65).setScrollFactor(0).setDepth(UI_DEPTH + 10));
     add(
       this.add
-        .text(360, 300, `레벨 업! Lv.${this.level - this.pendingLevelUps + 1}`, {
+        .text(360, 300, `레벨 업! Lv.${reached}`, {
           fontFamily: 'sans-serif', fontSize: '56px', color: '#ffd34d', stroke: '#000', strokeThickness: 8,
         })
         .setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 11),
@@ -369,8 +363,14 @@ export class GameScene extends Phaser.Scene {
     choices.forEach((u, i) => {
       const y = 470 + i * 200;
       const next = (this.upgradeLevels.get(u.id) ?? 0) + 1;
+      const tag =
+        u.kind === 'filler' ? '' :
+        u.kind === 'basic' ? `기본공격 Lv.${next}${next === u.maxLevel ? ' 진화!' : ''}` :
+        next === 1 ? (u.kind === 'active' ? '새 스킬!' : '새 패시브!') :
+        `Lv.${next}${next === u.maxLevel ? ' (최대)' : ''}`;
+      const border = { basic: 0xff7043, active: 0x8fa3d9, passive: 0x7bd88f, filler: 0xb0b0b0 }[u.kind];
       const card = add(
-        this.add.rectangle(360, y, 600, 170, 0x22283a).setStrokeStyle(4, 0x8fa3d9).setScrollFactor(0).setDepth(UI_DEPTH + 11),
+        this.add.rectangle(360, y, 600, 170, 0x22283a).setStrokeStyle(4, border).setScrollFactor(0).setDepth(UI_DEPTH + 11),
       );
       card.setInteractive({ useHandCursor: true });
       card.on('pointerover', () => card.setFillStyle(0x2f3a57));
@@ -379,7 +379,7 @@ export class GameScene extends Phaser.Scene {
       const txt = { fontFamily: 'sans-serif', color: '#ffffff' };
       add(this.add.text(100, y, u.icon, { ...txt, fontSize: '64px' }).setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 12));
       add(
-        this.add.text(160, y - 40, `${i + 1}. ${u.name}  ${u.kind === 'skill' && next === 1 ? '새 스킬!' : `Lv.${next}`}${next === u.maxLevel ? ' (최대)' : ''}`, { ...txt, fontSize: '34px', fontStyle: 'bold' })
+        this.add.text(160, y - 40, `${i + 1}. ${u.name}  ${tag}`, { ...txt, fontSize: '34px', fontStyle: 'bold' })
           .setScrollFactor(0).setDepth(UI_DEPTH + 12),
       );
       add(this.add.text(160, y + 10, u.describe(next), { ...txt, fontSize: '26px', color: '#c9d3ee' }).setScrollFactor(0).setDepth(UI_DEPTH + 12));
@@ -392,11 +392,15 @@ export class GameScene extends Phaser.Scene {
   private pickChoice(index: number): void {
     const u = this.currentChoices[index];
     if (this.mode !== 'choose' || !u) return;
-    const next = (this.upgradeLevels.get(u.id) ?? 0) + 1;
-    const beforeMax = this.stats.maxHp;
-    u.apply?.(this.stats, next);
-    this.hp += this.stats.maxHp - beforeMax; // 최대 체력이 늘면 그만큼 채워 준다
-    this.upgradeLevels.set(u.id, next);
+    if (u.id === 'heal') this.hp = Math.min(this.stats.maxHp, this.hp + this.stats.maxHp * 0.3);
+    else if (u.id === 'gold') this.gold += 20;
+    else {
+      const next = (this.upgradeLevels.get(u.id) ?? 0) + 1;
+      const beforeMax = this.stats.maxHp;
+      u.apply?.(this.stats, next);
+      this.hp += this.stats.maxHp - beforeMax; // 최대 체력이 늘면 그만큼 채워 준다
+      this.upgradeLevels.set(u.id, next);
+    }
 
     this.choiceLayer.forEach((o) => o.destroy());
     this.choiceLayer = [];
@@ -412,7 +416,7 @@ export class GameScene extends Phaser.Scene {
 
   private damagePlayer(amount: number): void {
     if (this.mode !== 'play' || this.time.now < this.invincibleUntil) return;
-    this.hp -= amount * (1 - this.stats.armor);
+    this.hp -= amount * this.stats.damageTaken;
     this.invincibleUntil = this.time.now + 500;
     this.cameras.main.shake(120, 0.006);
     this.player.setTint(0xff9999);

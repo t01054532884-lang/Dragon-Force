@@ -1,157 +1,201 @@
-import type { RunStats } from './stats';
+import { M, type RunStats } from './stats';
+import { RED_BASIC } from './basicAttack';
 
-// 레벨업 때 나오는 카드 한 장.
-// - skill: 새 공격 방식을 얻는다(처음 고르면 Lv.1 획득, 다시 고르면 강해짐). 효과는 src/systems/Skills.ts
-// - passive: 능력치만 바꾼다.
+// 레벨업 카드 (기획서 v0.1·v0.2).
+// - basic:   드래곤 고유 기본공격 강화 (고유 슬롯 1, Lv.7까지, Lv.7 = 진화)
+// - active:  공격 스킬 (액티브 슬롯 최대 6, Lv.5까지). 효과는 src/systems/Skills.ts
+// - passive: 능력치 (패시브 슬롯 최대 4, Lv.5까지)
+// - filler:  유효 후보가 3장보다 적을 때 채우는 보조 카드
+export type CardKind = 'basic' | 'active' | 'passive' | 'filler';
+
 export interface Upgrade {
   id: string;
-  kind: 'skill' | 'passive';
+  kind: CardKind;
   icon: string;
   name: string;
   maxLevel: number;
   /** 다음 레벨(1부터)을 골랐을 때 카드에 보일 설명 */
   describe(nextLevel: number): string;
-  /** 골랐을 때 능력치를 바꾼다(패시브만) */
+  /** 골랐을 때 능력치를 바꾼다(패시브) */
   apply?(stats: RunStats, nextLevel: number): void;
 }
 
-// ── 스킬 수치: 레벨(1~5)을 넣으면 값이 나오는 함수로 둔다. 카드 설명과 실제 효과가 같은 식을 쓰게.
+export const ACTIVE_SLOTS = 6;
+export const PASSIVE_SLOTS = 4;
+
+// ── 액티브 스킬 수치: 레벨(1~5)을 넣으면 값이 나오는 함수. 피해는 "공격력 대비 계수"(1.0 = 100%).
+// 범위·주기에는 마력 확장(areaMult)·고대의 시계(cooldownMult)가 Skills.ts에서 곱해진다.
 export const SKILL = {
+  // 화염 브레스: 기획서 v0.1 4장 예시표를 그대로 따른다.
   breath: {
-    interval: (lv: number) => 2200 - lv * 150,
-    range: (lv: number) => 200 + lv * 25,
-    angle: (lv: number) => 50 + lv * 6, // 부채꼴 전체 각도(도)
-    damage: (lv: number) => 10 + lv * 6,
+    interval: () => 2000,
+    range: (lv: number) => 4.4 * M * (lv >= 3 ? 1.2 : 1), // Lv.3 범위 +20%
+    angle: (lv: number) => 60 * (lv >= 3 ? 1.2 : 1), // 부채꼴 전체 각도(도)
+    coef: (lv: number) => 1.5 * (lv >= 2 ? 1.2 : 1), // Lv.2 피해 +20%
+    extraBurst: (lv: number) => lv >= 4, // Lv.4 추가 화염 공격(0.3초 뒤 한 번 더)
+    burn: (lv: number) => lv >= 5, // Lv.5 화상 부여(기본공격 화상과 같은 상태)
   },
   ice: {
     interval: () => 1500,
     count: (lv: number) => 1 + Math.floor(lv / 2),
-    damage: (lv: number) => 6 + lv * 3,
+    coef: (lv: number) => 0.6 + lv * 0.3,
     slow: (lv: number) => 0.35 + lv * 0.05, // 느려지는 비율
     slowMs: () => 2000,
   },
   lightning: {
     interval: (lv: number) => 2300 - lv * 150,
     chains: (lv: number) => 2 + lv, // 첫 대상 + 튀는 횟수
-    jump: () => 200, // 다음 적으로 튈 수 있는 거리
-    damage: (lv: number) => 10 + lv * 5,
+    jump: () => 4 * M, // 다음 적으로 튈 수 있는 거리
+    coef: (lv: number) => 1.0 + lv * 0.5,
   },
   meteor: {
     interval: (lv: number) => 5200 - lv * 500,
     count: (lv: number) => (lv >= 4 ? 2 : 1),
-    radius: (lv: number) => 100 + lv * 15,
-    damage: (lv: number) => 25 + lv * 12,
+    radius: (lv: number) => 2 * M + lv * 15,
+    coef: (lv: number) => 2.5 + lv * 1.2,
     warnMs: () => 700, // 떨어지기 전 경고 원 표시 시간
   },
   orb: {
     count: (lv: number) => Math.min(lv, 4) + (lv >= 5 ? 1 : 0),
-    radius: () => 130, // 드래곤에서 오브까지 거리
+    radius: () => 2.6 * M, // 드래곤에서 오브까지 거리
     spin: (lv: number) => 2.6 + lv * 0.2, // 초당 회전(라디안)
-    damage: (lv: number) => 6 + lv * 3,
+    coef: (lv: number) => 0.6 + lv * 0.3,
     hitCooldown: () => 450, // 같은 적을 다시 때리기까지(ms)
+  },
+  wind: {
+    interval: (lv: number) => 3200 - lv * 200,
+    radius: (lv: number) => 2.8 * M + lv * 15,
+    coef: (lv: number) => 0.8 + lv * 0.3,
+    push: (lv: number) => 420 + lv * 40, // 밀쳐내는 속도(px/초)
+    pushMs: () => 250,
   },
 } as const;
 
 const sec = (ms: number) => `${(ms / 1000).toFixed(1)}초`;
+const pct = (x: number) => `${Math.round(x * 100)}%`;
 
 export const UPGRADES: Upgrade[] = [
-  // ───────── 스킬 6종 (3단계) ─────────
+  // ───────── 고유 기본공격 (레드 드래곤) ─────────
   {
-    id: 'breath', kind: 'skill', icon: '🔥', name: '화염 브레스', maxLevel: 5,
-    describe: (lv) =>
-      lv === 1
-        ? `${sec(SKILL.breath.interval(1))}마다 앞쪽 부채꼴에 불길 (피해 ${SKILL.breath.damage(1)})`
-        : `피해 ${SKILL.breath.damage(lv)}, 범위·각도 증가, 간격 ${sec(SKILL.breath.interval(lv))}`,
-  },
-  {
-    id: 'ice', kind: 'skill', icon: '❄️', name: '얼음 파편', maxLevel: 5,
-    describe: (lv) =>
-      lv === 1
-        ? `가까운 적에게 얼음 파편, 맞으면 ${Math.round(SKILL.ice.slow(1) * 100)}% 느려짐`
-        : `파편 ${SKILL.ice.count(lv)}개, 피해 ${SKILL.ice.damage(lv)}, 둔화 ${Math.round(SKILL.ice.slow(lv) * 100)}%`,
-  },
-  {
-    id: 'lightning', kind: 'skill', icon: '⚡', name: '번개 숨결', maxLevel: 5,
-    describe: (lv) =>
-      lv === 1
-        ? `적 ${SKILL.lightning.chains(1)}마리 사이를 튀는 번개 (피해 ${SKILL.lightning.damage(1)})`
-        : `${SKILL.lightning.chains(lv)}마리 연쇄, 피해 ${SKILL.lightning.damage(lv)}`,
-  },
-  {
-    id: 'meteor', kind: 'skill', icon: '☄️', name: '드래곤 메테오', maxLevel: 5,
-    describe: (lv) =>
-      lv === 1
-        ? `${sec(SKILL.meteor.interval(1))}마다 적 무리에 운석 (피해 ${SKILL.meteor.damage(1)})`
-        : `운석 ${SKILL.meteor.count(lv)}개, 피해 ${SKILL.meteor.damage(lv)}, 간격 ${sec(SKILL.meteor.interval(lv))}`,
-  },
-  {
-    id: 'orb', kind: 'skill', icon: '🐲', name: '드래곤 오브', maxLevel: 5,
-    describe: (lv) =>
-      lv === 1
-        ? `드래곤 주위를 도는 오브 1개 (닿은 적 피해 ${SKILL.orb.damage(1)})`
-        : `오브 ${SKILL.orb.count(lv)}개, 피해 ${SKILL.orb.damage(lv)}, 더 빠르게 회전`,
-  },
-  {
-    id: 'scale', kind: 'skill', icon: '🛡️', name: '용의 비늘', maxLevel: 5,
-    describe: () => '받는 피해 −10%',
-    apply: (s) => (s.armor = Math.min(0.6, s.armor + 0.1)),
+    id: 'basic', kind: 'basic', icon: RED_BASIC.icon, name: RED_BASIC.name, maxLevel: RED_BASIC.levels.length,
+    describe: (lv) => RED_BASIC.levels[lv - 1].text,
   },
 
-  // ───────── 패시브 ─────────
+  // ───────── 액티브 6종 (기획서 v0.1 핵심 공격 스킬) ─────────
   {
-    id: 'fire-power', kind: 'passive', icon: '🔺', name: '화염 강화', maxLevel: 5,
-    describe: () => '화염탄·화염 브레스·메테오 피해 +20%',
-    apply: (s) => (s.fireMult += 0.2),
+    id: 'breath', kind: 'active', icon: '🔥', name: '화염 브레스', maxLevel: 5,
+    describe: (lv) =>
+      [
+        `${sec(SKILL.breath.interval())}마다 앞쪽 부채꼴 화염 (${pct(SKILL.breath.coef(1))})`,
+        '피해량 +20%',
+        '범위·각도 +20%',
+        '추가 화염 공격 (0.3초 뒤 한 번 더)',
+        '화상 부여 (초당 공격력 20%, 3초, 최대 3중첩)',
+      ][lv - 1],
   },
   {
-    id: 'fire-rate', kind: 'passive', icon: '💨', name: '빠른 숨결', maxLevel: 5,
-    describe: () => '화염탄 발사 간격 −15%',
-    apply: (s) => (s.fireInterval *= 0.85),
+    id: 'ice', kind: 'active', icon: '❄️', name: '얼음 파편', maxLevel: 5,
+    describe: (lv) =>
+      lv === 1
+        ? `가까운 적에게 얼음 파편 (${pct(SKILL.ice.coef(1))}), 맞으면 ${pct(SKILL.ice.slow(1))} 느려짐`
+        : `파편 ${SKILL.ice.count(lv)}개, 피해 ${pct(SKILL.ice.coef(lv))}, 둔화 ${pct(SKILL.ice.slow(lv))}`,
   },
   {
-    id: 'wings', kind: 'passive', icon: '🪽', name: '튼튼한 날개', maxLevel: 3,
-    describe: () => '이동 속도 +12%',
-    apply: (s) => (s.speed *= 1.12),
+    id: 'lightning', kind: 'active', icon: '⚡', name: '번개 숨결', maxLevel: 5,
+    describe: (lv) =>
+      lv === 1
+        ? `적 ${SKILL.lightning.chains(1)}마리 사이를 튀는 번개 (${pct(SKILL.lightning.coef(1))})`
+        : `${SKILL.lightning.chains(lv)}마리 연쇄, 피해 ${pct(SKILL.lightning.coef(lv))}`,
   },
   {
-    id: 'heart', kind: 'passive', icon: '❤️', name: '용의 심장', maxLevel: 5,
-    describe: () => '최대 체력 +20 (늘어난 만큼 회복)',
-    apply: (s) => (s.maxHp += 20),
+    id: 'meteor', kind: 'active', icon: '☄️', name: '드래곤 메테오', maxLevel: 5,
+    describe: (lv) =>
+      lv === 1
+        ? `${sec(SKILL.meteor.interval(1))}마다 적 밀집 지점에 운석 (${pct(SKILL.meteor.coef(1))})`
+        : `운석 ${SKILL.meteor.count(lv)}개, 피해 ${pct(SKILL.meteor.coef(lv))}, 간격 ${sec(SKILL.meteor.interval(lv))}`,
   },
   {
-    id: 'greed', kind: 'passive', icon: '💎', name: '보물 감각', maxLevel: 3,
-    describe: () => '경험치 보석 끌어당기는 거리 +40%',
-    apply: (s) => (s.magnet *= 1.4),
+    id: 'orb', kind: 'active', icon: '🐲', name: '드래곤 오브', maxLevel: 5,
+    describe: (lv) =>
+      lv === 1
+        ? `주위를 도는 보주 1개 (닿은 적 ${pct(SKILL.orb.coef(1))})`
+        : `보주 ${SKILL.orb.count(lv)}개, 피해 ${pct(SKILL.orb.coef(lv))}, 더 빠르게 회전`,
   },
+  {
+    id: 'wind', kind: 'active', icon: '🌪️', name: '날개 폭풍', maxLevel: 5,
+    describe: (lv) =>
+      lv === 1
+        ? `${sec(SKILL.wind.interval(1))}마다 주변 회오리, 적을 밀쳐냄 (${pct(SKILL.wind.coef(1))})`
+        : `피해 ${pct(SKILL.wind.coef(lv))}, 범위·밀쳐내기 증가, 간격 ${sec(SKILL.wind.interval(lv))}`,
+  },
+
+  // ───────── 패시브 8종 (기획서 v0.1 5장: 최대 레벨 효과를 5레벨로 나눔) ─────────
+  { id: 'heart', kind: 'passive', icon: '❤️', name: '용의 심장', maxLevel: 5, describe: () => '최대 HP +10% (늘어난 만큼 회복)', apply: (s) => (s.maxHp += 10) },
+  { id: 'scale', kind: 'passive', icon: '🛡️', name: '용의 비늘', maxLevel: 5, describe: () => '받는 피해 −4%', apply: (s) => (s.damageTaken -= 0.04) },
+  { id: 'amp', kind: 'passive', icon: '🔮', name: '마력 증폭', maxLevel: 5, describe: () => '액티브 스킬 피해 +8% (기본공격 제외)', apply: (s) => (s.skillDamageMult += 0.08) },
+  { id: 'clock', kind: 'passive', icon: '⏳', name: '고대의 시계', maxLevel: 5, describe: () => '액티브 재사용 대기시간 −5% (기본공격 제외)', apply: (s) => (s.cooldownMult -= 0.05) },
+  { id: 'eye', kind: 'passive', icon: '👁️', name: '용의 눈', maxLevel: 5, describe: () => '치명타 확률 +3% (치명타 피해 150%)', apply: (s) => (s.critChance += 0.03) },
+  { id: 'wings', kind: 'passive', icon: '🪽', name: '폭풍의 날개', maxLevel: 5, describe: () => '이동 속도 +5%', apply: (s) => (s.speed += 260 * 0.05) },
+  { id: 'reach', kind: 'passive', icon: '🌀', name: '마력 확장', maxLevel: 5, describe: () => '공격 범위 +6%', apply: (s) => (s.areaMult += 0.06) },
+  { id: 'greed', kind: 'passive', icon: '💎', name: '탐욕의 보석', maxLevel: 5, describe: () => '경험치 획득량 +6%', apply: (s) => (s.xpMult += 0.06) },
 ];
 
-const MAX_SKILLS = 4; // 한 판에 가질 수 있는 공격 스킬 수(고르는 재미를 위해 제한)
+// 후보가 3장보다 적을 때 채우는 보조 카드
+export const FILLERS: Upgrade[] = [
+  { id: 'heal', kind: 'filler', icon: '🍖', name: '용의 만찬', maxLevel: 99, describe: () => '체력 30% 회복' },
+  { id: 'gold', kind: 'filler', icon: '🪙', name: '보물 더미', maxLevel: 99, describe: () => '골드 +20' },
+];
 
-/**
- * 아직 최대 레벨이 아닌 카드 중에서 무작위로 n장 고른다.
- * 스킬을 이미 MAX_SKILLS개 가졌으면 새 스킬은 나오지 않는다(가진 스킬 강화만).
- * 3장 중 최소 1장은 스킬(새 스킬 또는 가진 스킬 강화)이 나오게 해서 성장이 밋밋하지 않게 한다.
- */
-export function rollChoices(levels: Map<string, number>, n = 3): Upgrade[] {
-  const owned = UPGRADES.filter((u) => u.kind === 'skill' && (levels.get(u.id) ?? 0) > 0).length;
-  const pool = UPGRADES.filter((u) => {
-    const lv = levels.get(u.id) ?? 0;
-    if (lv >= u.maxLevel) return false;
-    if (u.kind === 'skill' && lv === 0 && owned >= MAX_SKILLS) return false;
-    return true;
-  });
-  shuffle(pool);
-  const picked = pool.slice(0, n);
-  if (!picked.some((u) => u.kind === 'skill')) {
-    const skill = pool.find((u) => u.kind === 'skill');
-    if (skill && picked.length > 0) picked[picked.length - 1] = skill;
-  }
-  return picked;
+// 카드 유형 가중치 (기획서 v0.2 9쪽): 새 액티브 35 / 액티브 강화 30 / 기본공격 강화 15 / 패시브 20
+type OfferType = 'newActive' | 'upActive' | 'basic' | 'passive';
+const WEIGHTS: Record<OfferType, number> = { newActive: 35, upActive: 30, basic: 15, passive: 20 };
+
+export interface OfferState {
+  levels: Map<string, number>; // 카드별 현재 레벨(0 = 없음)
+  playerLevel: number; // 이번 카드로 도달한 전투 레벨
+  basicEverOffered: boolean; // 지금까지 기본공격 카드가 한 번이라도 나왔는지
 }
 
-function shuffle<T>(arr: T[]): void {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
+/**
+ * 레벨업 카드 3장 만들기 (기획서 v0.2 13쪽 순서):
+ * 1) 슬롯·최대 레벨로 유효 후보를 거르고  2) 보장 규칙과 가중치로 유형을 뽑고
+ * 3) 한 화면에 같은 카드가 없게 3장을 채운다. 모자라면 보조 카드.
+ */
+export function rollOffer(st: OfferState, rnd: () => number = Math.random): Upgrade[] {
+  const lv = (id: string) => st.levels.get(id) ?? 0;
+  const owned = (kind: CardKind) => UPGRADES.filter((u) => u.kind === kind && lv(u.id) > 0).length;
+  const notMax = (u: Upgrade) => lv(u.id) < u.maxLevel;
+
+  const pools: Record<OfferType, Upgrade[]> = {
+    newActive: owned('active') < ACTIVE_SLOTS ? UPGRADES.filter((u) => u.kind === 'active' && lv(u.id) === 0) : [],
+    upActive: UPGRADES.filter((u) => u.kind === 'active' && lv(u.id) > 0 && notMax(u)),
+    basic: UPGRADES.filter((u) => u.kind === 'basic' && notMax(u)),
+    passive: UPGRADES.filter(
+      (u) => u.kind === 'passive' && notMax(u) && (lv(u.id) > 0 || owned('passive') < PASSIVE_SLOTS),
+    ),
+  };
+
+  const picked: Upgrade[] = [];
+  const take = (type: OfferType) => {
+    const pool = pools[type].filter((u) => !picked.includes(u));
+    if (pool.length === 0) return false;
+    picked.push(pool[Math.floor(rnd() * pool.length)]);
+    return true;
+  };
+
+  // 보장 규칙: 레벨 4까지 기본공격 카드가 한 번도 안 나왔거나, 레벨 9까지 기본공격 Lv.3 미만이면 한 칸 보장
+  const basicLv = lv('basic');
+  const guarantee = (st.playerLevel > 4 && !st.basicEverOffered) || (st.playerLevel > 9 && basicLv < 3);
+  if (guarantee) take('basic');
+
+  while (picked.length < 3) {
+    const types = (Object.keys(WEIGHTS) as OfferType[]).filter((t) => pools[t].some((u) => !picked.includes(u)));
+    if (types.length === 0) break;
+    const total = types.reduce((a, t) => a + WEIGHTS[t], 0);
+    let r = rnd() * total;
+    const type = types.find((t) => (r -= WEIGHTS[t]) < 0) ?? types[types.length - 1];
+    take(type);
   }
+  for (const f of FILLERS) if (picked.length < 3) picked.push(f);
+  return picked;
 }
