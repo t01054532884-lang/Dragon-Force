@@ -9,9 +9,10 @@ export const ITEMS: Record<ItemId, { name: string; color: string }> = {
   shield: { name: '용의 수호막', color: '#9be7ff' },
 };
 
-/** 일반 몬스터 1마리당 드롭 확률(합 0.5%). 처치마다 한 번만 판정, 최대 1종. */
+/** 일반 몬스터 1마리당 드롭 확률(합 0.42%). 처치마다 한 번만 판정, 최대 1종.
+ *  v1.3: 강화 상자 0.10% → 0.02%(판당 일반 처치 약 2,500 → 상자 평균 0.5개 + 엘리트 확정 최대 2개) */
 export const NORMAL_DROP: [ItemId, number][] = [
-  ['box', 0.001],
+  ['box', 0.0002],
   ['potion', 0.0018],
   ['magnet', 0.0012],
   ['shield', 0.001],

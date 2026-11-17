@@ -55,7 +55,7 @@ export function applyPermanent(base: RunStats, up: PermanentUpgrades): RunStats 
 export const GOLD = {
   base: 30, // 기본 보상
   survivalPer30s: 10, // 생존 30초마다
-  killsPerStep: 20, // 일반 적 20마리마다
+  killsPerStep: 100, // 일반 적 100마리마다(v1.3: 20 → 100, 상한 도달 320 → 1,600마리)
   goldPerKillStep: 5,
   killGoldCap: 80,
   elite: 20, // 엘리트 1마리당

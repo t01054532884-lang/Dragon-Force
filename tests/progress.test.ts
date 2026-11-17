@@ -76,11 +76,11 @@ describe('골드 정산', () => {
   });
   it('클리어 범위 340~460G', () => {
     expect(computeRunGold(run({})).total).toBe(340);
-    expect(computeRunGold(run({ normalKills: 999, eliteKills: 2 })).total).toBe(460);
+    expect(computeRunGold(run({ normalKills: 2500, eliteKills: 2 })).total).toBe(460);
   });
   it('사망: 보물 더미 포함 총액의 50%', () => {
-    const g = computeRunGold(run({ outcome: 'dead', bossKilled: false, elapsedMs: 125_000, normalKills: 45, eliteKills: 1, treasureGold: 20 }));
-    // 30 + 40(4×30초) + 10(40마리) + 20 + 20 = 120 → 60
+    const g = computeRunGold(run({ outcome: 'dead', bossKilled: false, elapsedMs: 125_000, normalKills: 245, eliteKills: 1, treasureGold: 20 }));
+    // 30 + 40(4×30초) + 10(200마리) + 20 + 20 = 120 → 60
     expect(g.subtotal).toBe(120);
     expect(g.total).toBe(60);
   });
@@ -101,9 +101,16 @@ describe('골드 정산', () => {
   });
 });
 
+describe('처치 보상(v1.3: 100마리당 5G, 최대 80G)', () => {
+  const kills = (n: number) => computeRunGold({ stageId: 1, durationMs: 480_000, outcome: 'clear', elapsedMs: 400_000, normalKills: n, eliteKills: 0, bossKilled: true, treasureGold: 0 }).lines[2].gold;
+  it('99 → 0G, 100 → 5G, 320 → 15G, 1,599 → 75G, 1,600 → 80G, 2,500 → 80G', () => {
+    expect([99, 100, 320, 1599, 1600, 2500].map(kills)).toEqual([0, 5, 15, 75, 80, 80]);
+  });
+});
+
 describe('시간 초과', () => {
   it('8분 생존 보상 160G를 넣고 전체에 50%', () => {
-    const g = computeRunGold({ stageId: 1, durationMs: 480_000, outcome: 'timeout', elapsedMs: 480_016, normalKills: 400, eliteKills: 2, bossKilled: false, treasureGold: 0 });
+    const g = computeRunGold({ stageId: 1, durationMs: 480_000, outcome: 'timeout', elapsedMs: 480_016, normalKills: 2500, eliteKills: 2, bossKilled: false, treasureGold: 0 });
     // 30 + 160 + 80 + 40 = 310 → 155
     expect(g.subtotal).toBe(310);
     expect(g.total).toBe(155);
