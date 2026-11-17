@@ -6,11 +6,13 @@ import { REWARD, STAGES, type StageData } from '../data/stages';
 import { rollOffer, UPGRADES, type Upgrade } from '../data/upgrades';
 import { Enemy, type EnemyAction } from '../objects/Enemy';
 import { Skills } from '../systems/Skills';
-import { BasicAttack } from '../systems/BasicAttack';
+import { BasicAttack, NO_TRAITS } from '../systems/BasicAttack';
 import { resolveDamage, type HitSpec } from '../systems/Damage';
 import type { CombatHost } from '../systems/CombatHost';
 import { StageDirector } from '../systems/StageDirector';
-import { applyPermanent, computeRunGold, type GoldBreakdown, type RunOutcome } from '../data/progression';
+import { buildRunStats, computeRunGold, type GoldBreakdown, type RunOutcome } from '../data/progression';
+import { DRAGONS, type DragonDef, type DragonId } from '../data/dragons';
+import { setBasicCard } from '../data/upgrades';
 import { Progress } from '../systems/Progress';
 import { ITEM_RULES, ITEMS, rollNormalDrop, type ItemId } from '../data/items';
 
@@ -66,11 +68,16 @@ export class GameScene extends Phaser.Scene {
   private settled = false;
   /** 연구소 생명력 강화로 늘어난 최대 HP. 35% 피해 상한 계산에서는 뺀다(v1.1 3번) */
   private permHpBonus = 0;
+  /** 이번 판에 출격한 드래곤(전투 중에는 바뀌지 않음) */
+  dragon: DragonDef = DRAGONS.red;
+  private traitMult = 1;
+  private ticketRewards: { text: string; tickets: number }[] = [];
   private pauseLayer: Phaser.GameObjects.GameObject[] = [];
   private mode: Mode = 'play';
   private facing = new Phaser.Math.Vector2(0, -1);
   private skills!: Skills;
   private basic!: BasicAttack;
+  private basicTraits = NO_TRAITS;
   private hazards: Hazard[] = [];
   private currentChoices: Upgrade[] = [];
   /** 전투 로그: 공격 원천별 누적 피해(밸런스 검증용) */
@@ -97,11 +104,14 @@ export class GameScene extends Phaser.Scene {
   private stickPointerId: number | null = null;
   private stickVec = new Phaser.Math.Vector2();
 
+  private forcedDragon?: DragonId;
+
   constructor() {
     super('game');
   }
 
-  init(data: { stageId?: number; seed?: number }): void {
+  init(data: { stageId?: number; seed?: number; dragonId?: DragonId }): void {
+    this.forcedDragon = data?.dragonId;
     this.stage = STAGES.find((s) => s.id === (data?.stageId ?? 1)) ?? STAGES[0];
     // 시드: 주소에 ?seed=123 이 있으면 그 값, 아니면 무작위. 같은 시드면 적 생성·위치가 똑같이 재현된다.
     const urlSeed = Number(new URLSearchParams(location.search).get('seed'));
@@ -111,9 +121,18 @@ export class GameScene extends Phaser.Scene {
   create(): void {
     // scene.restart() 때 필드가 이전 판 값을 들고 있으므로 전부 다시 초기화한다(완료 기준: 재도전 시 정상 초기화).
     this.rng = new Phaser.Math.RandomDataGenerator([String(this.seed)]);
-    // 연구소 영구 강화는 판 시작 때 한 번만 적용해 고정한다(전투 중에는 바뀌지 않음)
-    this.stats = applyPermanent(BASE_STATS, Progress.load().upgrades);
-    this.permHpBonus = this.stats.maxHp - BASE_STATS.maxHp;
+    // 출격 드래곤 확인 → 연구소·드래곤 레벨·승급을 판 시작 때 한 번만 적용해 고정(전투 중에는 바뀌지 않음)
+    const prog = Progress.load();
+    const did = this.forcedDragon && prog.ownedDragons[this.forcedDragon] ? this.forcedDragon : prog.selectedDragonId;
+    this.dragon = DRAGONS[did] ?? DRAGONS.red;
+    const owned = prog.ownedDragons[this.dragon.id] ?? { level: 1, stars: 1 };
+    const built = buildRunStats(this.dragon, prog.upgrades, owned);
+    this.stats = built.stats;
+    this.permHpBonus = built.permHpBonus;
+    this.traitMult = built.traitMult;
+    this.basicTraits = built.traits;
+    this.ticketRewards = [];
+    setBasicCard(this.dragon.basic);
     this.hp = this.stats.maxHp;
     this.level = 1;
     this.xp = 0;
@@ -149,13 +168,13 @@ export class GameScene extends Phaser.Scene {
     this.physics.world.timeScale = 1;
     this.tweens.timeScale = 1;
     this.time.paused = false;
-    if (!this.textures.exists('dragon')) makeTextures(this);
+    if (!this.textures.exists('dragon-red')) makeTextures(this);
 
     this.drawArena();
     this.physics.world.setBounds(0, 0, WORLD_SIZE, WORLD_SIZE);
     this.cameras.main.setBounds(0, 0, WORLD_SIZE, WORLD_SIZE);
 
-    this.player = this.physics.add.image(this.arena.x, this.arena.y + ARENA_R * 0.4, 'dragon').setDepth(10);
+    this.player = this.physics.add.image(this.arena.x, this.arena.y + ARENA_R * 0.4, `dragon-${this.dragon.id}`).setDepth(10);
     this.player.setCircle(18, 14, 18);
     this.cameras.main.startFollow(this.player, true, 0.15, 0.15);
 
@@ -191,8 +210,14 @@ export class GameScene extends Phaser.Scene {
       enemies: () => this.enemies.getChildren() as Enemy[],
       level: (id) => this.upgradeLevels.get(id) ?? 0,
       hit: (e, spec) => this.hitEnemy(e, spec),
+      heal: (pct) => {
+        const amount = Math.min(this.stats.maxHp - this.hp, this.stats.maxHp * pct);
+        if (amount <= 0) return;
+        this.hp += amount;
+        this.popText(this.player.x, this.player.y - 50, `+${amount.toFixed(1)}`, '#fff3c4');
+      },
     };
-    this.basic = new BasicAttack(host);
+    this.basic = new BasicAttack(host, this.dragon.basic, this.basicTraits);
     this.skills = new Skills(host);
 
     this.createHud();
@@ -448,6 +473,9 @@ export class GameScene extends Phaser.Scene {
       this.keepInArena(e, e.def.radius);
       const burnCoef = e.tickBurn(delta);
       if (burnCoef > 0) this.hitEnemy(e, { source: 'dot', coef: burnCoef, tag: 'burn' });
+      if (!e.active) continue;
+      const poisonCoef = e.tickPoison(delta);
+      if (poisonCoef > 0) this.hitEnemy(e, { source: 'dot', coef: poisonCoef, tag: 'poison' });
     }
   }
 
@@ -531,13 +559,33 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** 모든 공격(기본공격·스킬·화상)이 적에게 피해를 줄 때 거치는 한 곳 */
-  private hitEnemy(enemy: Enemy, spec: HitSpec): void {
-    if (!enemy.active || this.mode !== 'play') return;
-    const { amount, crit } = resolveDamage(this.stats, spec);
+  private hitEnemy(enemy: Enemy, spec: HitSpec): boolean {
+    if (!enemy.active || this.mode !== 'play') return false;
+    const { amount, crit } = resolveDamage(this.stats, { ...spec, bonus: this.damageBonus(enemy, spec) });
     const tag = spec.tag ?? spec.source;
     this.dmgLog[tag] = (this.dmgLog[tag] ?? 0) + amount;
     if (crit) this.popText(enemy.x, enemy.y - 20, `${Math.round(amount)}!`, '#ffd34d');
-    if (enemy.hurt(amount)) this.killEnemy(enemy);
+    if (enemy.hurt(amount)) {
+      this.killEnemy(enemy, tag);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * 대상에 따라 붙는 추가 배율: 드래곤 고유 특성(별 등급 강화 반영) × 감전.
+   * 특성은 지속 피해(화상·중독 틱)에는 붙지 않는다.
+   */
+  private damageBonus(e: Enemy, spec: HitSpec): number {
+    const t = this.dragon.trait;
+    const v = t.value * this.traitMult;
+    let add = 0;
+    if (spec.source !== 'dot') {
+      if (t.id === 'burnBonus' && e.burnCount > 0) add += v; // 레드: 화상 상태 적 +10%
+      if (t.id === 'slowBonus' && e.slowed) add += v; // 블루: 둔화된 적 +20%
+      if (t.id === 'execute' && spec.source === 'basic' && e.hp <= e.maxHp * 0.3) add += v; // 블랙: HP 30% 이하 +20%(기본 공격)
+    }
+    return (1 + add) * e.vulnMult;
   }
 
   private popText(x: number, y: number, text: string, color: string): void {
@@ -545,8 +593,9 @@ export class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: t, y: y - 40, alpha: 0, duration: 600, onComplete: () => t.destroy() });
   }
 
-  private killEnemy(enemy: Enemy): void {
+  private killEnemy(enemy: Enemy, tag = ''): void {
     this.kills++;
+    this.basic.onKill(enemy, tag.startsWith('basic'));
     if (enemy.rank === 'normal') this.normalKills++;
     const d = this.director;
     if (enemy === d.boss) {
@@ -929,12 +978,25 @@ export class GameScene extends Phaser.Scene {
     if (!this.settled) {
       this.settled = true;
       const next = clear ? this.stage.id + 1 : undefined;
-      paid = Progress.settle(this.runId, gold.total, next).paid;
+      const r = Progress.settle(this.runId, gold.total, next, {
+        stageId: this.stage.id, cleared: clear, elapsedMs: this.elapsed, normalKills: this.normalKills, eliteKills: this.eliteKills,
+      });
+      paid = r.paid;
+      this.ticketRewards = r.rewards;
     }
     if (clear) this.stageLog.push({ name: 'stage:clear', at: Math.round(this.elapsed), data: { gold: gold.total } });
     this.stageLog.push({ name: 'run:settled', at: Math.round(this.elapsed), data: { ...gold, paid } });
     const bank = Progress.load().gold;
 
+    if (this.ticketRewards.length) {
+      // 소환권 보상 내역은 결과 화면 위에 잠깐 띄운다(첫 클리어·업적)
+      const t = this.add
+        .text(360, 560, this.ticketRewards.map((r) => `🎟 ${r.text} — 소환권 +${r.tickets}`).join('\n'), {
+          fontFamily: 'sans-serif', fontSize: '28px', fontStyle: 'bold', color: '#e1bee7', align: 'center', stroke: '#000', strokeThickness: 6, lineSpacing: 8,
+        })
+        .setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 120);
+      this.tweens.add({ targets: t, alpha: 0, delay: 2600, duration: 600, onComplete: () => t.destroy() });
+    }
     const sec = (ms: number | null | undefined) => (ms == null ? '—' : `${(ms / 1000).toFixed(1)}초`);
     const eliteLines = d.eliteSlots.map((st, i) => {
       const label = { pending: '미등장', warning: '미등장', alive: '생존', killed: `처치 ${sec(d.record.eliteKillMs[i])}`, absorbed: '보스에 흡수' }[st];
@@ -944,7 +1006,7 @@ export class GameScene extends Phaser.Scene {
     const top = Object.entries(this.dmgLog)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 4)
-      .map(([k, v]) => `${sourceName(k)} ${Math.round((v / total) * 100)}%`)
+      .map(([k, v]) => `${k === 'basic' ? this.dragon.basic.name : sourceName(k)} ${Math.round((v / total) * 100)}%`)
       .join(' · ');
     const timeTxt = this.timeText.text.split(' /')[0];
     const headline =
@@ -952,7 +1014,7 @@ export class GameScene extends Phaser.Scene {
       reason === 'timeout' ? '시간 초과 — 8분 안에 보스를 쓰러뜨리지 못했다' :
       reason === 'quit' ? `포기 — ${timeTxt}` : `버틴 시간 ${timeTxt}`;
     const lines = [
-      `${this.stage.id}단계 ${this.stage.name}`,
+      `${this.stage.id}단계 ${this.stage.name} · ${this.dragon.name}`,
       headline,
       `Lv.${this.level} · 처치 ${this.kills}`,
       '',
@@ -962,6 +1024,7 @@ export class GameScene extends Phaser.Scene {
       `피해 비중: ${top || '—'}`,
       `시드 ${this.seed}`,
     ];
+    const tickets = this.ticketRewards.reduce((a, r) => a + r.tickets, 0);
 
     const add = (o: Phaser.GameObjects.GameObject & { setScrollFactor: (n: number) => unknown; setDepth: (n: number) => unknown }) => {
       o.setScrollFactor(0);
@@ -989,7 +1052,7 @@ export class GameScene extends Phaser.Scene {
     add(this.add.text(650, 695, goldValues(gold).join('\n'), { fontFamily: 'sans-serif', fontSize: '22px', color: '#dfe6f5', lineSpacing: 4, align: 'right' }).setOrigin(1, 0));
     add(
       this.add
-        .text(360, 993, `${paid ? '+' : ''}${gold.total}G 획득   ·   보유 ${bank.toLocaleString()}G`, { fontFamily: 'sans-serif', fontSize: '30px', fontStyle: 'bold', color: '#ffd34d' })
+        .text(360, 993, `${paid ? '+' : ''}${gold.total}G 획득${tickets ? `  ·  🎟 +${tickets}장` : ''}  ·  보유 ${bank.toLocaleString()}G`, { fontFamily: 'sans-serif', fontSize: '28px', fontStyle: 'bold', color: '#ffd34d' })
         .setOrigin(0.5),
     );
 
@@ -1035,8 +1098,10 @@ function goldValues(g: GoldBreakdown): string[] {
 
 function sourceName(tag: string): string {
   const map: Record<string, string> = {
-    basic: '화염탄', 'basic-explosion': '지옥 폭발', burn: '화상', breath: '브레스', ice: '얼음', lightning: '번개',
-    meteor: '메테오', orb: '오브', wind: '날개 폭풍',
+    basic: '화염탄', 'basic-explosion': '폭발', burn: '화상', breath: '브레스', ice: '얼음', lightning: '번개',
+    meteor: '메테오', orb: '오브', wind: '날개 폭풍', poison: '중독', 'basic-chain': '연쇄', 'basic-splash': '충격파',
+    'basic-split': '분열', 'basic-shard': '파편', 'basic-spin': '회전 칼날', 'basic-wave': '파도', 'basic-freeze': '빙결 폭발',
+    'basic-poison-burst': '독 폭발',
   };
   return map[tag] ?? tag;
 }

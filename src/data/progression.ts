@@ -1,4 +1,6 @@
 import type { RunStats } from './stats';
+import { BASE_STATS } from './stats';
+import { levelBonus, NO_TRAITS, starBonus, type BasicTraits, type DragonDef } from './dragons';
 
 // 5단계 영구 성장 수치 (제작자 기획서 v1.0 + v1.1 수정, 2026-11-18 확정)
 // 테스트하며 조정할 수 있도록 숫자는 모두 이 파일에 모은다.
@@ -49,6 +51,40 @@ export function applyPermanent(base: RunStats, up: PermanentUpgrades): RunStats 
     speed: base.speed * upgradeMult('speed', up.speed),
     magnet: base.magnet * upgradeMult('pickup', up.pickup),
   };
+}
+
+/**
+ * 6단계: 판 시작 능력치 = 드래곤 기본값 × (1 + 연구소 + 드래곤 레벨 + 승급) — 같은 능력치의 영구 보너스는 더한다.
+ * 연구소 Lv.0 · 드래곤 Lv.1 · 1성 레드는 4·5단계 `BASE_STATS`와 똑같다.
+ * permHpBonus: 영구 HP 증가분 전체(연구소·레벨·승급). 35% 피해 상한 기준에서 뺀다.
+ */
+export function buildRunStats(
+  def: DragonDef,
+  up: PermanentUpgrades,
+  owned: { level: number; stars: number },
+): { stats: RunStats; permHpBonus: number; traitMult: number; traits: BasicTraits } {
+  const lb = levelBonus(owned.level);
+  const sb = starBonus(owned.stars);
+  const t = def.trait.value * sb.traitMult;
+  const baseHp = def.baseHp;
+  const stats: RunStats = {
+    ...BASE_STATS,
+    attack: def.baseAttack * (1 + up.attack * PERMANENT_UPGRADES.attack.bonusPerLevel + lb.attack + sb.attack),
+    maxHp: baseHp * (1 + up.hp * PERMANENT_UPGRADES.hp.bonusPerLevel + lb.hp + sb.hp),
+    speed: def.baseMoveSpeed * (1 + up.speed * PERMANENT_UPGRADES.speed.bonusPerLevel + (def.trait.id === 'swift' ? t : 0)),
+    magnet: BASE_STATS.magnet * (1 + up.pickup * PERMANENT_UPGRADES.pickup.bonusPerLevel),
+    damageTaken: 1 - (def.trait.id === 'guard' ? t : 0),
+  };
+  const traits: BasicTraits = {
+    ...NO_TRAITS,
+    intervalMult: def.trait.id === 'haste' ? 1 - t : 1,
+    poisonDurMult: def.trait.id === 'poisonDuration' ? 1 + t : 1,
+    slowDurMult: def.trait.id === 'slowDuration' ? 1 + t : 1,
+    chainRelief: def.trait.id === 'chainRelief' ? t : 0,
+    killHealChance: def.trait.id === 'killHeal' ? t : 0,
+    killHealPct: 0.01,
+  };
+  return { stats, permHpBonus: stats.maxHp - baseHp, traitMult: sb.traitMult, traits };
 }
 
 // ───────── 골드 보상 (기획서 v1.0 4장 + v1.1) ─────────

@@ -21,6 +21,12 @@ export interface Upgrade {
 }
 
 export const ACTIVE_SLOTS = 6;
+
+/** 기본공격 카드가 보여 줄 드래곤 기본 공격(판 시작 때 게임 장면이 정한다) */
+let currentBasic: { name: string; icon: string; levels: { text: string }[] } = RED_BASIC;
+export function setBasicCard(spec: { name: string; icon: string; levels: { text: string }[] }): void {
+  currentBasic = spec;
+}
 export const PASSIVE_SLOTS = 4;
 
 // ── 액티브 스킬 수치: 레벨(1~5)을 넣으면 값이 나오는 함수. 피해는 "공격력 대비 계수"(1.0 = 100%).
@@ -76,9 +82,16 @@ const pct = (x: number) => `${Math.round(x * 100)}%`;
 
 export const UPGRADES: Upgrade[] = [
   // ───────── 고유 기본공격 (레드 드래곤) ─────────
+  // 6단계: 이름·아이콘·설명은 지금 출격한 드래곤의 기본 공격을 따른다(setBasicCard). 최대 Lv.7은 10종 공통.
   {
-    id: 'basic', kind: 'basic', icon: RED_BASIC.icon, name: RED_BASIC.name, maxLevel: RED_BASIC.levels.length,
-    describe: (lv) => RED_BASIC.levels[lv - 1].text,
+    id: 'basic', kind: 'basic', maxLevel: 7,
+    get icon() {
+      return currentBasic.icon;
+    },
+    get name() {
+      return currentBasic.name;
+    },
+    describe: (lv) => currentBasic.levels[lv - 1].text,
   },
 
   // ───────── 액티브 6종 (기획서 v0.1 핵심 공격 스킬) ─────────

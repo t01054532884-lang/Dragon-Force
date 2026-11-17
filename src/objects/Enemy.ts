@@ -51,6 +51,14 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
   private burnStacks: number[] = [];
   private burnPerStack = 0;
   private burnTick = 0;
+  // 6단계 상태이상: 중독(중첩 지속 피해) · 행동 불가(빙결·기절) · 감전(받는 피해 증가)
+  private poisonStacks: number[] = [];
+  private poisonPerStack = 0;
+  private poisonTick = 0;
+  private ccLeft = 0;
+  private ccKind: 'freeze' | 'stun' | null = null;
+  private vulnLeft = 0;
+  vulnMult = 1;
   orbHitAt = -Infinity;
   private queue: Move[] = [];
   private moveLeft = -1;
@@ -94,9 +102,23 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
       this.slowLeft -= delta;
       if (this.slowLeft <= 0) this.refreshTint();
     }
+    if (this.vulnLeft > 0) {
+      this.vulnLeft -= delta;
+      if (this.vulnLeft <= 0) this.vulnMult = 1;
+    }
     if (this.knockLeft > 0) {
       this.knockLeft -= delta;
       this.body.setVelocity(this.knockVel.x, this.knockVel.y);
+      return out;
+    }
+    if (this.ccLeft > 0) {
+      // 빙결·기절: 제자리에 멈춘다(패턴 시간도 흐르지 않음)
+      this.ccLeft -= delta;
+      this.body.setVelocity(0, 0);
+      if (this.ccLeft <= 0) {
+        this.ccKind = null;
+        this.refreshTint();
+      }
       return out;
     }
 
@@ -280,6 +302,66 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
     if (this.hitFlash <= 0) this.refreshTint();
   }
 
+  /** 중독: 중첩마다 남은 시간을 따로 들고, 최대치면 가장 오래된 것을 새로 고친다(화상과 같은 방식) */
+  poison(perSecCoef: number, ms: number, maxStacks: number): void {
+    this.poisonPerStack = perSecCoef;
+    if (this.poisonStacks.length < maxStacks) this.poisonStacks.push(ms);
+    else {
+      const oldest = this.poisonStacks.indexOf(Math.min(...this.poisonStacks));
+      this.poisonStacks[oldest] = ms;
+    }
+    if (this.hitFlash <= 0) this.refreshTint();
+  }
+
+  get poisonCount(): number {
+    return this.poisonStacks.length;
+  }
+
+  tickPoison(delta: number): number {
+    if (this.poisonStacks.length === 0) return 0;
+    this.poisonTick += delta;
+    let coef = 0;
+    while (this.poisonTick >= 500) {
+      this.poisonTick -= 500;
+      coef += this.poisonStacks.length * this.poisonPerStack * 0.5;
+    }
+    this.poisonStacks = this.poisonStacks.map((t) => t - delta).filter((t) => t > 0);
+    if (this.poisonStacks.length === 0) {
+      this.poisonTick = 0;
+      this.refreshTint();
+    }
+    return coef;
+  }
+
+  /**
+   * 빙결·기절. 일반 적만 멈춘다. 엘리트·보스는 패턴이 끊기지 않도록 멈추지 않고
+   * 같은 시간 동안 50% 둔화(군중제어 저항이 다시 곱해져 실제 20%)로 바꾼다.
+   */
+  hardCc(kind: 'freeze' | 'stun', ms: number): boolean {
+    if (this.def.rank !== 'normal') {
+      this.slow(0.5, ms);
+      return false;
+    }
+    this.ccLeft = Math.max(this.ccLeft, ms);
+    this.ccKind = kind;
+    this.refreshTint();
+    return true;
+  }
+
+  get frozen(): boolean {
+    return this.ccLeft > 0 && this.ccKind === 'freeze';
+  }
+
+  get slowed(): boolean {
+    return this.slowLeft > 0 || this.ccLeft > 0;
+  }
+
+  /** 감전: ms 동안 모든 피해를 mult배 받는다(다시 걸리면 시간 갱신, 배율은 큰 쪽) */
+  shock(mult: number, ms: number): void {
+    this.vulnMult = Math.max(this.vulnLeft > 0 ? this.vulnMult : 1, mult);
+    this.vulnLeft = Math.max(this.vulnLeft, ms);
+  }
+
   get burnCount(): number {
     return this.burnStacks.length;
   }
@@ -300,11 +382,13 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
     return coef;
   }
 
-  /** 상태 색: 기절(회색) > 얼음(푸른색) > 화상(주황색) > 원래 색 */
+  /** 상태 색: 빙결(하늘색) > 기절(회색) > 얼음(푸른색) > 화상(주황색) > 중독(보라) > 원래 색 */
   private refreshTint(): void {
-    if (this.stunned) this.setTint(0x9e9e9e);
+    if (this.ccLeft > 0 && this.ccKind === 'freeze') this.setTint(0xc9f0ff);
+    else if (this.stunned || this.ccLeft > 0) this.setTint(0x9e9e9e);
     else if (this.slowLeft > 0) this.setTint(0x8fd3ff);
     else if (this.burnStacks.length > 0) this.setTint(0xffa64d);
+    else if (this.poisonStacks.length > 0) this.setTint(0xb388ff);
     else this.clearTint();
   }
 }

@@ -12,6 +12,8 @@ export interface HitSpec {
   sameVolley?: number;
   /** 전투 로그용 공격 원천 이름(예: 'basic', 'breath', 'burn') */
   tag?: string;
+  /** 대상에 따른 추가 배율(드래곤 특성·감전). 게임 장면이 채운다. 없으면 1 */
+  bonus?: number;
 }
 
 export interface HitResult {
@@ -20,7 +22,7 @@ export interface HitResult {
 }
 
 export function resolveDamage(stats: RunStats, hit: HitSpec): HitResult {
-  let d = stats.attack * hit.coef * (hit.levelMod ?? 1) * (hit.sameVolley ?? 1);
+  let d = stats.attack * hit.coef * (hit.levelMod ?? 1) * (hit.sameVolley ?? 1) * (hit.bonus ?? 1);
   // 마력 증폭은 액티브에만(기본공격 DPS 폭주 방지 — 기획서 13쪽)
   if (hit.source === 'active') d *= stats.skillDamageMult;
   // 상태이상 지속 피해(화상 등)는 치명타 불가
