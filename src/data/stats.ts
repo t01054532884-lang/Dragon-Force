@@ -9,6 +9,7 @@ export interface RunStats {
   fireSpeed: number; // 화염탄 속도
   magnet: number; // 경험치 보석을 끌어당기는 거리(px)
   armor: number; // 받는 피해 감소 비율(0~0.6)
+  fireMult: number; // 화염 계열(화염탄·브레스·메테오) 피해 배율
 }
 
 export const BASE_STATS: RunStats = {
@@ -20,6 +21,7 @@ export const BASE_STATS: RunStats = {
   fireSpeed: 540,
   magnet: 110,
   armor: 0,
+  fireMult: 1,
 };
 
 /** 다음 레벨까지 필요한 경험치. 초반엔 빨리, 갈수록 천천히 오른다. */

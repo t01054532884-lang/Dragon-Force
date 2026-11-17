@@ -8,6 +8,10 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
   hp: number;
   private shootTimer = 0;
   private hitFlash = 0;
+  private slowLeft = 0; // 둔화가 남은 시간(ms)
+  private slowRatio = 0; // 0.4면 40% 느려짐
+  /** 오브처럼 계속 닿는 공격이 같은 적을 매 프레임 때리지 않게 기억해 두는 시각 */
+  orbHitAt = -Infinity;
 
   constructor(scene: Phaser.Scene, x: number, y: number, readonly kind: EnemyKind) {
     const def = ENEMIES[kind];
@@ -29,12 +33,17 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
     let speed = this.def.speed;
     const ranged = this.def.ranged;
     if (ranged && dist < ranged.keepDistance) speed = 0;
+    if (this.slowLeft > 0) {
+      this.slowLeft -= delta;
+      speed *= 1 - this.slowRatio;
+      if (this.slowLeft <= 0) this.refreshTint();
+    }
     this.body.setVelocity((dx / dist) * speed, (dy / dist) * speed);
     this.setFlipX(dx < 0);
 
     if (this.hitFlash > 0) {
       this.hitFlash -= delta;
-      if (this.hitFlash <= 0) this.clearTint();
+      if (this.hitFlash <= 0) this.refreshTint();
     }
 
     if (!ranged || dist > ranged.keepDistance + 80) return false;
@@ -50,5 +59,18 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
     this.setTint(0xff6b6b);
     this.hitFlash = 80;
     return this.hp <= 0;
+  }
+
+  /** 얼음 파편: 일정 시간 느려진다. 더 센 둔화가 오면 덮어쓴다. */
+  slow(ratio: number, ms: number): void {
+    this.slowRatio = Math.max(this.slowLeft > 0 ? this.slowRatio : 0, ratio);
+    this.slowLeft = Math.max(this.slowLeft, ms);
+    if (this.hitFlash <= 0) this.refreshTint();
+  }
+
+  /** 맞은 반짝임이 끝나면 원래 색(얼어 있으면 푸른색)으로 돌린다. */
+  private refreshTint(): void {
+    if (this.slowLeft > 0) this.setTint(0x8fd3ff);
+    else this.clearTint();
   }
 }

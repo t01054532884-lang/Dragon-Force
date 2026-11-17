@@ -2,8 +2,9 @@ import Phaser from 'phaser';
 import { makeTextures } from '../textures';
 import { ENEMIES, type EnemyKind } from '../data/enemies';
 import { BASE_STATS, xpToNext, type RunStats } from '../data/stats';
-import { rollChoices, type Upgrade } from '../data/upgrades';
+import { rollChoices, UPGRADES, type Upgrade } from '../data/upgrades';
 import { Enemy } from '../objects/Enemy';
+import { Skills } from '../systems/Skills';
 
 const WORLD_SIZE = 4000; // 맵 한 변 길이(px). 화면보다 훨씬 넓고 카메라가 따라다닌다.
 const SPAWN_RADIUS = 820; // 화면 밖(드래곤에서 이만큼 떨어진 곳)에서 적이 나온다.
@@ -32,12 +33,15 @@ export class GameScene extends Phaser.Scene {
   private spawnCooldown = 0;
   private kills = 0;
   private mode: Mode = 'play';
+  private facing = new Phaser.Math.Vector2(0, -1); // 마지막으로 움직인 방향(브레스가 이쪽으로 나감)
+  private skills!: Skills;
 
   // 화면 고정 UI
   private hpBar!: Phaser.GameObjects.Graphics;
   private timeText!: Phaser.GameObjects.Text;
   private killText!: Phaser.GameObjects.Text;
   private levelText!: Phaser.GameObjects.Text;
+  private skillText!: Phaser.GameObjects.Text;
   private choiceLayer: Phaser.GameObjects.GameObject[] = [];
 
   // 터치 조이스틱: 화면을 누른 곳이 중심, 끌고 간 방향으로 이동
@@ -64,6 +68,7 @@ export class GameScene extends Phaser.Scene {
     this.spawnCooldown = 0;
     this.kills = 0;
     this.mode = 'play';
+    this.facing.set(0, -1);
     this.choiceLayer = [];
     this.stickPointerId = null;
     this.stickVec.set(0, 0);
@@ -105,6 +110,16 @@ export class GameScene extends Phaser.Scene {
       if (this.mode === 'choose' && n >= 1 && n <= 3) this.pickChoice(n - 1);
     });
 
+    this.skills = new Skills({
+      scene: this,
+      player: this.player,
+      facing: this.facing,
+      stats: this.stats,
+      enemies: () => this.enemies.getChildren() as Enemy[],
+      level: (id) => this.upgradeLevels.get(id) ?? 0,
+      damage: (e, amount) => this.damageEnemy(e, amount),
+    });
+
     this.createHud();
     this.createJoystick();
   }
@@ -117,6 +132,7 @@ export class GameScene extends Phaser.Scene {
     this.timeText = this.add.text(360, 96, '00:00', style).setOrigin(0.5, 0).setScrollFactor(0).setDepth(UI_DEPTH);
     this.killText = this.add.text(690, 24, '처치 0', { ...style, fontSize: '26px' }).setOrigin(1, 0).setScrollFactor(0).setDepth(UI_DEPTH);
     this.levelText = this.add.text(30, 62, 'Lv.1', { ...style, fontSize: '24px' }).setScrollFactor(0).setDepth(UI_DEPTH);
+    this.skillText = this.add.text(110, 62, '', { ...style, fontSize: '24px' }).setScrollFactor(0).setDepth(UI_DEPTH);
   }
 
   private drawHud(): void {
@@ -133,6 +149,12 @@ export class GameScene extends Phaser.Scene {
     this.timeText.setText(`${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`);
     this.killText.setText(`처치 ${this.kills}`);
     this.levelText.setText(`Lv.${this.level}`);
+    // 가진 스킬을 아이콘+레벨로 보여 준다 (예: 🔥3 ⚡1)
+    this.skillText.setText(
+      UPGRADES.filter((u) => u.kind === 'skill' && this.upgradeLevels.has(u.id))
+        .map((u) => `${u.icon}${this.upgradeLevels.get(u.id)}`)
+        .join(' '),
+    );
   }
 
   private createJoystick(): void {
@@ -182,6 +204,7 @@ export class GameScene extends Phaser.Scene {
     this.spawnEnemies(delta);
     this.updateEnemies(delta);
     this.autoFire(delta);
+    this.skills.update(delta);
     this.pullGems();
     this.drawHud();
   }
@@ -198,7 +221,10 @@ export class GameScene extends Phaser.Scene {
 
     this.player.setVelocity(dir.x * this.stats.speed, dir.y * this.stats.speed);
     // 드래곤 머리가 이동 방향을 보게 돌린다(그림은 위쪽을 보고 있어서 +90도 보정).
-    if (dir.lengthSq() > 0.01) this.player.setRotation(dir.angle() + Math.PI / 2);
+    if (dir.lengthSq() > 0.01) {
+      this.player.setRotation(dir.angle() + Math.PI / 2);
+      this.facing.copy(dir).normalize();
+    }
   }
 
   private spawnEnemies(delta: number): void {
@@ -261,7 +287,13 @@ export class GameScene extends Phaser.Scene {
   private onFireballHit(fb: Phaser.Physics.Arcade.Image, enemy: Enemy): void {
     if (!fb.active || !enemy.active) return;
     fb.destroy();
-    if (enemy.hurt(this.stats.fireDamage)) this.killEnemy(enemy);
+    this.damageEnemy(enemy, this.stats.fireDamage * this.stats.fireMult);
+  }
+
+  /** 모든 공격(화염탄·스킬)이 적에게 피해를 줄 때 거치는 한 곳 */
+  private damageEnemy(enemy: Enemy, amount: number): void {
+    if (!enemy.active) return;
+    if (enemy.hurt(amount)) this.killEnemy(enemy);
   }
 
   private killEnemy(enemy: Enemy): void {
@@ -344,7 +376,7 @@ export class GameScene extends Phaser.Scene {
       const txt = { fontFamily: 'sans-serif', color: '#ffffff' };
       add(this.add.text(100, y, u.icon, { ...txt, fontSize: '64px' }).setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 12));
       add(
-        this.add.text(160, y - 40, `${i + 1}. ${u.name}  Lv.${next}${next === u.maxLevel ? ' (최대)' : ''}`, { ...txt, fontSize: '34px', fontStyle: 'bold' })
+        this.add.text(160, y - 40, `${i + 1}. ${u.name}  ${u.kind === 'skill' && next === 1 ? '새 스킬!' : `Lv.${next}`}${next === u.maxLevel ? ' (최대)' : ''}`, { ...txt, fontSize: '34px', fontStyle: 'bold' })
           .setScrollFactor(0).setDepth(UI_DEPTH + 12),
       );
       add(this.add.text(160, y + 10, u.describe(next), { ...txt, fontSize: '26px', color: '#c9d3ee' }).setScrollFactor(0).setDepth(UI_DEPTH + 12));
@@ -359,7 +391,7 @@ export class GameScene extends Phaser.Scene {
     if (this.mode !== 'choose' || !u) return;
     const next = (this.upgradeLevels.get(u.id) ?? 0) + 1;
     const beforeMax = this.stats.maxHp;
-    u.apply(this.stats, next);
+    u.apply?.(this.stats, next);
     this.hp += this.stats.maxHp - beforeMax; // 최대 체력이 늘면 그만큼 채워 준다
     this.upgradeLevels.set(u.id, next);
 

@@ -49,6 +49,19 @@ export function makeTextures(scene: Phaser.Scene): void {
   g.fillStyle(0xffffff).fillCircle(7, 7, 3);
   g.generateTexture('bolt', 14, 14);
 
+  // 얼음 파편: 오른쪽을 향한 뾰족한 결정
+  g.clear();
+  g.fillStyle(0x8fd3ff).fillTriangle(0, 3, 0, 11, 26, 7);
+  g.fillStyle(0xe6f7ff).fillTriangle(4, 6, 4, 8, 20, 7);
+  g.generateTexture('ice', 26, 14);
+
+  // 드래곤 오브: 빛나는 초록 구슬
+  g.clear();
+  g.fillStyle(0x2ee6a6, 0.35).fillCircle(16, 16, 16);
+  g.fillStyle(0x2ee6a6).fillCircle(16, 16, 10);
+  g.fillStyle(0xd9fff1).fillCircle(13, 12, 4);
+  g.generateTexture('orb', 32, 32);
+
   // 경험치 보석: 파란 마름모
   g.clear();
   g.fillStyle(0x4fc3f7).fillTriangle(8, 0, 16, 9, 0, 9).fillTriangle(0, 9, 16, 9, 8, 20);
