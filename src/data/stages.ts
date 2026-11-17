@@ -68,9 +68,7 @@ export function rankHpMult(stage: StageData, rank: 'normal' | 'elite1' | 'elite2
   return stage.id === 5 ? 1.7 : stage.id === 20 ? 2.0 : 1.8;
 }
 
-// 클리어·실패 보상
+// 전투 중 보상. 골드 정산은 5단계에서 data/progression.ts(GOLD)로 옮겼다.
 export const REWARD = {
-  clearGold: { min: 300, max: 500 }, // 빨리 잡을수록 많이
-  failKeep: 0.5, // 실패 시 그 판 골드의 50% 유지(사용자 결정 2026-11-17)
   eliteHeal: 0.12, // 엘리트 처치 시 최대 HP 12% 회복
 };

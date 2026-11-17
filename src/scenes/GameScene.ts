@@ -10,13 +10,13 @@ import { BasicAttack } from '../systems/BasicAttack';
 import { resolveDamage, type HitSpec } from '../systems/Damage';
 import type { CombatHost } from '../systems/CombatHost';
 import { StageDirector } from '../systems/StageDirector';
+import { applyPermanent, computeRunGold, type GoldBreakdown, type RunOutcome } from '../data/progression';
+import { Progress } from '../systems/Progress';
 
 const WORLD_SIZE = 2800; // 투기장을 담는 정사각형 세계
 const ARENA_R = 22 * M; // 원형 투기장 반지름 22m = 1100px (사용자 결정 2026-11-17)
 const UI_DEPTH = 200;
-const UNLOCK_KEY = 'dragon-squad:unlockedStage';
-
-type Mode = 'play' | 'choose' | 'clearing' | 'result';
+type Mode = 'play' | 'choose' | 'paused' | 'clearing' | 'result';
 
 interface Hazard {
   left: number;
@@ -47,7 +47,16 @@ export class GameScene extends Phaser.Scene {
   private elapsed = 0; // 판 시작 후 지난 시간(ms). 카드 고르는 동안은 멈춘다.
   private timeScale = 1; // 보스 처치 순간 0.35배 슬로모션
   private kills = 0;
-  private gold = 0;
+  private normalKills = 0;
+  private eliteKills = 0;
+  /** 보물 더미 카드 골드: 전투 중 임시 기록, 끝날 때 정산(v1.1) */
+  private treasureGold = 0;
+  /** 이번 판 고유 번호: 같은 판 보상을 두 번 주지 않기 위함 */
+  private runId = '';
+  private settled = false;
+  /** 연구소 생명력 강화로 늘어난 최대 HP. 35% 피해 상한 계산에서는 뺀다(v1.1 3번) */
+  private permHpBonus = 0;
+  private pauseLayer: Phaser.GameObjects.GameObject[] = [];
   private mode: Mode = 'play';
   private facing = new Phaser.Math.Vector2(0, -1);
   private skills!: Skills;
@@ -91,7 +100,9 @@ export class GameScene extends Phaser.Scene {
   create(): void {
     // scene.restart() 때 필드가 이전 판 값을 들고 있으므로 전부 다시 초기화한다(완료 기준: 재도전 시 정상 초기화).
     this.rng = new Phaser.Math.RandomDataGenerator([String(this.seed)]);
-    this.stats = { ...BASE_STATS };
+    // 연구소 영구 강화는 판 시작 때 한 번만 적용해 고정한다(전투 중에는 바뀌지 않음)
+    this.stats = applyPermanent(BASE_STATS, Progress.load().upgrades);
+    this.permHpBonus = this.stats.maxHp - BASE_STATS.maxHp;
     this.hp = this.stats.maxHp;
     this.level = 1;
     this.xp = 0;
@@ -103,7 +114,12 @@ export class GameScene extends Phaser.Scene {
     this.elapsed = 0;
     this.timeScale = 1;
     this.kills = 0;
-    this.gold = 0;
+    this.normalKills = 0;
+    this.eliteKills = 0;
+    this.treasureGold = 0;
+    this.runId = `${this.stage.id}-${this.seed}-${Date.now()}`;
+    this.settled = false;
+    this.pauseLayer = [];
     this.mode = 'play';
     this.facing.set(0, -1);
     this.hazards = [];
@@ -143,6 +159,10 @@ export class GameScene extends Phaser.Scene {
       const n = Number(ev.key);
       if (this.mode === 'choose' && n >= 1 && n <= 3) this.pickChoice(n - 1);
       if (this.mode === 'result' && (ev.key === 'r' || ev.key === 'R')) this.retry();
+      if (ev.key === 'Escape' || ev.key === 'p' || ev.key === 'P') {
+        if (this.mode === 'play') this.openPause();
+        else if (this.mode === 'paused') this.closePause();
+      }
     });
 
     const host: CombatHost = {
@@ -213,6 +233,10 @@ export class GameScene extends Phaser.Scene {
     this.skillText = this.add.text(110, 62, '', { ...style, fontSize: '22px', lineSpacing: 6 }).setScrollFactor(0).setDepth(UI_DEPTH);
     this.bossText = this.add.text(360, 186, '', { ...style, fontSize: '24px', align: 'center' }).setOrigin(0.5, 1).setScrollFactor(0).setDepth(UI_DEPTH + 1);
     this.eliteText = this.add.text(360, 232, '', { ...style, fontSize: '20px', align: 'center' }).setOrigin(0.5, 1).setScrollFactor(0).setDepth(UI_DEPTH + 1);
+    // 일시정지 버튼(휴대폰용). PC는 ESC·P 키.
+    const pause = this.add.circle(670, 140, 32, 0x000000, 0.55).setStrokeStyle(3, 0xffffff, 0.7).setScrollFactor(0).setDepth(UI_DEPTH + 2);
+    this.add.text(670, 140, 'II', { ...style, fontSize: '28px', fontStyle: 'bold' }).setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 3);
+    pause.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.openPause());
   }
 
   private drawHud(): void {
@@ -314,8 +338,8 @@ export class GameScene extends Phaser.Scene {
   private createJoystick(): void {
     this.stickBase = this.add.circle(0, 0, 90, 0xffffff, 0.12).setScrollFactor(0).setDepth(100).setVisible(false);
     this.stickKnob = this.add.circle(0, 0, 40, 0xffffff, 0.35).setScrollFactor(0).setDepth(101).setVisible(false);
-    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-      if (this.mode !== 'play' || this.stickPointerId !== null) return;
+    this.input.on('pointerdown', (p: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
+      if (this.mode !== 'play' || this.stickPointerId !== null || over.length > 0) return; // 버튼 위면 조이스틱 X
       this.stickPointerId = p.id;
       this.stickBase.setPosition(p.x, p.y).setVisible(true);
       this.stickKnob.setPosition(p.x, p.y).setVisible(true);
@@ -501,6 +525,7 @@ export class GameScene extends Phaser.Scene {
 
   private killEnemy(enemy: Enemy): void {
     this.kills++;
+    if (enemy.rank === 'normal') this.normalKills++;
     const d = this.director;
     if (enemy === d.boss) {
       d.onBossKilled(this.elapsed);
@@ -509,6 +534,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     if (enemy.rank === 'elite' && d.onEliteKilled(enemy, this.elapsed)) {
+      this.eliteKills++; // onEliteKilled가 슬롯마다 한 번만 true → 엘리트 보상도 한 번만
       // 엘리트 처치 보상(한 번만): 대형 경험치 결정 + 최대 HP 12% 회복
       this.dropGem(enemy.x, enemy.y, enemy.def.xp);
       this.hp = Math.min(this.stats.maxHp, this.hp + this.stats.maxHp * REWARD.eliteHeal);
@@ -598,7 +624,7 @@ export class GameScene extends Phaser.Scene {
     const u = this.currentChoices[index];
     if (this.mode !== 'choose' || !u) return;
     if (u.id === 'heal') this.hp = Math.min(this.stats.maxHp, this.hp + this.stats.maxHp * 0.3);
-    else if (u.id === 'gold') this.gold += 20;
+    else if (u.id === 'gold') this.treasureGold += 20;
     else {
       const next = (this.upgradeLevels.get(u.id) ?? 0) + 1;
       const beforeMax = this.stats.maxHp;
@@ -625,7 +651,8 @@ export class GameScene extends Phaser.Scene {
   private damagePlayer(amount: number, src?: Enemy, pattern = false): void {
     if (this.mode !== 'play' || this.invulnerable) return;
     if (!pattern && this.time.now < this.invincibleUntil) return;
-    const cap = src ? HIT_CAP[src.rank] * this.stats.maxHp : Infinity;
+    // 상한 기준 = 연구소 강화 전 최대 HP(기본 + 전투 중 패시브). 연구소 Lv.0이면 4단계와 똑같다.
+    const cap = src ? HIT_CAP[src.rank] * (this.stats.maxHp - this.permHpBonus) : Infinity;
     const dmg = Math.min(amount * this.stats.damageTaken, cap);
     this.hp -= dmg;
     this.invincibleUntil = this.time.now + 500;
@@ -676,7 +703,7 @@ export class GameScene extends Phaser.Scene {
     this.time.delayedCall(2500, () => this.showResult(true));
   }
 
-  private fail(reason: 'dead' | 'timeout'): void {
+  private fail(reason: 'dead' | 'timeout' | 'quit'): void {
     if (this.mode === 'result' || this.mode === 'clearing') return;
     this.hp = Math.max(0, this.hp);
     this.stageLog.push({ name: 'stage:fail', at: Math.round(this.elapsed), data: { reason } });
@@ -684,26 +711,95 @@ export class GameScene extends Phaser.Scene {
     this.showResult(false, reason);
   }
 
-  /** 결과 화면: 보상 + 전투 기록 + 다음 단계/재도전 */
-  private showResult(clear: boolean, reason?: 'dead' | 'timeout'): void {
+  // ───────────────────────── 일시정지·포기 (v1.1 5번) ─────────────────────────
+
+  private openPause(): void {
+    if (this.mode !== 'play') return;
+    this.mode = 'paused';
+    this.physics.pause();
+    this.time.paused = true;
+    this.releaseStick();
+    this.player.setVelocity(0, 0);
+    this.drawPause(false);
+  }
+
+  private closePause(): void {
+    this.pauseLayer.forEach((o) => o.destroy());
+    this.pauseLayer = [];
+    this.mode = 'play';
+    this.physics.resume();
+    this.time.paused = false;
+  }
+
+  /** confirm=false: 계속하기/포기하기 · confirm=true: 포기 확인 팝업 */
+  private drawPause(confirm: boolean): void {
+    this.pauseLayer.forEach((o) => o.destroy());
+    this.pauseLayer = [];
+    const add = <T extends Phaser.GameObjects.GameObject & { setScrollFactor: (n: number) => T; setDepth: (n: number) => T }>(o: T): T => {
+      this.pauseLayer.push(o);
+      return o.setScrollFactor(0).setDepth(UI_DEPTH + 50);
+    };
+    add(this.add.rectangle(360, 640, 720, 1280, 0x000000, 0.7));
+    const title = { fontFamily: 'sans-serif', fontSize: '56px', fontStyle: 'bold', color: '#ffffff', stroke: '#000', strokeThickness: 8 };
+    const button = (y: number, label: string, color: number, onClick: () => void) => {
+      const b = add(this.add.rectangle(360, y, 460, 96, color).setStrokeStyle(4, 0xffffff, 0.8));
+      b.setInteractive({ useHandCursor: true }).on('pointerdown', onClick);
+      add(this.add.text(360, y, label, { fontFamily: 'sans-serif', fontSize: '32px', color: '#ffffff' }).setOrigin(0.5));
+    };
+    if (!confirm) {
+      add(this.add.text(360, 440, '일시정지', title).setOrigin(0.5));
+      button(640, '계속하기 (ESC)', 0x2f6fd6, () => this.closePause());
+      button(770, '포기하기', 0x8a2b2b, () => this.drawPause(true));
+      return;
+    }
+    const g = computeRunGold(this.runSummary('quit'));
+    const note = this.elapsed < 30_000 ? '30초가 지나기 전에 포기하면 보상이 없습니다.' : '지금까지 모은 골드의 50%만 받습니다.';
+    add(this.add.text(360, 420, '정말 포기할까요?', { ...title, fontSize: '48px' }).setOrigin(0.5));
+    add(
+      this.add
+        .text(360, 520, `${note}\n받는 골드: ${g.total}G`, { fontFamily: 'sans-serif', fontSize: '28px', color: '#ffd34d', align: 'center', lineSpacing: 10 })
+        .setOrigin(0.5, 0),
+    );
+    button(720, '포기 확정', 0x8a2b2b, () => {
+      this.pauseLayer.forEach((o) => o.destroy());
+      this.pauseLayer = [];
+      this.fail('quit');
+    });
+    button(850, '취소', 0x3a3f4b, () => this.drawPause(false));
+  }
+
+  private runSummary(outcome: RunOutcome) {
+    return {
+      stageId: this.stage.id,
+      durationMs: this.stage.durationMs,
+      outcome,
+      elapsedMs: this.elapsed,
+      normalKills: this.normalKills,
+      eliteKills: this.eliteKills,
+      bossKilled: this.director.record.bossKillMs != null,
+      treasureGold: this.treasureGold,
+    };
+  }
+
+  /** 결과 화면: 골드 정산 + 전투 기록 + 다음 단계/재도전/연구소/로비 */
+  private showResult(clear: boolean, reason?: 'dead' | 'timeout' | 'quit'): void {
+    if (this.mode === 'result') return;
     this.mode = 'result';
     this.drawHud();
     this.physics.pause();
     const d = this.director;
-    let reward: number;
-    let rewardLine: string;
-    if (clear) {
-      const { min, max } = REWARD.clearGold;
-      const spare = Phaser.Math.Clamp((this.stage.durationMs - this.elapsed) / (this.stage.durationMs - this.stage.bossSpawnMs), 0, 1);
-      const clearGold = Math.round(min + (max - min) * spare);
-      reward = this.gold + clearGold;
-      rewardLine = `클리어 보상 ${clearGold} + 전투 중 ${this.gold} = ${reward} 골드`;
-      this.stageLog.push({ name: 'stage:clear', at: Math.round(this.elapsed), data: { gold: reward } });
-      this.unlockNext();
-    } else {
-      reward = Math.floor(this.gold * REWARD.failKeep);
-      rewardLine = `실패 — 전투 중 골드 ${this.gold}의 ${REWARD.failKeep * 100}% = ${reward} 골드 유지`;
+    const outcome: RunOutcome = clear ? 'clear' : (reason ?? 'dead');
+    const gold = computeRunGold(this.runSummary(outcome));
+    // 정산은 판마다 한 번만(같은 runId는 저장소에서도 다시 지급하지 않음)
+    let paid = false;
+    if (!this.settled) {
+      this.settled = true;
+      const next = clear ? this.stage.id + 1 : undefined;
+      paid = Progress.settle(this.runId, gold.total, next).paid;
     }
+    if (clear) this.stageLog.push({ name: 'stage:clear', at: Math.round(this.elapsed), data: { gold: gold.total } });
+    this.stageLog.push({ name: 'run:settled', at: Math.round(this.elapsed), data: { ...gold, paid } });
+    const bank = Progress.load().gold;
 
     const sec = (ms: number | null | undefined) => (ms == null ? '—' : `${(ms / 1000).toFixed(1)}초`);
     const eliteLines = d.eliteSlots.map((st, i) => {
@@ -717,11 +813,14 @@ export class GameScene extends Phaser.Scene {
       .map(([k, v]) => `${sourceName(k)} ${Math.round((v / total) * 100)}%`)
       .join(' · ');
     const timeTxt = this.timeText.text.split(' /')[0];
+    const headline =
+      clear ? `클리어 시간 ${timeTxt}` :
+      reason === 'timeout' ? '시간 초과 — 8분 안에 보스를 쓰러뜨리지 못했다' :
+      reason === 'quit' ? `포기 — ${timeTxt}` : `버틴 시간 ${timeTxt}`;
     const lines = [
       `${this.stage.id}단계 ${this.stage.name}`,
-      clear ? `클리어 시간 ${timeTxt}` : reason === 'timeout' ? '시간 초과 — 8분 안에 보스를 쓰러뜨리지 못했다' : `버틴 시간 ${timeTxt}`,
+      headline,
       `Lv.${this.level} · 처치 ${this.kills}`,
-      rewardLine,
       '',
       '전투 기록',
       ...eliteLines,
@@ -735,48 +834,69 @@ export class GameScene extends Phaser.Scene {
       o.setDepth(UI_DEPTH + 101);
       return o;
     };
-    add(this.add.rectangle(360, 640, 720, 1280, 0x000000, 0.72));
+    add(this.add.rectangle(360, 640, 720, 1280, 0x000000, 0.8));
+    const titleTxt = clear ? '성지 탈환!' : reason === 'timeout' ? '시간 초과' : reason === 'quit' ? '전투 포기' : '드래곤이 쓰러졌다';
     add(
       this.add
-        .text(360, 250, clear ? '성지 탈환!' : reason === 'timeout' ? '시간 초과' : '드래곤이 쓰러졌다', {
-          fontFamily: 'sans-serif', fontSize: '64px', fontStyle: 'bold', color: clear ? '#ffd34d' : '#ff6b6b', stroke: '#000', strokeThickness: 8,
+        .text(360, 150, titleTxt, {
+          fontFamily: 'sans-serif', fontSize: '60px', fontStyle: 'bold', color: clear ? '#ffd34d' : '#ff6b6b', stroke: '#000', strokeThickness: 8,
         })
         .setOrigin(0.5),
     );
     add(
       this.add
-        .text(360, 330, lines.join('\n'), { fontFamily: 'sans-serif', fontSize: '26px', color: '#ffffff', align: 'center', lineSpacing: 8, wordWrap: { width: 660 } })
+        .text(360, 220, lines.join('\n'), { fontFamily: 'sans-serif', fontSize: '24px', color: '#ffffff', align: 'center', lineSpacing: 6, wordWrap: { width: 660 } })
         .setOrigin(0.5, 0),
+    );
+    // 골드 정산표
+    add(this.add.rectangle(360, 795, 640, 330, 0x1a1f2b, 0.95).setStrokeStyle(3, 0xffd34d, 0.6));
+    add(this.add.text(360, 650, '골드 정산', { fontFamily: 'sans-serif', fontSize: '28px', fontStyle: 'bold', color: '#ffd34d' }).setOrigin(0.5, 0));
+    add(this.add.text(70, 695, goldLines(gold).join('\n'), { fontFamily: 'sans-serif', fontSize: '22px', color: '#dfe6f5', lineSpacing: 4 }));
+    add(this.add.text(650, 695, goldValues(gold).join('\n'), { fontFamily: 'sans-serif', fontSize: '22px', color: '#dfe6f5', lineSpacing: 4, align: 'right' }).setOrigin(1, 0));
+    add(
+      this.add
+        .text(360, 993, `${paid ? '+' : ''}${gold.total}G 획득   ·   보유 ${bank.toLocaleString()}G`, { fontFamily: 'sans-serif', fontSize: '30px', fontStyle: 'bold', color: '#ffd34d' })
+        .setOrigin(0.5),
     );
 
     const next = STAGES.find((s) => s.id === this.stage.id + 1);
-    const button = (y: number, label: string, enabled: boolean, onClick: () => void) => {
-      const b = this.add.rectangle(360, y, 460, 96, enabled ? 0x2f6fd6 : 0x3a3f4b).setStrokeStyle(4, 0xffffff, enabled ? 0.8 : 0.2);
+    const button = (x: number, y: number, w: number, label: string, enabled: boolean, onClick: () => void, color = 0x2f6fd6) => {
+      const b = this.add.rectangle(x, y, w, 90, enabled ? color : 0x3a3f4b).setStrokeStyle(4, 0xffffff, enabled ? 0.8 : 0.2);
       add(b);
-      add(this.add.text(360, y, label, { fontFamily: 'sans-serif', fontSize: '32px', color: enabled ? '#ffffff' : '#9aa0aa' }).setOrigin(0.5));
+      add(this.add.text(x, y, label, { fontFamily: 'sans-serif', fontSize: w > 300 ? '30px' : '26px', color: enabled ? '#ffffff' : '#9aa0aa' }).setOrigin(0.5));
       if (enabled) b.setInteractive({ useHandCursor: true }).on('pointerdown', onClick);
     };
+    const toLab = () => this.scene.start('lab', { from: 'result' });
+    const toLobby = () => this.scene.start('lobby');
     if (clear) {
-      button(1030, next ? `다음 단계 — ${next.name}` : `${this.stage.id + 1}단계 해금 (준비 중)`, !!next, () => this.scene.restart({ stageId: next!.id }));
-      button(1140, '재도전 (R)', true, () => this.retry());
+      button(360, 1065, 600, next ? `다음 단계 — ${next.name}` : `${this.stage.id + 1}단계 해금 (준비 중)`, !!next, () => this.scene.restart({ stageId: next!.id }));
+      button(160, 1180, 190, '재도전 (R)', true, () => this.retry());
+      button(360, 1180, 190, '성장 연구소', true, toLab, 0x7a5a12);
+      button(560, 1180, 190, '로비', true, toLobby, 0x3a4458);
     } else {
-      button(1080, '재도전 (R)', true, () => this.retry());
+      button(360, 1065, 600, '재도전 (R)', true, () => this.retry());
+      button(205, 1180, 290, '성장 연구소', true, toLab, 0x7a5a12);
+      button(515, 1180, 290, '로비', true, toLobby, 0x3a4458);
     }
   }
 
   private retry(): void {
     this.scene.restart({ stageId: this.stage.id });
   }
+}
 
-  /** 클리어 시 다음 단계 해금을 브라우저에 저장(5단계 영구 성장에서 저장 구조를 확장) */
-  private unlockNext(): void {
-    try {
-      const cur = Number(localStorage.getItem(UNLOCK_KEY) ?? '1');
-      if (this.stage.id + 1 > cur) localStorage.setItem(UNLOCK_KEY, String(this.stage.id + 1));
-    } catch {
-      /* 저장소를 못 쓰는 환경이면 건너뜀 */
-    }
-  }
+function goldLines(g: GoldBreakdown): string[] {
+  const rows = g.lines.filter((l) => l.gold > 0).map((l) => l.label);
+  rows.push(`합계 × 단계 배율 ×${g.stageMult}`);
+  rows.push(g.resultMult === 1 ? '× 클리어 100%' : g.resultMult === 0 ? '× 30초 전 포기 0%' : '× 실패 50%');
+  return rows;
+}
+
+function goldValues(g: GoldBreakdown): string[] {
+  const rows = g.lines.filter((l) => l.gold > 0).map((l) => `${l.gold}G`);
+  rows.push(`${Math.floor(g.subtotal * g.stageMult)}G`);
+  rows.push(`= ${g.total}G`);
+  return rows;
 }
 
 function sourceName(tag: string): string {
