@@ -49,6 +49,12 @@ export function makeTextures(scene: Phaser.Scene): void {
   g.fillStyle(0xffffff).fillCircle(7, 7, 3);
   g.generateTexture('bolt', 14, 14);
 
+  // 경험치 보석: 파란 마름모
+  g.clear();
+  g.fillStyle(0x4fc3f7).fillTriangle(8, 0, 16, 9, 0, 9).fillTriangle(0, 9, 16, 9, 8, 20);
+  g.fillStyle(0xb3e5fc).fillTriangle(8, 3, 12, 9, 4, 9);
+  g.generateTexture('gem', 16, 20);
+
   // 바닥 타일: 풀밭 위에 옅은 격자
   g.clear();
   g.fillStyle(0x1b2a1f).fillRect(0, 0, 128, 128);
