@@ -1,9 +1,10 @@
 import Phaser from 'phaser';
 import { makeTextures } from '../textures';
-import { ENEMIES, type EnemyKind } from '../data/enemies';
+import { PATTERN, type EnemyKind } from '../data/enemies';
+import { STAGE1 } from '../data/stage1';
 import { BASE_STATS, xpToNext, type RunStats } from '../data/stats';
 import { rollOffer, UPGRADES, type Upgrade } from '../data/upgrades';
-import { Enemy } from '../objects/Enemy';
+import { Enemy, type EnemyAction } from '../objects/Enemy';
 import { Skills } from '../systems/Skills';
 import { BasicAttack } from '../systems/BasicAttack';
 import { resolveDamage, type HitSpec } from '../systems/Damage';
@@ -14,7 +15,7 @@ const SPAWN_RADIUS = 820; // 화면 밖(드래곤에서 이만큼 떨어진 곳)
 const MAX_ENEMIES = 220; // 한 번에 살아 있는 적 최대 수(휴대폰 성능 보호)
 const UI_DEPTH = 200;
 
-type Mode = 'play' | 'choose' | 'over';
+type Mode = 'play' | 'choose' | 'over' | 'clear';
 
 export class GameScene extends Phaser.Scene {
   private player!: Phaser.Types.Physics.Arcade.ImageWithDynamicBody;
@@ -39,6 +40,13 @@ export class GameScene extends Phaser.Scene {
   private basic!: BasicAttack;
   private basicEverOffered = false; // 기본공격 카드 보장 규칙용
   private gold = 0; // 이번 판에 모은 골드(5단계 영구 강화에 사용)
+  private eliteSpawned = false;
+  private boss: Enemy | null = null;
+  private enraged = false;
+  /** 예고 뒤 일어날 일(내려찍기 판정 등). update의 delta로만 흐르므로 카드 고를 때 같이 멈춘다. */
+  private timers: { left: number; run: () => void }[] = [];
+  private bossBar!: Phaser.GameObjects.Graphics;
+  private bossText!: Phaser.GameObjects.Text;
   /** 전투 로그: 공격 원천별 누적 피해(밸런스 검증용, 기획서 v0.2 CombatTelemetry) */
   dmgLog: Record<string, number> = {};
   // 화면 고정 UI
@@ -71,6 +79,10 @@ export class GameScene extends Phaser.Scene {
     this.basicEverOffered = false;
     this.gold = 0;
     this.dmgLog = {};
+    this.eliteSpawned = false;
+    this.boss = null;
+    this.enraged = false;
+    this.timers = [];
     this.invincibleUntil = 0;
     this.elapsed = 0;
     this.spawnCooldown = 0;
@@ -100,7 +112,10 @@ export class GameScene extends Phaser.Scene {
 
     // 충돌 규칙: 적끼리는 서로 밀어내고(겹쳐 뭉치지 않게), 나머지는 겹침(overlap)으로 판정만 한다.
     this.physics.add.collider(this.enemies, this.enemies);
-    this.physics.add.overlap(this.player, this.enemies, (_p, en) => this.damagePlayer((en as Enemy).def.contactDamage));
+    this.physics.add.overlap(this.player, this.enemies, (_p, en) => {
+      const e = en as Enemy;
+      this.damagePlayer(e.def.contactDamage * (e.dashing ? 1.5 : 1) * (e.enraged ? PATTERN.boss.enrageMult : 1));
+    });
     this.physics.add.overlap(this.player, this.bolts, (_p, b) => {
       const bolt = b as Phaser.Physics.Arcade.Image;
       this.damagePlayer(bolt.getData('damage') as number);
@@ -141,6 +156,8 @@ export class GameScene extends Phaser.Scene {
     this.killText = this.add.text(690, 24, '처치 0', { ...style, fontSize: '26px' }).setOrigin(1, 0).setScrollFactor(0).setDepth(UI_DEPTH);
     this.levelText = this.add.text(30, 62, 'Lv.1', { ...style, fontSize: '24px' }).setScrollFactor(0).setDepth(UI_DEPTH);
     this.hpText = this.add.text(210, 40, '', { ...style, fontSize: '20px', strokeThickness: 4 }).setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 1);
+    this.bossBar = this.add.graphics().setScrollFactor(0).setDepth(UI_DEPTH);
+    this.bossText = this.add.text(360, 182, '', { ...style, fontSize: '24px' }).setOrigin(0.5, 1).setScrollFactor(0).setDepth(UI_DEPTH + 1);
     this.skillText = this.add.text(110, 62, '', { ...style, fontSize: '22px', lineSpacing: 6 }).setScrollFactor(0).setDepth(UI_DEPTH);
   }
 
@@ -156,6 +173,14 @@ export class GameScene extends Phaser.Scene {
 
     const sec = Math.floor(this.elapsed / 1000);
     this.timeText.setText(`${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`);
+    // 보스 체력 막대
+    this.bossBar.clear();
+    if (this.boss?.active) {
+      const r = Phaser.Math.Clamp(this.boss.hp / this.boss.def.hp, 0, 1);
+      this.bossBar.fillStyle(0x000000, 0.7).fillRoundedRect(110, 188, 500, 22, 6);
+      this.bossBar.fillStyle(this.enraged ? 0xff1744 : 0xc62828).fillRoundedRect(113, 191, 494 * r, 16, 5);
+      this.bossText.setText(`${this.boss.def.name}${this.enraged ? ' — 격노!' : ''}`);
+    } else this.bossText.setText('');
     this.killText.setText(`처치 ${this.kills}`);
     this.levelText.setText(`Lv.${this.level}`);
     this.hpText.setText(`${Math.max(0, Math.ceil(this.hp))} / ${Math.round(this.stats.maxHp)}`);
@@ -174,7 +199,7 @@ ${icons(['passive'])}`);
     this.stickKnob = this.add.circle(0, 0, 40, 0xffffff, 0.35).setScrollFactor(0).setDepth(101).setVisible(false);
 
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-      if (this.mode === 'over') {
+      if (this.mode === 'over' || this.mode === 'clear') {
         this.scene.restart();
         return;
       }
@@ -212,7 +237,14 @@ ${icons(['passive'])}`);
     this.elapsed += delta;
 
     this.movePlayer();
+    this.stageEvents();
     this.spawnEnemies(delta);
+    this.timers = this.timers.filter((t) => {
+      t.left -= delta;
+      if (t.left > 0) return true;
+      t.run();
+      return false;
+    });
     this.updateEnemies(delta);
     this.basic.update(delta);
     this.skills.update(delta);
@@ -238,48 +270,124 @@ ${icons(['passive'])}`);
     }
   }
 
+  /** 4분 엘리트, 6분 보스, 8분 격노 (스테이지 1 시간표) */
+  private stageEvents(): void {
+    if (!this.eliteSpawned && this.elapsed >= STAGE1.eliteAtMs) {
+      this.eliteSpawned = true;
+      this.spawnAtEdge('golem');
+      this.banner('엘리트 등장 — 성벽 골렘', '#ffb74d');
+    }
+    if (!this.boss && this.elapsed >= STAGE1.bossAtMs) {
+      this.boss = this.spawnAtEdge('boss');
+      this.banner('보스 등장 — 철갑기사단장', '#ff5252');
+    }
+    if (this.boss?.active && !this.enraged && this.elapsed >= STAGE1.durationMs) {
+      this.enraged = true;
+      this.boss.enraged = true;
+      this.banner('8분 경과 — 기사단장 격노!', '#ff1744');
+    }
+  }
+
   private spawnEnemies(delta: number): void {
     this.spawnCooldown -= delta;
     if (this.spawnCooldown > 0 || this.enemies.countActive() >= MAX_ENEMIES) return;
 
-    // 시간이 지날수록 더 자주, 더 많이 나온다.
-    const minutes = this.elapsed / 60000;
-    this.spawnCooldown = Math.max(350, 1400 - minutes * 160);
-    const count = 1 + Math.floor(minutes * 1.2);
-
-    const available = (Object.keys(ENEMIES) as EnemyKind[]).filter((k) => this.elapsed / 1000 >= ENEMIES[k].appearsAt);
-    for (let i = 0; i < count; i++) {
-      // 기사가 가장 흔하고, 마법사·골렘은 가끔
-      const roll = Math.random();
-      let kind: EnemyKind = 'knight';
-      if (available.includes('golem') && roll < 0.12) kind = 'golem';
-      else if (available.includes('mage') && roll < 0.35) kind = 'mage';
-
-      const angle = Math.random() * Math.PI * 2;
-      const x = Phaser.Math.Clamp(this.player.x + Math.cos(angle) * SPAWN_RADIUS, 20, WORLD_SIZE - 20);
-      const y = Phaser.Math.Clamp(this.player.y + Math.sin(angle) * SPAWN_RADIUS, 20, WORLD_SIZE - 20);
-      this.enemies.add(new Enemy(this, x, y, kind));
+    // 지금 시간대의 웨이브(시간이 지날수록 더 자주·더 많이, 종류도 늘어남)
+    const wave = [...STAGE1.waves].reverse().find((w) => this.elapsed >= w.fromMs)!;
+    this.spawnCooldown = wave.interval;
+    const entries = Object.entries(wave.mix) as [EnemyKind, number][];
+    for (let i = 0; i < wave.count; i++) {
+      let r = Math.random();
+      const kind = entries.find(([, p]) => (r -= p) < 0)?.[0] ?? entries[0][0];
+      this.spawnAtEdge(kind);
     }
+  }
+
+  /** 화면 밖(드래곤에서 SPAWN_RADIUS 떨어진 원 위)에 적을 만든다 */
+  private spawnAtEdge(kind: EnemyKind): Enemy {
+    const angle = Math.random() * Math.PI * 2;
+    const x = Phaser.Math.Clamp(this.player.x + Math.cos(angle) * SPAWN_RADIUS, 20, WORLD_SIZE - 20);
+    const y = Phaser.Math.Clamp(this.player.y + Math.sin(angle) * SPAWN_RADIUS, 20, WORLD_SIZE - 20);
+    const e = new Enemy(this, x, y, kind);
+    if (e.isBoss) e.setDepth(6);
+    this.enemies.add(e);
+    return e;
+  }
+
+  private banner(text: string, color: string): void {
+    const t = this.add
+      .text(360, 420, text, { fontFamily: 'sans-serif', fontSize: '44px', fontStyle: 'bold', color, stroke: '#000', strokeThickness: 8 })
+      .setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 5);
+    this.tweens.add({ targets: t, alpha: 0, delay: 1800, duration: 600, onComplete: () => t.destroy() });
   }
 
   private updateEnemies(delta: number): void {
     const target = new Phaser.Math.Vector2(this.player.x, this.player.y);
     for (const obj of this.enemies.getChildren()) {
       const e = obj as Enemy;
-      if (e.step(target, delta) && e.def.ranged) this.shootBolt(e);
+      const act = e.step(target, delta);
+      if (act) this.doEnemyAction(e, act);
       // 화상 피해(지속 피해는 치명타 없음)
       const burnCoef = e.tickBurn(delta);
       if (burnCoef > 0) this.hitEnemy(e, { source: 'dot', coef: burnCoef, tag: 'burn' });
     }
   }
 
-  private shootBolt(from: Enemy): void {
-    const r = from.def.ranged!;
-    const bolt = this.physics.add.image(from.x, from.y, 'bolt').setDepth(9);
+  /** 적의 행동(쏘기·돌진 예고·내려찍기·검기)을 그림과 판정으로 바꾼다 */
+  private doEnemyAction(e: Enemy, act: EnemyAction): void {
+    const rage = e.enraged ? PATTERN.boss.enrageMult : 1;
+    switch (act.kind) {
+      case 'shoot': {
+        const r = e.def.ranged!;
+        this.shootProjectile(e.x, e.y, act.angle, r.boltSpeed, r.damage, r.texture);
+        break;
+      }
+      case 'dashWarn': {
+        // 돌진 방향 예고선: 이 선 위에 서 있지 말 것
+        const g = this.add.graphics().setDepth(4);
+        g.lineStyle(e.isBoss ? 34 : 16, 0xff1744, 0.35);
+        g.lineBetween(e.x, e.y, e.x + Math.cos(act.angle) * act.length, e.y + Math.sin(act.angle) * act.length);
+        this.timers.push({ left: act.ms, run: () => g.destroy() });
+        break;
+      }
+      case 'slam': {
+        // 원형 예고 → 시간이 지나면 원 안에 있으면 피해
+        const warn = this.add.circle(act.x, act.y, act.r, 0xff6d00, 0.15).setStrokeStyle(5, 0xff6d00, 0.9).setDepth(4);
+        const fill = this.add.circle(act.x, act.y, 1, 0xff6d00, 0.3).setDepth(4);
+        this.tweens.add({ targets: fill, radius: act.r, duration: act.ms });
+        this.timers.push({
+          left: act.ms,
+          run: () => {
+            warn.destroy();
+            fill.destroy();
+            const boom = this.add.circle(act.x, act.y, act.r, 0xffcc80, 0.6).setDepth(8);
+            this.tweens.add({ targets: boom, alpha: 0, duration: 300, onComplete: () => boom.destroy() });
+            this.cameras.main.shake(150, 0.008);
+            if (Phaser.Math.Distance.Between(act.x, act.y, this.player.x, this.player.y) < act.r + 18) {
+              this.invincibleUntil = 0; // 패턴 피해는 무적 시간과 상관없이 들어간다
+              this.damagePlayer(act.damage * rage);
+            }
+          },
+        });
+        break;
+      }
+      case 'fan': {
+        const p = PATTERN.boss.sword;
+        for (let i = 0; i < p.count; i++) {
+          const a = act.angle + (i - (p.count - 1) / 2) * (p.spread / (p.count - 1));
+          this.shootProjectile(e.x, e.y, a, p.speed, p.damage * rage, 'slash');
+        }
+        break;
+      }
+    }
+  }
+
+  private shootProjectile(x: number, y: number, angle: number, speed: number, damage: number, texture: string): void {
+    const bolt = this.physics.add.image(x, y, texture).setDepth(9).setRotation(angle);
     this.bolts.add(bolt);
-    bolt.setCircle(6, 1, 1).setData('damage', r.damage);
-    this.physics.velocityFromRotation(Phaser.Math.Angle.Between(from.x, from.y, this.player.x, this.player.y), r.boltSpeed, bolt.body.velocity);
-    this.time.delayedCall(4000, () => bolt.destroy());
+    bolt.setCircle(Math.min(bolt.width, bolt.height) / 2).setData('damage', damage);
+    this.physics.velocityFromRotation(angle, speed, bolt.body.velocity);
+    this.timers.push({ left: 4000, run: () => bolt.destroy() });
   }
 
   /** 모든 공격(기본공격·스킬·화상)이 적에게 피해를 줄 때 거치는 한 곳 */
@@ -299,6 +407,11 @@ ${icons(['passive'])}`);
 
   private killEnemy(enemy: Enemy): void {
     this.kills++;
+    if (enemy === this.boss) {
+      enemy.destroy();
+      this.stageClear();
+      return;
+    }
     this.dropGem(enemy.x, enemy.y, enemy.def.xp);
     enemy.destroy();
   }
@@ -308,7 +421,7 @@ ${icons(['passive'])}`);
   private dropGem(x: number, y: number, value: number): void {
     const gem = this.physics.add.image(x, y, 'gem').setDepth(5);
     this.gems.add(gem);
-    gem.setData('value', value).setScale(value >= 5 ? 1.5 : 1);
+    gem.setData('value', value).setScale(value >= 20 ? 2.2 : value >= 3 ? 1.4 : 1);
   }
 
   /** 끌어당기는 거리 안의 보석은 드래곤 쪽으로 빨려 온다. */
@@ -433,9 +546,30 @@ ${icons(['passive'])}`);
     const style = { fontFamily: 'sans-serif', fontSize: '64px', color: '#ff6b6b', stroke: '#000', strokeThickness: 8 };
     this.add.text(360, 560, '드래곤이 쓰러졌다', style).setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 101);
     this.add
-      .text(360, 660, `버틴 시간 ${this.timeText.text} · Lv.${this.level} · 처치 ${this.kills}\n\n화면을 눌러 다시 시작`, {
+      .text(360, 660, `버틴 시간 ${this.timeText.text} · Lv.${this.level} · 처치 ${this.kills}\n획득 골드 ${this.gold}\n\n화면을 눌러 다시 시작`, {
         ...style, fontSize: '32px', color: '#ffffff', align: 'center',
       })
+      .setOrigin(0.5, 0).setScrollFactor(0).setDepth(UI_DEPTH + 101);
+  }
+
+  /** 보스 처치 = 스테이지 클리어. 빨리 잡을수록 골드가 많다(300~500). */
+  private stageClear(): void {
+    this.mode = 'clear';
+    const { min, max } = STAGE1.clearGold;
+    const spare = Phaser.Math.Clamp((STAGE1.durationMs - this.elapsed) / (STAGE1.durationMs - STAGE1.bossAtMs), 0, 1);
+    const reward = Math.round(min + (max - min) * spare);
+    this.gold += reward;
+    this.drawHud();
+    this.physics.pause();
+    this.add.rectangle(360, 640, 720, 1280, 0x000000, 0.6).setScrollFactor(0).setDepth(UI_DEPTH + 100);
+    const style = { fontFamily: 'sans-serif', fontSize: '64px', color: '#ffd34d', stroke: '#000', strokeThickness: 8 };
+    this.add.text(360, 520, '성지 탈환!', style).setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 101);
+    this.add
+      .text(
+        360, 610,
+        `${STAGE1.name} 클리어\n클리어 시간 ${this.timeText.text} · Lv.${this.level} · 처치 ${this.kills}\n클리어 보상 ${reward} 골드 (합계 ${this.gold})\n\n화면을 눌러 다시 시작`,
+        { ...style, fontSize: '32px', color: '#ffffff', align: 'center' },
+      )
       .setOrigin(0.5, 0).setScrollFactor(0).setDepth(UI_DEPTH + 101);
   }
 }

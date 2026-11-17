@@ -1,5 +1,12 @@
 import Phaser from 'phaser';
-import { ENEMIES, type EnemyDef, type EnemyKind } from '../data/enemies';
+import { ENEMIES, PATTERN, type EnemyDef, type EnemyKind } from '../data/enemies';
+
+/** 적이 이번 프레임에 하겠다는 행동. 그리기·피해 판정은 장면(GameScene)이 한다. */
+export type EnemyAction =
+  | { kind: 'shoot'; angle: number } // 궁수: 화살 한 발
+  | { kind: 'dashWarn'; angle: number; length: number; ms: number } // 돌진 예고선
+  | { kind: 'slam'; x: number; y: number; r: number; ms: number; damage: number } // 원형 예고 → 내려찍기
+  | { kind: 'fan'; angle: number }; // 보스 검기 부채꼴
 
 // 적 한 마리. 물리 몸체가 있는 이미지에 체력·종류·상태이상을 붙인 것.
 export class Enemy extends Phaser.Physics.Arcade.Image {
@@ -20,6 +27,14 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
   private burnTick = 0;
   /** 오브처럼 계속 닿는 공격이 같은 적을 매 프레임 때리지 않게 기억해 두는 시각 */
   orbHitAt = -Infinity;
+  // 돌진형·엘리트·보스 패턴 상태
+  private phase: 'walk' | 'windup' | 'dash' = 'walk';
+  private phaseLeft = 0;
+  private patternCd = 1500;
+  private dashVel = new Phaser.Math.Vector2();
+  private bossTurn = 0;
+  private afterWindup: 'dash' | 'walk' = 'walk'; // 예고가 끝나면 돌진할지(돌진) 그냥 걸을지(내려찍기)
+  enraged = false;
 
   constructor(scene: Phaser.Scene, x: number, y: number, readonly kind: EnemyKind) {
     const def = ENEMIES[kind];
@@ -33,8 +48,12 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
     this.shootTimer = def.ranged ? Phaser.Math.Between(0, def.ranged.interval) : 0;
   }
 
-  /** 매 프레임: 드래곤 쪽으로 걷는다. 원거리 적은 거리를 두고 멈춰서 쏜다. 쏠 때 true. */
-  step(target: Phaser.Math.Vector2, delta: number): boolean {
+  get isBoss(): boolean {
+    return this.def.behavior === 'boss' || this.def.behavior === 'elite';
+  }
+
+  /** 매 프레임: 드래곤 쪽으로 걷고, 종류에 따라 쏘거나 돌진하거나 내려찍는다. */
+  step(target: Phaser.Math.Vector2, delta: number): EnemyAction | null {
     if (this.hitFlash > 0) {
       this.hitFlash -= delta;
       if (this.hitFlash <= 0) this.refreshTint();
@@ -43,7 +62,12 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
       // 밀려나는 동안에는 걷지도 쏘지도 않는다
       this.knockLeft -= delta;
       this.body.setVelocity(this.knockVel.x, this.knockVel.y);
-      return false;
+      return null;
+    }
+    const b = this.def.behavior;
+    if (b === 'charger' || b === 'elite' || b === 'boss') {
+      const act = this.stepPattern(target, delta);
+      if (act !== undefined) return act;
     }
 
     const dx = target.x - this.x;
@@ -60,11 +84,85 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
     this.body.setVelocity((dx / dist) * speed, (dy / dist) * speed);
     this.setFlipX(dx < 0);
 
-    if (!ranged || dist > ranged.keepDistance + 80) return false;
+    if (!ranged || dist > ranged.keepDistance + 80) return null;
     this.shootTimer -= delta;
-    if (this.shootTimer > 0) return false;
+    if (this.shootTimer > 0) return null;
     this.shootTimer = ranged.interval;
-    return true;
+    return { kind: 'shoot', angle: Math.atan2(dy, dx) };
+  }
+
+  /**
+   * 돌진형·엘리트·보스의 패턴. walk(추적) → windup(예고, 멈춤) → dash(돌진) 순서.
+   * undefined를 돌려주면 평소처럼 걷는다(step 아래쪽 코드).
+   */
+  private stepPattern(target: Phaser.Math.Vector2, delta: number): EnemyAction | null | undefined {
+    const speedMult = this.enraged ? 1.3 : 1;
+    const dist = Phaser.Math.Distance.Between(this.x, this.y, target.x, target.y);
+    const toTarget = Math.atan2(target.y - this.y, target.x - this.x);
+
+    if (this.phase === 'windup') {
+      this.phaseLeft -= delta;
+      this.body.setVelocity(0, 0);
+      if (this.phaseLeft > 0) return null;
+      if (this.afterWindup === 'walk') {
+        this.phase = 'walk';
+        return null; // 내려찍기 피해는 예고와 함께 장면이 판정
+      }
+      this.phase = 'dash';
+      const d = this.def.behavior === 'boss' ? PATTERN.boss.dash : PATTERN.charger;
+      this.phaseLeft = 'ms' in d ? d.ms : d.dashMs;
+      const sp = ('speed' in d ? d.speed : d.dashSpeed) * speedMult;
+      this.dashVel.setToPolar(this.dashAngle, sp);
+      return null;
+    }
+    if (this.phase === 'dash') {
+      this.phaseLeft -= delta;
+      this.body.setVelocity(this.dashVel.x, this.dashVel.y);
+      if (this.phaseLeft <= 0) this.phase = 'walk';
+      return null;
+    }
+
+    this.patternCd -= delta * speedMult;
+    if (this.patternCd > 0) return undefined;
+
+    if (this.def.behavior === 'charger') {
+      if (dist > PATTERN.charger.trigger) return undefined;
+      this.patternCd = PATTERN.charger.cooldown;
+      return this.startDash(toTarget, PATTERN.charger.windup, PATTERN.charger.dashSpeed * PATTERN.charger.dashMs / 1000);
+    }
+    if (this.def.behavior === 'elite') {
+      if (dist > PATTERN.golem.trigger) return undefined;
+      const g = PATTERN.golem;
+      this.patternCd = g.every;
+      this.phase = 'windup';
+      this.afterWindup = 'walk';
+      this.phaseLeft = g.windup;
+      return { kind: 'slam', x: this.x, y: this.y, r: g.radius, ms: g.windup, damage: g.damage };
+    }
+    // 보스: 돌진 → 검기 → 범위 순서로 돌아가며
+    const p = PATTERN.boss;
+    this.patternCd = p.every;
+    const turn = this.bossTurn++ % 3;
+    if (turn === 0) return this.startDash(toTarget, p.dash.windup / speedMult, p.dash.speed * p.dash.ms / 1000);
+    if (turn === 1) return { kind: 'fan', angle: toTarget };
+    this.phase = 'windup';
+    this.afterWindup = 'walk';
+    this.phaseLeft = p.ring.windup / speedMult;
+    return { kind: 'slam', x: this.x, y: this.y, r: p.ring.radius, ms: p.ring.windup / speedMult, damage: p.ring.damage };
+  }
+
+  private dashAngle = 0;
+  private startDash(angle: number, windup: number, length: number): EnemyAction {
+    this.phase = 'windup';
+    this.afterWindup = 'dash';
+    this.phaseLeft = windup;
+    this.dashAngle = angle;
+    return { kind: 'dashWarn', angle, length, ms: windup };
+  }
+
+  /** 돌진 중이면 몸통 피해가 더 크다 */
+  get dashing(): boolean {
+    return this.phase === 'dash';
   }
 
   /** 피해를 받는다. 죽으면 true. */
@@ -84,7 +182,8 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
 
   /** 날개 폭풍: 잠깐 바깥으로 밀려난다. 골렘처럼 무거운 적은 덜 밀린다. */
   knock(dirX: number, dirY: number, speed: number, ms: number): void {
-    const weight = this.def.radius >= 28 ? 0.4 : 1;
+    const weight = 1 - (this.def.heavy ?? 0);
+    if (weight <= 0) return;
     this.knockVel.set(dirX, dirY).normalize().scale(speed * weight);
     this.knockLeft = ms;
   }
