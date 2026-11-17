@@ -42,6 +42,7 @@ export class GameScene extends Phaser.Scene {
   private killText!: Phaser.GameObjects.Text;
   private levelText!: Phaser.GameObjects.Text;
   private skillText!: Phaser.GameObjects.Text;
+  private hpText!: Phaser.GameObjects.Text;
   private choiceLayer: Phaser.GameObjects.GameObject[] = [];
 
   // 터치 조이스틱: 화면을 누른 곳이 중심, 끌고 간 방향으로 이동
@@ -132,6 +133,7 @@ export class GameScene extends Phaser.Scene {
     this.timeText = this.add.text(360, 96, '00:00', style).setOrigin(0.5, 0).setScrollFactor(0).setDepth(UI_DEPTH);
     this.killText = this.add.text(690, 24, '처치 0', { ...style, fontSize: '26px' }).setOrigin(1, 0).setScrollFactor(0).setDepth(UI_DEPTH);
     this.levelText = this.add.text(30, 62, 'Lv.1', { ...style, fontSize: '24px' }).setScrollFactor(0).setDepth(UI_DEPTH);
+    this.hpText = this.add.text(210, 40, '', { ...style, fontSize: '20px', strokeThickness: 4 }).setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 1);
     this.skillText = this.add.text(110, 62, '', { ...style, fontSize: '24px' }).setScrollFactor(0).setDepth(UI_DEPTH);
   }
 
@@ -149,6 +151,7 @@ export class GameScene extends Phaser.Scene {
     this.timeText.setText(`${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`);
     this.killText.setText(`처치 ${this.kills}`);
     this.levelText.setText(`Lv.${this.level}`);
+    this.hpText.setText(`${Math.max(0, Math.ceil(this.hp))} / ${Math.round(this.stats.maxHp)}`);
     // 가진 스킬을 아이콘+레벨로 보여 준다 (예: 🔥3 ⚡1)
     this.skillText.setText(
       UPGRADES.filter((u) => u.kind === 'skill' && this.upgradeLevels.has(u.id))
