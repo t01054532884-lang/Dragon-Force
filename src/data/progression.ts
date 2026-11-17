@@ -65,9 +65,10 @@ export const GOLD = {
   quitGraceMs: 30_000, // 30초 미만 자발적 포기는 0G
 };
 
-/** 단계별 골드 배율: 1단계 1.0 ~ 5단계 1.8 (v1.1). 6단계 이후는 아직 미정 → 같은 규칙(+0.2)으로 늘려 둠 */
+/** 단계별 골드 배율(v1.1·v1.2): 1~5단계 1.0·1.2·1.4·1.6·1.8, 6단계 1.9, 7단계부터 2.0 고정(후반 골드 인플레이션 방지) */
 export function stageGoldMult(stageId: number): number {
-  return Math.round((1 + 0.2 * (stageId - 1)) * 100) / 100;
+  if (stageId <= 5) return Math.round((1 + 0.2 * (stageId - 1)) * 100) / 100;
+  return stageId === 6 ? 1.9 : 2.0;
 }
 
 export type RunOutcome = 'clear' | 'dead' | 'timeout' | 'quit';

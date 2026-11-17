@@ -94,10 +94,19 @@ describe('골드 정산', () => {
     expect(computeRunGold(run({ outcome: 'quit', bossKilled: false, elapsedMs: 61_000 })).total).toBe(25); // (30+20)/2
   });
   it('단계 배율을 곱한 뒤 최종 금액만 버림', () => {
-    expect([1, 2, 3, 4, 5].map(stageGoldMult)).toEqual([1, 1.2, 1.4, 1.6, 1.8]);
+    expect([1, 2, 3, 4, 5, 6, 7, 20].map(stageGoldMult)).toEqual([1, 1.2, 1.4, 1.6, 1.8, 1.9, 2, 2]);
     const g = computeRunGold(run({ stageId: 2, outcome: 'dead', bossKilled: false, elapsedMs: 35_000, treasureGold: 20 }));
     // (30 + 10 + 20) × 1.2 × 0.5 = 36
     expect(g.total).toBe(36);
+  });
+});
+
+describe('시간 초과', () => {
+  it('8분 생존 보상 160G를 넣고 전체에 50%', () => {
+    const g = computeRunGold({ stageId: 1, durationMs: 480_000, outcome: 'timeout', elapsedMs: 480_016, normalKills: 400, eliteKills: 2, bossKilled: false, treasureGold: 0 });
+    // 30 + 160 + 80 + 40 = 310 → 155
+    expect(g.subtotal).toBe(310);
+    expect(g.total).toBe(155);
   });
 });
 

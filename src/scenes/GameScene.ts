@@ -12,6 +12,7 @@ import type { CombatHost } from '../systems/CombatHost';
 import { StageDirector } from '../systems/StageDirector';
 import { applyPermanent, computeRunGold, type GoldBreakdown, type RunOutcome } from '../data/progression';
 import { Progress } from '../systems/Progress';
+import { ITEM_RULES, ITEMS, rollNormalDrop, type ItemId } from '../data/items';
 
 const WORLD_SIZE = 2800; // 투기장을 담는 정사각형 세계
 const ARENA_R = 22 * M; // 원형 투기장 반지름 22m = 1100px (사용자 결정 2026-11-17)
@@ -40,6 +41,15 @@ export class GameScene extends Phaser.Scene {
   private level = 1;
   private xp = 0;
   private pendingLevelUps = 0;
+  /** 선택창 대기열: 레벨업 카드와 스킬 강화 상자가 겹치지 않게 들어온 순서대로 연다(v1.2) */
+  private choiceQueue: ('level' | 'box')[] = [];
+  private items!: Phaser.Physics.Arcade.Group;
+  /** 아이템 전용 난수: 적 생성 난수와 분리해 기존 시드의 적 등장이 그대로 재현되게 함 */
+  private itemRng!: Phaser.Math.RandomDataGenerator;
+  private shieldUntil = 0; // 용의 수호막 끝나는 시각(elapsed 기준). 0 = 없음
+  private shieldFx!: Phaser.GameObjects.Arc;
+  /** 아이템 기록(밸런스 확인용): 드롭·획득 개수 */
+  itemLog = { drop: {} as Record<string, number>, pick: {} as Record<string, number>, shieldBlocks: 0 };
   private upgradeLevels = new Map<string, number>();
   private basicEverOffered = false;
   private invincibleUntil = 0;
@@ -76,6 +86,7 @@ export class GameScene extends Phaser.Scene {
   private skillText!: Phaser.GameObjects.Text;
   private hpText!: Phaser.GameObjects.Text;
   private bossText!: Phaser.GameObjects.Text;
+  private shieldText!: Phaser.GameObjects.Text;
   private eliteText!: Phaser.GameObjects.Text;
   private choiceLayer: Phaser.GameObjects.GameObject[] = [];
   private edgeArrows: { x: number; y: number; until: number; color: number }[] = [];
@@ -107,6 +118,10 @@ export class GameScene extends Phaser.Scene {
     this.level = 1;
     this.xp = 0;
     this.pendingLevelUps = 0;
+    this.choiceQueue = [];
+    this.itemRng = new Phaser.Math.RandomDataGenerator([`${this.seed}:items`]);
+    this.shieldUntil = 0;
+    this.itemLog = { drop: {}, pick: {}, shieldBlocks: 0 };
     this.upgradeLevels = new Map([['basic', 1]]);
     this.basicEverOffered = false;
     this.invincibleUntil = 0;
@@ -152,6 +167,9 @@ export class GameScene extends Phaser.Scene {
       this.damagePlayer(e.def.contactDamage * (e.dashing ? 1.5 : 1) * e.damageMult, e);
     });
     this.physics.add.overlap(this.player, this.gems, (_p, g) => this.collectGem(g as Phaser.Physics.Arcade.Image));
+    this.items = this.physics.add.group();
+    this.physics.add.overlap(this.player, this.items, (_p, it) => this.pickItem(it as Phaser.Physics.Arcade.Image));
+    this.shieldFx = this.add.circle(0, 0, 44, 0x9be7ff, 0.15).setStrokeStyle(4, 0x9be7ff, 0.9).setDepth(11).setVisible(false);
 
     const kb = this.input.keyboard!;
     this.keys = kb.addKeys('up,down,left,right,w,a,s,d') as typeof this.keys;
@@ -233,6 +251,7 @@ export class GameScene extends Phaser.Scene {
     this.skillText = this.add.text(110, 62, '', { ...style, fontSize: '22px', lineSpacing: 6 }).setScrollFactor(0).setDepth(UI_DEPTH);
     this.bossText = this.add.text(360, 186, '', { ...style, fontSize: '24px', align: 'center' }).setOrigin(0.5, 1).setScrollFactor(0).setDepth(UI_DEPTH + 1);
     this.eliteText = this.add.text(360, 232, '', { ...style, fontSize: '20px', align: 'center' }).setOrigin(0.5, 1).setScrollFactor(0).setDepth(UI_DEPTH + 1);
+    this.shieldText = this.add.text(360, 140, '', { ...style, fontSize: '22px', color: '#9be7ff' }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(UI_DEPTH);
     // 일시정지 버튼(휴대폰용). PC는 ESC·P 키.
     const pause = this.add.circle(670, 140, 32, 0x000000, 0.55).setStrokeStyle(3, 0xffffff, 0.7).setScrollFactor(0).setDepth(UI_DEPTH + 2);
     this.add.text(670, 140, 'II', { ...style, fontSize: '28px', fontStyle: 'bold' }).setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 3);
@@ -305,6 +324,8 @@ export class GameScene extends Phaser.Scene {
     this.timeText.setColor(d.enraged ? '#ff5252' : '#ffffff');
     this.killText.setText(`처치 ${this.kills}`);
     this.levelText.setText(`Lv.${this.level}`);
+    const sh = this.shieldUntil - this.elapsed;
+    this.shieldText.setText(sh > 0 ? `🛡 수호막 ${Math.ceil(sh / 1000)}초` : '');
     this.hpText.setText(`${Math.max(0, Math.ceil(this.hp))} / ${Math.round(this.stats.maxHp)}`);
     const icons = (kinds: string[]) =>
       UPGRADES.filter((u) => kinds.includes(u.kind) && (this.upgradeLevels.get(u.id) ?? 0) > 0)
@@ -389,6 +410,7 @@ export class GameScene extends Phaser.Scene {
     this.basic.update(delta);
     this.skills.update(delta);
     this.pullGems(false);
+    this.updateItems();
     this.drawHud();
   }
 
@@ -535,12 +557,15 @@ export class GameScene extends Phaser.Scene {
     }
     if (enemy.rank === 'elite' && d.onEliteKilled(enemy, this.elapsed)) {
       this.eliteKills++; // onEliteKilled가 슬롯마다 한 번만 true → 엘리트 보상도 한 번만
+      this.spawnItem('box', enemy.x, enemy.y, true); // 엘리트: 스킬 강화 상자 확정(획득 전까지 유지)
       // 엘리트 처치 보상(한 번만): 대형 경험치 결정 + 최대 HP 12% 회복
       this.dropGem(enemy.x, enemy.y, enemy.def.xp);
       this.hp = Math.min(this.stats.maxHp, this.hp + this.stats.maxHp * REWARD.eliteHeal);
       this.popText(this.player.x, this.player.y - 50, `+${Math.round(this.stats.maxHp * REWARD.eliteHeal)} HP`, '#3ddc84');
     } else if (enemy.rank === 'normal') {
       this.dropGem(enemy.x, enemy.y, enemy.def.xp);
+      const drop = rollNormalDrop(this.itemRng.frac()); // 처치마다 한 번, 최대 1종
+      if (drop) this.spawnItem(drop, enemy.x, enemy.y, false);
     }
     enemy.destroy();
   }
@@ -559,7 +584,7 @@ export class GameScene extends Phaser.Scene {
       const d = Phaser.Math.Distance.Between(gem.x, gem.y, this.player.x, this.player.y);
       if (all || gem.getData('pulled') || d < this.stats.magnet) {
         gem.setData('pulled', true);
-        this.physics.moveToObject(gem, this.player, all ? 1400 : 600);
+        this.physics.moveToObject(gem, this.player, all || gem.getData('magnet') ? 1400 : 600);
       }
     }
   }
@@ -573,14 +598,44 @@ export class GameScene extends Phaser.Scene {
       this.xp -= xpToNext(this.level);
       this.level++;
       this.pendingLevelUps++;
+      this.choiceQueue.push('level');
     }
-    if (this.pendingLevelUps > 0 && this.mode === 'play') this.openChoice();
+    this.openNext();
+  }
+
+  /** 대기열 맨 앞의 선택창을 연다(전투 중일 때만). 레벨업이 여러 번이면 하나씩 차례로. */
+  private openNext(): void {
+    if (this.mode !== 'play' || this.choiceQueue.length === 0) return;
+    if (this.choiceQueue[0] === 'level') this.openChoice();
+    else this.openBox();
   }
 
   private openChoice(): void {
     const reached = this.level - this.pendingLevelUps + 1;
     const choices = rollOffer({ levels: this.upgradeLevels, playerLevel: reached, basicEverOffered: this.basicEverOffered }, () => this.rng.frac());
     if (choices.some((u) => u.kind === 'basic')) this.basicEverOffered = true;
+    this.showCards(`레벨 업! Lv.${reached}`, '', choices, false);
+  }
+
+  /** 스킬 강화 상자: 이미 가진 기본공격·액티브 중 더 올릴 수 있는 것 최대 3개 (새 스킬 없음) */
+  private boxCandidates(): Upgrade[] {
+    return UPGRADES.filter((u) => (u.kind === 'basic' || u.kind === 'active') && (this.upgradeLevels.get(u.id) ?? 0) > 0 && (this.upgradeLevels.get(u.id) ?? 0) < u.maxLevel);
+  }
+
+  private openBox(): void {
+    const pool = this.boxCandidates();
+    if (pool.length === 0) {
+      // 그사이 모두 최대 레벨이 됐으면 회복 물약으로 대체
+      this.choiceQueue.shift();
+      this.applyItem('potion');
+      this.openNext();
+      return;
+    }
+    const choices = this.itemRng.shuffle([...pool]).slice(0, ITEM_RULES.boxChoices);
+    this.showCards('스킬 강화 상자', '보유 스킬 중 하나를 골라 레벨을 올리세요', choices, true);
+  }
+
+  private showCards(title: string, subtitle: string, choices: Upgrade[], isBox: boolean): void {
     this.mode = 'choose';
     this.physics.pause();
     this.time.paused = true;
@@ -595,19 +650,22 @@ export class GameScene extends Phaser.Scene {
     add(this.add.rectangle(360, 640, 720, 1280, 0x000000, 0.65).setScrollFactor(0).setDepth(UI_DEPTH + 10));
     add(
       this.add
-        .text(360, 300, `레벨 업! Lv.${reached}`, { fontFamily: 'sans-serif', fontSize: '56px', color: '#ffd34d', stroke: '#000', strokeThickness: 8 })
+        .text(360, 300, title, { fontFamily: 'sans-serif', fontSize: '56px', color: isBox ? '#ffe082' : '#ffd34d', stroke: '#000', strokeThickness: 8 })
         .setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 11),
     );
+    if (subtitle)
+      add(this.add.text(360, 365, subtitle, { fontFamily: 'sans-serif', fontSize: '26px', color: '#ffffff' }).setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 11));
     choices.forEach((u, i) => {
       const y = 470 + i * 200;
       const next = (this.upgradeLevels.get(u.id) ?? 0) + 1;
       const tag =
+        isBox ? `Lv.${next - 1} → Lv.${next}${next === u.maxLevel ? (u.kind === 'basic' ? ' 진화!' : ' (최대)') : ''}` :
         u.kind === 'filler' ? '' :
         u.kind === 'basic' ? `기본공격 Lv.${next}${next === u.maxLevel ? ' 진화!' : ''}` :
         next === 1 ? (u.kind === 'active' ? '새 스킬!' : '새 패시브!') :
         `Lv.${next}${next === u.maxLevel ? ' (최대)' : ''}`;
       const border = { basic: 0xff7043, active: 0x8fa3d9, passive: 0x7bd88f, filler: 0xb0b0b0 }[u.kind];
-      const card = add(this.add.rectangle(360, y, 600, 170, 0x22283a).setStrokeStyle(4, border).setScrollFactor(0).setDepth(UI_DEPTH + 11));
+      const card = add(this.add.rectangle(360, y, 600, 170, 0x22283a).setStrokeStyle(4, isBox ? 0xffd34d : border).setScrollFactor(0).setDepth(UI_DEPTH + 11));
       card.setInteractive({ useHandCursor: true });
       card.on('pointerover', () => card.setFillStyle(0x2f3a57));
       card.on('pointerout', () => card.setFillStyle(0x22283a));
@@ -635,11 +693,73 @@ export class GameScene extends Phaser.Scene {
     this.choiceLayer.forEach((o) => o.destroy());
     this.choiceLayer = [];
     this.currentChoices = [];
-    this.pendingLevelUps--;
+    if (this.choiceQueue.shift() === 'level') this.pendingLevelUps--;
     this.mode = 'play';
     this.physics.resume();
     this.time.paused = false;
-    if (this.pendingLevelUps > 0) this.openChoice();
+    this.openNext();
+  }
+
+  // ───────────────────────── 전투 아이템 (v1.2) ─────────────────────────
+
+  /** 몬스터가 죽은 자리에 아이템 생성. 투기장 밖이면 안쪽으로 당긴다. persistent = 엘리트 확정 상자 */
+  private spawnItem(id: ItemId, x: number, y: number, persistent: boolean): void {
+    if (id === 'box' && this.boxCandidates().length === 0) id = 'potion'; // 모든 스킬 만렙이면 물약으로
+    const v = new Phaser.Math.Vector2(x - this.arena.x, y - this.arena.y);
+    const maxR = this.arena.r - 50;
+    if (v.length() > maxR) v.setLength(maxR);
+    const it = this.physics.add.image(this.arena.x + v.x, this.arena.y + v.y, `item-${id}`).setDepth(6);
+    this.items.add(it);
+    it.setData({ id, expireAt: persistent ? Infinity : this.elapsed + ITEM_RULES.lifetimeMs });
+    this.tweens.add({ targets: it, scale: 1.15, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+    this.itemLog.drop[id] = (this.itemLog.drop[id] ?? 0) + 1;
+    this.stageLog.push({ name: 'item:drop', at: Math.round(this.elapsed), data: { id, persistent } });
+  }
+
+  private updateItems(): void {
+    for (const obj of [...this.items.getChildren()]) {
+      const it = obj as Phaser.Physics.Arcade.Image;
+      const left = (it.getData('expireAt') as number) - this.elapsed;
+      if (left <= 0) it.destroy();
+      else if (left < ITEM_RULES.blinkMs) it.setAlpha(Math.floor(left / 200) % 2 ? 0.35 : 1);
+    }
+    const shield = this.shieldUntil > this.elapsed;
+    this.shieldFx.setVisible(shield).setPosition(this.player.x, this.player.y);
+    if (shield && this.shieldUntil - this.elapsed < 5000) this.shieldFx.setAlpha(Math.floor(this.elapsed / 200) % 2 ? 0.4 : 1);
+    else this.shieldFx.setAlpha(1);
+  }
+
+  private pickItem(it: Phaser.Physics.Arcade.Image): void {
+    if (!it.active || this.mode !== 'play') return;
+    const id = it.getData('id') as ItemId;
+    it.destroy();
+    this.itemLog.pick[id] = (this.itemLog.pick[id] ?? 0) + 1;
+    this.stageLog.push({ name: 'item:pickup', at: Math.round(this.elapsed), data: { id } });
+    if (id === 'box') {
+      if (this.boxCandidates().length === 0) return this.applyItem('potion');
+      this.popText(this.player.x, this.player.y - 60, ITEMS.box.name, ITEMS.box.color);
+      this.choiceQueue.push('box');
+      this.openNext();
+      return;
+    }
+    this.applyItem(id);
+  }
+
+  /** 즉시 발동 아이템(물약·자석·수호막) */
+  private applyItem(id: ItemId): void {
+    const at = (t: string) => this.popText(this.player.x, this.player.y - 60, t, ITEMS[id].color);
+    if (id === 'potion') {
+      // 연구소·용의 심장이 반영된 실제 최대 HP의 25%, 최대 HP는 넘지 않음
+      const heal = Math.min(this.stats.maxHp - this.hp, this.stats.maxHp * ITEM_RULES.potionHeal);
+      this.hp += heal;
+      at(`회복 +${Math.round(heal)}`);
+    } else if (id === 'magnet') {
+      for (const g of this.gems.getChildren()) g.setData({ pulled: true, magnet: true });
+      at('경험치 자석!');
+    } else if (id === 'shield') {
+      this.shieldUntil = this.elapsed + ITEM_RULES.shieldMs; // 최대 1개, 다시 얻으면 60초로 갱신
+      at('용의 수호막!');
+    }
   }
 
   // ───────────────────────── 피해 ─────────────────────────
@@ -651,6 +771,17 @@ export class GameScene extends Phaser.Scene {
   private damagePlayer(amount: number, src?: Enemy, pattern = false): void {
     if (this.mode !== 'play' || this.invulnerable) return;
     if (!pattern && this.time.now < this.invincibleUntil) return;
+    // 용의 수호막: 피해 계산보다 먼저. 한 번 막고 사라지며, 막은 뒤에도 평소처럼 0.5초 무적
+    if (this.shieldUntil > this.elapsed) {
+      this.shieldUntil = 0;
+      this.itemLog.shieldBlocks++;
+      this.invincibleUntil = this.time.now + 500;
+      this.stageLog.push({ name: 'shield:block', at: Math.round(this.elapsed), data: { amount } });
+      const burst = this.add.circle(this.player.x, this.player.y, 44).setStrokeStyle(6, 0x9be7ff).setDepth(12);
+      this.tweens.add({ targets: burst, scale: 2, alpha: 0, duration: 350, onComplete: () => burst.destroy() });
+      this.popText(this.player.x, this.player.y - 60, '방어!', '#9be7ff');
+      return;
+    }
     // 상한 기준 = 연구소 강화 전 최대 HP(기본 + 전투 중 패시브). 연구소 Lv.0이면 4단계와 똑같다.
     const cap = src ? HIT_CAP[src.rank] * (this.stats.maxHp - this.permHpBonus) : Infinity;
     const dmg = Math.min(amount * this.stats.damageTaken, cap);
@@ -680,6 +811,9 @@ export class GameScene extends Phaser.Scene {
     this.hazards.forEach((h) => h.objs.forEach((o) => o.destroy()));
     this.hazards = [];
     this.edgeArrows = [];
+    this.items.clear(true, true); // 남은 아이템은 사라짐(보스 보상은 결과 화면에서)
+    this.shieldUntil = 0;
+    this.shieldFx.setVisible(false);
     // 4) 남은 적은 빛으로 소멸(보상 없음)
     for (const obj of [...this.enemies.getChildren()]) {
       const e = obj as Enemy;

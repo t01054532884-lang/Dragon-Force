@@ -75,6 +75,31 @@ export function makeTextures(scene: Phaser.Scene): void {
   g.fillStyle(0xb3e5fc).fillTriangle(8, 3, 12, 9, 4, 9);
   g.generateTexture('gem', 16, 20);
 
+  // 전투 아이템 4종(임시 도형, 6단계 아트에서 교체)
+  g.clear(); // 스킬 강화 상자: 금테 보물상자
+  g.fillStyle(0xffd34d, 0.25).fillCircle(22, 22, 22);
+  g.fillStyle(0x7a4a1c).fillRoundedRect(6, 12, 32, 22, 4);
+  g.fillStyle(0xffd34d).fillRect(6, 19, 32, 4).fillRect(19, 12, 6, 22);
+  g.fillStyle(0xfff3c4).fillRect(20, 20, 4, 4);
+  g.generateTexture('item-box', 44, 44);
+  g.clear(); // 회복 물약: 붉은 플라스크
+  g.fillStyle(0xff6b6b, 0.25).fillCircle(22, 22, 22);
+  g.fillStyle(0xd9d9d9).fillRect(18, 6, 8, 8);
+  g.fillStyle(0xe53935).fillCircle(22, 26, 12);
+  g.fillStyle(0xffcdd2).fillCircle(18, 22, 3);
+  g.generateTexture('item-potion', 44, 44);
+  g.clear(); // 경험치 자석: 말굽 자석
+  g.fillStyle(0x4fc3f7, 0.25).fillCircle(22, 22, 22);
+  g.lineStyle(7, 0xd23b2a).beginPath().arc(22, 20, 10, Math.PI, 0, true).strokePath();
+  g.fillStyle(0xd23b2a).fillRect(9, 20, 7, 10).fillRect(28, 20, 7, 10);
+  g.fillStyle(0xe0e0e0).fillRect(9, 28, 7, 5).fillRect(28, 28, 7, 5);
+  g.generateTexture('item-magnet', 44, 44);
+  g.clear(); // 용의 수호막: 푸른 방패
+  g.fillStyle(0x9be7ff, 0.25).fillCircle(22, 22, 22);
+  g.fillStyle(0x4fa3d9).fillTriangle(8, 10, 36, 10, 22, 38).fillRect(8, 8, 28, 10);
+  g.fillStyle(0xe1f5fe).fillTriangle(14, 13, 30, 13, 22, 30);
+  g.generateTexture('item-shield', 44, 44);
+
   // 잿빛 숲 바닥: 재가 내려앉은 돌바닥
   g.clear();
   g.fillStyle(0x3a3a3f).fillRect(0, 0, 128, 128);
