@@ -1,64 +1,77 @@
 import Phaser from 'phaser';
 import { makeTextures } from '../textures';
-import { PATTERN, type EnemyKind } from '../data/enemies';
-import { STAGE1 } from '../data/stage1';
-import { BASE_STATS, xpToNext, type RunStats } from '../data/stats';
+import { HIT_CAP, type EnemyKind } from '../data/enemies';
+import { BASE_STATS, M, xpToNext, type RunStats } from '../data/stats';
+import { REWARD, STAGES, type StageData } from '../data/stages';
 import { rollOffer, UPGRADES, type Upgrade } from '../data/upgrades';
 import { Enemy, type EnemyAction } from '../objects/Enemy';
 import { Skills } from '../systems/Skills';
 import { BasicAttack } from '../systems/BasicAttack';
 import { resolveDamage, type HitSpec } from '../systems/Damage';
 import type { CombatHost } from '../systems/CombatHost';
+import { StageDirector } from '../systems/StageDirector';
 
-const WORLD_SIZE = 4000; // 맵 한 변 길이(px). 화면보다 훨씬 넓고 카메라가 따라다닌다.
-const SPAWN_RADIUS = 820; // 화면 밖(드래곤에서 이만큼 떨어진 곳)에서 적이 나온다.
-const MAX_ENEMIES = 220; // 한 번에 살아 있는 적 최대 수(휴대폰 성능 보호)
+const WORLD_SIZE = 2800; // 투기장을 담는 정사각형 세계
+const ARENA_R = 22 * M; // 원형 투기장 반지름 22m = 1100px (사용자 결정 2026-11-17)
 const UI_DEPTH = 200;
+const UNLOCK_KEY = 'dragon-squad:unlockedStage';
 
-type Mode = 'play' | 'choose' | 'over' | 'clear';
+type Mode = 'play' | 'choose' | 'clearing' | 'result';
+
+interface Hazard {
+  left: number;
+  run: () => void;
+  objs: Phaser.GameObjects.GameObject[]; // 예고 그림(클리어 때 함께 지운다)
+}
 
 export class GameScene extends Phaser.Scene {
   private player!: Phaser.Types.Physics.Arcade.ImageWithDynamicBody;
   private keys!: Record<'up' | 'down' | 'left' | 'right' | 'w' | 'a' | 's' | 'd', Phaser.Input.Keyboard.Key>;
   private enemies!: Phaser.Physics.Arcade.Group;
-  private bolts!: Phaser.Physics.Arcade.Group;
   private gems!: Phaser.Physics.Arcade.Group;
+  private arena = { x: WORLD_SIZE / 2, y: WORLD_SIZE / 2, r: ARENA_R };
 
+  private stage!: StageData;
+  private seed = 0;
+  private rng!: Phaser.Math.RandomDataGenerator;
+  private director!: StageDirector;
   private stats: RunStats = { ...BASE_STATS };
   private hp = BASE_STATS.maxHp;
   private level = 1;
   private xp = 0;
-  private pendingLevelUps = 0; // 한 번에 여러 레벨이 오르면 카드 선택을 차례로 보여 준다
-  private upgradeLevels = new Map<string, number>(); // 카드별로 몇 번 골랐는지
-  private invincibleUntil = 0; // 맞은 직후 잠깐 무적(연속으로 피가 녹지 않게)
+  private pendingLevelUps = 0;
+  private upgradeLevels = new Map<string, number>();
+  private basicEverOffered = false;
+  private invincibleUntil = 0;
+  private invulnerable = false; // 클리어 연출 중 무적
   private elapsed = 0; // 판 시작 후 지난 시간(ms). 카드 고르는 동안은 멈춘다.
-  private spawnCooldown = 0;
+  private timeScale = 1; // 보스 처치 순간 0.35배 슬로모션
   private kills = 0;
+  private gold = 0;
   private mode: Mode = 'play';
-  private facing = new Phaser.Math.Vector2(0, -1); // 마지막으로 움직인 방향(브레스가 이쪽으로 나감)
+  private facing = new Phaser.Math.Vector2(0, -1);
   private skills!: Skills;
   private basic!: BasicAttack;
-  private basicEverOffered = false; // 기본공격 카드 보장 규칙용
-  private gold = 0; // 이번 판에 모은 골드(5단계 영구 강화에 사용)
-  private eliteSpawned = false;
-  private boss: Enemy | null = null;
-  private enraged = false;
-  /** 예고 뒤 일어날 일(내려찍기 판정 등). update의 delta로만 흐르므로 카드 고를 때 같이 멈춘다. */
-  private timers: { left: number; run: () => void }[] = [];
-  private bossBar!: Phaser.GameObjects.Graphics;
-  private bossText!: Phaser.GameObjects.Text;
-  /** 전투 로그: 공격 원천별 누적 피해(밸런스 검증용, 기획서 v0.2 CombatTelemetry) */
+  private hazards: Hazard[] = [];
+  private currentChoices: Upgrade[] = [];
+  /** 전투 로그: 공격 원천별 누적 피해(밸런스 검증용) */
   dmgLog: Record<string, number> = {};
+  /** 스테이지 이벤트 기록(기획서 17장): 테스트·밸런스 확인용 */
+  stageLog: { name: string; at: number; data?: unknown }[] = [];
+
   // 화면 고정 UI
-  private hpBar!: Phaser.GameObjects.Graphics;
+  private hud!: Phaser.GameObjects.Graphics;
   private timeText!: Phaser.GameObjects.Text;
   private killText!: Phaser.GameObjects.Text;
   private levelText!: Phaser.GameObjects.Text;
   private skillText!: Phaser.GameObjects.Text;
   private hpText!: Phaser.GameObjects.Text;
+  private bossText!: Phaser.GameObjects.Text;
+  private eliteText!: Phaser.GameObjects.Text;
   private choiceLayer: Phaser.GameObjects.GameObject[] = [];
+  private edgeArrows: { x: number; y: number; until: number; color: number }[] = [];
 
-  // 터치 조이스틱: 화면을 누른 곳이 중심, 끌고 간 방향으로 이동
+  // 터치 조이스틱
   private stickBase!: Phaser.GameObjects.Arc;
   private stickKnob!: Phaser.GameObjects.Arc;
   private stickPointerId: number | null = null;
@@ -68,67 +81,68 @@ export class GameScene extends Phaser.Scene {
     super('game');
   }
 
+  init(data: { stageId?: number; seed?: number }): void {
+    this.stage = STAGES.find((s) => s.id === (data?.stageId ?? 1)) ?? STAGES[0];
+    // 시드: 주소에 ?seed=123 이 있으면 그 값, 아니면 무작위. 같은 시드면 적 생성·위치가 똑같이 재현된다.
+    const urlSeed = Number(new URLSearchParams(location.search).get('seed'));
+    this.seed = data?.seed ?? (Number.isFinite(urlSeed) && urlSeed > 0 ? urlSeed : Math.floor(Math.random() * 1e9));
+  }
+
   create(): void {
-    // scene.restart() 때 필드가 이전 판 값을 들고 있으므로 다시 초기화한다.
+    // scene.restart() 때 필드가 이전 판 값을 들고 있으므로 전부 다시 초기화한다(완료 기준: 재도전 시 정상 초기화).
+    this.rng = new Phaser.Math.RandomDataGenerator([String(this.seed)]);
     this.stats = { ...BASE_STATS };
     this.hp = this.stats.maxHp;
     this.level = 1;
     this.xp = 0;
     this.pendingLevelUps = 0;
-    this.upgradeLevels = new Map([['basic', 1]]); // 고유 기본공격은 Lv.1로 시작
+    this.upgradeLevels = new Map([['basic', 1]]);
     this.basicEverOffered = false;
-    this.gold = 0;
-    this.dmgLog = {};
-    this.eliteSpawned = false;
-    this.boss = null;
-    this.enraged = false;
-    this.timers = [];
     this.invincibleUntil = 0;
+    this.invulnerable = false;
     this.elapsed = 0;
-    this.spawnCooldown = 0;
+    this.timeScale = 1;
     this.kills = 0;
+    this.gold = 0;
     this.mode = 'play';
     this.facing.set(0, -1);
+    this.hazards = [];
+    this.currentChoices = [];
     this.choiceLayer = [];
+    this.edgeArrows = [];
+    this.dmgLog = {};
+    this.stageLog = [];
     this.stickPointerId = null;
     this.stickVec.set(0, 0);
-
-    this.physics.resume(); // 게임오버 때 멈춘 물리를 새 판에서 다시 켠다
+    this.physics.resume();
+    this.physics.world.timeScale = 1;
+    this.tweens.timeScale = 1;
     this.time.paused = false;
     if (!this.textures.exists('dragon')) makeTextures(this);
 
-    // 넓은 바닥을 타일로 깔고, 물리 세계와 카메라 범위를 맵 크기에 맞춘다.
-    this.add.tileSprite(0, 0, WORLD_SIZE, WORLD_SIZE, 'ground').setOrigin(0);
+    this.drawArena();
     this.physics.world.setBounds(0, 0, WORLD_SIZE, WORLD_SIZE);
     this.cameras.main.setBounds(0, 0, WORLD_SIZE, WORLD_SIZE);
 
-    this.player = this.physics.add.image(WORLD_SIZE / 2, WORLD_SIZE / 2, 'dragon').setDepth(10);
-    this.player.setCircle(18, 14, 18).setCollideWorldBounds(true);
+    this.player = this.physics.add.image(this.arena.x, this.arena.y + ARENA_R * 0.4, 'dragon').setDepth(10);
+    this.player.setCircle(18, 14, 18);
     this.cameras.main.startFollow(this.player, true, 0.15, 0.15);
 
     this.enemies = this.physics.add.group();
-    this.bolts = this.physics.add.group();
     this.gems = this.physics.add.group();
-
-    // 충돌 규칙: 적끼리는 서로 밀어내고(겹쳐 뭉치지 않게), 나머지는 겹침(overlap)으로 판정만 한다.
     this.physics.add.collider(this.enemies, this.enemies);
     this.physics.add.overlap(this.player, this.enemies, (_p, en) => {
       const e = en as Enemy;
-      this.damagePlayer(e.def.contactDamage * (e.dashing ? 1.5 : 1) * (e.enraged ? PATTERN.boss.enrageMult : 1));
-    });
-    this.physics.add.overlap(this.player, this.bolts, (_p, b) => {
-      const bolt = b as Phaser.Physics.Arcade.Image;
-      this.damagePlayer(bolt.getData('damage') as number);
-      bolt.destroy();
+      this.damagePlayer(e.def.contactDamage * (e.dashing ? 1.5 : 1) * e.damageMult, e);
     });
     this.physics.add.overlap(this.player, this.gems, (_p, g) => this.collectGem(g as Phaser.Physics.Arcade.Image));
 
     const kb = this.input.keyboard!;
     this.keys = kb.addKeys('up,down,left,right,w,a,s,d') as typeof this.keys;
-    // PC에서는 1·2·3 키로도 카드를 고를 수 있다.
     kb.on('keydown', (ev: KeyboardEvent) => {
       const n = Number(ev.key);
       if (this.mode === 'choose' && n >= 1 && n <= 3) this.pickChoice(n - 1);
+      if (this.mode === 'result' && (ev.key === 'r' || ev.key === 'R')) this.retry();
     });
 
     const host: CombatHost = {
@@ -145,64 +159,162 @@ export class GameScene extends Phaser.Scene {
 
     this.createHud();
     this.createJoystick();
+
+    this.director = new StageDirector(
+      {
+        rng: this.rng,
+        playerPos: () => new Phaser.Math.Vector2(this.player.x, this.player.y),
+        arena: this.arena,
+        spawn: (kind, x, y, hpMult) => this.spawnEnemy(kind, x, y, hpMult),
+        enemyCount: () => this.enemies.countActive(),
+        warnSpawn: (x, y, ms, color) => this.warnSpawn(x, y, ms, color),
+        banner: (t, c) => this.banner(t, c),
+        darken: (ms) => this.darken(ms),
+        emit: (name, data) => this.stageLog.push({ name, at: Math.round(this.elapsed), data }),
+        fail: (reason) => this.fail(reason),
+      },
+      this.stage,
+    );
+    this.banner(`${this.stage.id}단계 — ${this.stage.name}`, '#e0e0e0');
+  }
+
+  /** 원형 투기장: 안쪽은 잿빛 돌바닥, 가장자리는 돌벽, 바깥은 어둠 */
+  private drawArena(): void {
+    const { x, y, r } = this.arena;
+    this.add.rectangle(0, 0, WORLD_SIZE, WORLD_SIZE, 0x0d0f14).setOrigin(0);
+    const floor = this.add.tileSprite(0, 0, WORLD_SIZE, WORLD_SIZE, 'ground').setOrigin(0);
+    const mask = this.make.graphics({}, false).fillStyle(0xffffff).fillCircle(x, y, r);
+    floor.setMask(mask.createGeometryMask());
+    const g = this.add.graphics();
+    g.lineStyle(4, 0x6b2a2a, 0.35).strokeCircle(x, y, r * 0.35).strokeCircle(x, y, r * 0.7); // 바닥 문양
+    g.lineStyle(40, 0x24252b).strokeCircle(x, y, r + 20); // 벽
+    g.lineStyle(6, 0x6d6e78).strokeCircle(x, y, r);
+    for (let i = 0; i < 24; i++) {
+      const a = (i / 24) * Math.PI * 2;
+      g.fillStyle(0x3b3d46).fillRect(x + Math.cos(a) * (r + 22) - 14, y + Math.sin(a) * (r + 22) - 14, 28, 28); // 벽 돌기둥
+    }
+  }
+
+  private spawnEnemy(kind: EnemyKind, x: number, y: number, hpMult: number): Enemy {
+    const e = new Enemy(this, x, y, kind, hpMult);
+    this.enemies.add(e);
+    return e;
   }
 
   // ───────────────────────── UI ─────────────────────────
 
   private createHud(): void {
-    this.hpBar = this.add.graphics().setScrollFactor(0).setDepth(UI_DEPTH);
+    this.hud = this.add.graphics().setScrollFactor(0).setDepth(UI_DEPTH);
     const style = { fontFamily: 'sans-serif', fontSize: '34px', color: '#ffffff', stroke: '#000000', strokeThickness: 5 };
     this.timeText = this.add.text(360, 96, '00:00', style).setOrigin(0.5, 0).setScrollFactor(0).setDepth(UI_DEPTH);
     this.killText = this.add.text(690, 24, '처치 0', { ...style, fontSize: '26px' }).setOrigin(1, 0).setScrollFactor(0).setDepth(UI_DEPTH);
     this.levelText = this.add.text(30, 62, 'Lv.1', { ...style, fontSize: '24px' }).setScrollFactor(0).setDepth(UI_DEPTH);
     this.hpText = this.add.text(210, 40, '', { ...style, fontSize: '20px', strokeThickness: 4 }).setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 1);
-    this.bossBar = this.add.graphics().setScrollFactor(0).setDepth(UI_DEPTH);
-    this.bossText = this.add.text(360, 182, '', { ...style, fontSize: '24px' }).setOrigin(0.5, 1).setScrollFactor(0).setDepth(UI_DEPTH + 1);
     this.skillText = this.add.text(110, 62, '', { ...style, fontSize: '22px', lineSpacing: 6 }).setScrollFactor(0).setDepth(UI_DEPTH);
+    this.bossText = this.add.text(360, 186, '', { ...style, fontSize: '24px', align: 'center' }).setOrigin(0.5, 1).setScrollFactor(0).setDepth(UI_DEPTH + 1);
+    this.eliteText = this.add.text(360, 232, '', { ...style, fontSize: '20px', align: 'center' }).setOrigin(0.5, 1).setScrollFactor(0).setDepth(UI_DEPTH + 1);
   }
 
   private drawHud(): void {
+    const d = this.director;
     const hpRatio = Phaser.Math.Clamp(this.hp / this.stats.maxHp, 0, 1);
     const xpRatio = Phaser.Math.Clamp(this.xp / xpToNext(this.level), 0, 1);
-    const g = this.hpBar.clear();
+    const g = this.hud.clear();
     g.fillStyle(0x000000, 0.6).fillRoundedRect(30, 26, 360, 28, 8);
     g.fillStyle(hpRatio > 0.3 ? 0x3ddc84 : 0xff5252).fillRoundedRect(34, 30, 352 * hpRatio, 20, 6);
-    // 경험치 막대: 화면 맨 위 가로 전체
     g.fillStyle(0x000000, 0.6).fillRect(0, 0, 720, 12);
     g.fillStyle(0x4fc3f7).fillRect(0, 0, 720 * xpRatio, 12);
 
+    // 엘리트 슬롯(마름모 2개): 회색 대기 · 주황 등장 · 녹색 처치 · 붉은색 흡수
+    const slotColor = { pending: 0x555555, warning: 0xffb74d, alive: 0xffb74d, killed: 0x3ddc84, absorbed: 0xff1744 };
+    d.eliteSlots.forEach((st, i) => {
+      const cx = 600 + i * 40;
+      const cy = 80;
+      g.fillStyle(slotColor[st]).fillTriangle(cx, cy - 14, cx + 12, cy, cx - 12, cy).fillTriangle(cx, cy + 14, cx + 12, cy, cx - 12, cy);
+    });
+
+    const boss = d.boss?.active ? d.boss : null;
+    if (boss) {
+      // 보스: 화면 전체 너비 체력바 + 60% 패턴 변화 지점 표시
+      const r = Phaser.Math.Clamp(boss.hp / boss.maxHp, 0, 1);
+      g.fillStyle(0x000000, 0.75).fillRect(20, 192, 680, 24);
+      g.fillStyle(d.enraged ? 0xff1744 : 0xc62828).fillRect(23, 195, 674 * r, 18);
+      g.fillStyle(0xffffff).fillRect(23 + 674 * 0.6 - 2, 190, 4, 28);
+      this.bossText.setText(`${boss.def.name}${d.enraged ? ' — 격노!' : boss.phase === 2 ? ' — 분노' : ''}`);
+      this.eliteText.setText(d.bossBuffs.length ? `잔존 엘리트: ${d.bossBuffs.join(' · ')}` : '');
+      this.eliteText.setY(244);
+    } else {
+      this.bossText.setText('');
+      // 엘리트: 보스바보다 작은 전용 체력바(살아 있는 엘리트마다)
+      const alive = d.elites.filter((e): e is Enemy => !!e?.active);
+      alive.forEach((e, i) => {
+        const y = 196 + i * 40;
+        const r = Phaser.Math.Clamp(e.hp / e.maxHp, 0, 1);
+        g.fillStyle(0x000000, 0.7).fillRect(160, y, 400, 14);
+        g.fillStyle(0xff9800).fillRect(162, y + 2, 396 * r, 10);
+      });
+      this.eliteText.setY(192).setText(alive.map((e) => `엘리트 ${e.eliteSlot} · ${e.def.name}`).join('\n'));
+      this.eliteText.setLineSpacing(18);
+    }
+
+    // 화면 밖 등장 위치를 가리키는 가장자리 화살표
+    const cam = this.cameras.main;
+    this.edgeArrows = this.edgeArrows.filter((a) => a.until > this.elapsed);
+    for (const a of this.edgeArrows) {
+      const sx = a.x - cam.worldView.x;
+      const sy = a.y - cam.worldView.y;
+      if (sx > 0 && sx < 720 && sy > 0 && sy < 1280) continue;
+      const ang = Math.atan2(sy - 640, sx - 360);
+      const ex = Phaser.Math.Clamp(360 + Math.cos(ang) * 1000, 40, 680);
+      const ey = Phaser.Math.Clamp(640 + Math.sin(ang) * 1000, 260, 1240);
+      const blink = Math.floor(this.elapsed / 250) % 2 === 0 ? 1 : 0.5;
+      g.fillStyle(a.color, blink).fillTriangle(
+        ex + Math.cos(ang) * 26, ey + Math.sin(ang) * 26,
+        ex + Math.cos(ang + 2.4) * 22, ey + Math.sin(ang + 2.4) * 22,
+        ex + Math.cos(ang - 2.4) * 22, ey + Math.sin(ang - 2.4) * 22,
+      );
+    }
+
     const sec = Math.floor(this.elapsed / 1000);
-    this.timeText.setText(`${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`);
-    // 보스 체력 막대
-    this.bossBar.clear();
-    if (this.boss?.active) {
-      const r = Phaser.Math.Clamp(this.boss.hp / this.boss.def.hp, 0, 1);
-      this.bossBar.fillStyle(0x000000, 0.7).fillRoundedRect(110, 188, 500, 22, 6);
-      this.bossBar.fillStyle(this.enraged ? 0xff1744 : 0xc62828).fillRoundedRect(113, 191, 494 * r, 16, 5);
-      this.bossText.setText(`${this.boss.def.name}${this.enraged ? ' — 격노!' : ''}`);
-    } else this.bossText.setText('');
+    const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+    this.timeText.setText(`${fmt(sec)} / ${fmt(this.stage.durationMs / 1000)}`);
+    this.timeText.setColor(d.enraged ? '#ff5252' : '#ffffff');
     this.killText.setText(`처치 ${this.kills}`);
     this.levelText.setText(`Lv.${this.level}`);
     this.hpText.setText(`${Math.max(0, Math.ceil(this.hp))} / ${Math.round(this.stats.maxHp)}`);
-    // 가진 카드를 아이콘+레벨로: 첫 줄 기본공격·액티브, 둘째 줄 패시브 (예: 🔴3 🔥2 ⚡1 / ❤️1)
     const icons = (kinds: string[]) =>
       UPGRADES.filter((u) => kinds.includes(u.kind) && (this.upgradeLevels.get(u.id) ?? 0) > 0)
         .map((u) => `${u.icon}${this.upgradeLevels.get(u.id)}`)
         .join(' ');
-    this.skillText.setText(`${icons(['basic', 'active'])}
-${icons(['passive'])}`);
+    this.skillText.setText(`${icons(['basic', 'active'])}\n${icons(['passive'])}`);
+  }
+
+  private banner(text: string, color: string): void {
+    const t = this.add
+      .text(360, 420, text, { fontFamily: 'sans-serif', fontSize: '44px', fontStyle: 'bold', color, stroke: '#000', strokeThickness: 8, align: 'center' })
+      .setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 5);
+    this.tweens.add({ targets: t, alpha: 0, delay: 1800, duration: 600, onComplete: () => t.destroy() });
+  }
+
+  /** 등장 위치 경고: 바닥에 깜박이는 원 + 화면 밖이면 가장자리 화살표 */
+  private warnSpawn(x: number, y: number, ms: number, color: number): void {
+    const c = this.add.circle(x, y, 70, color, 0.2).setStrokeStyle(6, color, 0.9).setDepth(3);
+    this.tweens.add({ targets: c, scale: 1.3, alpha: 0.5, yoyo: true, repeat: -1, duration: 400 });
+    this.hazards.push({ left: ms, run: () => c.destroy(), objs: [c] });
+    this.edgeArrows.push({ x, y, until: this.elapsed + ms, color });
+  }
+
+  /** 보스 경고: 화면이 어두워졌다가 돌아온다 */
+  private darken(ms: number): void {
+    const o = this.add.rectangle(360, 640, 720, 1280, 0x000000, 0).setScrollFactor(0).setDepth(UI_DEPTH - 1);
+    this.tweens.add({ targets: o, fillAlpha: 0.45, duration: 800, hold: ms - 1600, yoyo: true, onComplete: () => o.destroy() });
+    this.cameras.main.shake(400, 0.004);
   }
 
   private createJoystick(): void {
-    // setScrollFactor(0): 카메라가 움직여도 화면 같은 자리에 붙어 있는 UI
     this.stickBase = this.add.circle(0, 0, 90, 0xffffff, 0.12).setScrollFactor(0).setDepth(100).setVisible(false);
     this.stickKnob = this.add.circle(0, 0, 40, 0xffffff, 0.35).setScrollFactor(0).setDepth(101).setVisible(false);
-
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-      if (this.mode === 'over' || this.mode === 'clear') {
-        this.scene.restart();
-        return;
-      }
       if (this.mode !== 'play' || this.stickPointerId !== null) return;
       this.stickPointerId = p.id;
       this.stickBase.setPosition(p.x, p.y).setVisible(true);
@@ -210,13 +322,11 @@ ${icons(['passive'])}`);
     });
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
       if (p.id !== this.stickPointerId) return;
-      const dx = p.x - this.stickBase.x;
-      const dy = p.y - this.stickBase.y;
-      this.stickVec.set(dx, dy);
+      this.stickVec.set(p.x - this.stickBase.x, p.y - this.stickBase.y);
       const len = Math.min(this.stickVec.length(), 90);
       this.stickVec.normalize();
       this.stickKnob.setPosition(this.stickBase.x + this.stickVec.x * len, this.stickBase.y + this.stickVec.y * len);
-      this.stickVec.scale(len / 90); // 0~1: 조금 밀면 천천히, 끝까지 밀면 최고 속도
+      this.stickVec.scale(len / 90);
     });
     this.input.on('pointerup', (p: Phaser.Input.Pointer) => this.releaseStick(p.id));
     this.input.on('pointerupoutside', (p: Phaser.Input.Pointer) => this.releaseStick(p.id));
@@ -232,14 +342,20 @@ ${icons(['passive'])}`);
 
   // ───────────────────────── 매 프레임 ─────────────────────────
 
-  update(_time: number, delta: number): void {
-    if (this.mode !== 'play') return;
+  update(_time: number, rawDelta: number): void {
+    if (this.mode !== 'play' && this.mode !== 'clearing') return;
+    const delta = rawDelta * this.timeScale;
+    if (this.mode === 'clearing') {
+      this.movePlayer();
+      this.pullGems(true);
+      return;
+    }
     this.elapsed += delta;
 
     this.movePlayer();
-    this.stageEvents();
-    this.spawnEnemies(delta);
-    this.timers = this.timers.filter((t) => {
+    this.director.update(this.elapsed, delta);
+    if (this.mode !== 'play') return; // 시간 초과 실패 등
+    this.hazards = this.hazards.filter((t) => {
       t.left -= delta;
       if (t.left > 0) return true;
       t.run();
@@ -248,151 +364,129 @@ ${icons(['passive'])}`);
     this.updateEnemies(delta);
     this.basic.update(delta);
     this.skills.update(delta);
-    this.pullGems();
+    this.pullGems(false);
     this.drawHud();
   }
 
   private movePlayer(): void {
-    // 키보드 입력을 방향 벡터로 바꾼다. 대각선이 더 빠르지 않게 길이를 1로 맞춘다.
     const k = this.keys;
     const dir = new Phaser.Math.Vector2(
       (k.right.isDown || k.d.isDown ? 1 : 0) - (k.left.isDown || k.a.isDown ? 1 : 0),
       (k.down.isDown || k.s.isDown ? 1 : 0) - (k.up.isDown || k.w.isDown ? 1 : 0),
     );
     if (dir.lengthSq() > 0) dir.normalize();
-    else dir.copy(this.stickVec); // 키보드를 안 누르면 터치 조이스틱 값을 쓴다
-
+    else dir.copy(this.stickVec);
     this.player.setVelocity(dir.x * this.stats.speed, dir.y * this.stats.speed);
-    // 드래곤 머리가 이동 방향을 보게 돌린다(그림은 위쪽을 보고 있어서 +90도 보정).
     if (dir.lengthSq() > 0.01) {
       this.player.setRotation(dir.angle() + Math.PI / 2);
       this.facing.copy(dir).normalize();
     }
+    this.keepInArena(this.player, 20);
   }
 
-  /** 4분 엘리트, 6분 보스, 8분 격노 (스테이지 1 시간표) */
-  private stageEvents(): void {
-    if (!this.eliteSpawned && this.elapsed >= STAGE1.eliteAtMs) {
-      this.eliteSpawned = true;
-      this.spawnAtEdge('golem');
-      this.banner('엘리트 등장 — 성벽 골렘', '#ffb74d');
-    }
-    if (!this.boss && this.elapsed >= STAGE1.bossAtMs) {
-      this.boss = this.spawnAtEdge('boss');
-      this.banner('보스 등장 — 철갑기사단장', '#ff5252');
-    }
-    if (this.boss?.active && !this.enraged && this.elapsed >= STAGE1.durationMs) {
-      this.enraged = true;
-      this.boss.enraged = true;
-      this.banner('8분 경과 — 기사단장 격노!', '#ff1744');
-    }
-  }
-
-  private spawnEnemies(delta: number): void {
-    this.spawnCooldown -= delta;
-    if (this.spawnCooldown > 0 || this.enemies.countActive() >= MAX_ENEMIES) return;
-
-    // 지금 시간대의 웨이브(시간이 지날수록 더 자주·더 많이, 종류도 늘어남)
-    const wave = [...STAGE1.waves].reverse().find((w) => this.elapsed >= w.fromMs)!;
-    this.spawnCooldown = wave.interval;
-    const entries = Object.entries(wave.mix) as [EnemyKind, number][];
-    for (let i = 0; i < wave.count; i++) {
-      let r = Math.random();
-      const kind = entries.find(([, p]) => (r -= p) < 0)?.[0] ?? entries[0][0];
-      this.spawnAtEdge(kind);
-    }
-  }
-
-  /** 화면 밖(드래곤에서 SPAWN_RADIUS 떨어진 원 위)에 적을 만든다 */
-  private spawnAtEdge(kind: EnemyKind): Enemy {
-    const angle = Math.random() * Math.PI * 2;
-    const x = Phaser.Math.Clamp(this.player.x + Math.cos(angle) * SPAWN_RADIUS, 20, WORLD_SIZE - 20);
-    const y = Phaser.Math.Clamp(this.player.y + Math.sin(angle) * SPAWN_RADIUS, 20, WORLD_SIZE - 20);
-    const e = new Enemy(this, x, y, kind);
-    if (e.isBoss) e.setDepth(6);
-    this.enemies.add(e);
-    return e;
-  }
-
-  private banner(text: string, color: string): void {
-    const t = this.add
-      .text(360, 420, text, { fontFamily: 'sans-serif', fontSize: '44px', fontStyle: 'bold', color, stroke: '#000', strokeThickness: 8 })
-      .setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 5);
-    this.tweens.add({ targets: t, alpha: 0, delay: 1800, duration: 600, onComplete: () => t.destroy() });
+  /** 원형 벽 밖으로 나가지 못하게 안쪽으로 되돌린다 */
+  private keepInArena(o: Phaser.GameObjects.Image, radius: number): void {
+    const dx = o.x - this.arena.x;
+    const dy = o.y - this.arena.y;
+    const d = Math.hypot(dx, dy);
+    const max = this.arena.r - radius;
+    if (d > max) o.setPosition(this.arena.x + (dx / d) * max, this.arena.y + (dy / d) * max);
   }
 
   private updateEnemies(delta: number): void {
     const target = new Phaser.Math.Vector2(this.player.x, this.player.y);
-    for (const obj of this.enemies.getChildren()) {
+    for (const obj of [...this.enemies.getChildren()]) {
       const e = obj as Enemy;
-      const act = e.step(target, delta);
-      if (act) this.doEnemyAction(e, act);
-      // 화상 피해(지속 피해는 치명타 없음)
+      if (!e.active) continue;
+      for (const act of e.step(target, delta, this.arena)) this.doEnemyAction(e, act);
+      this.keepInArena(e, e.def.radius);
       const burnCoef = e.tickBurn(delta);
       if (burnCoef > 0) this.hitEnemy(e, { source: 'dot', coef: burnCoef, tag: 'burn' });
     }
   }
 
-  /** 적의 행동(쏘기·돌진 예고·내려찍기·검기)을 그림과 판정으로 바꾼다 */
+  /** 적의 행동을 그림과 판정으로 바꾼다. 위험 공격은 붉은 바닥 예고 → 시간이 지나면 판정. */
   private doEnemyAction(e: Enemy, act: EnemyAction): void {
-    const rage = e.enraged ? PATTERN.boss.enrageMult : 1;
     switch (act.kind) {
-      case 'shoot': {
-        const r = e.def.ranged!;
-        this.shootProjectile(e.x, e.y, act.angle, r.boltSpeed, r.damage, r.texture);
-        break;
-      }
-      case 'dashWarn': {
-        // 돌진 방향 예고선: 이 선 위에 서 있지 말 것
+      case 'lineWarn': {
         const g = this.add.graphics().setDepth(4);
-        g.lineStyle(e.isBoss ? 34 : 16, 0xff1744, 0.35);
-        g.lineBetween(e.x, e.y, e.x + Math.cos(act.angle) * act.length, e.y + Math.sin(act.angle) * act.length);
-        this.timers.push({ left: act.ms, run: () => g.destroy() });
+        g.lineStyle(act.width, 0xff1744, 0.3);
+        if (act.curve) {
+          // 초승달 돌진: 휘는 경로를 점으로 이어 그린다
+          const steps = 16;
+          const sp = act.length / (act.length / 720 || 1);
+          let ang = act.angle;
+          let x = act.x;
+          let y = act.y;
+          g.beginPath().moveTo(x, y);
+          const dt = act.length / sp / steps;
+          for (let i = 0; i < steps; i++) {
+            ang += act.curve * dt;
+            x += Math.cos(ang) * sp * dt;
+            y += Math.sin(ang) * sp * dt;
+            g.lineTo(x, y);
+          }
+          g.strokePath();
+        } else {
+          g.lineBetween(act.x, act.y, act.x + Math.cos(act.angle) * act.length, act.y + Math.sin(act.angle) * act.length);
+        }
+        this.hazards.push({ left: act.ms, run: () => g.destroy(), objs: [g] });
         break;
       }
-      case 'slam': {
-        // 원형 예고 → 시간이 지나면 원 안에 있으면 피해
-        const warn = this.add.circle(act.x, act.y, act.r, 0xff6d00, 0.15).setStrokeStyle(5, 0xff6d00, 0.9).setDepth(4);
-        const fill = this.add.circle(act.x, act.y, 1, 0xff6d00, 0.3).setDepth(4);
+      case 'circleHit': {
+        const warn = this.add.circle(act.x, act.y, act.r, 0xff1744, 0.12).setStrokeStyle(5, 0xff1744, 0.9).setDepth(4);
+        const fill = this.add.circle(act.x, act.y, 1, 0xff1744, 0.25).setDepth(4);
         this.tweens.add({ targets: fill, radius: act.r, duration: act.ms });
-        this.timers.push({
+        const dmg = act.damage * e.damageMult;
+        this.hazards.push({
           left: act.ms,
+          objs: [warn, fill],
           run: () => {
             warn.destroy();
             fill.destroy();
-            const boom = this.add.circle(act.x, act.y, act.r, 0xffcc80, 0.6).setDepth(8);
+            const boom = this.add.circle(act.x, act.y, act.r, 0xffcc80, 0.55).setDepth(8);
             this.tweens.add({ targets: boom, alpha: 0, duration: 300, onComplete: () => boom.destroy() });
             this.cameras.main.shake(150, 0.008);
-            if (Phaser.Math.Distance.Between(act.x, act.y, this.player.x, this.player.y) < act.r + 18) {
-              this.invincibleUntil = 0; // 패턴 피해는 무적 시간과 상관없이 들어간다
-              this.damagePlayer(act.damage * rage);
-            }
+            if (Phaser.Math.Distance.Between(act.x, act.y, this.player.x, this.player.y) < act.r + 18) this.damagePlayer(dmg, e, true);
           },
         });
         break;
       }
-      case 'fan': {
-        const p = PATTERN.boss.sword;
-        for (let i = 0; i < p.count; i++) {
-          const a = act.angle + (i - (p.count - 1) / 2) * (p.spread / (p.count - 1));
-          this.shootProjectile(e.x, e.y, a, p.speed, p.damage * rage, 'slash');
+      case 'coneHit': {
+        const g = this.add.graphics({ x: act.x, y: act.y }).setDepth(4);
+        g.fillStyle(0xff1744, 0.18).slice(0, 0, act.r, act.angle - act.half, act.angle + act.half).fillPath();
+        g.lineStyle(4, 0xff1744, 0.9).slice(0, 0, act.r, act.angle - act.half, act.angle + act.half).strokePath();
+        const dmg = act.damage * e.damageMult;
+        this.hazards.push({
+          left: act.ms,
+          objs: [g],
+          run: () => {
+            g.destroy();
+            const slash = this.add.graphics({ x: act.x, y: act.y }).setDepth(8);
+            slash.fillStyle(0xffffff, 0.5).slice(0, 0, act.r, act.angle - act.half, act.angle + act.half).fillPath();
+            this.tweens.add({ targets: slash, alpha: 0, duration: 250, onComplete: () => slash.destroy() });
+            const d = Phaser.Math.Distance.Between(act.x, act.y, this.player.x, this.player.y);
+            const a = Phaser.Math.Angle.Between(act.x, act.y, this.player.x, this.player.y);
+            if (d < act.r + 18 && Math.abs(Phaser.Math.Angle.Wrap(a - act.angle)) <= act.half) this.damagePlayer(dmg, e, true);
+          },
+        });
+        break;
+      }
+      case 'summon': {
+        for (let i = 0; i < act.count; i++) {
+          const a = (i / act.count) * Math.PI * 2;
+          const w = this.spawnEnemy(act.enemy, act.x + Math.cos(a) * 90, act.y + Math.sin(a) * 90, 1);
+          w.damageMult = e.damageMult;
         }
+        this.cameras.main.shake(200, 0.004);
         break;
       }
     }
   }
 
-  private shootProjectile(x: number, y: number, angle: number, speed: number, damage: number, texture: string): void {
-    const bolt = this.physics.add.image(x, y, texture).setDepth(9).setRotation(angle);
-    this.bolts.add(bolt);
-    bolt.setCircle(Math.min(bolt.width, bolt.height) / 2).setData('damage', damage);
-    this.physics.velocityFromRotation(angle, speed, bolt.body.velocity);
-    this.timers.push({ left: 4000, run: () => bolt.destroy() });
-  }
-
   /** 모든 공격(기본공격·스킬·화상)이 적에게 피해를 줄 때 거치는 한 곳 */
   private hitEnemy(enemy: Enemy, spec: HitSpec): void {
-    if (!enemy.active) return;
+    if (!enemy.active || this.mode !== 'play') return;
     const { amount, crit } = resolveDamage(this.stats, spec);
     const tag = spec.tag ?? spec.source;
     this.dmgLog[tag] = (this.dmgLog[tag] ?? 0) + amount;
@@ -407,12 +501,21 @@ ${icons(['passive'])}`);
 
   private killEnemy(enemy: Enemy): void {
     this.kills++;
-    if (enemy === this.boss) {
+    const d = this.director;
+    if (enemy === d.boss) {
+      d.onBossKilled(this.elapsed);
       enemy.destroy();
-      this.stageClear();
+      this.clearSequence();
       return;
     }
-    this.dropGem(enemy.x, enemy.y, enemy.def.xp);
+    if (enemy.rank === 'elite' && d.onEliteKilled(enemy, this.elapsed)) {
+      // 엘리트 처치 보상(한 번만): 대형 경험치 결정 + 최대 HP 12% 회복
+      this.dropGem(enemy.x, enemy.y, enemy.def.xp);
+      this.hp = Math.min(this.stats.maxHp, this.hp + this.stats.maxHp * REWARD.eliteHeal);
+      this.popText(this.player.x, this.player.y - 50, `+${Math.round(this.stats.maxHp * REWARD.eliteHeal)} HP`, '#3ddc84');
+    } else if (enemy.rank === 'normal') {
+      this.dropGem(enemy.x, enemy.y, enemy.def.xp);
+    }
     enemy.destroy();
   }
 
@@ -421,17 +524,16 @@ ${icons(['passive'])}`);
   private dropGem(x: number, y: number, value: number): void {
     const gem = this.physics.add.image(x, y, 'gem').setDepth(5);
     this.gems.add(gem);
-    gem.setData('value', value).setScale(value >= 20 ? 2.2 : value >= 3 ? 1.4 : 1);
+    gem.setData('value', value).setScale(value >= 20 ? 2.4 : value >= 2 ? 1.3 : 1);
   }
 
-  /** 끌어당기는 거리 안의 보석은 드래곤 쪽으로 빨려 온다. */
-  private pullGems(): void {
+  private pullGems(all: boolean): void {
     for (const obj of this.gems.getChildren()) {
       const gem = obj as Phaser.Types.Physics.Arcade.ImageWithDynamicBody;
       const d = Phaser.Math.Distance.Between(gem.x, gem.y, this.player.x, this.player.y);
-      if (gem.getData('pulled') || d < this.stats.magnet) {
-        gem.setData('pulled', true); // 한번 끌리기 시작하면 끝까지 따라온다
-        this.physics.moveToObject(gem, this.player, 600);
+      if (all || gem.getData('pulled') || d < this.stats.magnet) {
+        gem.setData('pulled', true);
+        this.physics.moveToObject(gem, this.player, all ? 1400 : 600);
       }
     }
   }
@@ -440,6 +542,7 @@ ${icons(['passive'])}`);
     if (!gem.active) return;
     this.xp += (gem.getData('value') as number) * this.stats.xpMult;
     gem.destroy();
+    if (this.mode === 'clearing') return; // 클리어 중 회수한 경험치는 레벨업 카드를 띄우지 않는다
     while (this.xp >= xpToNext(this.level)) {
       this.xp -= xpToNext(this.level);
       this.level++;
@@ -448,31 +551,27 @@ ${icons(['passive'])}`);
     if (this.pendingLevelUps > 0 && this.mode === 'play') this.openChoice();
   }
 
-  /** 게임을 멈추고 카드 3장을 보여 준다. */
   private openChoice(): void {
-    const reached = this.level - this.pendingLevelUps + 1; // 이번 카드로 도달한 레벨
-    const choices = rollOffer({ levels: this.upgradeLevels, playerLevel: reached, basicEverOffered: this.basicEverOffered });
+    const reached = this.level - this.pendingLevelUps + 1;
+    const choices = rollOffer({ levels: this.upgradeLevels, playerLevel: reached, basicEverOffered: this.basicEverOffered }, () => this.rng.frac());
     if (choices.some((u) => u.kind === 'basic')) this.basicEverOffered = true;
     this.mode = 'choose';
     this.physics.pause();
     this.time.paused = true;
     this.releaseStick();
     this.player.setVelocity(0, 0);
-    this.drawHud(); // 카드 뒤 HUD에도 오른 레벨이 바로 보이게
+    this.drawHud();
 
-    const add =<T extends Phaser.GameObjects.GameObject>(o: T): T => {
+    const add = <T extends Phaser.GameObjects.GameObject>(o: T): T => {
       this.choiceLayer.push(o);
       return o;
     };
     add(this.add.rectangle(360, 640, 720, 1280, 0x000000, 0.65).setScrollFactor(0).setDepth(UI_DEPTH + 10));
     add(
       this.add
-        .text(360, 300, `레벨 업! Lv.${reached}`, {
-          fontFamily: 'sans-serif', fontSize: '56px', color: '#ffd34d', stroke: '#000', strokeThickness: 8,
-        })
+        .text(360, 300, `레벨 업! Lv.${reached}`, { fontFamily: 'sans-serif', fontSize: '56px', color: '#ffd34d', stroke: '#000', strokeThickness: 8 })
         .setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 11),
     );
-
     choices.forEach((u, i) => {
       const y = 470 + i * 200;
       const next = (this.upgradeLevels.get(u.id) ?? 0) + 1;
@@ -482,25 +581,18 @@ ${icons(['passive'])}`);
         next === 1 ? (u.kind === 'active' ? '새 스킬!' : '새 패시브!') :
         `Lv.${next}${next === u.maxLevel ? ' (최대)' : ''}`;
       const border = { basic: 0xff7043, active: 0x8fa3d9, passive: 0x7bd88f, filler: 0xb0b0b0 }[u.kind];
-      const card = add(
-        this.add.rectangle(360, y, 600, 170, 0x22283a).setStrokeStyle(4, border).setScrollFactor(0).setDepth(UI_DEPTH + 11),
-      );
+      const card = add(this.add.rectangle(360, y, 600, 170, 0x22283a).setStrokeStyle(4, border).setScrollFactor(0).setDepth(UI_DEPTH + 11));
       card.setInteractive({ useHandCursor: true });
       card.on('pointerover', () => card.setFillStyle(0x2f3a57));
       card.on('pointerout', () => card.setFillStyle(0x22283a));
       card.on('pointerdown', () => this.pickChoice(i));
       const txt = { fontFamily: 'sans-serif', color: '#ffffff' };
       add(this.add.text(100, y, u.icon, { ...txt, fontSize: '64px' }).setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 12));
-      add(
-        this.add.text(160, y - 40, `${i + 1}. ${u.name}  ${tag}`, { ...txt, fontSize: '34px', fontStyle: 'bold' })
-          .setScrollFactor(0).setDepth(UI_DEPTH + 12),
-      );
-      add(this.add.text(160, y + 10, u.describe(next), { ...txt, fontSize: '26px', color: '#c9d3ee' }).setScrollFactor(0).setDepth(UI_DEPTH + 12));
+      add(this.add.text(160, y - 40, `${i + 1}. ${u.name}  ${tag}`, { ...txt, fontSize: '34px', fontStyle: 'bold' }).setScrollFactor(0).setDepth(UI_DEPTH + 12));
+      add(this.add.text(160, y + 10, u.describe(next), { ...txt, fontSize: '24px', color: '#c9d3ee', wordWrap: { width: 500 } }).setScrollFactor(0).setDepth(UI_DEPTH + 12));
     });
     this.currentChoices = choices;
   }
-
-  private currentChoices: Upgrade[] = [];
 
   private pickChoice(index: number): void {
     const u = this.currentChoices[index];
@@ -511,10 +603,9 @@ ${icons(['passive'])}`);
       const next = (this.upgradeLevels.get(u.id) ?? 0) + 1;
       const beforeMax = this.stats.maxHp;
       u.apply?.(this.stats, next);
-      this.hp += this.stats.maxHp - beforeMax; // 최대 체력이 늘면 그만큼 채워 준다
+      this.hp += this.stats.maxHp - beforeMax;
       this.upgradeLevels.set(u.id, next);
     }
-
     this.choiceLayer.forEach((o) => o.destroy());
     this.choiceLayer = [];
     this.currentChoices = [];
@@ -525,51 +616,173 @@ ${icons(['passive'])}`);
     if (this.pendingLevelUps > 0) this.openChoice();
   }
 
-  // ───────────────────────── 피해·게임오버 ─────────────────────────
+  // ───────────────────────── 피해 ─────────────────────────
 
-  private damagePlayer(amount: number): void {
-    if (this.mode !== 'play' || this.time.now < this.invincibleUntil) return;
-    this.hp -= amount * this.stats.damageTaken;
+  /**
+   * 드래곤이 받는 피해. 엘리트·보스의 한 방은 최대 HP의 35%를 넘지 않는다(기획서 5장).
+   * pattern=true면 무적 시간과 상관없이 들어간다(예고된 큰 공격).
+   */
+  private damagePlayer(amount: number, src?: Enemy, pattern = false): void {
+    if (this.mode !== 'play' || this.invulnerable) return;
+    if (!pattern && this.time.now < this.invincibleUntil) return;
+    const cap = src ? HIT_CAP[src.rank] * this.stats.maxHp : Infinity;
+    const dmg = Math.min(amount * this.stats.damageTaken, cap);
+    this.hp -= dmg;
     this.invincibleUntil = this.time.now + 500;
     this.cameras.main.shake(120, 0.006);
     this.player.setTint(0xff9999);
     this.time.delayedCall(150, () => this.player.clearTint());
-    if (this.hp <= 0) this.gameOver();
+    if (this.hp <= 0) this.fail('dead');
   }
 
-  private gameOver(): void {
-    this.mode = 'over';
-    this.hp = 0;
-    this.drawHud();
-    this.physics.pause();
-    this.add.rectangle(360, 640, 720, 1280, 0x000000, 0.6).setScrollFactor(0).setDepth(UI_DEPTH + 100);
-    const style = { fontFamily: 'sans-serif', fontSize: '64px', color: '#ff6b6b', stroke: '#000', strokeThickness: 8 };
-    this.add.text(360, 560, '드래곤이 쓰러졌다', style).setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 101);
-    this.add
-      .text(360, 660, `버틴 시간 ${this.timeText.text} · Lv.${this.level} · 처치 ${this.kills}\n획득 골드 ${this.gold}\n\n화면을 눌러 다시 시작`, {
-        ...style, fontSize: '32px', color: '#ffffff', align: 'center',
-      })
-      .setOrigin(0.5, 0).setScrollFactor(0).setDepth(UI_DEPTH + 101);
+  // ───────────────────────── 클리어·실패 ─────────────────────────
+
+  /** 보스 처치 연출 (기획서 6장 순서) */
+  private clearSequence(): void {
+    this.mode = 'clearing';
+    // 2) 0.35배 슬로모션 0.4초
+    this.timeScale = 0.35;
+    this.physics.world.timeScale = 1 / 0.35;
+    this.tweens.timeScale = 0.35;
+    this.time.delayedCall(400, () => {
+      this.timeScale = 1;
+      this.physics.world.timeScale = 1;
+      this.tweens.timeScale = 1;
+    });
+    // 3) 적 위험 지역 제거
+    this.hazards.forEach((h) => h.objs.forEach((o) => o.destroy()));
+    this.hazards = [];
+    this.edgeArrows = [];
+    // 4) 남은 적은 빛으로 소멸(보상 없음)
+    for (const obj of [...this.enemies.getChildren()]) {
+      const e = obj as Enemy;
+      e.body.setVelocity(0, 0);
+      e.body.enable = false;
+      e.setTint(0xfff3c4);
+      this.tweens.add({ targets: e, alpha: 0, scale: 1.4, duration: 600, onComplete: () => e.destroy() });
+    }
+    // 6) 무적
+    this.invulnerable = true;
+    // 5) 남은 경험치 자동 회수는 update의 pullGems(true)
+    // 7) 2.5초 클리어 연출 + 8) 황금 탈출 포털
+    this.banner(`${this.director.boss?.def.name ?? '보스'} 처치!`, '#ffd34d');
+    this.cameras.main.flash(500, 255, 220, 120);
+    const px = this.player.x;
+    const py = this.player.y - 200;
+    const portal = this.add.circle(px, py, 10, 0xffd34d, 0.85).setDepth(7);
+    const ring = this.add.circle(px, py, 10).setStrokeStyle(8, 0xfff3c4, 1).setDepth(7);
+    this.tweens.add({ targets: portal, radius: 70, duration: 1200, ease: 'Back.Out' });
+    this.tweens.add({ targets: ring, radius: 95, alpha: 0.4, duration: 900, yoyo: true, repeat: -1 });
+    this.time.delayedCall(2500, () => this.showResult(true));
   }
 
-  /** 보스 처치 = 스테이지 클리어. 빨리 잡을수록 골드가 많다(300~500). */
-  private stageClear(): void {
-    this.mode = 'clear';
-    const { min, max } = STAGE1.clearGold;
-    const spare = Phaser.Math.Clamp((STAGE1.durationMs - this.elapsed) / (STAGE1.durationMs - STAGE1.bossAtMs), 0, 1);
-    const reward = Math.round(min + (max - min) * spare);
-    this.gold += reward;
+  private fail(reason: 'dead' | 'timeout'): void {
+    if (this.mode === 'result' || this.mode === 'clearing') return;
+    this.hp = Math.max(0, this.hp);
+    this.stageLog.push({ name: 'stage:fail', at: Math.round(this.elapsed), data: { reason } });
+    this.director.phase = 'FAIL';
+    this.showResult(false, reason);
+  }
+
+  /** 결과 화면: 보상 + 전투 기록 + 다음 단계/재도전 */
+  private showResult(clear: boolean, reason?: 'dead' | 'timeout'): void {
+    this.mode = 'result';
     this.drawHud();
     this.physics.pause();
-    this.add.rectangle(360, 640, 720, 1280, 0x000000, 0.6).setScrollFactor(0).setDepth(UI_DEPTH + 100);
-    const style = { fontFamily: 'sans-serif', fontSize: '64px', color: '#ffd34d', stroke: '#000', strokeThickness: 8 };
-    this.add.text(360, 520, '성지 탈환!', style).setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 101);
-    this.add
-      .text(
-        360, 610,
-        `${STAGE1.name} 클리어\n클리어 시간 ${this.timeText.text} · Lv.${this.level} · 처치 ${this.kills}\n클리어 보상 ${reward} 골드 (합계 ${this.gold})\n\n화면을 눌러 다시 시작`,
-        { ...style, fontSize: '32px', color: '#ffffff', align: 'center' },
-      )
-      .setOrigin(0.5, 0).setScrollFactor(0).setDepth(UI_DEPTH + 101);
+    const d = this.director;
+    let reward: number;
+    let rewardLine: string;
+    if (clear) {
+      const { min, max } = REWARD.clearGold;
+      const spare = Phaser.Math.Clamp((this.stage.durationMs - this.elapsed) / (this.stage.durationMs - this.stage.bossSpawnMs), 0, 1);
+      const clearGold = Math.round(min + (max - min) * spare);
+      reward = this.gold + clearGold;
+      rewardLine = `클리어 보상 ${clearGold} + 전투 중 ${this.gold} = ${reward} 골드`;
+      this.stageLog.push({ name: 'stage:clear', at: Math.round(this.elapsed), data: { gold: reward } });
+      this.unlockNext();
+    } else {
+      reward = Math.floor(this.gold * REWARD.failKeep);
+      rewardLine = `실패 — 전투 중 골드 ${this.gold}의 ${REWARD.failKeep * 100}% = ${reward} 골드 유지`;
+    }
+
+    const sec = (ms: number | null | undefined) => (ms == null ? '—' : `${(ms / 1000).toFixed(1)}초`);
+    const eliteLines = d.eliteSlots.map((st, i) => {
+      const label = { pending: '미등장', warning: '미등장', alive: '생존', killed: `처치 ${sec(d.record.eliteKillMs[i])}`, absorbed: '보스에 흡수' }[st];
+      return `엘리트 ${i + 1}: ${label}`;
+    });
+    const total = Object.values(this.dmgLog).reduce((a, b) => a + b, 0) || 1;
+    const top = Object.entries(this.dmgLog)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([k, v]) => `${sourceName(k)} ${Math.round((v / total) * 100)}%`)
+      .join(' · ');
+    const timeTxt = this.timeText.text.split(' /')[0];
+    const lines = [
+      `${this.stage.id}단계 ${this.stage.name}`,
+      clear ? `클리어 시간 ${timeTxt}` : reason === 'timeout' ? '시간 초과 — 8분 안에 보스를 쓰러뜨리지 못했다' : `버틴 시간 ${timeTxt}`,
+      `Lv.${this.level} · 처치 ${this.kills}`,
+      rewardLine,
+      '',
+      '전투 기록',
+      ...eliteLines,
+      `보스: ${d.record.bossKillMs != null ? `처치 ${sec(d.record.bossKillMs)}` : d.boss ? '생존' : '미등장'}${d.bossBuffs.length ? ` (흡수 강화: ${d.bossBuffs.join(', ')})` : ''}`,
+      `피해 비중: ${top || '—'}`,
+      `시드 ${this.seed}`,
+    ];
+
+    const add = (o: Phaser.GameObjects.GameObject & { setScrollFactor: (n: number) => unknown; setDepth: (n: number) => unknown }) => {
+      o.setScrollFactor(0);
+      o.setDepth(UI_DEPTH + 101);
+      return o;
+    };
+    add(this.add.rectangle(360, 640, 720, 1280, 0x000000, 0.72));
+    add(
+      this.add
+        .text(360, 250, clear ? '성지 탈환!' : reason === 'timeout' ? '시간 초과' : '드래곤이 쓰러졌다', {
+          fontFamily: 'sans-serif', fontSize: '64px', fontStyle: 'bold', color: clear ? '#ffd34d' : '#ff6b6b', stroke: '#000', strokeThickness: 8,
+        })
+        .setOrigin(0.5),
+    );
+    add(
+      this.add
+        .text(360, 330, lines.join('\n'), { fontFamily: 'sans-serif', fontSize: '26px', color: '#ffffff', align: 'center', lineSpacing: 8, wordWrap: { width: 660 } })
+        .setOrigin(0.5, 0),
+    );
+
+    const next = STAGES.find((s) => s.id === this.stage.id + 1);
+    const button = (y: number, label: string, enabled: boolean, onClick: () => void) => {
+      const b = this.add.rectangle(360, y, 460, 96, enabled ? 0x2f6fd6 : 0x3a3f4b).setStrokeStyle(4, 0xffffff, enabled ? 0.8 : 0.2);
+      add(b);
+      add(this.add.text(360, y, label, { fontFamily: 'sans-serif', fontSize: '32px', color: enabled ? '#ffffff' : '#9aa0aa' }).setOrigin(0.5));
+      if (enabled) b.setInteractive({ useHandCursor: true }).on('pointerdown', onClick);
+    };
+    if (clear) {
+      button(1030, next ? `다음 단계 — ${next.name}` : `${this.stage.id + 1}단계 해금 (준비 중)`, !!next, () => this.scene.restart({ stageId: next!.id }));
+      button(1140, '재도전 (R)', true, () => this.retry());
+    } else {
+      button(1080, '재도전 (R)', true, () => this.retry());
+    }
   }
+
+  private retry(): void {
+    this.scene.restart({ stageId: this.stage.id });
+  }
+
+  /** 클리어 시 다음 단계 해금을 브라우저에 저장(5단계 영구 성장에서 저장 구조를 확장) */
+  private unlockNext(): void {
+    try {
+      const cur = Number(localStorage.getItem(UNLOCK_KEY) ?? '1');
+      if (this.stage.id + 1 > cur) localStorage.setItem(UNLOCK_KEY, String(this.stage.id + 1));
+    } catch {
+      /* 저장소를 못 쓰는 환경이면 건너뜀 */
+    }
+  }
+}
+
+function sourceName(tag: string): string {
+  const map: Record<string, string> = {
+    basic: '화염탄', 'basic-explosion': '지옥 폭발', burn: '화상', breath: '브레스', ice: '얼음', lightning: '번개',
+    meteor: '메테오', orb: '오브', wind: '날개 폭풍',
+  };
+  return map[tag] ?? tag;
 }
