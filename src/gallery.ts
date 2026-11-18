@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
-import { COLOR, RARITY, RARITY_NAME, TYPE, type RarityKey } from './ui/theme';
+import { COLOR, RARITY, RARITY_NAME, tint, TYPE, type RarityKey } from './ui/theme';
 import { badge, button, currencyBar, header, itemCard, milestoneBar, modal, navBar, panel, progressBar, ribbon, slot, text } from './ui/kit';
 import { drawLobbyBackdrop, drawScreenBackdrop, makeArtPlaceholders, preloadArt } from './ui/art';
 import { makeDragonTextures } from './dragonArt';
-import { altar, dragonCarousel, plate, iconTile, milestonePanel, roundButton, topBar, torch, wingBanner } from './ui/kit2';
+import { altar, dragonCarousel, plate, tabs, iconTile, milestonePanel, roundButton, topBar, torch, wingBanner } from './ui/kit2';
 import {
   STAMINA, claimGift, formatLeft, grantClearGift, newGiftBox, newStamina, nextRegenIn, regen, spend, unclaimedCount,
   type GiftBox, type StaminaState,
@@ -199,37 +199,42 @@ class GalleryScene extends Phaser.Scene {
     this.tweens.add({ targets: go.root, scale: 1.03, yoyo: true, repeat: -1, duration: 900, ease: 'Sine.InOut' });
   }
 
-  /** 상점: 리본 구역 · 상자 카드 3칸 · 보상 상점 · 확률 보기 */
+  /** 상점(시안 형식): 금색 리본 제목 · 탭 · 큰 소환 배너(드래곤·스킬 상자) · 1회/10회 · 보장 진행 · 상자 2종 · 보상 교환 */
   private shop(): void {
-    ribbon(this, 360, 140, 420, '루비 상자', COLOR.violet, 72);
-    const boxes = [
-      { key: 'chest-dragon', name: '드래곤·스킬', one: 150, ten: 1350, color: COLOR.violet },
-      { key: 'chest-equipment', name: '장비', one: 100, ten: 900, color: 0x3b82c4 },
-      { key: 'chest-gold', name: '골드', one: 50, ten: 450, color: 0xd99a1c },
-    ];
-    boxes.forEach((b, i) => {
-      const x = 128 + i * 232;
-      const card = panel(this, x, 380, 216, 340, { fill: b.color });
-      card.add(text(this, 0, -140, b.name, TYPE.body, COLOR.text, true, true).setOrigin(0.5));
-      card.add(this.add.image(0, -30, b.key).setDisplaySize(170, 170));
-      card.add(button(this, 0, 76, 180, 64, `${b.one}`, () => {}, { kind: 'secondary', icon: 'ui-ruby', size: TYPE.body }).root);
-      card.add(button(this, 0, 146, 180, 64, `10회 ${b.ten.toLocaleString()}`, () => {}, { kind: 'magic', size: TYPE.caption }).root);
-    });
-    progressBar(this, 360, 600, 560, 30, 0.3, COLOR.violet, '드래곤·스킬 상자 · 희귀 보장 3/10 · 전설 보장 27/90');
-    button(this, 360, 670, 360, 64, '확률 · 보장 규칙 보기', () => this.probModal(), { kind: 'secondary', size: TYPE.caption });
+    ribbon(this, 360, 182, 330, '상점', 0xe0a032, 70);
+    tabs(this, 262, ['상자', '보상', '교환'], 0);
 
-    ribbon(this, 360, 770, 420, '보상 상점', COLOR.teal, 72);
-    const goods: [string, string, string][] = [
-      ['ui-gold', '골드 2,000', '루비 50'],
-      ['ui-card', '선택 카드 1', '루비 80'],
-      ['ui-fragment', '조각 10', '골드 500'],
+    // 큰 소환 배너
+    const ban = plate(this, 360, 470, 660, 330, { r: 26, gold: true, fill: 0x3a2370 });
+    const glow = this.add.circle(0, -10, 150, COLOR.violet, 0.25);
+    ban.add(glow);
+    this.tweens.add({ targets: glow, scale: 1.12, alpha: 0.12, yoyo: true, repeat: -1, duration: 1100 });
+    ban.add(this.add.image(-150, 20, 'portrait-blue').setDisplaySize(170, 170));
+    ban.add(this.add.image(150, 20, 'portrait-black').setDisplaySize(170, 170));
+    ban.add(this.add.image(0, -10, 'chest-dragon').setDisplaySize(230, 230));
+    ban.add(text(this, 0, 112, '드래곤·스킬 상자', 40, COLOR.gold, true, true).setOrigin(0.5));
+    ban.add(text(this, 0, 146, '정수 · 조각 · 카드 · 특수 스킬 조각', TYPE.tiny, COLOR.text, true, true).setOrigin(0.5));
+    for (const sgn of [-1, 1]) ban.add(this.add.triangle(sgn * 300, 0, 0, -22, 0, 22, sgn * 26, 0, 0xffe39a).setStrokeStyle(4, COLOR.outline));
+
+    button(this, 205, 700, 290, 108, '1회', () => {}, { kind: 'growth', icon: 'ui-ruby', sub: '150', size: TYPE.heading });
+    button(this, 515, 700, 290, 108, '10회', () => {}, { kind: 'cta', icon: 'ui-ruby', sub: '1,350', size: TYPE.heading });
+    const pity = plate(this, 360, 806, 660, 70, { r: 20 });
+    pity.add(text(this, -300, 0, '희귀 보장', TYPE.caption, COLOR.text, true, true).setOrigin(0, 0.5));
+    pity.add(progressBar(this, 30, 0, 330, 24, 0.3, COLOR.violet, '3/10').root);
+    pity.add(text(this, 300, 0, '전설 27/90', TYPE.caption, RARITY.legendary, true, true).setOrigin(1, 0.5));
+    button(this, 360, 878, 330, 56, '확률 · 보장 규칙 보기', () => this.probModal(), { kind: 'secondary', size: TYPE.caption });
+
+    // 상자 2종
+    const two = [
+      { key: 'chest-equipment', name: '장비 상자', price: '100', fill: 0x24406e },
+      { key: 'chest-gold', name: '골드 상자', price: '50', fill: 0x6b4a14 },
     ];
-    goods.forEach(([icon, name, price], i) => {
-      const x = 128 + i * 232;
-      const card = panel(this, x, 940, 216, 250, { fill: COLOR.panelLight });
-      card.add(text(this, 0, -98, name, TYPE.body, COLOR.textDark, true).setOrigin(0.5));
-      card.add(this.add.image(0, -14, icon).setDisplaySize(110, 110));
-      card.add(button(this, 0, 82, 180, 64, price, () => {}, { kind: 'growth', size: TYPE.caption }).root);
+    two.forEach((c, i) => {
+      const x = 196 + i * 328;
+      const card = plate(this, x, 1010, 312, 170, { r: 22, fill: c.fill });
+      card.add(this.add.image(-88, -4, c.key).setDisplaySize(130, 130));
+      card.add(text(this, 40, -40, c.name, TYPE.body, COLOR.text, true, true).setOrigin(0.5));
+      card.add(button(this, 40, 30, 150, 60, c.price, () => {}, { kind: 'magic', icon: 'ui-ruby', size: TYPE.body }).root);
     });
   }
 
@@ -252,45 +257,71 @@ class GalleryScene extends Phaser.Scene {
     m.body(button(this, 0, 264, 240, 70, '확인', () => m.close(), { kind: 'cta', size: TYPE.body }).root);
   }
 
-  /** 장비: 장착 4슬롯 카드 · 보유 목록 카드(등급 머리띠·레벨·조각) */
+  /** 장비(시안 형식): 제단 위 드래곤 + 양옆 장착 슬롯 4 · 능력치 줄 · 탭 · 보유 장비 격자 */
   private equip(): void {
-    header(this, '장착 장비', undefined, 140);
-    const eq: [string, string, RarityKey, string, number, number][] = [
-      ['불꽃검', 'equip-weapon', 'rare', 'Lv.5', 12, 15],
-      ['비늘 갑옷', 'equip-armor', 'common', 'Lv.3', 4, 10],
-      ['용의 목걸이', 'equip-necklace', 'legendary', 'Lv.1', 0, 30],
-      ['핏빛 반지', 'equip-ring', 'epic', 'Lv.2', 20, 20],
+    ribbon(this, 360, 182, 330, '장비', 0xe0a032, 70);
+    altar(this, 360, 470, 300);
+    this.add.image(360, 360, 'portrait-red').setDisplaySize(290, 290);
+    const eq: [string, RarityKey | null, string][] = [
+      ['equip-weapon', 'rare', 'Lv.5'], ['equip-armor', 'common', 'Lv.3'],
+      ['equip-necklace', null, ''], ['equip-ring', 'epic', 'Lv.2'],
     ];
-    panel(this, 360, 370, 690, 280, { fill: 0x1a2032 });
-    eq.forEach(([name, icon, r, lv, have, need], i) =>
-      itemCard(this, 102 + i * 172, 370, { name, icon, color: RARITY[r], level: lv, have, need, selected: i === 0, alert: have >= need }),
-    );
-    ribbon(this, 360, 570, 300, '보유 중', COLOR.panelHi, 60);
-    const own: [string, string, RarityKey, string][] = [
-      ['쇠 검', 'equip-weapon', 'common', 'Lv.7'], ['쇠 검', 'equip-weapon', 'common', 'Lv.1'], ['푸른 반지', 'equip-ring', 'rare', 'Lv.4'], ['가죽 갑옷', 'equip-armor', 'common', 'Lv.2'],
-      ['달빛 목걸이', 'equip-necklace', 'epic', 'Lv.6'], ['쇠 검', 'equip-weapon', 'common', 'Lv.1'], ['수정 갑옷', 'equip-armor', 'rare', 'Lv.1'], ['금 반지', 'equip-ring', 'common', 'Lv.3'],
+    eq.forEach(([icon, r, lv], i) => {
+      const x = i < 2 ? 100 : 620;
+      const y = 300 + (i % 2) * 150;
+      const sl = slot(this, x, y, 120, { icon: r ? icon : undefined, rarity: r ? RARITY[r] : undefined });
+      if (lv) sl.add(text(this, 0, 46, lv, TYPE.tiny, COLOR.text, true, true).setOrigin(0.5));
+    });
+    // 능력치 줄
+    const st = plate(this, 360, 560, 660, 80, { r: 20 });
+    const stats: [string, string, string][] = [['ic-swords', '공격력', '14.5'], ['ic-heart', 'HP', '+6'], ['ic-shield', '피해 감소', '4%']];
+    stats.forEach(([ic, l, v], i) => {
+      const x = -220 + i * 220;
+      st.add(this.add.image(x - 62, 0, ic).setDisplaySize(48, 48));
+      st.add(text(this, x - 30, -14, l, TYPE.tiny, COLOR.textSub, true).setOrigin(0, 0.5));
+      st.add(text(this, x - 30, 14, v, TYPE.body, COLOR.text, true, true).setOrigin(0, 0.5));
+    });
+    tabs(this, 650, ['장비 목록', '강화', '합성'], 0);
+    const own: [string, RarityKey, string][] = [
+      ['equip-weapon', 'common', 'Lv.7'], ['equip-weapon', 'common', 'Lv.1'], ['equip-ring', 'rare', 'Lv.4'], ['equip-armor', 'common', 'Lv.2'], ['equip-necklace', 'epic', 'Lv.6'],
+      ['equip-weapon', 'common', 'Lv.1'], ['equip-armor', 'rare', 'Lv.1'], ['equip-ring', 'common', 'Lv.3'], ['equip-necklace', 'legendary', 'Lv.1'], ['equip-armor', 'epic', 'Lv.2'],
     ];
-    own.forEach(([name, icon, r, lv], i) =>
-      itemCard(this, 102 + (i % 4) * 172, 715 + Math.floor(i / 4) * 210, { name, icon, color: RARITY[r], level: lv, h: 190 }),
-    );
-    button(this, 240, 1090, 300, 76, '강화 1,250G', () => {}, { kind: 'growth', icon: 'ui-gold', size: TYPE.caption });
-    button(this, 520, 1090, 220, 76, '합성 3→1', () => {}, { kind: 'magic', size: TYPE.caption, alert: true });
+    own.forEach(([icon, r, lv], i) => {
+      const sl = slot(this, 96 + (i % 5) * 132, 770 + Math.floor(i / 5) * 140, 114, { icon, rarity: RARITY[r] });
+      sl.add(text(this, 0, 44, lv, TYPE.tiny, COLOR.text, true, true).setOrigin(0.5));
+    });
+    button(this, 360, 1068, 360, 80, '합성 3 → 1', () => {}, { kind: 'magic', size: TYPE.body, alert: true });
   }
 
-  /** 드래곤 도감: 10종 카드(보유·미보유) */
+  /** 드래곤(시안 형식): 금색 리본 · 탭 · 초상 타일 4열(등급 테두리·레벨·별) · 미보유는 실루엣 · 보유 수 · 정렬 */
   private dragons(): void {
-    header(this, '드래곤', undefined, 140);
-    const list: [string, string, RarityKey, boolean, string][] = [
-      ['레드', 'red', 'starter', true, 'Lv.12'], ['블루', 'blue', 'common', true, 'Lv.4'], ['옐로', 'yellow', 'common', false, ''], ['그린', 'green', 'common', true, 'Lv.2'],
-      ['화이트', 'white', 'rare', false, ''], ['블랙', 'black', 'rare', true, 'Lv.1'], ['스톤', 'stone', 'rare', false, ''], ['윈드', 'wind', 'epic', false, ''],
-      ['워터', 'water', 'epic', false, ''], ['아케인', 'arcane', 'legendary', false, ''],
+    ribbon(this, 360, 182, 330, '드래곤', 0xe0a032, 70);
+    tabs(this, 262, ['보유 드래곤', '성장', '승급'], 0);
+    const list: [string, RarityKey, number, number][] = [
+      ['red', 'starter', 12, 2], ['blue', 'common', 4, 1], ['yellow', 'common', 0, 0], ['green', 'common', 2, 1],
+      ['white', 'rare', 0, 0], ['black', 'rare', 1, 1], ['stone', 'rare', 0, 0], ['wind', 'epic', 0, 0],
+      ['water', 'epic', 0, 0], ['arcane', 'legendary', 0, 0],
     ];
-    list.forEach(([name, id, r, owned, lv], i) => {
-      const c = itemCard(this, 102 + (i % 4) * 172, 300 + Math.floor(i / 4) * 250, {
-        name, icon: `portrait-${id}`, color: owned ? RARITY[r] : 0x4b5163, level: owned ? lv : RARITY_NAME[r], have: owned ? 3 : 0, need: owned ? 5 : 40, h: 230, selected: i === 0,
-      });
-      if (!owned) c.list.forEach((o) => o instanceof Phaser.GameObjects.Image && o.setTint(0x151515));
+    list.forEach(([id, r, lv, stars], i) => {
+      const x = 104 + (i % 4) * 171;
+      const y = 410 + Math.floor(i / 4) * 196;
+      const owned = lv > 0;
+      const t = plate(this, x, y, 156, 178, { r: 20, gold: i === 0, fill: owned ? tint(RARITY[r], -55) : 0x1e1a2c });
+      const img = this.add.image(0, -14, `portrait-${id}`).setDisplaySize(160, 160);
+      if (!owned) img.setTint(0x141018);
+      t.add(img);
+      t.add(this.add.circle(-56, -66, 16, RARITY[r]).setStrokeStyle(4, COLOR.outline));
+      if (owned) {
+        t.add(text(this, 0, 42, `Lv.${lv}`, TYPE.body, COLOR.text, true, true).setOrigin(0.5));
+        t.add(text(this, 0, 70, '★'.repeat(stars) + '☆'.repeat(5 - stars), TYPE.caption, COLOR.gold, true, true).setOrigin(0.5));
+      } else {
+        t.add(text(this, 0, 52, RARITY_NAME[r], TYPE.caption, COLOR.textSub, true, true).setOrigin(0.5));
+      }
     });
+    const foot = plate(this, 360, 1070, 660, 76, { r: 20 });
+    foot.add(text(this, -300, 0, '보유 5/10', TYPE.body, COLOR.text, true, true).setOrigin(0, 0.5));
+    foot.add(button(this, 110, -2, 150, 54, '정렬 ▾', () => {}, { kind: 'secondary', size: TYPE.caption }).root);
+    foot.add(button(this, 250, -2, 120, 54, '필터', () => {}, { kind: 'secondary', size: TYPE.caption }).root);
   }
 
   /** 출석 체크 팝업(밝은 양피지 패널) */

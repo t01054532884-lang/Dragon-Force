@@ -210,3 +210,21 @@ export function milestonePanel(scene: Phaser.Scene, y: number, ratio: number, ch
   });
   return root;
 }
+
+/** 탭 줄(시안 형식): 선택한 탭은 노란 알약, 나머지는 짙은 판 */
+export function tabs(scene: Phaser.Scene, y: number, labels: string[], selected: number, onPick?: (i: number) => void) {
+  const root = scene.add.container(0, 0);
+  const w = (660 - (labels.length - 1) * 12) / labels.length;
+  labels.forEach((l, i) => {
+    const x = 30 + w / 2 + i * (w + 12);
+    const on = i === selected;
+    const g = scene.add.graphics();
+    g.fillStyle(COLOR.outline, 1).fillRoundedRect(x - w / 2 - 3, y - 31, w + 6, 62, 22);
+    g.fillStyle(on ? COLOR.cta : 0x3a3352, 1).fillRoundedRect(x - w / 2, y - 28, w, 56, 20);
+    g.fillStyle(0xffffff, on ? 0.3 : 0.06).fillRoundedRect(x - w / 2 + 6, y - 24, w - 12, 18, 9);
+    root.add(g);
+    root.add(text(scene, x, y, l, TYPE.caption, on ? COLOR.text : COLOR.textSub, true, on).setOrigin(0.5));
+    if (onPick) root.add(scene.add.rectangle(x, y, w, 56, 0xffffff, 0.001).setInteractive({ useHandCursor: true }).on('pointerdown', () => onPick(i)));
+  });
+  return root;
+}
