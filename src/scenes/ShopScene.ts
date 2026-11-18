@@ -144,7 +144,7 @@ export class ShopScene extends Phaser.Scene {
       const big = n === 1 ? 1.6 : 1;
       const { color, title, sub, portrait, icon } = describe(res);
       const card = add(this.add.rectangle(x, y, 132 * big, 220 * big, 0x221a33).setStrokeStyle(4, color));
-      if (portrait) add(this.add.image(x, y - 30 * big, `portrait-${portrait}`).setScale(0.55 * big));
+      if (portrait) add(this.add.image(x, y - 30 * big, `portrait-${portrait}`).setDisplaySize(106 * big, 106 * big));
       else add(this.add.text(x, y - 30 * big, icon, { fontFamily: FONT, fontSize: `${54 * big}px` }).setOrigin(0.5));
       add(this.add.text(x, y + 48 * big, title, { fontFamily: FONT, fontSize: `${17 * big}px`, color: '#ffffff', align: 'center', wordWrap: { width: 124 * big } }).setOrigin(0.5, 0));
       add(this.add.text(x, y + 82 * big, sub, { fontFamily: FONT, fontSize: `${16 * big}px`, color: hex(color), fontStyle: 'bold', align: 'center' }).setOrigin(0.5, 0));

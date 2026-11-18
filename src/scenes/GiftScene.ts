@@ -3,6 +3,7 @@ import { Progress } from '../systems/Progress';
 import { CLAIM_FAIL_TEXT, GIFT_LABEL, GIFT_KINDS, pendingGifts, staminaNow, type ClaimFail, type Gift, type GiftKind } from '../systems/Mailbox';
 import { STAMINA, formatLeft, nextRegenIn } from '../systems/Stamina';
 import { devMode, FONT, gameNow, makeButton } from '../ui/widgets';
+import { markGiftsSeen } from '../ui/giftFx';
 
 const PER_PAGE = 6;
 const ROW_H = 120;
@@ -36,6 +37,7 @@ export class GiftScene extends Phaser.Scene {
     this.popup = [];
     this.page = 0;
     Progress.syncMail(gameNow(), devMode());
+    markGiftsSeen(this, pendingGifts(Progress.load().mailbox, gameNow()).map((g) => g.id)); // 선물함을 열면 새 선물 별 효과는 끝
     this.add.rectangle(360, 640, 720, 1280, 0x14181f);
     this.add.text(30, 22, '🎁 선물함', { fontFamily: FONT, fontSize: '40px', fontStyle: 'bold', color: '#ffd34d' });
     this.wallet = this.add.text(30, 84, '', { fontFamily: FONT, fontSize: '21px', color: '#c9d3ee', lineSpacing: 6 });
@@ -103,8 +105,9 @@ export class GiftScene extends Phaser.Scene {
       const L = GIFT_LABEL[g.kind];
       const over = g.kind === 'stamina' && st.value + g.amount > STAMINA.max;
       add(this.add.rectangle(360, y, 660, ROW_H - 12, 0x1f2633).setStrokeStyle(2, g.sender === 'operator' ? 0xffd34d : 0x4fc3f7, 0.6));
-      add(this.add.text(50, y - 44, `${L.icon} ${g.amount.toLocaleString()}${L.unit}`, { fontFamily: FONT, fontSize: '30px', fontStyle: 'bold', color: '#ffffff' }));
-      add(this.add.text(50, y - 2, `${g.title} · ${g.source}`, { fontFamily: FONT, fontSize: '19px', color: '#c9d3ee' }));
+      const amt = add(this.add.text(50, y - 44, `${L.icon} ${g.amount.toLocaleString()}${L.unit}`, { fontFamily: FONT, fontSize: '30px', fontStyle: 'bold', color: '#ffffff' }));
+      add(this.add.text(amt.x + amt.width + 14, y - 37, clip(g.title, 18), { fontFamily: FONT, fontSize: '20px', fontStyle: 'bold', color: '#ffd34d' }));
+      add(this.add.text(50, y - 2, g.body ? clip(g.body, 30) : g.source, { fontFamily: FONT, fontSize: '19px', color: '#c9d3ee' }));
       add(this.add.text(50, y + 24, over ? `행동력 ${st.value} + ${g.amount} > ${STAMINA.max} — 사용 후 받을 수 있어요` : expiryText(g, now), {
         fontFamily: FONT, fontSize: '17px', color: over ? '#ff8a80' : '#8a93a6',
       }));
@@ -176,7 +179,7 @@ export class GiftScene extends Phaser.Scene {
 function expiryText(g: Gift, now: number): string {
   if (g.expiresAt === null) return '기한 없음';
   const left = g.expiresAt - now;
-  return left >= DAY ? `${Math.floor(left / DAY)}일 남음` : `${formatLeft(left)} 남음`;
+  return `${fmtDate(g.expiresAt)}까지 · ${left >= DAY ? `${Math.floor(left / DAY)}일 남음` : `${formatLeft(left)} 남음`}`;
 }
 
 function fmtDate(ms: number): string {
@@ -184,4 +187,8 @@ function fmtDate(ms: number): string {
   const d = new Date(ms + 9 * 3_600_000);
   const p2 = (n: number) => String(n).padStart(2, '0');
   return `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${p2(d.getUTCHours())}:${p2(d.getUTCMinutes())}`;
+}
+
+function clip(s: string, n: number): string {
+  return s.length > n ? `${s.slice(0, n)}…` : s;
 }

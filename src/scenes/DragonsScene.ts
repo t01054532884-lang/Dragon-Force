@@ -53,7 +53,7 @@ export class DragonsScene extends Phaser.Scene {
       const x = 76 + (i % 5) * 142;
       const y = 180 + Math.floor(i / 5) * 158;
       const frame = this.add.rectangle(x, y, 132, 148, 0x1d2430).setStrokeStyle(3, RARITY_COLOR[DRAGONS[id].rarity], 0.8);
-      const img = this.add.image(x, y - 12, `portrait-${id}`).setScale(0.56);
+      const img = this.add.image(x, y - 12, `portrait-${id}`).setDisplaySize(108, 108);
       const label = this.add.text(x, y + 50, DRAGONS[id].short, { fontFamily: FONT, fontSize: '20px', color: '#ffffff' }).setOrigin(0.5);
       const mark = this.add.text(x + 58, y - 68, '', { fontFamily: FONT, fontSize: '18px', color: '#ffd34d' }).setOrigin(1, 0);
       frame.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
@@ -97,7 +97,7 @@ export class DragonsScene extends Phaser.Scene {
     const top = 410;
 
     add(this.add.rectangle(360, top + 355, 690, 710, 0x1a1f2b).setStrokeStyle(3, RARITY_COLOR[d.rarity], 0.6));
-    const img = add(this.add.image(115, top + 95, `portrait-${d.id}`).setScale(0.8));
+    const img = add(this.add.image(115, top + 95, `portrait-${d.id}`).setDisplaySize(154, 154));
     if (!o.unlocked) img.setTint(0x0b0e14).setTintMode(Phaser.TintModes.FILL);
     const txt = (x: number, y: number, s: string, size = 20, color = '#ffffff', bold = false, w = 700 - x - 24) =>
       add(this.add.text(x, y, s, { fontFamily: FONT, fontSize: `${size}px`, color, fontStyle: bold ? 'bold' : 'normal', wordWrap: { width: w }, lineSpacing: 3 }));

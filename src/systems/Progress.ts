@@ -3,7 +3,7 @@ import {
   newMailbox, sanitizeMailbox, sanitizeStamina, grantClearGift, claimOne, claimAll, spendStamina, syncCampaigns, pruneMailbox,
   type MailboxState,
 } from './Mailbox';
-import { CAMPAIGNS, DEV_CAMPAIGNS } from '../data/campaigns';
+import { activeCampaigns } from '../data/campaigns';
 import { STAMINA } from './Stamina';
 import {
   getUpgradeCost,
@@ -343,11 +343,9 @@ function migrate(raw: Record<string, unknown>): Record<string, unknown> {
     };
   }
   if (Number(r.saveVersion) < 4) {
-    // v3 → v4: 행동력 가득(40), 빈 선물함, 계정 생성 시각 0(=기존 유저). 이미 깬 단계의 최초 클리어 선물은
-    // 소급 지급하지 않고 '지급함'으로만 표시(행동력이 없던 시절 기록) — 제작자 확인 필요(docs/STAGE8.md)
-    const diffs = (r.difficulty ?? {}) as Record<string, { cleared?: number[] }>;
-    const granted = Object.entries(diffs).flatMap(([d, v]) => (Array.isArray(v?.cleared) ? v.cleared.map((st) => `clear:${d}:${st}`) : []));
-    r = { ...r, saveVersion: 4, createdAt: 0, stamina: undefined, mailbox: { gifts: [], granted, history: [] } };
+    // v3 → v4: 행동력 가득(40), 빈 선물함, 계정 생성 시각 0(=기존 유저).
+    // 이미 깬 단계의 최초 클리어 행동력 20은 소급 지급(제작자 확정 2026-11-19 v2.0 0.2) — 접속 때 backfillClearGifts가 넣는다
+    r = { ...r, saveVersion: 4, createdAt: 0, stamina: undefined, mailbox: { gifts: [], granted: [], history: [], backfilled: false } };
   }
   return r;
 }
@@ -1014,15 +1012,38 @@ function act<T extends { ok: boolean }>(f: (p: PlayerProgress) => T): T {
 }
 
 
+/**
+ * 지난 최초 클리어의 행동력 20 소급 지급(8단계 v2.0 0.2 확정): 클리어 기록과 지급 기록을 비교해 없는 것만 1회씩.
+ * 같은 id(`clear:<난이도>:<단계>`)를 쓰므로 이미 받은 것·앞으로 깨는 것과 겹치지 않는다.
+ * v4 첫판(소급 안 함으로 '지급함' 표시만 했던 저장)은 선물·수령 내역에 실제로 없는 id를 지급 기록에서 한 번 지운 뒤 다시 계산한다.
+ */
+export function backfillClearGifts(p: PlayerProgress, now: number): { progress: PlayerProgress; added: number } {
+  let cur = p;
+  if (!cur.mailbox.backfilled) {
+    const real = new Set([...cur.mailbox.gifts.map((g) => g.id), ...cur.mailbox.history.map((h) => h.id)]);
+    cur = { ...cur, mailbox: { ...cur.mailbox, granted: cur.mailbox.granted.filter((id) => !id.startsWith('clear:') || real.has(id)), backfilled: true } };
+  }
+  let added = 0;
+  for (const d of DIFFICULTIES) {
+    for (const st of [...(cur.difficulty[d]?.cleared ?? [])].sort((a, b) => a - b)) {
+      const r = grantClearGift(cur, d, st, `${DIFFICULTY_LABEL[d]} ${st}단계`, now);
+      if (r.added) added++;
+      cur = r.progress;
+    }
+  }
+  return { progress: cur, added };
+}
+
 export const Progress = {
   load: () => loadProgress(browserStore()),
   // ── 8단계: 행동력·선물함 ──
   /** 접속·화면 진입 때: 운영자 캠페인 확인 → 선물함에 넣기, 오래된 선물 정리 */
   syncMail(now: number, dev = false) {
     const p = this.load();
-    const r = syncCampaigns(p, dev ? [...CAMPAIGNS, ...DEV_CAMPAIGNS] : CAMPAIGNS, now);
+    const b = backfillClearGifts(p, now);
+    const r = syncCampaigns(b.progress, activeCampaigns(dev), now);
     const box = pruneMailbox(r.progress.mailbox, now);
-    if (r.added.length || box !== r.progress.mailbox) this.save({ ...r.progress, mailbox: box });
+    if (b.progress !== p || r.added.length || box !== r.progress.mailbox) this.save({ ...r.progress, mailbox: box });
     return r.added;
   },
   claimGift: (id: string, now: number) => act((p) => claimOne(p, id, now)),

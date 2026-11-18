@@ -1,30 +1,51 @@
 import Phaser from 'phaser';
 import { makeTextures } from '../textures';
 import { STAGES } from '../data/stages';
-import { DRAGONS, ELEMENT_LABEL, RARITY_COLOR, RARITY_LABEL } from '../data/dragons';
+import { DRAGON_ORDER, DRAGONS, ELEMENT_LABEL, RARITY_COLOR, RARITY_LABEL } from '../data/dragons';
 import { DIFFICULTIES, DIFFICULTY_LABEL, DIFFICULTY_RELEASED, STAGE_COUNT, type Difficulty } from '../data/economy';
 import { cpVerdict, recommendedCp } from '../data/power';
-import { SIGNATURES } from '../data/signature';
 import { attendedToday, eventActive, eventState, progressPct, Progress, spinsAvailable } from '../systems/Progress';
 import { loadout } from '../systems/Loadout';
-import { devMode, FONT, gameNow, makeButton, type Button } from '../ui/widgets';
-import { platform } from '../platform';
-import { enterBattle } from '../ui/entry';
-import { pendingCount, staminaNow } from '../systems/Mailbox';
+import { pendingGifts, staminaNow } from '../systems/Mailbox';
 import { STAMINA, formatLeft, nextRegenIn } from '../systems/Stamina';
+import { devMode, gameNow } from '../ui/widgets';
+import { enterBattle } from '../ui/entry';
+import { drawLobbyBackdrop, makeArtPlaceholders, preloadArt } from '../ui/art';
+import { button, navBar, text, type KitButton } from '../ui/kit';
+import { altar, dragonCarousel, iconTile, plate, tabs, topBar, torch, wingBanner } from '../ui/kit2';
+import { COLOR, css, TYPE } from '../ui/theme';
+import { giftAlert } from '../ui/giftFx';
+import { platform } from '../platform';
+
+/** 하단 탭(로비 = 전투 탭). 다른 화면은 아직 예전 머리줄이라 탭은 로비에만 둔다 */
+const NAV = [
+  { key: 'shop', label: '상점', icon: 'ic-shop' },
+  { key: 'dragons', label: '드래곤', icon: 'ic-dragon' },
+  { key: 'lobby', label: '전투', icon: 'ic-swords' },
+  { key: 'equip', label: '장비', icon: 'ic-gear' },
+  { key: 'lab', label: '연구소', icon: 'ic-upgrade' },
+];
 
 /**
- * 메인 로비(6단계 v1.2): 출격 드래곤·전투력 · 난이도(쉬움/어려움/매우 어려움) · 1~20단계(지금은 1단계만, 나머지 준비 중)
- * · 권장 전투력 비교(입장 제한 아님) · 드래곤·상점·장비·연구소·보상.
+ * 메인 로비(8단계 v2.0 필수 B, 기획자 UI 시안 형식): 머리줄(출격 드래곤·행동력·골드·루비·전투력) · 날개 배너(단계·난이도·진행도)
+ * · 양옆 바로가기(보상·겨울 축제 / 선물함) · 제단 위 출격 드래곤(숨쉬기·터치 반응) · 보유 드래곤 캐러셀 · 난이도 탭
+ * · 단계 선택과 권장 전투력 · 전투 시작(행동력 5) · 하단 탭.
+ * 기능·조건·수치는 예전 로비와 같다(그림과 배치만 바뀜).
  */
 export class LobbyScene extends Phaser.Scene {
   private stageId = 1;
+  /** 개발용(?dev=1)으로 잠긴 난이도를 고른 경우(저장하지 않는 시험 플레이) */
+  private devDiff: Difficulty | null = null;
+  private exitLayer: Phaser.GameObjects.GameObject[] = [];
 
   constructor() {
     super('lobby');
   }
 
-  private exitLayer: Phaser.GameObjects.GameObject[] = [];
+  preload(): void {
+    // 기획자 그림 전체(로비가 첫 화면이라 여기서 한 번 읽으면 다른 화면도 같은 그림을 쓴다)
+    preloadArt(this);
+  }
 
   /**
    * 뒤로가기(로비): 종료 확인 창을 띄운다(앱인토스 검수 기준: 종료 시 확인).
@@ -36,17 +57,13 @@ export class LobbyScene extends Phaser.Scene {
       this.closeExit();
       return true;
     }
-    const add = <T extends Phaser.GameObjects.GameObject>(o: T): T => {
-      this.exitLayer.push(o);
-      return o;
-    };
+    const add = <T extends Phaser.GameObjects.GameObject>(o: T): T => (this.exitLayer.push(o), o);
     add(this.add.rectangle(360, 640, 720, 1280, 0x000000, 0.7).setInteractive().setDepth(500));
-    add(this.add.rectangle(360, 640, 560, 340, 0x1e2430).setStrokeStyle(4, 0xffffff, 0.6).setDepth(501));
-    add(this.add.text(360, 560, '게임을 종료할까요?', { fontFamily: FONT, fontSize: '40px', color: '#ffffff' }).setOrigin(0.5).setDepth(502));
-    add(this.add.text(360, 615, '진행 상황은 저장돼 있어요', { fontFamily: FONT, fontSize: '24px', color: '#c9d3ee' }).setOrigin(0.5).setDepth(502));
-    const b1 = makeButton(this, 250, 720, 200, 90, '취소', 0x3a4458, () => this.closeExit(), 30);
-    const b2 = makeButton(this, 470, 720, 200, 90, '종료', 0xc0392b, () => platform.exit(), 30);
-    for (const b of [b1, b2]) add(b.bg.setDepth(501)) && add(b.label.setDepth(502));
+    add(plate(this, 360, 640, 560, 340, { r: 28 }).setDepth(501));
+    add(text(this, 360, 570, '게임을 종료할까요?', TYPE.title, COLOR.text, true, true).setOrigin(0.5).setDepth(502));
+    add(text(this, 360, 622, '진행 상황은 저장돼 있어요', TYPE.caption, COLOR.textSub).setOrigin(0.5).setDepth(502));
+    add(button(this, 250, 720, 200, 84, '취소', () => this.closeExit(), { kind: 'secondary', size: TYPE.body }).root.setDepth(502));
+    add(button(this, 470, 720, 200, 84, '종료', () => platform.exit(), { kind: 'danger', size: TYPE.body }).root.setDepth(502));
     return true;
   }
 
@@ -58,142 +75,159 @@ export class LobbyScene extends Phaser.Scene {
   create(): void {
     this.exitLayer = [];
     if (!this.textures.exists('dragon-red')) makeTextures(this);
-    const p = Progress.load();
+    makeArtPlaceholders(this);
     const dev = devMode();
+    const now = gameNow();
+    Progress.syncMail(now, dev); // 운영자 캠페인·지난 최초 클리어 소급 → 선물함, 오래된 선물 정리
+    const p = Progress.load();
     const curDiff: Difficulty = this.devDiff ?? p.selectedDifficulty;
     const dp = p.difficulty[curDiff];
     if (!dp.unlocked.includes(this.stageId)) this.stageId = Math.max(1, ...dp.unlocked.filter((s) => STAGES.some((st) => st.id === s)));
 
-    this.add.rectangle(360, 640, 720, 1280, 0x14181f);
-    this.add.text(30, 22, `💎 ${p.rubies.toLocaleString()}`, { fontFamily: FONT, fontSize: '26px', color: '#e1bee7' });
-    this.add.text(690, 22, `🪙 ${p.gold.toLocaleString()}G`, { fontFamily: FONT, fontSize: '26px', color: '#ffd34d' }).setOrigin(1, 0);
-    this.staminaBar(dev);
-    this.add.text(360, 110, '드래곤 특공대', { fontFamily: FONT, fontSize: '56px', fontStyle: 'bold', color: '#ffd34d', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5);
-    this.add.text(360, 166, 'DRAGON FORCE', { fontFamily: FONT, fontSize: '22px', color: '#c9d3ee' }).setOrigin(0.5);
-
-    // 출격 드래곤(선택은 '드래곤' 화면에서)
+    drawLobbyBackdrop(this);
     const d = DRAGONS[p.selectedDragonId];
     const o = p.dragons[d.id];
     const lo = loadout(p, d.id);
-    const rc = RARITY_COLOR[d.rarity];
-    this.add.rectangle(360, 330, 660, 250, 0x1f2633).setStrokeStyle(3, rc, 0.9);
-    const dragon = this.add.image(150, 330, `portrait-${d.id}`).setScale(0.95);
-    this.tweens.add({ targets: dragon, y: 318, duration: 1100, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
-    this.add.text(270, 220, d.name, { fontFamily: FONT, fontSize: '34px', fontStyle: 'bold', color: '#ffffff' });
-    this.add.text(270, 264, `${ELEMENT_LABEL[d.element]} · ${RARITY_LABEL[d.rarity]} · ${'★'.repeat(o.stars)}${'☆'.repeat(5 - o.stars)} · 영구 Lv.${o.level}`, {
-      fontFamily: FONT, fontSize: '20px', color: `#${rc.toString(16).padStart(6, '0')}`,
+
+    // ── 머리줄: 출격 드래곤 · 행동력(+ = 선물함, 결제 없음) · 골드 · 루비 · 전투력
+    const bar = topBar(this, {
+      portrait: `portrait-${d.id}`,
+      level: o.level,
+      cp: lo.cp.toLocaleString(),
+      currencies: [
+        { icon: 'ui-energy', value: '', onPlus: () => this.scene.start('gifts') },
+        { icon: 'ui-gold', value: p.gold },
+        { icon: 'ui-ruby', value: p.rubies },
+      ],
     });
-    this.add.text(270, 298, `전투력 ${lo.cp.toLocaleString()}`, { fontFamily: FONT, fontSize: '30px', fontStyle: 'bold', color: '#ffd34d' });
-    this.add.text(270, 342, `공격력 ${lo.stats.attack.toFixed(1)} · HP ${Math.round(lo.stats.maxHp)} · 속도 ${Math.round(lo.stats.speed)}\n전용 액티브 ${SIGNATURES[d.id].icon} ${SIGNATURES[d.id].name}`, {
-      fontFamily: FONT, fontSize: '19px', color: '#c9d3ee', lineSpacing: 4,
+    const tickStamina = () => {
+      const t = gameNow();
+      const st = staminaNow(Progress.load(), t);
+      const left = nextRegenIn(st, t);
+      bar.set(0, `${st.value}/${STAMINA.max}`, left === null ? (st.value >= STAMINA.max ? '가득' : '') : `${formatLeft(left)} 후 +1`);
+    };
+    tickStamina();
+    this.time.addEvent({ delay: 1000, loop: true, callback: tickStamina });
+
+    // ── 날개 배너: 단계 이름 · 난이도 · 진행도
+    const s0 = STAGES.find((st) => st.id === this.stageId);
+    wingBanner(this, 360, 222, 430, `${this.stageId}단계 · ${s0 ? s0.name : '준비 중'}`, {
+      sub: `${DIFFICULTY_LABEL[curDiff]} · 왕국 정복 ${p.difficulty[curDiff].cleared.length}/${STAGE_COUNT} (${progressPct(p, curDiff)}%)`,
+      emblem: 'ic-banner',
     });
 
-    // 난이도
-    DIFFICULTIES.forEach((k: Difficulty, i) => {
+    // ── 양옆 바로가기
+    const live = eventActive(now);
+    const evAlert = live && (spinsAvailable(eventState(p)) > 0 || !attendedToday(p, now));
+    iconTile(this, 62, 340, 'ic-mission', { size: 86, label: '보상', alert: this.hasClaimable(), onClick: () => this.scene.start('missions') });
+    iconTile(this, 62, 452, 'ic-cal-star', { size: 86, label: live ? '겨울 축제' : '축제 12/1', alert: evAlert, onClick: () => this.scene.start('event') });
+    iconTile(this, 658, 340, 'ui-mailbox', { size: 86, label: '선물함', onClick: () => this.scene.start('gifts') });
+    giftAlert(this, 658, 338, 86, pendingGifts(p.mailbox, now).map((g) => g.id));
+
+    // ── 횃불 · 제단 · 출격 드래곤(숨쉬기 + 터치하면 살짝 뛰어오름)
+    torch(this, 172, 580);
+    torch(this, 548, 580);
+    altar(this, 360, 620, 400);
+    const hero = this.add.image(360, 462, `portrait-${d.id}`).setDisplaySize(320, 320);
+    const baseScale = hero.scaleX;
+    this.tweens.add({ targets: hero, y: 452, duration: 1600, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+    hero.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+      this.tweens.add({ targets: hero, scaleX: baseScale * 1.06, scaleY: baseScale * 0.94, duration: 90, yoyo: true, ease: 'Quad.Out' });
+    });
+    const rc = RARITY_COLOR[d.rarity];
+    text(this, 360, 672, `${d.name}  ${'★'.repeat(o.stars)}`, TYPE.body, COLOR.text, true, true).setOrigin(0.5);
+    text(this, 360, 700, `${ELEMENT_LABEL[d.element]} · ${RARITY_LABEL[d.rarity]} · 영구 Lv.${o.level}`, TYPE.tiny, rc, true, true).setOrigin(0.5);
+
+    // ── 보유 드래곤 캐러셀(누르면 출격 드래곤 변경)
+    const owned = DRAGON_ORDER.filter((id) => p.dragons[id].unlocked);
+    if (owned.length > 1) {
+      dragonCarousel(this, 784, owned.map((id) => `portrait-${id}`), Math.max(0, owned.indexOf(d.id)), (i) => {
+        Progress.select(owned[i]);
+        this.scene.restart();
+      });
+    } else {
+      text(this, 360, 784, '상점에서 드래곤을 모으면 여기서 바꿀 수 있어요', TYPE.tiny, COLOR.textSub, true, true).setOrigin(0.5);
+    }
+
+    // ── 난이도 탭(출시 안 된 난이도는 '출시 예정', 잠긴 난이도는 🔒 — 개발 모드는 시험 플레이)
+    const labels = DIFFICULTIES.map((k) => {
       const released = DIFFICULTY_RELEASED[k];
       const real = released && p.difficulty[k].unlocked.length > 0;
-      const open = real || dev;
-      const color = k === curDiff ? 0xb35a00 : 0x2a3140;
-      const b = makeButton(this, 140 + i * 220, 505, 205, 66, released ? `${DIFFICULTY_LABEL[k]}${real ? '' : ' 🔒'}` : `${DIFFICULTY_LABEL[k]}
-출시 예정`, color, () => {
-        if (real) {
-          this.devDiff = null;
-          Progress.selectDifficulty(k);
-        } else if (dev) {
-          this.devDiff = k; // 개발용(?dev=1): 잠긴 난이도 1단계 시험 플레이(선택은 저장하지 않음)
-        } else return;
-        this.scene.restart();
-      }, 24);
-      b.setEnabled(open, color);
+      return released ? `${DIFFICULTY_LABEL[k]}${real ? '' : ' 🔒'}` : `${DIFFICULTY_LABEL[k]} · 출시 예정`;
     });
-    const progressLine = DIFFICULTIES.map((k) => `${DIFFICULTY_LABEL[k]} ${p.difficulty[k].cleared.length}/${STAGE_COUNT}(${progressPct(p, k)}%)`).join(' · ');
-    this.add.text(360, 555, `왕국 정복 진행도 ${progressLine}`, { fontFamily: FONT, fontSize: '17px', color: '#8a93a6' }).setOrigin(0.5);
+    tabs(this, 906, labels, DIFFICULTIES.indexOf(curDiff), (i) => {
+      const k = DIFFICULTIES[i];
+      const real = DIFFICULTY_RELEASED[k] && p.difficulty[k].unlocked.length > 0;
+      if (real) {
+        this.devDiff = null;
+        Progress.selectDifficulty(k);
+      } else if (dev) {
+        this.devDiff = k;
+      } else {
+        this.toast(DIFFICULTY_RELEASED[k] ? '쉬움을 더 진행하면 열려요' : '다음 업데이트에서 열려요');
+        return;
+      }
+      this.scene.restart();
+    });
 
-    // 단계 선택(1~20, 진행도 분모 20 고정). 만들어진 단계만 플레이 가능 — 나머지는 "준비 중"
-    const stageText = this.add.text(360, 625, '', { fontFamily: FONT, fontSize: '32px', color: '#ffffff' }).setOrigin(0.5);
-    const sub = this.add.text(360, 672, '', { fontFamily: FONT, fontSize: '20px', color: '#9aa6bd', align: 'center' }).setOrigin(0.5);
-    const cpLine = this.add.text(360, 716, '', { fontFamily: FONT, fontSize: '22px', color: '#ffffff' }).setOrigin(0.5);
+    // ── 단계 선택 + 권장 전투력
+    plate(this, 360, 988, 660, 94, { r: 24 });
+    const stageText = text(this, 360, 961, '', TYPE.body, COLOR.text, true, true).setOrigin(0.5);
+    const sub = text(this, 360, 989, '', TYPE.tiny, COLOR.textSub, true).setOrigin(0.5);
+    const cpLine = text(this, 360, 1015, '', TYPE.tiny, COLOR.text, true, true).setOrigin(0.5);
+    const arrow = (dir: -1 | 1) => {
+      const tri = this.add.triangle(360 + dir * 290, 988, 0, -26, 0, 26, dir * 32, 0, 0xffe39a).setStrokeStyle(4, COLOR.outline);
+      tri.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+        const nx = this.stageId + dir;
+        if (nx < 1 || nx > STAGE_COUNT) return;
+        this.stageId = nx;
+        this.scene.restart();
+      });
+      return tri;
+    };
+    const prev = arrow(-1);
+    const next = arrow(1);
     const unlocked = this.devDiff ? [1] : dp.unlocked;
-    let start: Button;
-    const show = () => {
-      const s = STAGES.find((st) => st.id === this.stageId);
-      const isOpen = unlocked.includes(this.stageId);
-      const cleared = p.difficulty[curDiff].cleared.includes(this.stageId);
-      stageText.setText(`${this.stageId}단계 — ${s ? s.name : '준비 중'}`);
-      sub.setText(!s ? '아직 만들지 않은 단계입니다(준비 중)' : !isOpen ? `${this.stageId - 1}단계를 클리어하면 열립니다` : cleared ? `클리어함 · 반복 클리어 시 카드 1장` : '첫 클리어 시 출격 드래곤 카드 2장');
-      const rec = recommendedCp(this.stageId, curDiff);
-      const v = cpVerdict(lo.cp, rec);
-      cpLine.setText(`권장 전투력 ${rec.toLocaleString()} · 현재 ${lo.cp.toLocaleString()} — ${v.text}`).setColor(v.color);
-      prev.setEnabled(this.stageId > 1);
-      next.setEnabled(this.stageId < STAGE_COUNT);
-      start.setEnabled(!!s && isOpen);
-      start.setText(!s ? '준비 중' : !isOpen ? '잠김' : `전투 시작 (${DIFFICULTY_LABEL[curDiff]}) ⚡${this.devDiff ? 0 : STAMINA.entryCost}`);
-    };
-    const prev = makeButton(this, 70, 625, 90, 80, '◀', 0x3a4458, () => (this.stageId--, show()));
-    const next = makeButton(this, 650, 625, 90, 80, '▶', 0x3a4458, () => (this.stageId++, show()));
-    const go = () => {
-      const s = STAGES.find((st) => st.id === this.stageId);
-      if (s && unlocked.includes(this.stageId)) enterBattle(this, { stageId: this.stageId, difficulty: curDiff }, { free: !!this.devDiff });
-    };
-    start = makeButton(this, 360, 820, 560, 104, '전투 시작', 0xc0392b, go, 40);
-    show();
+    const s = s0;
+    const isOpen = unlocked.includes(this.stageId);
+    const cleared = p.difficulty[curDiff].cleared.includes(this.stageId);
+    stageText.setText(`${this.stageId}단계 — ${s ? s.name : '준비 중'}`);
+    sub.setText(!s ? '아직 만들지 않은 단계예요' : !isOpen ? `${this.stageId - 1}단계를 클리어하면 열려요` : cleared ? '클리어함 · 반복 클리어 시 카드 1장' : '첫 클리어: 드래곤 카드 2장 + 행동력 20(선물함)');
+    const rec = recommendedCp(this.stageId, curDiff);
+    const v = cpVerdict(lo.cp, rec);
+    cpLine.setText(`권장 전투력 ${rec.toLocaleString()} · 현재 ${lo.cp.toLocaleString()} — ${v.text}`).setColor(v.color);
+    prev.setAlpha(this.stageId > 1 ? 1 : 0.3);
+    next.setAlpha(this.stageId < STAGE_COUNT ? 1 : 0.3);
 
-    // 메뉴
-    makeButton(this, 135, 960, 210, 96, '드래곤', 0x2e5d8a, () => this.scene.start('dragons'), 28);
-    makeButton(this, 360, 960, 210, 96, '상점', 0x6a3fb5, () => this.scene.start('shop'), 28);
-    makeButton(this, 585, 960, 210, 96, '장비', 0x2e7d6a, () => this.scene.start('equip'), 28);
-    makeButton(this, 135, 1075, 210, 96, '연구소', 0x7a5a12, () => this.scene.start('lab', { from: 'lobby' }), 28);
-    makeButton(this, 360, 1075, 210, 96, '보상', 0x9a6b12, () => this.scene.start('missions'), 28);
-    if (this.hasClaimable()) this.add.circle(455, 1032, 12, 0xff5252).setStrokeStyle(2, 0xffffff);
-    // 2026 크리스마스 이벤트(드래곤의 겨울 축제): 기간 중엔 강조, 받을 것이 있으면 빨간 점
-    const now = gameNow();
-    const live = eventActive(now);
-    makeButton(this, 585, 1075, 210, 96, live ? '❄ 겨울 축제' : '겨울 축제\n12/1 시작', live ? 0x1565c0 : 0x2a3140, () => this.scene.start('event'), live ? 26 : 20);
-    if (live) {
-      const st = eventState(p);
-      if (spinsAvailable(st) > 0 || !attendedToday(p, now)) this.add.circle(680, 1032, 12, 0xff5252).setStrokeStyle(2, 0xffffff);
-    }
-    this.add.text(360, 1160, 'PC: WASD·방향키 이동, 스페이스·Q 전용 액티브, ESC 일시정지\n휴대폰: 화면을 끌어 이동, 위쪽 둥근 버튼으로 전용 액티브', {
-      fontFamily: FONT, fontSize: '18px', color: '#6f7a8c', align: 'center', lineSpacing: 4,
-    }).setOrigin(0.5);
+    // ── 전투 시작(행동력 5, 부족하면 안내)
+    const canGo = !!s && isOpen;
+    const go = () => {
+      if (canGo) enterBattle(this, { stageId: this.stageId, difficulty: curDiff }, { free: !!this.devDiff });
+    };
+    const startBtn: KitButton = button(this, 360, 1088, 420, 80, !s ? '준비 중' : !isOpen ? '잠김' : '전투 시작', go, {
+      kind: 'cta', size: 36, icon: canGo ? 'ic-swords' : undefined, sub: canGo ? `${DIFFICULTY_LABEL[curDiff]} · 행동력 ${this.devDiff ? 0 : STAMINA.entryCost}` : undefined,
+    });
+    startBtn.setEnabled(canGo);
+    if (canGo) this.tweens.add({ targets: startBtn.root, scale: 1.03, yoyo: true, repeat: -1, duration: 900, ease: 'Sine.InOut' });
+
+    // ── 하단 탭
+    navBar(this, NAV, 'lobby', (k) => {
+      if (k === 'lobby') return;
+      this.scene.start(k, k === 'lab' ? { from: 'lobby' } : undefined);
+    });
 
     this.input.keyboard?.on('keydown-ENTER', go);
     if (dev) this.devTools();
   }
 
-  /**
-   * 8단계: 행동력 게이지(현재/최대 + 다음 회복까지 남은 시간, 1초마다 갱신)와 선물함 버튼(받지 않은 선물 수 빨간 숫자).
-   * 오른쪽 위 끝(토스 닫기 버튼 줄)은 비워 두고 제목 오른쪽에 둔다.
-   */
-  private staminaBar(dev: boolean): void {
-    Progress.syncMail(gameNow(), dev); // 운영자 캠페인 확인 → 선물함, 오래된 선물 정리
-    // 맨 윗줄 가운데(루비 왼쪽 · 골드 오른쪽 사이): 글자 + 그 아래 얇은 막대
-    const bar = this.add.rectangle(270, 60, 180, 10, 0x2a3140).setOrigin(0, 0.5).setStrokeStyle(2, 0x000000, 0.5);
-    const fill = this.add.rectangle(271, 60, 178, 8, 0x4fc3f7).setOrigin(0, 0.5);
-    const label = this.add.text(360, 24, '', { fontFamily: FONT, fontSize: '21px', color: '#bfe9ff' }).setOrigin(0.5, 0);
-    const update = () => {
-      const now = gameNow();
-      const st = staminaNow(Progress.load(), now);
-      fill.width = 178 * Math.min(1, st.value / STAMINA.max);
-      const next = nextRegenIn(st, now);
-      label.setText(`⚡ ${st.value}/${STAMINA.max}${next === null ? (st.value >= STAMINA.max ? ' 가득' : '') : ` · +1 ${formatLeft(next)}`}`);
-    };
-    void bar;
-    update();
-    this.time.addEvent({ delay: 1000, loop: true, callback: update });
-
-    const n = pendingCount(Progress.load().mailbox, gameNow());
-    makeButton(this, 630, 120, 140, 72, '🎁 선물함', 0x8a3d6b, () => this.scene.start('gifts'), 22);
-    if (n > 0) {
-      this.add.circle(694, 88, 17, 0xff3b3b).setStrokeStyle(2, 0xffffff);
-      this.add.text(694, 88, n > 99 ? '99+' : String(n), { fontFamily: FONT, fontSize: n > 9 ? '15px' : '19px', fontStyle: 'bold', color: '#ffffff' }).setOrigin(0.5);
-    }
+  /** 짧은 안내(화면 가운데 1.6초) */
+  private toast(msg: string): void {
+    const t = text(this, 360, 640, msg, TYPE.body, COLOR.text, true, true).setOrigin(0.5).setDepth(1000);
+    const bg = this.add.rectangle(360, 640, t.width + 60, 70, 0x000000, 0.75).setDepth(999);
+    this.tweens.add({ targets: [t, bg], alpha: 0, delay: 1200, duration: 400, onComplete: () => (t.destroy(), bg.destroy()) });
   }
 
-  /** 개발용(?dev=1)으로 잠긴 난이도를 고른 경우(저장하지 않는 시험 플레이) */
-  private devDiff: Difficulty | null = null;
-
-  /** 받을 보상이 있으면 보상 버튼에 빨간 점 */
+  /** 받을 보상이 있으면 보상 버튼에 "!" */
   private hasClaimable(): boolean {
     const p = Progress.load();
     return DIFFICULTIES.some((k) => [25, 50, 100].some((s) => progressPct(p, k) >= s && !p.difficulty[k].claimed.includes(s)));
@@ -202,20 +236,22 @@ export class LobbyScene extends Phaser.Scene {
   /** 개발·심사용: 진행 초기화(두 번 확인) */
   private devTools(): void {
     let armed = false;
-    const t = this.add.text(360, 1245, '[개발용] 진행 초기화', { fontFamily: FONT, fontSize: '19px', color: '#8a5555' }).setOrigin(0.5);
+    const t = this.add.text(20, 146, '[개발용] 진행 초기화', { fontFamily: 'sans-serif', fontSize: '16px', color: '#c98a8a', backgroundColor: '#00000088' });
     t.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
       if (!armed) {
         armed = true;
-        t.setText('정말 초기화할까요? 골드·강화·해금이 모두 사라집니다. (한 번 더 누르기)').setColor('#ff6b6b');
+        t.setText('정말 초기화할까요? 한 번 더 누르기').setColor('#ff6b6b');
         this.time.delayedCall(4000, () => {
           armed = false;
-          if (t.active) t.setText('[개발용] 진행 초기화').setColor('#8a5555');
+          if (t.active) t.setText('[개발용] 진행 초기화').setColor('#c98a8a');
         });
         return;
       }
       Progress.reset();
       this.devDiff = null;
+      this.registry.remove('gift-seen-ids');
       this.scene.restart();
     });
+    void css;
   }
 }

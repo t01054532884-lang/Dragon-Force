@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { claimAll, claimOne, grantClearGift, pendingCount, pendingGifts, pruneMailbox, spendStamina, syncCampaigns, addGift, type Campaign, type Gift } from '../src/systems/Mailbox';
-import { defaultProgress, loadProgress, SAVE_KEY, settleRun, type PlayerProgress, type Store } from '../src/systems/Progress';
+import { backfillClearGifts, defaultProgress, loadProgress, SAVE_KEY, settleRun, type PlayerProgress, type Store } from '../src/systems/Progress';
 import { STAMINA } from '../src/systems/Stamina';
+import { activeCampaigns } from '../src/data/campaigns';
 
 const T0 = Date.UTC(2026, 10, 19, 3, 0, 0);
 const DAY = 86_400_000;
@@ -116,15 +117,48 @@ describe('행동력 입장·저장', () => {
     expect(r.ok).toBe(false);
     expect(r.progress).toBe(p);
   });
-  it('v3 저장 → v4: 행동력 40, 빈 선물함, 이미 깬 단계는 선물 소급 없이 지급 처리', () => {
-    const v3 = { saveVersion: 3, gold: 50, rubies: 7, difficulty: { easy: { unlocked: [1, 2], cleared: [1], claimed: [] } } };
+  it('v3 저장 → v4: 행동력 40, 빈 선물함, 지난 최초 클리어는 접속 때 소급 1회(v2.0 확정)', () => {
+    const v3 = { saveVersion: 3, gold: 50, rubies: 7, difficulty: { easy: { unlocked: [1, 2, 3], cleared: [1, 2], claimed: [] } } };
     const p = loadProgress(mem({ [SAVE_KEY]: JSON.stringify(v3) }));
     expect(p.saveVersion).toBe(4);
     expect(p.stamina.value).toBe(40);
     expect(p.mailbox.gifts).toEqual([]);
-    expect(p.mailbox.granted).toEqual(['clear:easy:1']);
     expect(p.createdAt).toBe(0);
     expect(p.gold).toBe(50);
+    const a = backfillClearGifts(p, T0);
+    expect(a.added).toBe(2);
+    expect(pendingGifts(a.progress.mailbox, T0).map((g) => g.id)).toEqual(['clear:easy:1', 'clear:easy:2']);
+    // 다시 접속해도, 받은 뒤에도 다시 생기지 않음
+    expect(backfillClearGifts(a.progress, T0 + 1).added).toBe(0);
+    const c = claimOne(a.progress, 'clear:easy:1', T0).progress;
+    expect(backfillClearGifts(pruneMailbox(c.mailbox, T0 + 30 * DAY) === c.mailbox ? c : { ...c, mailbox: pruneMailbox(c.mailbox, T0 + 30 * DAY) }, T0 + 30 * DAY).added).toBe(0);
+  });
+  it('v4 첫판(소급 없이 지급함 표시만 한 저장)도 한 번 고쳐서 소급', () => {
+    const old = { ...defaultProgress(T0), difficulty: { ...defaultProgress(T0).difficulty, easy: { unlocked: [1, 2], cleared: [1], claimed: [] } } };
+    const marked = { ...old, mailbox: { gifts: [], granted: ['clear:easy:1'], history: [] } };
+    const p = loadProgress(mem({ [SAVE_KEY]: JSON.stringify(marked) }));
+    const a = backfillClearGifts(p, T0);
+    expect(a.added).toBe(1);
+    expect(a.progress.mailbox.backfilled).toBe(true);
+    expect(backfillClearGifts(a.progress, T0).added).toBe(0);
+  });
+  it('이미 받은 최초 클리어 선물은 소급 대상 아님(수령 내역 확인)', () => {
+    let p = settleRun(defaultProgress(T0), 'r1', 100, 2, { stageId: 1, cleared: true, elapsedMs: 400_000, normalKills: 0, eliteKills: 0, difficulty: 'easy' }, T0).progress;
+    p = withStamina(p, 10);
+    p = claimOne(p, 'clear:easy:1', T0).progress;
+    p = { ...p, mailbox: { ...p.mailbox, backfilled: false } };
+    expect(backfillClearGifts(p, T0).added).toBe(0);
+  });
+  it('출시 기념 루비 1,000: 1회, 30일 만료, 시험 선물과 분리', () => {
+    expect(activeCampaigns(false).map((c) => c.id)).toEqual(['launch-ruby-1000-v1']);
+    expect(activeCampaigns(true).map((c) => c.id)).toContain('dev-ruby');
+    const a = syncCampaigns(defaultProgress(T0), activeCampaigns(false), T0);
+    expect(a.added).toHaveLength(1);
+    expect(a.added[0]).toMatchObject({ kind: 'rubies', amount: 1000, expiresAt: T0 + 30 * DAY, title: 'Dragon Force 출시 기념 선물' });
+    expect(syncCampaigns(a.progress, activeCampaigns(false), T0 + 1).added).toHaveLength(0);
+    const c = claimOne(a.progress, 'campaign:launch-ruby-1000-v1', T0).progress;
+    expect(c.rubies).toBe(defaultProgress(T0).rubies + 1000);
+    expect(syncCampaigns(c, activeCampaigns(false), T0 + 40 * DAY).added).toHaveLength(0);
   });
   it('저장·불러오기 후에도 선물함·내역 유지(앱 종료 후 유지)', () => {
     const s = mem();

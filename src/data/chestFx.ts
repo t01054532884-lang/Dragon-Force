@@ -57,3 +57,16 @@ export const CHEST_SFX = {
   card: 'sfx-card-flip',
   cardRare: 'sfx-card-rare',
 } as const;
+
+/**
+ * 상자 안쪽 빛(8단계 v2.0 그림): 등급 → 그림 키. 일반은 빛 그림 없이 코드 빛만.
+ * 희귀 = 파랑, 영웅 = 보라, 전설 = 금.
+ */
+export const CHEST_INNER: Record<Rarity, string | null> = { common: null, rare: 'chest-inner-blue', epic: 'chest-inner-purple', legendary: 'chest-inner-gold' };
+
+/**
+ * 상자별 입구 높이(본체 그림 600×600 캔버스 기준 y). 빛 그림의 밑동(y≈485)을 이 높이에 맞춘다.
+ * 기획자 상자 그림에서 잰 값(2026-11-19, 본체 윗면 가운데).
+ */
+export const CHEST_MOUTH_Y: Record<'dragon' | 'equipment' | 'gold', number> = { dragon: 268, equipment: 205, gold: 255 };
+export const INNER_BASE_Y = 485;

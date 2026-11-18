@@ -155,7 +155,7 @@ export class MissionScene extends Phaser.Scene {
       const x = 76 + (i % 5) * 142;
       const y = 400 + Math.floor(i / 5) * 170;
       const fr = this.add.rectangle(x, y, 132, 150, 0x1d2430).setStrokeStyle(3, RARITY_COLOR[DRAGONS[id].rarity]).setDepth(101);
-      layer.push(fr, this.add.image(x, y - 14, `portrait-${id}`).setScale(0.55).setDepth(102));
+      layer.push(fr, this.add.image(x, y - 14, `portrait-${id}`).setDisplaySize(106, 106).setDepth(102));
       layer.push(this.add.text(x, y + 50, DRAGONS[id].short, { fontFamily: FONT, fontSize: '20px', color: '#ffffff' }).setOrigin(0.5).setDepth(102));
       fr.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
         const r = Progress.claimMission(m.id, id, gameNow());

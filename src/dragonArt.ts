@@ -153,8 +153,11 @@ export function makeDragonTextures(scene: Phaser.Scene): void {
   for (const id of DRAGON_ORDER) {
     drawDragon(g, DRAGONS[id], 1);
     g.generateTexture(`dragon-${id}`, 64, 64);
-    drawDragon(g, DRAGONS[id], 3);
-    g.generateTexture(`portrait-${id}`, 192, 192);
+    // 초상은 기획자 그림(public/art/portrait-*.webp)을 먼저 읽었으면 그대로 쓰고, 없을 때만 도형으로
+    if (!scene.textures.exists(`portrait-${id}`)) {
+      drawDragon(g, DRAGONS[id], 3);
+      g.generateTexture(`portrait-${id}`, 192, 192);
+    }
   }
   drawBolts(g);
   g.destroy();

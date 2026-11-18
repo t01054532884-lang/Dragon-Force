@@ -54,7 +54,15 @@ export const ART_FILES: Record<string, string> = {
     (['weapon', 'armor', 'necklace', 'ring'] as const).flatMap((s) => EQUIP_RARITIES.map((r) => [`equip-${s}-${r}`, `equip/equip-${s}-${r}.webp`])),
   ),
   // 탑다운 드래곤: 2차분 4종 + 3차분 4종(scripts/process_art_batch3.py, 보라 번개 = 블랙 — 제작자 확인 2026-11-19). 남은 것: 스톤·워터
-  ...Object.fromEntries(['red', 'blue', 'wind', 'arcane', 'black', 'yellow', 'green', 'white'].map((id) => [`top-${id}`, `top/top-${id}.webp`])),
+  ...Object.fromEntries(['red', 'blue', 'wind', 'arcane', 'black', 'yellow', 'green', 'white', 'stone', 'water'].map((id) => [`top-${id}`, `top/top-${id}.webp`])),
+  // 5차분(8단계 v2.0 묶음 2026-11-19, scripts/process_art_batch5.py): 선물함·행동력·탐욕, 로고, 타이틀 장식, 겨울 배너, 스톤·워터 탑다운, 상자 안쪽 빛
+  'ui-mailbox': 'ui/ui-mailbox.webp',
+  'ui-energy': 'ui/ui-energy.webp',
+  'passive-greed': 'skill/passive-greed.webp',
+  'logo-ko': 'logo-ko.webp',
+  'title-deco': 'title-deco.webp',
+  'event-winter': 'event-winter.webp',
+  ...Object.fromEntries(['blue', 'purple', 'gold'].map((c) => [`chest-inner-${c}`, `chest/chest-inner-${c}.webp`])),
 };
 
 /** 필요한 그림만 읽는다(키가 ART_FILES에 없거나 이미 읽었으면 건너뜀). 화면별 preload()에서 쓴다 */
@@ -66,7 +74,10 @@ export function preloadKeys(scene: Phaser.Scene, keys: readonly string[]): void 
 }
 
 /** 상자 개봉 연출 그림(본체·뚜껑 3종) */
-export const CHEST_LAYER_KEYS = (['dragon', 'equipment', 'gold'] as const).flatMap((b) => [`chest-${b}-body`, `chest-${b}-lid`]);
+export const CHEST_LAYER_KEYS = [
+  ...(['dragon', 'equipment', 'gold'] as const).flatMap((b) => [`chest-${b}-body`, `chest-${b}-lid`]),
+  'chest-inner-blue', 'chest-inner-purple', 'chest-inner-gold',
+];
 
 export function preloadArt(scene: Phaser.Scene): void {
   for (const [key, file] of Object.entries(ART_FILES)) {

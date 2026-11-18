@@ -40,6 +40,8 @@ export interface MailboxState {
   granted: string[];
   /** 최근 수령 내역(최신이 앞) */
   history: ClaimRecord[];
+  /** 지난 최초 클리어 소급 지급을 한 번 계산했는지(Progress.backfillClearGifts) */
+  backfilled?: boolean;
 }
 
 export const MAILBOX = {
@@ -49,7 +51,7 @@ export const MAILBOX = {
 };
 const DAY = 86_400_000;
 
-export const newMailbox = (): MailboxState => ({ gifts: [], granted: [], history: [] });
+export const newMailbox = (): MailboxState => ({ gifts: [], granted: [], history: [], backfilled: true });
 
 /** 선물함이 다루는 계정 일부(실제 저장 PlayerProgress가 이 모양을 가진다) */
 export interface WalletLike {
@@ -252,5 +254,5 @@ export function sanitizeMailbox(raw: unknown): MailboxState {
     .filter((h) => h && typeof h.id === 'string' && GIFT_KINDS.includes(h.kind))
     .slice(0, MAILBOX.historyMax)
     .map((h) => ({ id: h.id, title: String(h.title), kind: h.kind, amount: int(h.amount, 0, 1e9, 0), claimedAt: Number(h.claimedAt) || 0 }));
-  return { gifts, granted, history };
+  return { gifts, granted, history, backfilled: m.backfilled === true };
 }

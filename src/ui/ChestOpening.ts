@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import type { BoxId, Rarity } from '../data/economy';
-import { CHEST_FX, CHEST_SFX, openingTier, type ChestTierFx } from '../data/chestFx';
+import { CHEST_FX, CHEST_INNER, CHEST_MOUTH_Y, CHEST_SFX, INNER_BASE_Y, openingTier, type ChestTierFx } from '../data/chestFx';
 import type { BoxResult } from '../systems/Progress';
 import { FONT } from './widgets';
 
@@ -76,6 +76,14 @@ export class ChestOpening {
     this.later(t, () => {
       parts.forEach((p) => p.setAngle(0));
       s.tweens.add({ targets: lid, y: cy - 140, angle: -24, alpha: 0, duration: 380, ease: 'Cubic.Out' });
+      // 상자 안쪽 빛(희귀 이상, 그림이 있을 때): 밑동을 상자 입구에 맞추고 아래에서 위로 솟아오름
+      const innerKey = CHEST_INNER[this.tier];
+      if (innerKey && s.textures.exists(innerKey) && s.textures.exists(`chest-${this.box}-body`) && body.width === 600) {
+        const mouth = cy + (CHEST_MOUTH_Y[this.box] - 300) * k;
+        const inner = this.add(s.add.image(cx, mouth, innerKey).setOrigin(0.5, INNER_BASE_Y / 600).setScale(k, 0).setBlendMode(Phaser.BlendModes.ADD), 3.5);
+        s.tweens.add({ targets: inner, scaleY: k, duration: 420, ease: 'Back.Out' });
+        s.tweens.add({ targets: inner, alpha: { from: 1, to: 0.7 }, duration: 700, yoyo: true, repeat: -1, delay: 420, ease: 'Sine.InOut' });
+      }
       this.sfx(CHEST_SFX.open, 520);
     });
     t += 200;
