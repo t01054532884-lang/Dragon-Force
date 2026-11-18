@@ -8,6 +8,7 @@ export const ART_KEYS = [
   'ui-gold', 'ui-ruby', 'ui-card', 'ui-essence', 'ui-fragment', 'ui-ticket',
   'chest-equipment', 'chest-dragon', 'chest-gold',
   'equip-weapon', 'equip-armor', 'equip-necklace', 'equip-ring',
+  'nav-battle', 'nav-lab', 'ui-calendar', 'ui-mission',
 ] as const;
 export type ArtKey = (typeof ART_KEYS)[number];
 
@@ -126,6 +127,38 @@ export function makeArtPlaceholders(scene: Phaser.Scene): void {
     g.lineStyle(12, COLOR.gold).strokeCircle(64, 76, 30);
     g.fillStyle(COLOR.ruby).fillTriangle(64, 22, 46, 46, 82, 46).fillTriangle(46, 46, 82, 46, 64, 60);
     g.fillStyle(0xffffff, 0.8).fillCircle(58, 38, 4);
+  });
+
+  // 하단 탭·바로가기 아이콘
+  make('nav-battle', 128, () => {
+    for (const s of [1, -1]) {
+      const x0 = 64 - s * 40;
+      g.fillStyle(0xe5e7eb).fillTriangle(x0, 18, x0 + s * 10, 18, 64 + s * 30, 96);
+      g.fillStyle(0x9ca3af).fillTriangle(x0 + s * 10, 18, 64 + s * 30, 96, 64 + s * 22, 100);
+      g.fillStyle(COLOR.ember).fillRoundedRect(64 + s * 22 - 14, 90, 28, 10, 4);
+      g.fillStyle(0x7c2d12).fillCircle(64 + s * 36, 112, 8);
+    }
+  });
+  make('nav-lab', 128, () => {
+    g.fillStyle(0x7dd3fc, 0.35).fillCircle(64, 84, 36);
+    g.fillStyle(0xe0f2fe).fillRect(52, 14, 24, 40);
+    g.fillStyle(0x22d3ee).fillTriangle(30, 110, 98, 110, 64, 40);
+    g.fillStyle(0xe0f2fe).fillRoundedRect(46, 10, 36, 10, 4);
+    g.fillStyle(0xffffff, 0.8).fillCircle(56, 92, 6).fillCircle(72, 80, 4);
+  });
+  make('ui-calendar', 128, () => {
+    g.fillStyle(0xf3e6c8).fillRoundedRect(16, 28, 96, 88, 12);
+    g.fillStyle(COLOR.danger).fillRoundedRect(16, 28, 96, 28, { tl: 12, tr: 12, bl: 0, br: 0 });
+    g.fillStyle(0x6b7280).fillRect(38, 16, 10, 24).fillRect(80, 16, 10, 24);
+    g.fillStyle(COLOR.ok).fillTriangle(42, 82, 56, 96, 92, 62).fillTriangle(42, 82, 50, 74, 56, 86);
+  });
+  make('ui-mission', 128, () => {
+    g.fillStyle(0xf3e6c8).fillRoundedRect(24, 14, 80, 100, 10);
+    g.fillStyle(0x8b6b3d).fillRoundedRect(44, 8, 40, 16, 6);
+    for (let i = 0; i < 3; i++) {
+      g.fillStyle(COLOR.ok).fillCircle(42, 46 + i * 24, 6);
+      g.fillStyle(0x9ca3af).fillRect(54, 42 + i * 24, 36, 8);
+    }
   });
 
   g.destroy();
