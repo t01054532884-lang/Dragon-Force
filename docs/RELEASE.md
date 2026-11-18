@@ -48,7 +48,7 @@
 - [ ] 루비 결제를 넣을 때: 애플 인앱결제(RevenueCat 등 결제 검증 서비스) · 확률 고지 · 처리방침 수정
 
 ### 제작자가 할 일 (계정·콘솔)
-- [ ] GitHub 저장소 Settings → Pages → Source "GitHub Actions" (웹 링크·처리방침 주소 생성)
+- [x] GitHub 저장소 Settings → Pages → Source "GitHub Actions" (11/18 완료, 웹·처리방침 주소 열림 확인)
 - [ ] Apple Developer: Bundle ID `com.dragonforce.game` 등록
 - [ ] App Store Connect: 새 앱 만들기 → Apple ID를 `codemagic.yaml`의 `APP_STORE_APPLE_ID`에
 - [ ] Codemagic: Dragon-Force 저장소 앱 추가(API 키·인증서는 예전 앱과 같은 것)
