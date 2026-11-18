@@ -7,7 +7,7 @@
 | 시작 화면 | ✅ Capacitor 기본(흰 배경 + 로고) → 게임 배경색 단색 |
 | 개인정보 매니페스트 | ✅ `ios/App/App/PrivacyInfo.xcprivacy`: 추적 없음, 수집 없음, UserDefaults 사용 이유 CA92.1(진행 저장). Capacitor 코어는 자체 매니페스트가 있고 Preferences 플러그인은 없어서 앱에서 신고 |
 | 암호화 수출 질문 | ✅ `ITSAppUsesNonExemptEncryption = false`(업로드마다 묻지 않음) |
-| 앱 아이콘 | ⚠️ 임시(게임 속 레드 드래곤 도형, `scripts/make_placeholder_icon.py`). 기획자 그림(`docs/ART_REQUEST.md` 1번)으로 교체 |
+| 앱 아이콘 | ✅ 기획자 그림(GPT 이미지, 2026-11-18) 1024×1024 RGB → `AppIcon-512@2x.png`, `store/app-icon.png`, 토스 로고 600×600 `store/toss-logo-600.png`. 임시 아이콘 스크립트는 비상용으로 남김 |
 | 처리방침 · 지원 URL | ✅ 페이지 있음(`public/privacy.html`, `public/support.html`). **GitHub Pages를 켜야 주소가 생김** |
 | 빌드·업로드 | ✅ `codemagic.yaml`. Apple ID(숫자)만 채우면 됨 |
 | 스크린샷 | ❌ 게임 화면 캡처로 제작 예정(6.9인치 1320×2868 또는 6.5인치 1284×2778, 3~10장) |
