@@ -33,6 +33,8 @@ export const ART_FILES: Record<string, string> = {
   'chest-equipment': 'chest-equipment.webp',
   'chest-dragon': 'chest-dragon.webp',
   'chest-gold': 'chest-gold.webp',
+  // 상자 개봉 연출용 본체·뚜껑(4차분 2026-11-19, scripts/process_art_batch4.py): 600×600 같은 캔버스, 겹치면 닫힌 상자
+  ...Object.fromEntries((['dragon', 'equipment', 'gold'] as const).flatMap((b) => (['body', 'lid'] as const).map((part) => [`chest-${b}-${part}`, `chest/chest-${b}-${part}.webp`]))),
   'ui-gold': 'ui-gold.webp',
   'ui-ruby': 'ui-ruby.webp',
   'ui-card': 'ui-card.webp',
@@ -54,6 +56,17 @@ export const ART_FILES: Record<string, string> = {
   // 탑다운 드래곤: 2차분 4종 + 3차분 4종(scripts/process_art_batch3.py, 보라 번개 = 블랙 — 제작자 확인 2026-11-19). 남은 것: 스톤·워터
   ...Object.fromEntries(['red', 'blue', 'wind', 'arcane', 'black', 'yellow', 'green', 'white'].map((id) => [`top-${id}`, `top/top-${id}.webp`])),
 };
+
+/** 필요한 그림만 읽는다(키가 ART_FILES에 없거나 이미 읽었으면 건너뜀). 화면별 preload()에서 쓴다 */
+export function preloadKeys(scene: Phaser.Scene, keys: readonly string[]): void {
+  for (const key of keys) {
+    const file = ART_FILES[key];
+    if (file && !scene.textures.exists(key)) scene.load.image(key, `art/${file}`);
+  }
+}
+
+/** 상자 개봉 연출 그림(본체·뚜껑 3종) */
+export const CHEST_LAYER_KEYS = (['dragon', 'equipment', 'gold'] as const).flatMap((b) => [`chest-${b}-body`, `chest-${b}-lid`]);
 
 export function preloadArt(scene: Phaser.Scene): void {
   for (const [key, file] of Object.entries(ART_FILES)) {

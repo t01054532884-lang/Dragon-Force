@@ -22,6 +22,7 @@ import { SPECIAL_VALUES, type SpecialId } from '../data/specials';
 import { DIFFICULTY_LABEL, DIFFICULTY_MULT, type Difficulty } from '../data/economy';
 import { ITEM_RULES, ITEMS, rollNormalDrop, type ItemId } from '../data/items';
 import { chapterOf, SEASON1_FINALE } from '../data/season1';
+import { enterBattle } from '../ui/entry';
 
 /** 적 투사체(직선탄·추적 구체) */
 interface EnemyShot {
@@ -1379,7 +1380,7 @@ export class GameScene extends Phaser.Scene {
     const toLab = () => this.scene.start('lab', { from: 'result' });
     const toLobby = () => this.scene.start('lobby');
     if (clear) {
-      button(360, 1065, 600, next ? `다음 단계 — ${next.name}` : `${this.stage.id + 1}단계 해금 (준비 중)`, !!next, () => this.scene.restart({ stageId: next!.id, difficulty: this.difficulty }));
+      button(360, 1065, 600, next ? `다음 단계 — ${next.name}` : `${this.stage.id + 1}단계 해금 (준비 중)`, !!next, () => enterBattle(this, { stageId: next!.id, difficulty: this.difficulty }, { restart: true }));
       button(160, 1180, 190, '재도전 (R)', true, () => this.retry());
       button(360, 1180, 190, '성장 연구소', true, toLab, 0x7a5a12);
       button(560, 1180, 190, '로비', true, toLobby, 0x3a4458);
@@ -1391,7 +1392,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private retry(): void {
-    this.scene.restart({ stageId: this.stage.id, difficulty: this.difficulty });
+    enterBattle(this, { stageId: this.stage.id, difficulty: this.difficulty }, { restart: true });
   }
 }
 

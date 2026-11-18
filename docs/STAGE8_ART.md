@@ -100,3 +100,5 @@ SVG는 아이콘을 아주 단순하게 할 때만 의미가 있고, 아틀라�
 - 최신화: GitHub main(7단계 시즌 1, 19cfa58)과 design/ui(0779dfc), release/appstore를 이어받음. 회사 폴더 3개(main·design·ios 작업 폴더)는 GitHub와 같은 상태였다.
 - design/ui: 탑다운 4장 추가(블랙 확인 반영), 요청서 3 현황 갱신.
 - main: 상자 개봉 연출(`src/data/chestFx.ts`, `src/ui/ChestOpening.ts`, 상점 연결), 테스트 4개(전체 105개).
+
+- 11/19: **상자 본체·뚜껑 3종 받음**(1254×1254 투명, 같은 캔버스로 정확히 겹침) → `scripts/process_art_batch4.py`로 600×600 webp, `public/art/chest/`. 상점 `preload`에서 읽어 개봉 연출에 사용(파일이 없으면 도형 임시 그림).

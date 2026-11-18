@@ -129,7 +129,7 @@ describe('저장 이어받기', () => {
   it('v1(5단계) → v3: 골드·연구소·해금 유지 + 레드 + 소환권 11장은 무료 개봉권 11장, 1단계 클리어는 쉬움 진행도 1/20', () => {
     const v1 = { saveVersion: 1, gold: 777, upgrades: { attack: 3, hp: 1, speed: 0, pickup: 2 }, unlockedStages: [1, 2], selectedDragonId: 'red', rewardedRunIds: ['a'] };
     const p = loadProgress(mem({ [SAVE_KEY]: JSON.stringify(v1) }));
-    expect(p).toMatchObject({ saveVersion: 3, gold: 777, upgrades: v1.upgrades, unlockedStages: [1, 2], selectedDragonId: 'red' });
+    expect(p).toMatchObject({ saveVersion: 4, gold: 777, upgrades: v1.upgrades, unlockedStages: [1, 2], selectedDragonId: 'red' });
     expect(p.summon.legacyTickets).toBe(11);
     expect(p.dragons.red).toMatchObject({ unlocked: true, level: 1, stars: 1, fragments: 0, cards: 0 });
     expect(p.difficulty.easy.cleared).toEqual([1]);

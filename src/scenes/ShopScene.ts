@@ -7,6 +7,7 @@ import { specialDef } from '../data/specials';
 import { poolOf, Progress, type BoxResult, type Reward } from '../systems/Progress';
 import { devMode, FONT, makeButton, type Button } from '../ui/widgets';
 import { ChestOpening } from '../ui/ChestOpening';
+import { CHEST_LAYER_KEYS, preloadKeys } from '../ui/art';
 
 const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
 
@@ -32,6 +33,11 @@ export class ShopScene extends Phaser.Scene {
     else if (this.layer.length) this.clearLayer();
     else this.scene.start('lobby');
     return true;
+  }
+
+  preload(): void {
+    // 상자 개봉 연출 그림(파일이 없으면 ChestOpening이 도형 임시 그림으로 대신)
+    preloadKeys(this, CHEST_LAYER_KEYS);
   }
 
   create(): void {

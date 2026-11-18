@@ -30,7 +30,7 @@ npm install
 npm run dev
 ```
 http://localhost:5173 (첫 화면은 로비). `?seed=123`을 붙이면 같은 적 생성이 재현된다. `?dev=1`이면 상점에 루비·골드·카드 지급, 로비에 진행 초기화·잠긴 난이도 시험 플레이. `?dev=1&now=2026-12-05`로 게임 안 날짜를 바꿔 이벤트·미션 시험. 개발 중에는 브라우저 콘솔에서 `window.__game.scene.getScene('game')`으로 상태를 볼 수 있다(배포본엔 없음).
-타입 검사 `npx tsc --noEmit`, 규칙 테스트 `npm test`(vitest 93개: 비용·골드·저장·이어받기·상자·천장·장비·미션·전투력·이벤트).
+타입 검사 `npx tsc --noEmit`, 규칙 테스트 `npm test`(vitest 130개: 비용·골드·저장·이어받기·상자·천장·장비·미션·전투력·이벤트).
 빌드: `npm run build`(웹 → `dist/`, main에 push하면 GitHub Pages 자동 배포) · `npm run build:ios`(iOS용 빌드 + `cap sync ios`, 실제 앱은 Codemagic이 `codemagic.yaml`로 빌드·TestFlight 업로드) · `npm run build:toss`(토스용 빌드 → `dragon-force.ait`).
 Claude 미리보기는 `.claude/launch.json`의 `dragon-force` 설정으로 연다.
 
@@ -41,6 +41,7 @@ Claude 미리보기는 `.claude/launch.json`의 `dragon-force` 설정으로 연�
 | `src/scenes/DragonsScene.ts` | 드래곤 선택·도감·상세(영구 성장표·기본 공격 탭)·육성(카드+골드 레벨업·승급·범용 조각·정수 교환·출격 선택) |
 | `src/scenes/ShopScene.ts` | 루비 상점: 상자 3종 1회/10회, 무료 개봉권(구 소환권), 천장 진행도, 확률·보장 안내, 결과 |
 | `src/scenes/EquipScene.ts` | 장비 4슬롯(장착·강화·잠금·합성)과 장착형 특수 스킬 15종(해금·장착) |
+| `src/scenes/GiftScene.ts` · `src/systems/Mailbox.ts` · `src/systems/Stamina.ts` · `src/ui/entry.ts` | 8단계 선물함 화면 / 선물함·캠페인·행동력 규칙(순수 함수) / 전투 입장(행동력 차감) |
 | `src/scenes/MissionScene.ts` | 보상: 난이도 진행도 25/50/100% 상자, 일일·주간·월간 미션(선택 카드·조각), 업적 |
 | `src/data/dragons.ts` | 드래곤 10종(종별 능력치 v1.2)·기본 공격 Lv.1~7·특성(레드 5성 개방)·영구 Lv.40 카드·골드 비용 |
 | `src/data/permGrowth.ts` | 5레벨 단위 고유 성장 10종 × 8단계(임시 수치)와 덧입히기 `applyPerm`(탄 상한 5발) |
@@ -88,6 +89,7 @@ Claude 미리보기는 `.claude/launch.json`의 `dragon-force` 설정으로 연�
 
 - **7단계(11/18, `docs/STAGE7.md`)**: 1단계는 기존 그대로, 2~20단계 새 콘텐츠(일반 3·엘리트 2·보스 1, 공통 AI 5종 + 패턴 모듈). 격노는 기존(피해 ×1.5·속도 ×1.3). 적 체력 ×1.07/단계(×1.12 폐기). 권장 CP 900→2,500(임시). 첫 출시는 쉬움 1~20만, 어려움·매우 어려움은 "출시 예정". 장비 슬롯 이름 무기 → 발톱 장식, 갑옷 → 비늘 갑주(키는 weapon·armor 유지).
 
+- **8단계 1차(11/19, `docs/STAGE8.md`)**: 저장 v4(`stamina`·`mailbox`·`createdAt`), 행동력 40·30분 1·입장 5(모든 입장은 `src/ui/entry.ts` `enterBattle`, 환불 없음), 최초 클리어 행동력 20 → 선물함(`clear:<난이도>:<단계>`, 소급 없음 — 확인 요청), 선물함 화면 `GiftScene`(키 `gifts`), 운영자 캠페인 `src/data/campaigns.ts`(계정당 1회, `?dev=1` 시험 3개). 상자 개봉 그림 `public/art/chest/chest-<상자>-<body|lid>.webp`(원본 `art-src/chests/`, `scripts/process_art_batch4.py`). 로그인·Firebase는 설계만(첫 제출 제외 제안). **결정 5건은 STAGE8.md 끝.**
 - **8단계 준비(11/19, `docs/STAGE8_ART.md`)**: 그림 재고·부족 목록·규격, 상자 개봉 연출(`src/ui/ChestOpening.ts`, 등급 수치 `src/data/chestFx.ts`, 보상은 연출 전 확정). 8단계 기획서 HTML은 회사 PC에만 있어 미대조. 보라 번개 탑다운 = 블랙(제작자 확인) → design/ui `top-black.webp`.
 
 ## 진행 상황 (2026-11-18 기준)

@@ -9,6 +9,9 @@ import { attendedToday, eventActive, eventState, progressPct, Progress, spinsAva
 import { loadout } from '../systems/Loadout';
 import { devMode, FONT, gameNow, makeButton, type Button } from '../ui/widgets';
 import { platform } from '../platform';
+import { enterBattle } from '../ui/entry';
+import { pendingCount, staminaNow } from '../systems/Mailbox';
+import { STAMINA, formatLeft, nextRegenIn } from '../systems/Stamina';
 
 /**
  * 메인 로비(6단계 v1.2): 출격 드래곤·전투력 · 난이도(쉬움/어려움/매우 어려움) · 1~20단계(지금은 1단계만, 나머지 준비 중)
@@ -64,6 +67,7 @@ export class LobbyScene extends Phaser.Scene {
     this.add.rectangle(360, 640, 720, 1280, 0x14181f);
     this.add.text(30, 22, `💎 ${p.rubies.toLocaleString()}`, { fontFamily: FONT, fontSize: '26px', color: '#e1bee7' });
     this.add.text(690, 22, `🪙 ${p.gold.toLocaleString()}G`, { fontFamily: FONT, fontSize: '26px', color: '#ffd34d' }).setOrigin(1, 0);
+    this.staminaBar(dev);
     this.add.text(360, 110, '드래곤 특공대', { fontFamily: FONT, fontSize: '56px', fontStyle: 'bold', color: '#ffd34d', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5);
     this.add.text(360, 166, 'DRAGON FORCE', { fontFamily: FONT, fontSize: '22px', color: '#c9d3ee' }).setOrigin(0.5);
 
@@ -123,13 +127,13 @@ export class LobbyScene extends Phaser.Scene {
       prev.setEnabled(this.stageId > 1);
       next.setEnabled(this.stageId < STAGE_COUNT);
       start.setEnabled(!!s && isOpen);
-      start.setText(!s ? '준비 중' : !isOpen ? '잠김' : `전투 시작 (${DIFFICULTY_LABEL[curDiff]})`);
+      start.setText(!s ? '준비 중' : !isOpen ? '잠김' : `전투 시작 (${DIFFICULTY_LABEL[curDiff]}) ⚡${this.devDiff ? 0 : STAMINA.entryCost}`);
     };
     const prev = makeButton(this, 70, 625, 90, 80, '◀', 0x3a4458, () => (this.stageId--, show()));
     const next = makeButton(this, 650, 625, 90, 80, '▶', 0x3a4458, () => (this.stageId++, show()));
     const go = () => {
       const s = STAGES.find((st) => st.id === this.stageId);
-      if (s && unlocked.includes(this.stageId)) this.scene.start('game', { stageId: this.stageId, difficulty: curDiff });
+      if (s && unlocked.includes(this.stageId)) enterBattle(this, { stageId: this.stageId, difficulty: curDiff }, { free: !!this.devDiff });
     };
     start = makeButton(this, 360, 820, 560, 104, '전투 시작', 0xc0392b, go, 40);
     show();
@@ -155,6 +159,35 @@ export class LobbyScene extends Phaser.Scene {
 
     this.input.keyboard?.on('keydown-ENTER', go);
     if (dev) this.devTools();
+  }
+
+  /**
+   * 8단계: 행동력 게이지(현재/최대 + 다음 회복까지 남은 시간, 1초마다 갱신)와 선물함 버튼(받지 않은 선물 수 빨간 숫자).
+   * 오른쪽 위 끝(토스 닫기 버튼 줄)은 비워 두고 제목 오른쪽에 둔다.
+   */
+  private staminaBar(dev: boolean): void {
+    Progress.syncMail(gameNow(), dev); // 운영자 캠페인 확인 → 선물함, 오래된 선물 정리
+    // 맨 윗줄 가운데(루비 왼쪽 · 골드 오른쪽 사이): 글자 + 그 아래 얇은 막대
+    const bar = this.add.rectangle(270, 60, 180, 10, 0x2a3140).setOrigin(0, 0.5).setStrokeStyle(2, 0x000000, 0.5);
+    const fill = this.add.rectangle(271, 60, 178, 8, 0x4fc3f7).setOrigin(0, 0.5);
+    const label = this.add.text(360, 24, '', { fontFamily: FONT, fontSize: '21px', color: '#bfe9ff' }).setOrigin(0.5, 0);
+    const update = () => {
+      const now = gameNow();
+      const st = staminaNow(Progress.load(), now);
+      fill.width = 178 * Math.min(1, st.value / STAMINA.max);
+      const next = nextRegenIn(st, now);
+      label.setText(`⚡ ${st.value}/${STAMINA.max}${next === null ? (st.value >= STAMINA.max ? ' 가득' : '') : ` · +1 ${formatLeft(next)}`}`);
+    };
+    void bar;
+    update();
+    this.time.addEvent({ delay: 1000, loop: true, callback: update });
+
+    const n = pendingCount(Progress.load().mailbox, gameNow());
+    makeButton(this, 630, 120, 140, 72, '🎁 선물함', 0x8a3d6b, () => this.scene.start('gifts'), 22);
+    if (n > 0) {
+      this.add.circle(694, 88, 17, 0xff3b3b).setStrokeStyle(2, 0xffffff);
+      this.add.text(694, 88, n > 99 ? '99+' : String(n), { fontFamily: FONT, fontSize: n > 9 ? '15px' : '19px', fontStyle: 'bold', color: '#ffffff' }).setOrigin(0.5);
+    }
   }
 
   /** 개발용(?dev=1)으로 잠긴 난이도를 고른 경우(저장하지 않는 시험 플레이) */

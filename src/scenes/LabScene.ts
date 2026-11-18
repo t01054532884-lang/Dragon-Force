@@ -4,6 +4,7 @@ import { Progress } from '../systems/Progress';
 import { loadout } from '../systems/Loadout';
 import { STAGES } from '../data/stages';
 import { FONT, makeButton, type Button } from '../ui/widgets';
+import { enterBattle } from '../ui/entry';
 
 interface Card {
   type: UpgradeType;
@@ -50,7 +51,7 @@ export class LabScene extends Phaser.Scene {
 
     this.msg = this.add.text(360, 1180, '', { fontFamily: FONT, fontSize: '24px', color: '#ff8a80' }).setOrigin(0.5);
     makeButton(this, 205, 1235, 290, 80, '로비로', 0x3a4458, () => this.scene.start('lobby'), 30);
-    makeButton(this, 515, 1235, 290, 80, '바로 전투', 0xc0392b, () => this.scene.start('game', { stageId: this.lastStage() }), 30);
+    makeButton(this, 515, 1235, 290, 80, '바로 전투', 0xc0392b, () => enterBattle(this, { stageId: this.lastStage() }), 30);
     this.input.keyboard?.on('keydown-ESC', () => this.scene.start('lobby'));
     this.refresh();
   }

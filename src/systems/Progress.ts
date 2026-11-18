@@ -1,3 +1,10 @@
+import { newStamina, type StaminaState } from './Stamina';
+import {
+  newMailbox, sanitizeMailbox, sanitizeStamina, grantClearGift, claimOne, claimAll, spendStamina, syncCampaigns, pruneMailbox,
+  type MailboxState,
+} from './Mailbox';
+import { CAMPAIGNS, DEV_CAMPAIGNS } from '../data/campaigns';
+import { STAMINA } from './Stamina';
 import {
   getUpgradeCost,
   PERMANENT_UPGRADES,
@@ -24,6 +31,7 @@ import {
   PROGRESS_STEPS,
   RARITIES,
   STAGE_COUNT,
+  DIFFICULTY_LABEL,
   UNIVERSAL,
   type BoxId,
   type Difficulty,
@@ -44,7 +52,7 @@ import { store as platformStore } from '../platform';
 export const SAVE_KEY = 'dragon-force:progress';
 export const BACKUP_KEY = 'dragon-force:progress:backup';
 export const LEGACY_UNLOCK_KEY = 'dragon-squad:unlockedStage'; // 4단계 해금 저장(그대로 두고 읽기만 함)
-export const SAVE_VERSION = 3; // v1: 5단계 연구소 · v2: 6단계 드래곤 컬렉션 · v3: 6단계 v1.2(카드·정수·조각·루비·장비·특수 스킬·난이도·미션)
+export const SAVE_VERSION = 4; // v1: 5단계 연구소 · v2: 6단계 드래곤 컬렉션 · v3: 6단계 v1.2(카드·정수·조각·루비·장비·특수 스킬·난이도·미션) · v4: 8단계 행동력·선물함
 const MAX_RUN_IDS = 30; // 중복 정산 방지용 최근 전투 기록 개수
 const MAX_TX_IDS = 50; // 중복 요청 방지용 최근 거래 ID
 
@@ -124,6 +132,11 @@ export interface PlayerProgress {
   events: Record<string, EventState>;
   claimed: string[]; // 일회성 보상: 'tutorial', 'first-clear-1'(v2 기록), 업적 id
   lifetime: { runs: number; normalKills: number; eliteKills: number; clears: number };
+  // ── 8단계(v4) ──
+  /** 계정을 처음 만든 시각(ms). v3 이전 저장은 0 = '캠페인 이전부터 있던 계정' */
+  createdAt: number;
+  stamina: StaminaState;
+  mailbox: MailboxState;
 }
 
 /** 저장소 흉내(테스트에서는 메모리, 게임에서는 플랫폼 저장소) */
@@ -135,8 +148,11 @@ export interface Store {
 const dragonState = (id: DragonId, unlocked = false): DragonProgress => ({ dragonId: id, unlocked, level: 1, stars: 1, cards: 0, fragments: 0 });
 const emptyDiff = (): DifficultyProgress => ({ unlocked: [1], cleared: [], claimed: [] });
 
-export function defaultProgress(): PlayerProgress {
+export function defaultProgress(now = Date.now()): PlayerProgress {
   return {
+    createdAt: now,
+    stamina: newStamina(now),
+    mailbox: newMailbox(),
     saveVersion: SAVE_VERSION,
     gold: 0,
     rubies: 0,
@@ -245,7 +261,11 @@ export function sanitize(raw: Record<string, unknown>): PlayerProgress {
   const sel = raw.selectedDragonId as DragonId;
   const selD = raw.selectedDifficulty as Difficulty;
 
+  const nowMs = Date.now();
   return {
+    createdAt: Math.min(nowMs, Math.max(0, Number(raw.createdAt) || 0)),
+    stamina: sanitizeStamina(raw.stamina, nowMs),
+    mailbox: sanitizeMailbox(raw.mailbox),
     saveVersion: SAVE_VERSION,
     gold: int(raw.gold, 0, 999_999_999, 0),
     rubies: int(raw.rubies, 0, 999_999_999, 0),
@@ -321,6 +341,13 @@ function migrate(raw: Record<string, unknown>): Record<string, unknown> {
       },
       difficulty: { easy: { unlocked, cleared, claimed: [] } },
     };
+  }
+  if (Number(r.saveVersion) < 4) {
+    // v3 → v4: 행동력 가득(40), 빈 선물함, 계정 생성 시각 0(=기존 유저). 이미 깬 단계의 최초 클리어 선물은
+    // 소급 지급하지 않고 '지급함'으로만 표시(행동력이 없던 시절 기록) — 제작자 확인 필요(docs/STAGE8.md)
+    const diffs = (r.difficulty ?? {}) as Record<string, { cleared?: number[] }>;
+    const granted = Object.entries(diffs).flatMap(([d, v]) => (Array.isArray(v?.cleared) ? v.cleared.map((st) => `clear:${d}:${st}`) : []));
+    r = { ...r, saveVersion: 4, createdAt: 0, stamina: undefined, mailbox: { gifts: [], granted, history: [] } };
   }
   return r;
 }
@@ -466,6 +493,12 @@ export function settleRun(
       const cur = next.difficulty[diff];
       const first = !cur.cleared.includes(run.stageId);
       if (first) next = setDiff(next, diff, { ...cur, cleared: [...cur.cleared, run.stageId].sort((a, b) => a - b) });
+      // 8단계: 스테이지·난이도별 최초 클리어 → 행동력 20을 선물함으로(바로 더하지 않음, 1회만)
+      const gift = grantClearGift(next, diff, run.stageId, `${DIFFICULTY_LABEL[diff]} ${run.stageId}단계`, now);
+      if (gift.added) {
+        next = gift.progress;
+        rewards.push({ id: `clear:${diff}:${run.stageId}`, text: `행동력 ${STAMINA.clearGift} → 선물함` });
+      }
       // 출격 드래곤 카드(제작자 임시 규칙 2026-11-18): 골드 정산과 별개
       const did = run.dragonId ?? next.selectedDragonId;
       if (next.dragons[did].level >= GROWTH.maxLevel) {
@@ -980,8 +1013,22 @@ function act<T extends { ok: boolean }>(f: (p: PlayerProgress) => T): T {
   return r;
 }
 
+
 export const Progress = {
   load: () => loadProgress(browserStore()),
+  // ── 8단계: 행동력·선물함 ──
+  /** 접속·화면 진입 때: 운영자 캠페인 확인 → 선물함에 넣기, 오래된 선물 정리 */
+  syncMail(now: number, dev = false) {
+    const p = this.load();
+    const r = syncCampaigns(p, dev ? [...CAMPAIGNS, ...DEV_CAMPAIGNS] : CAMPAIGNS, now);
+    const box = pruneMailbox(r.progress.mailbox, now);
+    if (r.added.length || box !== r.progress.mailbox) this.save({ ...r.progress, mailbox: box });
+    return r.added;
+  },
+  claimGift: (id: string, now: number) => act((p) => claimOne(p, id, now)),
+  claimAllGifts: (now: number) => act((p) => claimAll(p, now)),
+  /** 스테이지 입장: 행동력 차감(부족하면 ok:false, 아무것도 바뀌지 않음) */
+  spendEntry: (now: number, cost: number = STAMINA.entryCost) => act((p) => spendStamina(p, cost, now)),
   save: (p: PlayerProgress) => saveProgress(browserStore(), p),
   buy: (type: UpgradeType) => act((p) => purchase(p, type)),
   settle(runId: string, gold: number, unlockStage?: number, run?: RunRecord, now = Date.now()) {
