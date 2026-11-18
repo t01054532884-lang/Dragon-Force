@@ -32,7 +32,7 @@ export const ART_FILES: Record<string, string> = {
   // UI 아이콘(임시): 기획자 UI 시안 6장에서 타일 바탕을 지우고 떼어 낸 것. 깨끗한 아이콘 묶음이 오면 교체
   ...Object.fromEntries(
     ['ic-banner', 'ic-book', 'ic-cal-star', 'ic-calendar', 'ic-cards', 'ic-chest', 'ic-crystal', 'ic-dragon', 'ic-egg', 'ic-gear', 'ic-gift', 'ic-heart',
-      'ic-laurel', 'ic-mission', 'ic-portal', 'ic-scroll', 'ic-shield', 'ic-shop', 'ic-swords', 'ic-target', 'ic-trophy', 'ic-upgrade'].map((k) => [k, `ui/${k}.webp`]),
+      'ic-laurel', 'ic-mission', 'ic-portal', 'ic-scroll', 'ic-shield', 'ic-shop', 'ic-swords', 'ic-target', 'ic-trophy', 'ic-upgrade', 'ic-energy'].map((k) => [k, `ui/${k}.webp`]),
   ),
 };
 

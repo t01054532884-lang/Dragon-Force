@@ -67,7 +67,7 @@ export function wingBanner(scene: Phaser.Scene, x: number, y: number, w: number,
 }
 
 /** 맨 위 머리줄: 프로필(출격 드래곤 얼굴 + 레벨) + 재화 게이지(아이콘 · 짙은 칸 안 숫자 · 금색 +) + 전투력 */
-export function topBar(scene: Phaser.Scene, opts: { portrait: string; level: number; cp: string; currencies: { icon: string; value: number; onPlus?: () => void }[] }) {
+export function topBar(scene: Phaser.Scene, opts: { portrait: string; level: number; cp: string; currencies: { icon: string; value: number | string; sub?: string; onPlus?: () => void }[] }) {
   const root = scene.add.container(0, 0);
   const bg = scene.add.graphics();
   bg.fillStyle(COLOR.outline, 1).fillRoundedRect(-20, -30, 760, 162, 28);
@@ -77,6 +77,8 @@ export function topBar(scene: Phaser.Scene, opts: { portrait: string; level: num
   if (scene.textures.exists(opts.portrait)) pf.add(scene.add.image(0, 2, opts.portrait).setDisplaySize(124, 124));
   pf.add(badge(scene, 0, 52, `Lv.${opts.level}`, 0x3a2a6b));
   root.add(pf);
+  const values: Phaser.GameObjects.Text[] = [];
+  const subs: Phaser.GameObjects.Text[] = [];
   const n = opts.currencies.length;
   const left = 140;
   const each = (720 - left - 10) / n;
@@ -88,12 +90,25 @@ export function topBar(scene: Phaser.Scene, opts: { portrait: string; level: num
     g.fillStyle(0x110e1c, 1).fillRoundedRect(cx - w / 2 + 17, 27, w - 20, 36, 18);
     root.add(g);
     root.add(scene.add.image(cx - w / 2 + 14, 45, c.icon).setDisplaySize(60, 60));
-    root.add(text(scene, cx + 2, 45, c.value.toLocaleString(), TYPE.caption, COLOR.text, true, true).setOrigin(0.5));
+    const v = text(scene, cx + 2, 45, typeof c.value === 'number' ? c.value.toLocaleString() : c.value, TYPE.caption, COLOR.text, true, true).setOrigin(0.5);
+    root.add(v);
+    // 아래 작은 글씨(행동력 회복 타이머 등)
+    const sub = text(scene, cx + 2, 82, c.sub ?? '', TYPE.tiny, COLOR.ok, true, true).setOrigin(0.5);
+    root.add(sub);
+    values.push(v);
+    subs.push(sub);
     if (c.onPlus) root.add(button(scene, cx + w / 2 - 12, 42, 36, 36, '+', c.onPlus, { kind: 'cta', size: 28 }).root);
   });
-  if (scene.textures.exists('ic-swords')) root.add(scene.add.image(168, 100, 'ic-swords').setDisplaySize(40, 40));
-  root.add(text(scene, 192, 100, `전투력 ${opts.cp}`, TYPE.caption, COLOR.gold, true, true).setOrigin(0, 0.5));
-  return root;
+  if (scene.textures.exists('ic-swords')) root.add(scene.add.image(168, 108, 'ic-swords').setDisplaySize(36, 36));
+  root.add(text(scene, 190, 108, `전투력 ${opts.cp}`, TYPE.tiny, COLOR.gold, true, true).setOrigin(0, 0.5));
+  return {
+    root,
+    /** i번째 게이지 값·아래 글씨 바꾸기(행동력 타이머를 1초마다 갱신) */
+    set(i: number, value: number | string, subText?: string) {
+      values[i]?.setText(typeof value === 'number' ? value.toLocaleString() : value);
+      if (subText !== undefined) subs[i]?.setText(subText);
+    },
+  };
 }
 
 /** 드래곤 선택 캐러셀: ◀ [초상 3칸, 가운데 금테 강조] ▶ + 점 */
