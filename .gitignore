@@ -10,3 +10,6 @@ dist/
 # 제작자 기획 원본(PDF·HTML)은 git에 올리지 않는다(글자 본문은 docs/plan/)
 *.pdf
 Dragon-Force-6단계-v1.0.html
+
+# 기획자 원본 그림(가공 전). 게임에 쓰는 가공본은 public/art/
+art-src/
