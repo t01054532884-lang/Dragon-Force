@@ -12,9 +12,21 @@ export const ART_KEYS = [
 ] as const;
 export type ArtKey = (typeof ART_KEYS)[number];
 
+/** 장비 그림은 등급마다 색이 다르다(일반 구리·희귀 파랑·영웅 보라·전설 금). 기본 등급(starter)은 일반 그림을 쓴다. */
+export const EQUIP_RARITIES = ['common', 'rare', 'epic', 'legendary'] as const;
+export const equipIcon = (slot: 'weapon' | 'armor' | 'necklace' | 'ring', rarity: string) =>
+  `equip-${slot}-${(EQUIP_RARITIES as readonly string[]).includes(rarity) ? rarity : 'common'}`;
+
+/** 스킬 카드 아이콘(그림 요청서 3 ②). passive-greed는 아직 없음 → 그 자리는 도형 임시 그림 */
+export const SKILL_ICONS = [
+  'skill-basic', 'skill-breath', 'skill-ice', 'skill-lightning', 'skill-meteor', 'skill-orb', 'skill-wind',
+  'passive-heart', 'passive-scale', 'passive-amp', 'passive-clock', 'passive-eye', 'passive-wings', 'passive-reach',
+] as const;
+
 /**
  * public/art/ 안에 실제로 있는 그림(키 → 파일명). scripts/process_art.py가 기획자 그림(art-src/)을 가공해 만든다.
- * 2026-11-18 기획자 그림(GPT 이미지): 로비 배경, 상자 3종, 재화 6종, 레드 드래곤 전신, 드래곤 초상 10종(아틀라스). 아직 없음: 장비 4종, 전투용 탑다운 그림.
+ * 2026-11-18 기획자 그림(GPT 이미지): 로비 배경, 상자 3종, 재화 6종, 드래곤 초상 10종(아틀라스), 스킬 아이콘 14, 장비 16, 탑다운 드래곤 4.
+ * 아직 없음: passive-greed, 탑다운 드래곤 6종, 적·보스, 바닥.
  */
 export const ART_FILES: Record<string, string> = {
   'lobby-bg': 'lobby-bg.jpg',
@@ -34,6 +46,12 @@ export const ART_FILES: Record<string, string> = {
     ['ic-banner', 'ic-book', 'ic-cal-star', 'ic-calendar', 'ic-cards', 'ic-chest', 'ic-crystal', 'ic-dragon', 'ic-egg', 'ic-gear', 'ic-gift', 'ic-heart',
       'ic-laurel', 'ic-mission', 'ic-portal', 'ic-scroll', 'ic-shield', 'ic-shop', 'ic-swords', 'ic-target', 'ic-trophy', 'ic-upgrade', 'ic-energy'].map((k) => [k, `ui/${k}.webp`]),
   ),
+  // 2차분(2026-11-18 오후, scripts/process_art_batch2.py): 스킬 아이콘 14 · 장비 4슬롯×4등급 · 전투용 탑다운 드래곤 4
+  ...Object.fromEntries(SKILL_ICONS.map((k) => [k, `skill/${k}.webp`])),
+  ...Object.fromEntries(
+    (['weapon', 'armor', 'necklace', 'ring'] as const).flatMap((s) => EQUIP_RARITIES.map((r) => [`equip-${s}-${r}`, `equip/equip-${s}-${r}.webp`])),
+  ),
+  ...Object.fromEntries(['red', 'blue', 'wind', 'arcane'].map((id) => [`top-${id}`, `top/top-${id}.webp`])),
 };
 
 export function preloadArt(scene: Phaser.Scene): void {

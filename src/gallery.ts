@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { COLOR, RARITY, RARITY_NAME, tint, TYPE, type RarityKey } from './ui/theme';
 import { badge, button, currencyBar, header, itemCard, milestoneBar, modal, navBar, panel, progressBar, ribbon, slot, text } from './ui/kit';
-import { drawLobbyBackdrop, drawScreenBackdrop, makeArtPlaceholders, preloadArt } from './ui/art';
+import { drawLobbyBackdrop, drawScreenBackdrop, equipIcon, makeArtPlaceholders, preloadArt } from './ui/art';
 import { makeDragonTextures } from './dragonArt';
 import { altar, dragonCarousel, plate, tabs, iconTile, milestonePanel, roundButton, topBar, torch, wingBanner } from './ui/kit2';
 import {
@@ -31,7 +31,7 @@ function saveDemo(d: { s: StaminaState; box: GiftBox }): void {
 // 디자인 시안 페이지(개발용): 새 UI 부품과 v1.2 화면 시안을 실제 게임 해상도(720×1280)로 본다.
 // 시안의 숫자·이름은 보기용 예시이고 실제 데이터와 연결돼 있지 않다.
 // 구조(재화 줄·하단 탭·등급 카드·리본 제목·진행도 상자)는 장르 공통 형식을 참고했고, 그림·색은 우리 것.
-type Page = 'lobby' | 'shop' | 'equip' | 'dragons' | 'kit';
+type Page = 'lobby' | 'shop' | 'equip' | 'dragons' | 'kit' | 'skills';
 // 하단 탭(시안 형식): 상점 · 드래곤 · 전투(가운데) · 장비 · 연구소.
 // 소환 탭은 없앰(제작자 결정 2026-11-18): 소환 = 상점의 드래곤 소환(루비 상자)이라 같은 기능이 두 곳에 생기지 않게.
 const NAV: { key: Page | 'lab'; label: string; icon: string; alert?: boolean }[] = [
@@ -83,7 +83,7 @@ class GalleryScene extends Phaser.Scene {
       ],
     });
     this.refreshStamina();
-    navBar(this, NAV, this.page === 'kit' ? '' : this.page, (k) => this.scene.restart({ page: k === 'lab' ? 'kit' : (k as Page) }));
+    navBar(this, NAV, this.page === 'kit' || this.page === 'skills' ? '' : this.page, (k) => this.scene.restart({ page: k === 'lab' ? 'kit' : (k as Page) }));
   }
 
   update(_t: number, delta: number): void {
@@ -264,11 +264,13 @@ class GalleryScene extends Phaser.Scene {
     altar(this, 360, 470, 300);
     this.add.image(360, 360, 'portrait-red').setDisplaySize(290, 290);
     // 슬롯 이름: 드래곤이라 무기·갑옷 대신 발톱 장식·비늘 갑주(제작자 결정 2026-11-18)
-    const eq: [string, string, RarityKey | null, string][] = [
-      ['equip-weapon', '발톱 장식', 'rare', 'Lv.5'], ['equip-armor', '비늘 갑주', 'common', 'Lv.3'],
-      ['equip-necklace', '목걸이', null, ''], ['equip-ring', '반지', 'epic', 'Lv.2'],
+    type S = 'weapon' | 'armor' | 'necklace' | 'ring';
+    const eq: [S, string, RarityKey | null, string][] = [
+      ['weapon', '발톱 장식', 'rare', 'Lv.5'], ['armor', '비늘 갑주', 'common', 'Lv.3'],
+      ['necklace', '목걸이', null, ''], ['ring', '반지', 'epic', 'Lv.2'],
     ];
-    eq.forEach(([icon, name, r, lv], i) => {
+    eq.forEach(([sl0, name, r, lv], i) => {
+      const icon = r ? equipIcon(sl0, r) : '';
       const x = i < 2 ? 100 : 620;
       const y = 296 + (i % 2) * 152;
       const sl = slot(this, x, y, 120, { icon: r ? icon : undefined, rarity: r ? RARITY[r] : undefined });
@@ -285,12 +287,12 @@ class GalleryScene extends Phaser.Scene {
       st.add(text(this, x - 30, 14, v, TYPE.body, COLOR.text, true, true).setOrigin(0, 0.5));
     });
     tabs(this, 650, ['장비 목록', '강화', '합성'], 0);
-    const own: [string, RarityKey, string][] = [
-      ['equip-weapon', 'common', 'Lv.7'], ['equip-weapon', 'common', 'Lv.1'], ['equip-ring', 'rare', 'Lv.4'], ['equip-armor', 'common', 'Lv.2'], ['equip-necklace', 'epic', 'Lv.6'],
-      ['equip-weapon', 'common', 'Lv.1'], ['equip-armor', 'rare', 'Lv.1'], ['equip-ring', 'common', 'Lv.3'], ['equip-necklace', 'legendary', 'Lv.1'], ['equip-armor', 'epic', 'Lv.2'],
+    const own: [S, RarityKey, string][] = [
+      ['weapon', 'common', 'Lv.7'], ['weapon', 'legendary', 'Lv.1'], ['ring', 'rare', 'Lv.4'], ['armor', 'common', 'Lv.2'], ['necklace', 'epic', 'Lv.6'],
+      ['weapon', 'common', 'Lv.1'], ['armor', 'rare', 'Lv.1'], ['ring', 'common', 'Lv.3'], ['necklace', 'legendary', 'Lv.1'], ['armor', 'epic', 'Lv.2'],
     ];
-    own.forEach(([icon, r, lv], i) => {
-      const sl = slot(this, 96 + (i % 5) * 132, 770 + Math.floor(i / 5) * 140, 114, { icon, rarity: RARITY[r] });
+    own.forEach(([sl0, r, lv], i) => {
+      const sl = slot(this, 96 + (i % 5) * 132, 770 + Math.floor(i / 5) * 140, 114, { icon: equipIcon(sl0, r), rarity: RARITY[r] });
       sl.add(text(this, 0, 44, lv, TYPE.tiny, COLOR.text, true, true).setOrigin(0.5));
     });
     button(this, 360, 1068, 360, 80, '합성 3 → 1', () => {}, { kind: 'magic', size: TYPE.body, alert: true });
@@ -344,6 +346,41 @@ class GalleryScene extends Phaser.Scene {
     });
   }
 
+  /** 스킬 아이콘 · 레벨업 3택 카드 · 전투용 탑다운 드래곤(그림 2차분 확인용) */
+  private skills(): void {
+    ribbon(this, 360, 182, 330, '레벨업!', 0xe0a032, 70);
+    const pick: [string, string, string, string][] = [
+      ['skill-meteor', '운석 낙하', '액티브', '붉은 원 경고 뒤 큰 피해'],
+      ['passive-scale', '용린 방패', '패시브', '받는 피해 감소'],
+      ['skill-orb', '마력 구슬', '액티브', '몸 주위를 도는 구슬'],
+    ];
+    pick.forEach(([ic, name, kind, desc], i) => {
+      const x = 130 + i * 230;
+      const c = plate(this, x, 400, 214, 300, { r: 24, gold: i === 0, fill: kind === '액티브' ? 0x2c2260 : 0x173c44 });
+      c.add(this.add.image(0, -62, ic).setDisplaySize(136, 136));
+      c.add(text(this, 0, 32, name, TYPE.body, COLOR.text, true, true).setOrigin(0.5));
+      c.add(text(this, 0, 66, kind, TYPE.tiny, kind === '액티브' ? 0xc4b5fd : 0x5eead4, true).setOrigin(0.5));
+      c.add(text(this, 0, 104, desc, 17, COLOR.textSub, false, false).setOrigin(0.5).setWordWrapWidth(190).setAlign('center'));
+    });
+    // 받은 스킬 아이콘 14장
+    const names: [string, string][] = [
+      ['skill-basic', '기본공격'], ['skill-breath', '브레스'], ['skill-ice', '얼음'], ['skill-lightning', '번개'], ['skill-meteor', '운석'], ['skill-orb', '구슬'], ['skill-wind', '회오리'],
+      ['passive-heart', '용의 심장'], ['passive-scale', '용린'], ['passive-amp', '증폭'], ['passive-clock', '고대 시계'], ['passive-eye', '용의 눈'], ['passive-wings', '날개'], ['passive-reach', '범위'],
+    ];
+    names.forEach(([k, l], i) => {
+      const x = 76 + (i % 7) * 95;
+      const y = 640 + Math.floor(i / 7) * 128;
+      this.add.image(x, y, k).setDisplaySize(84, 84);
+      text(this, x, y + 54, l, 15, COLOR.textSub, true).setOrigin(0.5);
+    });
+    // 전투용 탑다운: 전투 크기(약 90px)와 회전 확인
+    text(this, 40, 900, '전투용 드래곤(실제 크기 · 회전)', TYPE.caption, COLOR.text, true, true).setOrigin(0, 0.5);
+    ['top-red', 'top-blue', 'top-wind', 'top-arcane'].forEach((k, i) => {
+      const img = this.add.image(120 + i * 160, 1010, k).setDisplaySize(96, 96);
+      this.tweens.add({ targets: img, angle: 360, duration: 6000 + i * 800, repeat: -1 });
+    });
+  }
+
   /** 부품 목록 */
   private kit(): void {
     header(this, 'UI 부품', undefined, 140);
@@ -354,7 +391,8 @@ class GalleryScene extends Phaser.Scene {
     ['ui-gold', 'ui-ruby', 'ui-card', 'ui-essence', 'ui-fragment', 'ui-ticket'].forEach((k, i) => this.add.image(80 + i * 112, 750, k).setDisplaySize(84, 84));
     ['chest-equipment', 'chest-dragon', 'chest-gold'].forEach((k, i) => this.add.image(140 + i * 220, 880, k).setDisplaySize(170, 170));
     slot(this, 120, 1030, 110, {});
-    slot(this, 260, 1030, 110, { icon: 'equip-ring', rarity: RARITY.epic });
+    slot(this, 260, 1030, 110, { icon: equipIcon('ring', 'epic'), rarity: RARITY.epic });
+    button(this, 360, 1200, 300, 64, '스킬·전투 그림 보기', () => this.scene.restart({ page: 'skills' }), { kind: 'magic', size: TYPE.caption });
     button(this, 520, 1030, 300, 80, '출석 팝업', () => this.attendance(), { kind: 'secondary', size: TYPE.body });
     // 행동력·선물함 시험(시안 전용)
     button(this, 190, 1120, 300, 70, '최초 클리어 흉내', () => {
