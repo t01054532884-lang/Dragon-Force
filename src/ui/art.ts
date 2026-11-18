@@ -12,8 +12,21 @@ export const ART_KEYS = [
 ] as const;
 export type ArtKey = (typeof ART_KEYS)[number];
 
-/** public/art/ 안에 실제로 있는 그림(키 → 파일명). 그림이 오면 여기에 추가한다. */
-export const ART_FILES: Partial<Record<ArtKey | 'lobby-bg' | 'app-icon', string>> = {};
+/**
+ * public/art/ 안에 실제로 있는 그림(키 → 파일명). scripts/process_art.py가 기획자 그림(art-src/)을 가공해 만든다.
+ * 2026-11-18 기획자 1차 그림(GPT 이미지): 로비 배경, 상자 3종, 재화 4종, 레드 드래곤 전신. 아직 없음: 조각·개봉권 아이콘, 장비 4종.
+ */
+export const ART_FILES: Partial<Record<ArtKey | 'lobby-bg' | 'hero-red', string>> = {
+  'lobby-bg': 'lobby-bg.jpg',
+  'hero-red': 'hero-red.webp',
+  'chest-equipment': 'chest-equipment.webp',
+  'chest-dragon': 'chest-dragon.webp',
+  'chest-gold': 'chest-gold.webp',
+  'ui-gold': 'ui-gold.webp',
+  'ui-ruby': 'ui-ruby.webp',
+  'ui-card': 'ui-card.webp',
+  'ui-essence': 'ui-essence.webp',
+};
 
 export function preloadArt(scene: Phaser.Scene): void {
   for (const [key, file] of Object.entries(ART_FILES)) {

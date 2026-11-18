@@ -60,7 +60,8 @@ class GalleryScene extends Phaser.Scene {
     // 출격 드래곤
     this.add.ellipse(360, 610, 360, 70, 0x000000, 0.35);
     this.add.circle(360, 470, 170, COLOR.ember, 0.1);
-    this.add.image(360, 470, 'portrait-red').setScale(1.55);
+    if (this.textures.exists('hero-red')) this.add.image(360, 460, 'hero-red').setDisplaySize(440, 440);
+    else this.add.image(360, 470, 'portrait-red').setScale(1.55);
     ribbon(this, 360, 655, 300, '레드 드래곤', COLOR.panelHi, 56);
     text(this, 360, 700, 'Lv.12  ★★☆☆☆', TYPE.body, COLOR.gold, true, true).setOrigin(0.5);
 
