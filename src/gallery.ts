@@ -32,13 +32,14 @@ function saveDemo(d: { s: StaminaState; box: GiftBox }): void {
 // 시안의 숫자·이름은 보기용 예시이고 실제 데이터와 연결돼 있지 않다.
 // 구조(재화 줄·하단 탭·등급 카드·리본 제목·진행도 상자)는 장르 공통 형식을 참고했고, 그림·색은 우리 것.
 type Page = 'lobby' | 'shop' | 'equip' | 'dragons' | 'kit';
-// 하단 탭(시안 형식): 상점 · 드래곤 · 전투 · 장비 · 소환. 연구소는 로비의 원형 버튼으로.
-const NAV: { key: Page | 'summon'; label: string; icon: string; alert?: boolean }[] = [
+// 하단 탭(시안 형식): 상점 · 드래곤 · 전투(가운데) · 장비 · 연구소.
+// 소환 탭은 없앰(제작자 결정 2026-11-18): 소환 = 상점의 드래곤 소환(루비 상자)이라 같은 기능이 두 곳에 생기지 않게.
+const NAV: { key: Page | 'lab'; label: string; icon: string; alert?: boolean }[] = [
   { key: 'shop', label: '상점', icon: 'ic-shop', alert: true },
   { key: 'dragons', label: '드래곤', icon: 'ic-dragon' },
   { key: 'lobby', label: '전투', icon: 'ic-swords' },
   { key: 'equip', label: '장비', icon: 'ic-shield', alert: true },
-  { key: 'summon', label: '소환', icon: 'ic-egg' },
+  { key: 'lab', label: '연구소', icon: 'ic-upgrade' },
 ];
 const DRAGON_IDS = ['red', 'blue', 'yellow', 'green', 'white', 'black', 'stone', 'wind', 'water', 'arcane'];
 
@@ -82,7 +83,7 @@ class GalleryScene extends Phaser.Scene {
       ],
     });
     this.refreshStamina();
-    navBar(this, NAV, this.page === 'kit' ? '' : this.page, (k) => this.scene.restart({ page: k === 'summon' ? 'kit' : (k as Page) }));
+    navBar(this, NAV, this.page === 'kit' ? '' : this.page, (k) => this.scene.restart({ page: k === 'lab' ? 'kit' : (k as Page) }));
   }
 
   update(_t: number, delta: number): void {
@@ -194,7 +195,7 @@ class GalleryScene extends Phaser.Scene {
 
     // 전투 버튼 + 양옆 원형 버튼(단계 지도 · 연구소)
     roundButton(this, 92, 1046, 'ic-scroll', { label: '단계', alert: true });
-    roundButton(this, 628, 1046, 'ic-upgrade', { label: '연구소' });
+    roundButton(this, 628, 1046, 'ic-target', { label: '난이도', onClick: () => this.toast('쉬움 → 어려움 → 매우 어려움 (v1.2 난이도 선택)', COLOR.gold) });
     const go = button(this, 360, 1040, 370, 112, '전투 시작', () => this.startBattle(), { kind: 'cta', size: 40, icon: 'ic-swords', sub: `행동력 ${STAMINA.entryCost}` });
     this.tweens.add({ targets: go.root, scale: 1.03, yoyo: true, repeat: -1, duration: 900, ease: 'Sine.InOut' });
   }
@@ -212,12 +213,12 @@ class GalleryScene extends Phaser.Scene {
     ban.add(this.add.image(-150, 20, 'portrait-blue').setDisplaySize(170, 170));
     ban.add(this.add.image(150, 20, 'portrait-black').setDisplaySize(170, 170));
     ban.add(this.add.image(0, -10, 'chest-dragon').setDisplaySize(230, 230));
-    ban.add(text(this, 0, 112, '드래곤·스킬 상자', 40, COLOR.gold, true, true).setOrigin(0.5));
-    ban.add(text(this, 0, 146, '정수 · 조각 · 카드 · 특수 스킬 조각', TYPE.tiny, COLOR.text, true, true).setOrigin(0.5));
+    ban.add(text(this, 0, 112, '드래곤 소환', 40, COLOR.gold, true, true).setOrigin(0.5));
+    ban.add(text(this, 0, 146, '드래곤·스킬 상자 — 정수 · 조각 · 카드 · 특수 스킬 조각', TYPE.tiny, COLOR.text, true, true).setOrigin(0.5));
     for (const sgn of [-1, 1]) ban.add(this.add.triangle(sgn * 300, 0, 0, -22, 0, 22, sgn * 26, 0, 0xffe39a).setStrokeStyle(4, COLOR.outline));
 
-    button(this, 205, 700, 290, 108, '1회', () => {}, { kind: 'growth', icon: 'ui-ruby', sub: '150', size: TYPE.heading });
-    button(this, 515, 700, 290, 108, '10회', () => {}, { kind: 'cta', icon: 'ui-ruby', sub: '1,350', size: TYPE.heading });
+    button(this, 205, 700, 290, 108, '1회 소환', () => {}, { kind: 'growth', icon: 'ui-ruby', sub: '150', size: TYPE.heading });
+    button(this, 515, 700, 290, 108, '10회 소환', () => {}, { kind: 'cta', icon: 'ui-ruby', sub: '1,350', size: TYPE.heading });
     const pity = plate(this, 360, 806, 660, 70, { r: 20 });
     pity.add(text(this, -300, 0, '희귀 보장', TYPE.caption, COLOR.text, true, true).setOrigin(0, 0.5));
     pity.add(progressBar(this, 30, 0, 330, 24, 0.3, COLOR.violet, '3/10').root);
