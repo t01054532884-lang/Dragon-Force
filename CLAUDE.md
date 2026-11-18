@@ -8,6 +8,7 @@
 - 장르: 로그라이크 서바이버 슈팅(자동 공격, 몰려오는 적, 레벨업 3택). 다른 게임의 이름·캐릭터·그림·레벨은 쓰지 않는 오리지널.
 - 제작자는 게임 개발이 처음. 단계마다 무엇을 배웠는지 `docs/LEARN.md`에 쉬운 말로 남긴다.
 - 저장소: 공개 GitHub https://github.com/t01054532884-lang/Dragon-Force (main)
+- **출시 목표(제작자 결정 2026-11-18): App Store 먼저 → 그 자체등급 정보로 앱인토스(토스 앱 안 미니앱).** 한 코드로 웹·iOS·토스 세 가지를 빌드한다. 출시 규칙·체크리스트는 `docs/RELEASE.md`.
 
 ## 일하는 방식 (제작자가 직접 요청한 것)
 - **사용자에게 보이는 말은 처음부터 끝까지 한국어.** 코드·명령어·파일명만 원래 표기.
@@ -16,7 +17,8 @@
 - 사실이 아닌 수치·문구를 만들지 않는다. 밸런스 숫자는 실제 코드로 재서 확인한다(`docs/BALANCE.md`처럼).
 - 단계마다: 구현 → 브라우저에서 확인 → `docs/AI_LOG.md`(내가 판단한 것 / AI에게 맡긴 것 / 확인 / AI 실수) + `docs/LEARN.md` 기록 → README 진행 상황 체크 → 커밋. 커밋 메시지는 한국어.
 - 커밋 작성자는 GitHub 비공개 메일: `git config user.name "오준수"`, `git config user.email "t01054532884-lang@users.noreply.github.com"` (새 컴퓨터에서 clone하면 이 두 줄을 저장소 안에서 먼저 실행). 연락처·개인정보는 커밋하지 않는다.
-- push는 제작자가 원할 때.
+- **개발하면서 단계마다 커밋하고 GitHub에 push한다**(제작자 요청 2026-11-18).
+- 새 기능은 웹·iOS·앱인토스 모두에서 동작해야 한다: 저장은 `src/platform`의 `store`만 쓰고(localStorage 직접 사용 금지), 외부 링크·외부 결제·외부 광고를 넣지 않으며, 화면 오른쪽 위는 토스 닫기 버튼 줄이 차지한다는 점(안전 영역 처리됨)을 지킨다. 장면이 뒤로가기·백그라운드에 반응하려면 `onPlatformBack()`·`onPlatformPause()`를 구현한다.
 - **테스트는 제작자가 플레이하는 탭과 다른 탭에서** 한다. (예전에 테스트용으로 체력을 무한으로 넣은 탭을 제작자가 그대로 플레이해 "체력이 안 닳는다"고 느낀 일이 있었다.)
 - 6단계 아트는 이미지 AI(콘셉트 그림과 같은 도구 권장)로 위에서 본 시점·투명 배경 그림을 만들고, AI가 배경 제거·크기·스프라이트 시트·코드 연결을 맡는 방식으로 제안함.
 - 기획서 콘셉트 이미지는 방향 참고용. **게임 에셋·카드 아이콘으로 쓰지 않는다**(제작자 확정).
@@ -27,7 +29,8 @@ npm install
 npm run dev
 ```
 http://localhost:5173 (첫 화면은 로비). `?seed=123`을 붙이면 같은 적 생성이 재현된다. 개발 중에는 브라우저 콘솔에서 `window.__game.scene.getScene('game')`으로 상태를 볼 수 있다(배포본엔 없음).
-타입 검사 `npx tsc --noEmit`, 규칙 테스트 `npm test`(vitest: 비용·골드·저장·구매), 배포용 빌드 `npm run build` → `dist/` (vite `base: './'`라 GitHub Pages·Capacitor에 그대로 쓸 수 있음).
+타입 검사 `npx tsc --noEmit`, 규칙 테스트 `npm test`(vitest: 비용·골드·저장·구매).
+빌드: `npm run build`(웹 → `dist/`, main에 push하면 GitHub Pages 자동 배포) · `npm run build:ios`(iOS용 빌드 + `cap sync ios`, 실제 앱은 Codemagic이 `codemagic.yaml`로 빌드·TestFlight 업로드) · `npm run build:toss`(토스용 빌드 → `dragon-force.ait`).
 Claude 미리보기는 `.claude/launch.json`의 `dragon-force` 설정으로 연다.
 
 ## 코드 구조
@@ -50,6 +53,10 @@ Claude 미리보기는 `.claude/launch.json`의 `dragon-force` 설정으로 연�
 | `src/objects/Enemy.ts` | 적: 동작 대기열(예고 → 돌진 → 기절), 둔화·밀치기·화상·중독·빙결·기절·감전, 군중제어 저항 |
 | `src/data/*.ts` | 수치 표: `stats`(1m=50px, 기본 능력치), `basicAttack`, `upgrades`(카드·가중치·보장), `enemies`(마수 5종·패턴·피해 상한), `stages`(스테이지·시간표·난이도 공식·보상) |
 | `src/textures.ts` | 도형으로 그린 임시 그림(6단계 아트에서 교체) |
+| `src/platform/` | 플랫폼 공통 창구: `store`(저장), 안전 영역, 뒤로가기, 백그라운드. 구현 `web.ts`·`ios.ts`(Capacitor Preferences·App)·`toss.ts`(앱인토스 SDK) 중 빌드 모드(`VITE_PLATFORM`) 하나만 번들에 |
+| `ios/` · `capacitor.config.ts` · `codemagic.yaml` | iOS 앱(Capacitor 8, SPM, `com.dragonforce.game`, 세로·아이폰 전용·한국어) |
+| `apps-in-toss.config.ts` | 앱인토스 설정(appName `dragon-force`, 투명 내비게이션 바) |
+| `public/privacy.html` · `.github/workflows/pages.yml` | 개인정보처리방침, GitHub Pages 배포 |
 
 ## 확정된 결정 (요약)
 - 슬롯: 고유 기본공격 1 + 액티브 6 + 패시브 4. 6단계부터 드래곤 10종(레드 기본 지급 + 소환 9종).
@@ -62,18 +69,18 @@ Claude 미리보기는 `.claude/launch.json`의 `dragon-force` 설정으로 연�
 
 - 6단계(11/18 밤, 제작자 부재 중 AI 진행, `docs/DRAGONS.md`): 드래곤 10종·공통 기본 공격 엔진·특성·상태이상, 능력치 = 기본 × (1 + 연구소 + 레벨(Lv.1 초과분 공 1%/HP 1.5%) + 승급(2성 공5·3성 HP5·5성 공10)), 영구 Lv.30(골드), 승급 5성(조각 20/40/80/160), 소환 70/22/7/1·연속 10회 희귀·90회 전설 보장, 중복 조각 10/20/40/80, 소환권 튜토리얼 1·첫 클리어 10·업적. **결정 대기 11개는 DRAGONS.md 맨 아래.**
 
-## 커밋 이어받기 (2026-11-18 밤 클라우드 작업분)
-- 5단계(231e775)~6단계 커밋은 클라우드에서 만들었고 GitHub에 push되지 않았다. 파일은 폴더에 이미 반영돼 있고, 커밋 기록은 폴더 최상위 `claude-commits.bundle`(f2f05cc 다음부터)에 있다.
-- `git log -1`이 f2f05cc(4단계 마지막)이면: `git fetch ./claude-commits.bundle main:claude-work` → `git reset --hard claude-work`(폴더 파일이 번들 내용과 같아서 잃는 것 없음, 기획서 HTML·PDF처럼 git에 없는 파일은 그대로) → `git push origin HEAD:main`. 그 사이 직접 커밋했다면 번들은 무시하고 `git add -A && git commit` 후 push. 끝나면 번들 파일은 지운다.
+- 출시(11/18): 식별자 토스 `dragon-force` / iOS `com.dragonforce.game`. 첫 출시는 유료 결제 없이도 가능하게 만들고, 제작자는 App Store로 먼저 수익화 → 수익이 생기면 사업자등록(토스 인앱결제는 사업자등록 필수). 루비 유료 결제를 넣을 때는 결제 검증(RevenueCat 등)과 확률 고지가 필요.
 
 ## 진행 상황 (2026-11-18 기준)
 - [x] 1 전투 프로토타입 · [x] 2 경험치·레벨업 3택 · [x] 3 스킬(기본공격 Lv.1~7, 액티브 6, 패시브 8) · [x] 4 엘리트·보스·클리어(1단계 잿빛 숲, 완료 기준 13개 확인)
 - [x] 5 영구 성장: 로비 · 성장 연구소 · 골드 정산 · 일시정지/포기 · 저장(테스트 21개 + 브라우저 확인, `docs/GROWTH.md`). 플레이 링크(제작자 전용 Claude 아티팩트): https://claude.ai/artifact/Q47K2DMYm4iTXNL6CNd7Dw
 - [x] 6 드래곤 10종·소환·육성(제작자 로드맵 6단계. 처음 계획의 "6 아트/사운드"는 제작자 새 로드맵에서 9단계로 이동) — 단위 테스트 48개, DPS 측정, 10종 8분 자동 2판씩
-- [ ] 7 장비·추가 성장 · [ ] 8 스테이지 확장 · [ ] 9 UI·그래픽·사운드·모바일 · [ ] 10 스토어 출시(iOS는 Capacitor + Codemagic으로 Mac 없이 빌드 — 제작자가 이전 앱에서 써 본 방식)
+- [x] 출시 기반(11/18): 플랫폼 공통 구조·iOS 프로젝트·Codemagic·앱인토스 빌드·개인정보처리방침·Pages (`docs/RELEASE.md`)
+- [ ] 6단계 기획 수정안 v1.2(6-1 영구 Lv.40 ~ 6-10 통합 검증) · [ ] 7 장비·추가 성장 · [ ] 8 스테이지 확장 · [ ] 9 UI·그래픽·사운드·모바일 · [ ] 10 스토어 출시(체크리스트 `docs/RELEASE.md`)
 
 ## 다음에 할 일 (우선순위)
-0. **6단계 결정 대기 11개**(`docs/DRAGONS.md` 맨 아래): 레드 표·레드 특성, 반복 소환권, 레드 조각, 레벨 비용·재료, 상태이상 1차안 등.
+0. **6단계 기획 수정안 v1.2 구현**(`docs/plan/개발6단계_기획수정안_v1.2.md`, 순서 6-1 → 6-10). v1.2가 결정 대기 11개 중 다수를 정했다(레드 특성 5성부터 +20%, 종별 기본 능력치, Lv.40 카드+골드, 레드 조각은 50% 진행도, 5성 이후 범용 조각, 소환권 → 루비·기존권 보존, 보스 정지 → 15% 둔화 1초).
+0-0. 출시 체크리스트의 제작자 할 일(Pages 켜기, Bundle ID·App Store Connect 앱, Codemagic 연결)과 아이콘·스크린샷(`docs/RELEASE.md`).
 0-1. 5단계 v1.3 자동 10판: 보스 평균 60.7초(8/10 목표 안), 상자 판당 1.6개, 엘리트 1은 목표보다 느림, 엘리트 2는 봇에서 항상 흡수 → 사람 플레이로 확인.
 1. **8분 실제 플레이 테스트** → 결과 화면의 엘리트·보스 처치 시간으로 체력 조정(목표: 엘리트 1 18~22초, 엘리트 2 22~28초, 보스 55~75초).
 2. 연구소 단계별(Lv.0 / 초반 / 중반 / 최대) 처치 시간 측정, 일반 적 처치 수로 처치 보상 확인.
@@ -87,3 +94,4 @@ Claude 미리보기는 `.claude/launch.json`의 `dragon-force` 설정으로 연�
 - 개발 5단계 기획서 v1.0·v1.1: 원문 `docs/plan/개발5단계_기획서.md`, 검토·확정은 `docs/GROWTH.md`.
 - 스킬·성장 기획서 PDF는 제작자 PC의 저장소 폴더 `docs/`에도 있음(git에는 안 올림). 콘셉트 이미지(레드 드래곤: 진홍 비늘·크림색 배·주황 용암 균열·박쥐 날개)는 6단계 아트 기준 자료.
 - 개발 4단계 기획서: 원문 `docs/plan/개발4단계_기획서.md`, 반영 내용과 완료 기준 결과는 `docs/STAGE.md`.
+- 개발 6단계 기획 수정안 v1.2(32쪽 PDF, 폴더 최상위, git 제외): 글자 본문 `docs/plan/개발6단계_기획수정안_v1.2.md`.

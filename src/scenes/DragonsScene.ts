@@ -24,6 +24,12 @@ export class DragonsScene extends Phaser.Scene {
     super('dragons');
   }
 
+  /** 뒤로가기: 로비로 */
+  onPlatformBack(): boolean {
+    this.scene.start('lobby');
+    return true;
+  }
+
   init(data: { view?: DragonId }): void {
     this.viewing = data?.view ?? Progress.load().selectedDragonId;
   }

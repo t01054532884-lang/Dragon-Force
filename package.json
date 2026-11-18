@@ -6,13 +6,21 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:ios": "tsc --noEmit && vite build --mode ios && cap sync ios",
+    "build:toss": "tsc --noEmit && vite build --mode toss && ait build",
     "preview": "vite preview",
     "test": "vitest run"
   },
   "dependencies": {
+    "@apps-in-toss/web-framework": "^3.10.0",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "^8.6.2",
+    "@capacitor/preferences": "^8.0.1",
     "phaser": "^4.2.1"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.6.2",
+    "@capacitor/ios": "^8.6.2",
     "typescript": "~5.9.3",
     "vite": "^8.3.8",
     "vitest": "^3.2.7"

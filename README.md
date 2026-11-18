@@ -22,6 +22,11 @@ AI(Claude Code)와 협업해 만들고 있으며, 단계별로 무엇을 AI에�
 | [docs/GROWTH.md](docs/GROWTH.md) | 개발 5단계 영구 성장 검토·확정·완료 기준 확인 결과 |
 | [docs/DRAGONS.md](docs/DRAGONS.md) | 개발 6단계 드래곤 10종·소환·육성 검토·측정·확인 요청 |
 
+## 플레이·출시
+- 웹: https://t01054532884-lang.github.io/Dragon-Force/ (GitHub Pages, main에 push하면 자동 배포)
+- 개인정보처리방침: https://t01054532884-lang.github.io/Dragon-Force/privacy.html
+- App Store(iOS)·앱인토스(토스 앱) 출시 준비 중 — `npm run build:ios` / `npm run build:toss`
+
 ## 실행
 ```bash
 npm install
@@ -36,6 +41,8 @@ npm run dev
 - [x] 4단계 엘리트·보스·클리어: 1단계 잿빛 숲 8분(엘리트 1:40·3:40, 보스 5:50, 7:30 격노, 8:00 실패), 원형 투기장, 결과 화면·다음 단계 해금
 - [x] 5단계 영구 성장: 로비 · 드래곤 성장 연구소(공격력·HP·비행속도·흡수 4종) · 골드 정산(클리어 340~460G, 실패 50%) · 일시정지/포기 · 브라우저 저장 · 전투 아이템 4종 드롭
 - [x] 6단계 드래곤 10종 · 공통 기본 공격 엔진 · 고유 특성 · 소환(확률 공개·보장) · 레벨·승급 · 선택/도감/상세 화면
+- [x] 출시 기반: 웹·iOS(App Store)·앱인토스 한 코드 빌드, 플랫폼 공통 저장·안전 영역·뒤로가기, 개인정보처리방침 — [docs/RELEASE.md](docs/RELEASE.md)
+- [ ] 6단계 기획 수정안 v1.2(영구 Lv.40·전용 액티브·루비 상점·장비·특수 스킬·전투력·난이도)
 - [ ] 7단계 장비·추가 성장
 - [ ] 8단계 스테이지 확장
 - [ ] 9단계 UI·그래픽·사운드·모바일

@@ -22,6 +22,12 @@ export class LabScene extends Phaser.Scene {
     super('lab');
   }
 
+  /** 뒤로가기: 로비로 */
+  onPlatformBack(): boolean {
+    this.scene.start('lobby');
+    return true;
+  }
+
   create(): void {
     this.cards = [];
     this.add.rectangle(360, 640, 720, 1280, 0x15120c);

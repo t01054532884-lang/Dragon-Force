@@ -19,6 +19,12 @@ export class SummonScene extends Phaser.Scene {
     super('summon');
   }
 
+  /** 뒤로가기: 로비로 */
+  onPlatformBack(): boolean {
+    this.scene.start('lobby');
+    return true;
+  }
+
   create(): void {
     if (!this.textures.exists('dragon-red')) makeTextures(this);
     this.layer = [];

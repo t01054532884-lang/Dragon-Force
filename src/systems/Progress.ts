@@ -6,9 +6,11 @@ import {
   type UpgradeType,
 } from '../data/progression';
 import { DRAGONS, GROWTH, SUMMON, TICKET_REWARDS, type DragonId, type DragonRarity } from '../data/dragons';
+import { store as platformStore } from '../platform';
 
-// 계정 진행 저장(5단계). 브라우저 localStorage에 JSON 한 덩어리로 저장한다.
-// 같은 브라우저·같은 사이트에서만 이어지고, 브라우저 데이터를 지우면 사라진다.
+// 계정 진행 저장(5단계). JSON 한 덩어리로 저장한다.
+// 실제 저장 위치는 플랫폼마다 다르다(src/platform): 웹 localStorage · iOS Preferences · 토스 SDK Storage.
+// 게임 시작 전에 initPlatform()이 값을 메모리로 읽어 오고, 이후 읽기는 메모리·쓰기는 메모리+기기.
 
 export const SAVE_KEY = 'dragon-force:progress';
 export const BACKUP_KEY = 'dragon-force:progress:backup';
@@ -365,15 +367,11 @@ export function selectDragon(p: PlayerProgress, id: DragonId): PlayerProgress {
   return p.ownedDragons[id] ? { ...p, selectedDragonId: id } : p;
 }
 
-// ───────── 게임에서 쓰는 간단한 창구(localStorage) ─────────
-const browserStore = (): Store => {
-  try {
-    return window.localStorage;
-  } catch {
-    const mem = new Map<string, string>();
-    return { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => void mem.set(k, v) };
-  }
-};
+// ───────── 게임에서 쓰는 간단한 창구(플랫폼 저장소) ─────────
+const browserStore = (): Store => platformStore;
+
+/** 시작할 때 미리 읽어 둘 저장 키 */
+export const STORAGE_KEYS = [SAVE_KEY, BACKUP_KEY, LEGACY_UNLOCK_KEY];
 
 export const Progress = {
   load: () => loadProgress(browserStore()),

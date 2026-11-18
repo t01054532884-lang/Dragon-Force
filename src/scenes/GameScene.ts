@@ -896,6 +896,19 @@ export class GameScene extends Phaser.Scene {
 
   // ───────────────────────── 일시정지·포기 (v1.1 5번) ─────────────────────────
 
+  /** 뒤로가기: 전투 중엔 일시정지 창, 일시정지 중엔 닫기. 다른 창(카드·결과)에서는 무시(실수로 나가지 않게) */
+  onPlatformBack(): boolean {
+    if (this.mode === 'play') this.openPause();
+    else if (this.mode === 'paused') this.closePause();
+    return true;
+  }
+
+  /** 앱이 백그라운드로 가면 전투를 멈춘다(돌아왔을 때 이미 죽어 있지 않게) */
+  onPlatformPause(): void {
+    if (this.mode === 'play') this.openPause();
+  }
+
+
   private openPause(): void {
     if (this.mode !== 'play') return;
     this.mode = 'paused';

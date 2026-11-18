@@ -2,3 +2,11 @@ node_modules/
 dist/
 .DS_Store
 *.log
+
+# 플랫폼 빌드 결과물
+*.ait
+.granite/
+
+# 제작자 기획 원본(PDF·HTML)은 git에 올리지 않는다(글자 본문은 docs/plan/)
+*.pdf
+Dragon-Force-6단계-v1.0.html

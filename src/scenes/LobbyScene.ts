@@ -5,6 +5,7 @@ import { buildRunStats } from '../data/progression';
 import { DRAGONS, ELEMENT_LABEL, RARITY_COLOR, RARITY_LABEL } from '../data/dragons';
 import { Progress } from '../systems/Progress';
 import { devMode, FONT, makeButton } from '../ui/widgets';
+import { platform } from '../platform';
 
 // 메인 로비: 드래곤 선택 · 스테이지 선택 · 성장 연구소 · 전투 시작 (5단계 기획서 5장)
 export class LobbyScene extends Phaser.Scene {
@@ -14,7 +15,39 @@ export class LobbyScene extends Phaser.Scene {
     super('lobby');
   }
 
+  private exitLayer: Phaser.GameObjects.GameObject[] = [];
+
+  /**
+   * 뒤로가기(로비): 종료 확인 창을 띄운다(앱인토스 검수 기준: 종료 시 확인).
+   * 창이 떠 있을 때 한 번 더 누르면 창을 닫는다. 종료할 수 없는 플랫폼(iOS·웹)은 아무것도 안 함.
+   */
+  onPlatformBack(): boolean {
+    if (!platform.canExit) return true;
+    if (this.exitLayer.length) {
+      this.closeExit();
+      return true;
+    }
+    const add = <T extends Phaser.GameObjects.GameObject>(o: T): T => {
+      this.exitLayer.push(o);
+      return o;
+    };
+    add(this.add.rectangle(360, 640, 720, 1280, 0x000000, 0.7).setInteractive().setDepth(500));
+    add(this.add.rectangle(360, 640, 560, 340, 0x1e2430).setStrokeStyle(4, 0xffffff, 0.6).setDepth(501));
+    add(this.add.text(360, 560, '게임을 종료할까요?', { fontFamily: FONT, fontSize: '40px', color: '#ffffff' }).setOrigin(0.5).setDepth(502));
+    add(this.add.text(360, 615, '진행 상황은 저장돼 있어요', { fontFamily: FONT, fontSize: '24px', color: '#c9d3ee' }).setOrigin(0.5).setDepth(502));
+    const b1 = makeButton(this, 250, 720, 200, 90, '취소', 0x3a4458, () => this.closeExit(), 30);
+    const b2 = makeButton(this, 470, 720, 200, 90, '종료', 0xc0392b, () => platform.exit(), 30);
+    for (const b of [b1, b2]) add(b.bg.setDepth(501)) && add(b.label.setDepth(502));
+    return true;
+  }
+
+  private closeExit(): void {
+    this.exitLayer.forEach((o) => o.destroy());
+    this.exitLayer = [];
+  }
+
   create(): void {
+    this.exitLayer = [];
     if (!this.textures.exists('dragon-red')) makeTextures(this);
     const p = Progress.load();
     const playable = STAGES.filter((s) => p.unlockedStages.includes(s.id));
