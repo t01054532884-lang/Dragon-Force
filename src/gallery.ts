@@ -3,28 +3,33 @@ import { COLOR, RARITY, RARITY_NAME, TYPE, type RarityKey } from './ui/theme';
 import { badge, button, currencyBar, header, itemCard, milestoneBar, modal, navBar, panel, progressBar, ribbon, slot, text } from './ui/kit';
 import { drawLobbyBackdrop, drawScreenBackdrop, makeArtPlaceholders, preloadArt } from './ui/art';
 import { makeDragonTextures } from './dragonArt';
+import { altar, dragonCarousel, iconTile, milestonePanel, roundButton, topBar, torch, wingBanner } from './ui/kit2';
 
 // 디자인 시안 페이지(개발용): 새 UI 부품과 v1.2 화면 시안을 실제 게임 해상도(720×1280)로 본다.
 // 시안의 숫자·이름은 보기용 예시이고 실제 데이터와 연결돼 있지 않다.
 // 구조(재화 줄·하단 탭·등급 카드·리본 제목·진행도 상자)는 장르 공통 형식을 참고했고, 그림·색은 우리 것.
 type Page = 'lobby' | 'shop' | 'equip' | 'dragons' | 'kit';
-const NAV: { key: Page | 'lab'; label: string; icon: string; alert?: boolean }[] = [
-  { key: 'shop', label: '상점', icon: 'chest-dragon', alert: true },
-  { key: 'dragons', label: '드래곤', icon: 'ui-card' },
-  { key: 'lobby', label: '전투', icon: 'nav-battle' },
-  { key: 'equip', label: '장비', icon: 'equip-weapon', alert: true },
-  { key: 'lab', label: '연구소', icon: 'nav-lab' },
+// 하단 탭(시안 형식): 상점 · 드래곤 · 전투 · 장비 · 소환. 연구소는 로비의 원형 버튼으로.
+const NAV: { key: Page | 'summon'; label: string; icon: string; alert?: boolean }[] = [
+  { key: 'shop', label: '상점', icon: 'ic-shop', alert: true },
+  { key: 'dragons', label: '드래곤', icon: 'ic-dragon' },
+  { key: 'lobby', label: '전투', icon: 'ic-swords' },
+  { key: 'equip', label: '장비', icon: 'ic-shield', alert: true },
+  { key: 'summon', label: '소환', icon: 'ic-egg' },
 ];
+const DRAGON_IDS = ['red', 'blue', 'yellow', 'green', 'white', 'black', 'stone', 'wind', 'water', 'arcane'];
 
 class GalleryScene extends Phaser.Scene {
   private page: Page = 'lobby';
+  private picked = 0; // 로비 캐러셀에서 고른 드래곤
 
   constructor() {
     super('gallery');
   }
 
-  init(data: { page?: Page }): void {
+  init(data: { page?: Page; picked?: number }): void {
     this.page = data.page ?? ((new URLSearchParams(location.search).get('page') as Page) || 'lobby');
+    this.picked = data.picked ?? 0;
   }
 
   preload(): void {
@@ -37,50 +42,52 @@ class GalleryScene extends Phaser.Scene {
     if (this.page === 'lobby') drawLobbyBackdrop(this);
     else drawScreenBackdrop(this);
     this[this.page]();
-    currencyBar(this, 44, [
-      { icon: 'ui-gold', value: 12890, onPlus: () => {}, w: 210 },
-      { icon: 'ui-ruby', value: 300, onPlus: () => {}, w: 180 },
-      { icon: 'ui-ticket', value: 23, w: 130 },
-    ]);
-    navBar(this, NAV, this.page === 'kit' ? '' : this.page, (k) => this.scene.restart({ page: k === 'lab' ? 'kit' : (k as Page) }));
+    topBar(this, {
+      portrait: `portrait-${DRAGON_IDS[this.picked]}`,
+      level: 12,
+      cp: '1,240',
+      currencies: [
+        { icon: 'ui-gold', value: 12890, onPlus: () => {} },
+        { icon: 'ui-ruby', value: 300, onPlus: () => {} },
+        { icon: 'ui-ticket', value: 23 },
+      ],
+    });
+    navBar(this, NAV, this.page === 'kit' ? '' : this.page, (k) => this.scene.restart({ page: k === 'summon' ? 'kit' : (k as Page) }));
   }
 
-  /** 로비: 단계 배너 · 출격 드래곤 · 전투력 · 진행도 상자 · 전투 시작 · 바로가기 */
+  /** 로비(기획자 시안 형식): 날개 배너 · 양옆 아이콘 기둥 · 횃불과 제단 위 드래곤 · 캐러셀 · 진행도 상자 · 전투 버튼 */
   private lobby(): void {
-    ribbon(this, 360, 140, 470, '1단계 · 잿빛 숲', COLOR.ember, 76);
-    badge(this, 360, 192, '쉬움 ⇄', COLOR.teal);
+    wingBanner(this, 360, 205, 400, '1단계 · 잿빛 숲', { sub: '쉬움 · 진행도 5%', emblem: 'ic-banner' });
 
-    // 왼쪽 바로가기(매일 임무·출석)
-    const side: [string, string, boolean][] = [['ui-mission', '매일 임무', true], ['ui-calendar', '출석', false]];
-    side.forEach(([icon, label, alert], i) => {
-      const b = button(this, 66, 290 + i * 120, 96, 96, '', () => (i === 1 ? this.attendance() : undefined), { kind: 'secondary', icon, alert });
-      b.root.add(text(this, 0, 56, label, TYPE.tiny, COLOR.text, true, true).setOrigin(0.5));
-    });
+    // 양옆 아이콘 기둥(시안의 바로가기 자리 — 우리 기능에 맞춤)
+    const left: [string, string, boolean][] = [['ic-calendar', '출석', true], ['ic-mission', '임무', true], ['ic-book', '도감', false], ['ic-laurel', '업적', false]];
+    const right: [string, string, boolean][] = [['ic-gift', '이벤트', true], ['ic-chest', '상자', false], ['ic-cards', '카드', false], ['ic-target', '목표', false]];
+    left.forEach(([ic, l, al], i) => iconTile(this, 62, 300 + i * 112, ic, { size: 86, label: l, alert: al, onClick: i === 0 ? () => this.attendance() : undefined }));
+    right.forEach(([ic, l, al], i) => iconTile(this, 658, 300 + i * 112, ic, { size: 86, label: l, alert: al }));
 
-    // 출격 드래곤
-    this.add.ellipse(360, 610, 360, 70, 0x000000, 0.35);
-    this.add.circle(360, 470, 170, COLOR.ember, 0.1);
-    // 화풍 기준: 6단계 아틀라스(제작자 결정 2026-11-18). 고해상도 로비용 그림이 오기 전까지 초상을 크게
-    this.add.image(360, 455, 'portrait-red').setDisplaySize(430, 430);
-    ribbon(this, 360, 655, 300, '레드 드래곤', COLOR.panelHi, 56);
-    text(this, 360, 700, 'Lv.12  ★★☆☆☆', TYPE.body, COLOR.gold, true, true).setOrigin(0.5);
+    // 횃불 · 제단 · 출격 드래곤
+    torch(this, 172, 600);
+    torch(this, 548, 600);
+    altar(this, 360, 640, 400);
+    const id = DRAGON_IDS[this.picked];
+    const hero = this.add.image(360, 480, `portrait-${id}`).setDisplaySize(370, 370);
+    this.tweens.add({ targets: hero, y: 472, yoyo: true, repeat: -1, duration: 1600, ease: 'Sine.InOut' });
 
-    // 전투력 vs 권장
-    const cp = panel(this, 360, 770, 560, 70, { fill: 0x161b2a });
-    cp.add(this.add.image(-245, 0, 'nav-battle').setDisplaySize(48, 48));
-    cp.add(text(this, -210, 0, '전투력 1,240', TYPE.heading, COLOR.gold, true, true).setOrigin(0, 0.5));
-    cp.add(text(this, 140, 0, '권장 900', TYPE.body, COLOR.textSub).setOrigin(0.5));
-    cp.add(badge(this, 232, 0, '여유', COLOR.ok));
+    // 드래곤 캐러셀
+    dragonCarousel(this, 768, DRAGON_IDS.map((d) => `portrait-${d}`), this.picked, (i) => this.scene.restart({ page: 'lobby', picked: i }));
 
-    // 진행도(쉬움): 25 · 50 · 100% 상자
-    milestoneBar(this, 380, 875, 520, 0.05, [
-      { at: 0.25, label: '25%', icon: 'chest-gold' },
-      { at: 0.5, label: '50%', icon: 'chest-equipment' },
-      { at: 1, label: '100%', icon: 'chest-dragon' },
-    ]);
-    text(this, 70, 885, '진행도\n5%', TYPE.caption, COLOR.text, true, true).setOrigin(0.5);
+    // 진행도 상자
+    milestonePanel(this, 912, 0.05, [
+      { at: 0.25, icon: 'chest-gold' },
+      { at: 0.5, icon: 'chest-equipment' },
+      { at: 1, icon: 'chest-dragon' },
+    ], '진행도');
 
-    button(this, 360, 1030, 520, 120, '전투 시작', () => {}, { kind: 'cta', size: 52 });
+    // 전투 버튼 + 양옆 원형 버튼(단계 지도 · 연구소)
+    roundButton(this, 92, 1046, 'ic-scroll', { label: '단계', alert: true });
+    roundButton(this, 628, 1046, 'ic-upgrade', { label: '연구소' });
+    const go = button(this, 360, 1040, 370, 112, '전투 시작', () => {}, { kind: 'cta', size: 44, icon: 'ic-swords' });
+    this.tweens.add({ targets: go.root, scale: 1.03, yoyo: true, repeat: -1, duration: 900, ease: 'Sine.InOut' });
   }
 
   /** 상점: 리본 구역 · 상자 카드 3칸 · 보상 상점 · 확률 보기 */
@@ -209,12 +216,14 @@ class GalleryScene extends Phaser.Scene {
   }
 }
 
-new Phaser.Game({
+(window as unknown as { __g: Phaser.Game }).__g = new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'game',
   width: 720,
   height: 1280,
   backgroundColor: '#0f1220',
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
+  // Phaser 4.2.1에서 한 번에 32개가 넘는 파일을 읽으면 나머지가 대기열에서 멈추는 현상이 있어 동시 다운로드 수를 넉넉히
+  loader: { maxParallelDownloads: 128 },
   scene: [GalleryScene],
 });

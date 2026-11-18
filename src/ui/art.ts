@@ -29,6 +29,11 @@ export const ART_FILES: Record<string, string> = {
   'ui-ticket': 'ui-ticket.webp',
   // 드래곤 초상 10종: 6단계 기획서 v1.0 아틀라스에서 잘라 냄(v1.2 31쪽: 도감·소환 결과·상세·선택 카드 사용 가능)
   ...Object.fromEntries(['red', 'blue', 'yellow', 'green', 'white', 'black', 'stone', 'wind', 'water', 'arcane'].map((id) => [`portrait-${id}`, `portrait-${id}.webp`])),
+  // UI 아이콘(임시): 기획자 UI 시안 6장에서 타일 바탕을 지우고 떼어 낸 것. 깨끗한 아이콘 묶음이 오면 교체
+  ...Object.fromEntries(
+    ['ic-banner', 'ic-book', 'ic-cal-star', 'ic-calendar', 'ic-cards', 'ic-chest', 'ic-crystal', 'ic-dragon', 'ic-egg', 'ic-gear', 'ic-gift', 'ic-heart',
+      'ic-laurel', 'ic-mission', 'ic-portal', 'ic-scroll', 'ic-shield', 'ic-shop', 'ic-swords', 'ic-target', 'ic-trophy', 'ic-upgrade'].map((k) => [k, `ui/${k}.webp`]),
+  ),
 };
 
 export function preloadArt(scene: Phaser.Scene): void {
