@@ -1,5 +1,8 @@
 # 그림 요청서 (기획자 → 이미지 생성)
 
+> ⚠️ 드래곤 화풍은 아틀라스로 통일됨(2026-11-18) — 최신 요청은 [ART_REQUEST_3.md](ART_REQUEST_3.md).
+
+
 > 그대로 복사해 쓰는 GPT 프롬프트는 [ART_PROMPTS.md](ART_PROMPTS.md). 토스는 나중이라 토스 썸네일은 보류.
 
 만든 그림은 `Dragon-Force-design/art-src/` 폴더에 아래 **파일명** 그대로 넣어 주세요. 크기 조정·배경 정리·압축·게임 연결은 AI가 합니다.

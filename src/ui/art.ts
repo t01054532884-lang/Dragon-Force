@@ -18,7 +18,6 @@ export type ArtKey = (typeof ART_KEYS)[number];
  */
 export const ART_FILES: Record<string, string> = {
   'lobby-bg': 'lobby-bg.jpg',
-  'hero-red': 'hero-red.webp',
   'chest-equipment': 'chest-equipment.webp',
   'chest-dragon': 'chest-dragon.webp',
   'chest-gold': 'chest-gold.webp',
