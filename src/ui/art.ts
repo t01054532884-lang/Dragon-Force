@@ -14,9 +14,9 @@ export type ArtKey = (typeof ART_KEYS)[number];
 
 /**
  * public/art/ 안에 실제로 있는 그림(키 → 파일명). scripts/process_art.py가 기획자 그림(art-src/)을 가공해 만든다.
- * 2026-11-18 기획자 1차 그림(GPT 이미지): 로비 배경, 상자 3종, 재화 4종, 레드 드래곤 전신. 아직 없음: 조각·개봉권 아이콘, 장비 4종.
+ * 2026-11-18 기획자 그림(GPT 이미지): 로비 배경, 상자 3종, 재화 6종, 레드 드래곤 전신, 드래곤 초상 10종(아틀라스). 아직 없음: 장비 4종, 전투용 탑다운 그림.
  */
-export const ART_FILES: Partial<Record<ArtKey | 'lobby-bg' | 'hero-red', string>> = {
+export const ART_FILES: Record<string, string> = {
   'lobby-bg': 'lobby-bg.jpg',
   'hero-red': 'hero-red.webp',
   'chest-equipment': 'chest-equipment.webp',
@@ -26,6 +26,10 @@ export const ART_FILES: Partial<Record<ArtKey | 'lobby-bg' | 'hero-red', string>
   'ui-ruby': 'ui-ruby.webp',
   'ui-card': 'ui-card.webp',
   'ui-essence': 'ui-essence.webp',
+  'ui-fragment': 'ui-fragment.webp',
+  'ui-ticket': 'ui-ticket.webp',
+  // 드래곤 초상 10종: 6단계 기획서 v1.0 아틀라스에서 잘라 냄(v1.2 31쪽: 도감·소환 결과·상세·선택 카드 사용 가능)
+  ...Object.fromEntries(['red', 'blue', 'yellow', 'green', 'white', 'black', 'stone', 'wind', 'water', 'arcane'].map((id) => [`portrait-${id}`, `portrait-${id}.webp`])),
 };
 
 export function preloadArt(scene: Phaser.Scene): void {

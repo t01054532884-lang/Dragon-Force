@@ -29,7 +29,12 @@ SOURCES = {
     'ui-card': (P + '11_09_46-9.png', 'sprite', 256),
     'ui-essence': (P + '11_09_51-10.png', 'sprite', 256),
     'hero-red': (P + '11_18_46.png', 'sprite-bg', 768),  # 화풍 기준 그림 → 로비 출격 드래곤
+    'ui-fragment': ('ChatGPT 이미지 2026년 11월 18일 오후 02_59_45-1.png', 'sprite', 256),
+    'ui-ticket': ('ChatGPT 이미지 2026년 11월 18일 오후 02_59_53-2.png', 'sprite', 256),
 }
+
+# 6단계 기획서 v1.0 HTML에 들어 있는 드래곤 10종 아틀라스(5×2 칸). v1.2 31쪽: 도감·소환 결과·상세·선택 카드에 사용 가능.
+ATLAS = ('atlas-dragons-v1.0.png', ['red', 'blue', 'yellow', 'green', 'white', 'black', 'stone', 'wind', 'water', 'arcane'], 384)
 
 
 def remove_flat_background(im: Image.Image, tol: int = 38) -> Image.Image:
@@ -97,6 +102,18 @@ def main() -> None:
             fit_square(im, size).save(path, 'WEBP', quality=88, method=6)
         done[key] = path.name
         print(key, path.name, path.stat().st_size // 1024, 'KB')
+    atlas = SRC / ATLAS[0]
+    if atlas.exists():
+        im = Image.open(atlas).convert('RGB')
+        cw, ch = im.width / 5, im.height / 2
+        for i, did in enumerate(ATLAS[1]):
+            cx, cy = (i % 5) * cw, (i // 5) * ch
+            cell = im.crop((round(cx) + 6, round(cy) + 6, round(cx + cw) - 6, round(cy + ch) - 6))  # 칸 사이 구분선 제외
+            key = f'portrait-{did}'
+            path = OUT / f'{key}.webp'
+            fit_square(remove_flat_background(cell, tol=30), ATLAS[2]).save(path, 'WEBP', quality=88, method=6)
+            done[key] = path.name
+        print('아틀라스 10종 잘라 냄')
     # src/ui/art.ts의 ART_FILES에 붙일 목록
     print('ART_FILES =', done)
 
