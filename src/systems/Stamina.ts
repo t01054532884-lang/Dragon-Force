@@ -7,7 +7,7 @@ export const STAMINA = {
   regenMs: 30 * 60_000, // 30분마다 1개 → 0→40 전부 20시간
   entryCost: 5, // 스테이지 1회 입장 비용 — 임시값(기획 v1.4 "임시 5 추천", 최종은 밸런스로 확정)
   clearGift: 20, // 스테이지·난이도별 최초 클리어 보상(선물함으로)
-  refundOnFail: false, // 실패·포기 시 돌려주지 않음 — AI 1차안(기획에 없음, 확정 필요)
+  refundOnFail: false, // 실패·포기 시 돌려주지 않음(입장 때 차감) — 제작자 확정 2026-11-18
 } as const;
 
 export interface StaminaState {
