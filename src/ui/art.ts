@@ -26,7 +26,7 @@ export const SKILL_ICONS = [
 /**
  * public/art/ 안에 실제로 있는 그림(키 → 파일명). scripts/process_art.py가 기획자 그림(art-src/)을 가공해 만든다.
  * 2026-11-18 기획자 그림(GPT 이미지): 로비 배경, 상자 3종, 재화 6종, 드래곤 초상 10종(아틀라스), 스킬 아이콘 14, 장비 16, 탑다운 드래곤 4.
- * 아직 없음: passive-greed, 탑다운 드래곤 6종, 적·보스, 바닥.
+ * 아직 없음: passive-greed, 탑다운 드래곤 2종(스톤·워터). 적 5·보스 초상 3·바닥·날갯짓 프레임은 art-src에 받았고 가공 전.
  */
 export const ART_FILES: Record<string, string> = {
   'lobby-bg': 'lobby-bg.jpg',
@@ -51,7 +51,8 @@ export const ART_FILES: Record<string, string> = {
   ...Object.fromEntries(
     (['weapon', 'armor', 'necklace', 'ring'] as const).flatMap((s) => EQUIP_RARITIES.map((r) => [`equip-${s}-${r}`, `equip/equip-${s}-${r}.webp`])),
   ),
-  ...Object.fromEntries(['red', 'blue', 'wind', 'arcane'].map((id) => [`top-${id}`, `top/top-${id}.webp`])),
+  // 탑다운 드래곤: 2차분 4종 + 3차분 4종(scripts/process_art_batch3.py, 보라 번개 = 블랙 — 제작자 확인 2026-11-19). 남은 것: 스톤·워터
+  ...Object.fromEntries(['red', 'blue', 'wind', 'arcane', 'black', 'yellow', 'green', 'white'].map((id) => [`top-${id}`, `top/top-${id}.webp`])),
 };
 
 export function preloadArt(scene: Phaser.Scene): void {

@@ -375,8 +375,8 @@ class GalleryScene extends Phaser.Scene {
     });
     // 전투용 탑다운: 전투 크기(약 90px)와 회전 확인
     text(this, 40, 900, '전투용 드래곤(실제 크기 · 회전)', TYPE.caption, COLOR.text, true, true).setOrigin(0, 0.5);
-    ['top-red', 'top-blue', 'top-wind', 'top-arcane'].forEach((k, i) => {
-      const img = this.add.image(120 + i * 160, 1010, k).setDisplaySize(96, 96);
+    ['top-red', 'top-blue', 'top-yellow', 'top-green', 'top-white', 'top-black', 'top-wind', 'top-arcane'].forEach((k, i) => {
+      const img = this.add.image(90 + (i % 4) * 180, 990 + Math.floor(i / 4) * 120, k).setDisplaySize(96, 96);
       this.tweens.add({ targets: img, angle: 360, duration: 6000 + i * 800, repeat: -1 });
     });
   }
