@@ -14,6 +14,8 @@ export interface HitSpec {
   tag?: string;
   /** 대상에 따른 추가 배율(드래곤 특성·감전). 게임 장면이 채운다. 없으면 1 */
   bonus?: number;
+  /** 고정 피해(전용 액티브: 이미 DPS로 계산된 값). 있으면 공격력·배율·치명타를 다시 곱하지 않는다 */
+  flat?: number;
 }
 
 export interface HitResult {
@@ -22,6 +24,7 @@ export interface HitResult {
 }
 
 export function resolveDamage(stats: RunStats, hit: HitSpec): HitResult {
+  if (hit.flat != null) return { amount: Math.round(hit.flat * 10) / 10, crit: false };
   let d = stats.attack * hit.coef * (hit.levelMod ?? 1) * (hit.sameVolley ?? 1) * (hit.bonus ?? 1);
   // 마력 증폭은 액티브에만(기본공격 DPS 폭주 방지 — 기획서 13쪽)
   if (hit.source === 'active') d *= stats.skillDamageMult;

@@ -46,3 +46,15 @@ export function makeButton(
 
 /** 개발용 기능(진행 초기화) 표시 여부: 개발 서버이거나 주소에 ?dev=1 */
 export const devMode = () => import.meta.env.DEV || new URLSearchParams(location.search).get('dev') === '1';
+
+/**
+ * 게임 안 현재 시각. 개발용(?dev=1&now=2026-12-05 또는 2026-12-05T23:59:30)으로 날짜를 바꿔 이벤트·미션을 시험할 수 있다.
+ * 날짜만 주면 그날 KST 정오. 배포본(dev 아님)에서는 항상 실제 시각.
+ */
+export function gameNow(): number {
+  if (!devMode()) return Date.now();
+  const q = new URLSearchParams(location.search).get('now');
+  if (!q) return Date.now();
+  const t = Date.parse(q.length <= 10 ? `${q}T12:00:00+09:00` : q.includes('+') || q.endsWith('Z') ? q : `${q}+09:00`);
+  return Number.isFinite(t) ? t : Date.now();
+}

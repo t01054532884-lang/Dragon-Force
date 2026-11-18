@@ -51,3 +51,6 @@ export const PATTERN = {
 
 // 한 번에 받는 피해 상한(플레이어 최대 HP 대비, 기획서 5장): 일반 보스·엘리트 35%, 최종보스 45%
 export const HIT_CAP = { normal: 1, elite: 0.35, boss: 0.35, finalBoss: 0.45 };
+
+// v1.2 QA: 보스(와 엘리트)는 빙결·기절로 멈추지 않고 이동속도 −15%·1초 둔화로 대체
+export const HARD_CC_BOSS = { slow: 0.15, ms: 1000 };

@@ -44,6 +44,12 @@ export interface BasicLevel {
   healChance?: number; // 처치 회복 확률(화이트 Lv.5 강화)
   spin?: { count: number; radius: number; coef: number; speed: number }; // 회전 칼날
   wave?: { every: number; radius: number; coef: number }; // 주기적 파도
+  // ── 6단계 v1.2 영구 성장(permGrowth.ts)이 덧붙이는 값. 전투 중 Lv.1~7 데이터에는 없다 ──
+  bounce?: number; // 적중 후 근처 다른 적으로 튕기는 횟수
+  burnMult?: number; // 화상 피해 배율
+  freezeShards?: { count: number; coef: number }; // 얼어붙는 순간 파편
+  blast?: { every: number; radius: number; coef: number; color: number; status: boolean }; // 최종 고유 공격 폭발
+  areaBonus?: number; // 범위 +x
   text: string; // 카드 설명
 }
 
@@ -68,9 +74,12 @@ export interface BasicTraits {
   chainRelief: number; // 옐로: 연쇄 감소율 20% 완화(상대값)
   killHealChance: number; // 화이트: 처치 회복 확률
   killHealPct: number;
+  healAdd: number; // 화이트 영구 성장: 처치 회복 확률 +x
+  executeBonus: number; // 블랙: HP 30% 이하 적에게 기본 공격 피해 +x(특성 + 영구 성장)
+  extraChain: number; // 천둥의 문장(장착형 특수 스킬): 연쇄가 있는 기본 공격의 연쇄 +n
 }
 
-export const NO_TRAITS: BasicTraits = { intervalMult: 1, poisonDurMult: 1, slowDurMult: 1, chainRelief: 0, killHealChance: 0, killHealPct: 0 };
+export const NO_TRAITS: BasicTraits = { intervalMult: 1, poisonDurMult: 1, slowDurMult: 1, chainRelief: 0, killHealChance: 0, killHealPct: 0, healAdd: 0, executeBonus: 0, extraChain: 0 };
 
 export interface DragonDef {
   id: DragonId;
@@ -250,34 +259,38 @@ const ARCANE = common('추적 마력탄', '🔮', 'bolt-arcane', build(
 ), { life: 2000 });
 
 // ───────── 10종 정의 ─────────
-// 기본 능력치: 원문 미정 → 모두 레드와 같은 값(공격력 10 · HP 100 · 속도 260)에서 시작. 차이는 공격·특성으로 낸다.
-const BASE = { baseAttack: 10, baseHp: 100, baseMoveSpeed: 260 };
+// 기본 능력치: 기획 수정안 v1.2 2장 표(Lv.1·1성·장비·연구소 미적용 기준). 레드는 기존과 같은 10 / 100 / 260.
+const B = (baseAttack: number, baseHp: number, baseMoveSpeed: number) => ({ baseAttack, baseHp, baseMoveSpeed });
 
 export const DRAGONS: Record<DragonId, DragonDef> = {
-  red: { id: 'red', name: '레드 드래곤', short: '레드', element: 'fire', rarity: 'starter', role: '안정적인 범용 딜러', color: 0xd23b2a, accent: 0xff9a3c, belly: 0xf3d6a2, ...BASE, trait: { id: 'burnBonus', text: '화상 상태 적에게 피해 +10%', value: 0.1 }, basic: RED },
-  blue: { id: 'blue', name: '블루 드래곤', short: '블루', element: 'ice', rarity: 'common', role: '둔화·빙결', color: 0x9cc8f0, accent: 0xe3f4ff, belly: 0xdcecff, ...BASE, trait: { id: 'slowBonus', text: '둔화된 적에게 추가 피해 +20%', value: 0.2 }, basic: BLUE },
-  yellow: { id: 'yellow', name: '옐로 드래곤', short: '옐로', element: 'lightning', rarity: 'common', role: '연쇄 공격', color: 0xf2c230, accent: 0xfff27a, belly: 0xfff0c2, ...BASE, trait: { id: 'chainRelief', text: '연쇄 공격 피해 감소율 20% 완화', value: 0.2 }, basic: YELLOW },
-  green: { id: 'green', name: '그린 드래곤', short: '그린', element: 'poison', rarity: 'common', role: '지속 피해', color: 0x4f9a3a, accent: 0xa35cff, belly: 0xc9e6a0, ...BASE, trait: { id: 'poisonDuration', text: '중독 지속시간 +30%', value: 0.3 }, basic: GREEN },
-  white: { id: 'white', name: '화이트 드래곤', short: '화이트', element: 'light', rarity: 'rare', role: '관통·회복', color: 0xf2efe6, accent: 0xe7c25a, belly: 0xffffff, ...BASE, trait: { id: 'killHeal', text: '기본 공격 처치 시 2% 확률로 최대 HP 1% 회복', value: 0.02 }, basic: WHITE },
-  black: { id: 'black', name: '블랙 드래곤', short: '블랙', element: 'dark', rarity: 'rare', role: '관통·추가 피해', color: 0x2e2540, accent: 0xa66bff, belly: 0x4a3d63, ...BASE, trait: { id: 'execute', text: 'HP 30% 이하인 적에게 기본 공격 피해 +20%', value: 0.2 }, basic: BLACK },
-  stone: { id: 'stone', name: '스톤 드래곤', short: '스톤', element: 'earth', rarity: 'rare', role: '넉백·방어', color: 0x8d7558, accent: 0x7fae4e, belly: 0xb9a383, ...BASE, trait: { id: 'guard', text: '받는 피해 −10%', value: 0.1 }, basic: STONE },
-  wind: { id: 'wind', name: '윈드 드래곤', short: '윈드', element: 'wind', rarity: 'epic', role: '다중 투사체·연사', color: 0x6fd6b8, accent: 0xd8fff3, belly: 0xe6fff7, ...BASE, trait: { id: 'swift', text: '이동속도 +10%', value: 0.1 }, basic: WIND },
-  water: { id: 'water', name: '워터 드래곤', short: '워터', element: 'water', rarity: 'epic', role: '둔화·감속', color: 0x2fa6d9, accent: 0xff9ec4, belly: 0xbdeeff, ...BASE, trait: { id: 'slowDuration', text: '기본 공격 둔화 지속시간 +15%', value: 0.15 }, basic: WATER },
-  arcane: { id: 'arcane', name: '아케인 드래곤', short: '아케인', element: 'arcane', rarity: 'legendary', role: '분열·추가 발동', color: 0x9b6fe0, accent: 0xff8de8, belly: 0xe9d9ff, ...BASE, trait: { id: 'haste', text: '기본 공격 재사용 대기시간 −10%', value: 0.1 }, basic: ARCANE },
+  red: { id: 'red', name: '레드 드래곤', short: '레드', element: 'fire', rarity: 'starter', role: '안정적인 범용 딜러', color: 0xd23b2a, accent: 0xff9a3c, belly: 0xf3d6a2, ...B(10, 100, 260), trait: { id: 'burnBonus', text: '5성부터: 화상 상태 적에게 피해 +20%', value: 0.2 }, basic: RED },
+  blue: { id: 'blue', name: '블루 드래곤', short: '블루', element: 'ice', rarity: 'common', role: '둔화·빙결', color: 0x9cc8f0, accent: 0xe3f4ff, belly: 0xdcecff, ...B(10, 105, 255), trait: { id: 'slowBonus', text: '둔화된 적에게 추가 피해 +20%', value: 0.2 }, basic: BLUE },
+  yellow: { id: 'yellow', name: '옐로 드래곤', short: '옐로', element: 'lightning', rarity: 'common', role: '연쇄 공격', color: 0xf2c230, accent: 0xfff27a, belly: 0xfff0c2, ...B(10.5, 95, 270), trait: { id: 'chainRelief', text: '연쇄 공격 피해 감소율 20% 완화', value: 0.2 }, basic: YELLOW },
+  green: { id: 'green', name: '그린 드래곤', short: '그린', element: 'poison', rarity: 'common', role: '지속 피해', color: 0x4f9a3a, accent: 0xa35cff, belly: 0xc9e6a0, ...B(9.8, 110, 255), trait: { id: 'poisonDuration', text: '중독 지속시간 +30%', value: 0.3 }, basic: GREEN },
+  white: { id: 'white', name: '화이트 드래곤', short: '화이트', element: 'light', rarity: 'rare', role: '관통·회복', color: 0xf2efe6, accent: 0xe7c25a, belly: 0xffffff, ...B(10.8, 120, 255), trait: { id: 'killHeal', text: '기본 공격 처치 시 2% 확률로 최대 HP 1% 회복', value: 0.02 }, basic: WHITE },
+  black: { id: 'black', name: '블랙 드래곤', short: '블랙', element: 'dark', rarity: 'rare', role: '관통·추가 피해', color: 0x2e2540, accent: 0xa66bff, belly: 0x4a3d63, ...B(12, 100, 260), trait: { id: 'execute', text: 'HP 30% 이하인 적에게 기본 공격 피해 +20%', value: 0.2 }, basic: BLACK },
+  stone: { id: 'stone', name: '스톤 드래곤', short: '스톤', element: 'earth', rarity: 'rare', role: '넉백·방어', color: 0x8d7558, accent: 0x7fae4e, belly: 0xb9a383, ...B(10.5, 135, 240), trait: { id: 'guard', text: '받는 피해 −10%', value: 0.1 }, basic: STONE },
+  wind: { id: 'wind', name: '윈드 드래곤', short: '윈드', element: 'wind', rarity: 'epic', role: '다중 투사체·연사', color: 0x6fd6b8, accent: 0xd8fff3, belly: 0xe6fff7, ...B(12, 105, 285), trait: { id: 'swift', text: '이동속도 +10%', value: 0.1 }, basic: WIND },
+  water: { id: 'water', name: '워터 드래곤', short: '워터', element: 'water', rarity: 'epic', role: '둔화·감속', color: 0x2fa6d9, accent: 0xff9ec4, belly: 0xbdeeff, ...B(11.5, 125, 260), trait: { id: 'slowDuration', text: '기본 공격 둔화 지속시간 +15%', value: 0.15 }, basic: WATER },
+  arcane: { id: 'arcane', name: '아케인 드래곤', short: '아케인', element: 'arcane', rarity: 'legendary', role: '분열·추가 발동', color: 0x9b6fe0, accent: 0xff8de8, belly: 0xe9d9ff, ...B(14, 120, 275), trait: { id: 'haste', text: '기본 공격 재사용 대기시간 −10%', value: 0.1 }, basic: ARCANE },
 };
 
 export const DRAGON_ORDER: DragonId[] = ['red', 'blue', 'yellow', 'green', 'white', 'black', 'stone', 'wind', 'water', 'arcane'];
 
 // ───────── 영구 육성 (6단계 기획서 6장) ─────────
 export const GROWTH = {
-  maxLevel: 30,
-  attackPerLevel: 0.01, // Lv.1 초과 레벨마다 +1% (Lv.30 = +29%)
-  hpPerLevel: 0.015, // Lv.30 = +43.5%
+  maxLevel: 40, // v1.2: 30 → 40
+  attackPerLevel: 0.01, // Lv.1 초과 레벨마다 +1% (Lv.40 = +39%)
+  hpPerLevel: 0.015, // Lv.40 = +58.5%
   maxStars: 5,
   starCost: [20, 40, 80, 160], // 1→2, 2→3, 3→4, 4→5성
-  /** 레벨업 골드 비용(원문 미정 → AI 1차안): ceil(60 × 1.12^(현재레벨−1)). Lv.1→30 누적 약 12,900G */
+  /**
+   * 레벨업 골드 비용: ceil(60 × 1.12^(현재레벨−1)). Lv.1→30 누적 12,890G(기존 그대로).
+   * Lv.31→40은 같은 곡선을 연장(제작자 결정 2026-11-18, 임시 밸런스 수치).
+   */
   levelCost: (level: number) => Math.ceil(60 * Math.pow(1.12, level - 1)),
-  duplicateShards: { starter: 0, common: 10, rare: 20, epic: 40, legendary: 80 } as Record<DragonRarity, number>,
+  /** 레벨업 카드 비용(v1.2 5장): 도달 레벨 2~10 1장 · 11~20 2장 · 21~30 3장 · 31~40 4장 → Lv.1→40 총 99장 */
+  cardCost: (level: number) => (level < 10 ? 1 : level < 20 ? 2 : level < 30 ? 3 : 4),
 };
 
 /** 별 등급 보너스(누적): 2성 공격력 +5% · 3성 HP +5% · 4성 특성 강화 · 5성 공격력 +10%·특성 추가 강화 */
@@ -285,9 +298,15 @@ export function starBonus(stars: number): { attack: number; hp: number; traitMul
   return {
     attack: (stars >= 2 ? 0.05 : 0) + (stars >= 5 ? 0.1 : 0),
     hp: stars >= 3 ? 0.05 : 0,
-    // 특성 강화 폭은 원문 미정 → AI 1차안: 4성 ×1.5, 5성 ×2.0
+    // v1.2 7장: 레드 외 9종은 1~3성 기본, 4성 ×1.5, 5성 ×2.0
     traitMult: stars >= 5 ? 2 : stars >= 4 ? 1.5 : 1,
   };
+}
+
+/** 고유 특성 배율. 레드는 1~4성 비활성(기존 DPS 보존), 5성부터 +20%(v1.2 7장) */
+export function traitMultFor(id: DragonId, stars: number): number {
+  if (id === 'red') return stars >= 5 ? 1 : 0;
+  return starBonus(stars).traitMult;
 }
 
 export function levelBonus(level: number): { attack: number; hp: number } {

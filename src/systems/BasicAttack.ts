@@ -4,6 +4,7 @@ import { RED_BASIC } from '../data/basicAttack';
 import { NO_TRAITS, type BasicLevel, type BasicSpec, type BasicTraits } from '../data/dragons';
 export { NO_TRAITS, type BasicTraits };
 import type { CombatHost } from './CombatHost';
+import { applyPerm, PERM_RULES, ZERO_PERM, type PermState } from '../data/permGrowth';
 
 interface Volley {
   hitUids: Set<number>; // 이 묶음이 이미 맞힌 적(두 번째부터 50%, 화상·중독도 1중첩만)
@@ -19,6 +20,8 @@ interface Bullet {
   life: number;
   volley: Volley;
   explode: boolean; // 이 탄이 맞으면 폭발
+  blast: boolean; // 영구 Lv.40 최종 고유 공격 폭발
+  bounceLeft: number;
   pierceLeft: number;
   hitSet: Set<number>; // 이 탄이 이미 꿰뚫은 적
   coef: number;
@@ -53,18 +56,47 @@ export class BasicAttack {
   private waveTimer = 0;
   private now = 0;
 
+  private cache = new Map<number, BasicLevel>();
+  /** 전용 액티브(아케인 마력 폭주)가 잠시 바꾸는 공격 주기 배율 */
+  hasteMult = 1;
+
   constructor(
     private h: CombatHost,
     readonly spec: BasicSpec,
     private traits: BasicTraits = NO_TRAITS,
+    /** 영구 레벨 5레벨 단위 고유 성장(v1.2). 영구 Lv.1~4면 ZERO_PERM → 기존과 똑같이 동작 */
+    private perm: PermState = ZERO_PERM,
   ) {}
 
   private get lv(): number {
     return Math.max(1, Math.min(this.spec.levels.length, this.h.level('basic')));
   }
 
+  /** 전투 중 레벨(Lv.1~7) 데이터 + 영구 성장 */
   private get L(): BasicLevel {
-    return this.spec.levels[this.lv - 1];
+    const lv = this.lv;
+    let L = this.cache.get(lv);
+    if (!L) {
+      L = applyPerm(this.spec.levels[lv - 1], this.perm);
+      this.cache.set(lv, L);
+    }
+    return L;
+  }
+
+  /**
+   * 현재 기본 공격 DPS(단일 대상, 전용 액티브 피해 기준 — v1.3):
+   * 공격력 × 한 발 계수 × 레벨 배율 × (1 + 추가 탄 × 같은 묶음 배율) ÷ 공격 주기. 화상·폭발·연쇄 등 부가 효과는 넣지 않는다.
+   */
+  singleTargetDps(): number {
+    const L = this.L;
+    const perVolley = L.coef * L.levelMod * (1 + (L.shots - 1) * this.spec.sameVolley);
+    const sec = (L.interval * this.traits.intervalMult * this.hasteMult) / 1000;
+    return (this.h.stats.attack * perVolley) / sec;
+  }
+
+  /** 범위형 효과 반경: 마력 확장(전투 중) × 영구 범위 보너스 */
+  private area(r: number): number {
+    return r * this.h.stats.areaMult * (1 + (this.L.areaBonus ?? 0));
   }
 
   update(delta: number): void {
@@ -80,8 +112,9 @@ export class BasicAttack {
         this.volleyCount++;
         const volley: Volley = { hitUids: new Set(), index: this.volleyCount };
         const explode = !!L.explodeEvery && this.volleyCount % L.explodeEvery === 0;
-        targets.forEach((t, i) => this.spawnBullet(t, volley, explode && i === 0, i, targets));
-        this.timer += L.interval * this.traits.intervalMult; // 넘친 시간을 버리지 않고 이어 간다
+        const blast = !!L.blast && this.volleyCount % L.blast.every === 0;
+        targets.forEach((t, i) => this.spawnBullet(t, volley, explode && i === 0, i, targets, blast && i === 0));
+        this.timer += L.interval * this.traits.intervalMult * this.hasteMult; // 넘친 시간을 버리지 않고 이어 간다
       }
     }
     this.updateBullets(delta);
@@ -108,7 +141,7 @@ export class BasicAttack {
     return Array.from({ length: count }, (_, i) => inRange[i % inRange.length]);
   }
 
-  private spawnBullet(target: Enemy, volley: Volley, explode: boolean, index: number, all: Enemy[]): void {
+  private spawnBullet(target: Enemy, volley: Volley, explode: boolean, index: number, all: Enemy[], blast = false): void {
     const L = this.L;
     const { x, y } = this.h.player;
     const total = all.length;
@@ -127,7 +160,7 @@ export class BasicAttack {
     const angle = Phaser.Math.Angle.Between(x, y, target.x, target.y) + spread;
     const img = this.h.scene.add.image(x, y, this.spec.texture).setDepth(9).setRotation(angle).setScale((explode ? 1.6 : 1) * L.scale);
     this.bullets.push({
-      img, target, angle, speed: L.speed, homing: L.homing, life: this.spec.life, volley, explode,
+      img, target, angle, speed: L.speed, homing: L.homing, life: this.spec.life, volley, explode, blast, bounceLeft: L.bounce ?? 0,
       pierceLeft: L.pierce, hitSet: new Set(), coef: L.coef, child: false, tag: 'basic', first: index === 0,
     });
   }
@@ -157,6 +190,18 @@ export class BasicAttack {
         b.hitSet.add(hit.uid);
         this.onHit(b, hit, enemies);
         if (b.pierceLeft-- > 0) return true; // 관통: 계속 날아간다
+        if (b.bounceLeft > 0) {
+          // 튕김(영구 성장): 맞힌 자리에서 3.5m 안의 맞히지 않은 적에게 방향을 바꾼다. 관통 다음, 연쇄(적중 처리 안)보다 뒤.
+          const next = this.nearestTo(b.img.x, b.img.y, PERM_RULES.bounceRange, enemies, b.hitSet);
+          if (next) {
+            b.bounceLeft--;
+            b.target = next;
+            b.angle = Phaser.Math.Angle.Between(b.img.x, b.img.y, next.x, next.y);
+            b.img.setRotation(b.angle);
+            b.life = Math.max(b.life, 600);
+            return true;
+          }
+        }
         return this.kill(b);
       }
       if (b.life <= 0) return this.kill(b);
@@ -171,13 +216,17 @@ export class BasicAttack {
     const same = repeat ? this.spec.sameVolley : 1;
     b.volley.hitUids.add(e.uid);
     if (!b.child) {
-      if (L.burn && !repeat) e.burn(RED_BASIC.burn.perSec, RED_BASIC.burn.ms, RED_BASIC.burn.maxStacks);
+      if (L.burn && !repeat) e.burn(RED_BASIC.burn.perSec * (L.burnMult ?? 1), RED_BASIC.burn.ms, RED_BASIC.burn.maxStacks);
       this.applyStatus(e, L, repeat, b.angle);
     }
     const ex = e.x;
     const ey = e.y;
     this.h.hit(e, { source: 'basic', coef: b.coef, levelMod: L.levelMod, sameVolley: same, tag: b.tag });
     if (b.explode && L.explosion) this.explode(ex, ey, L.explosion.radius, L.explosion.coef, L.explosion.color, enemies);
+    if (b.blast && L.blast) {
+      b.blast = false;
+      this.explode(ex, ey, L.blast.radius, L.blast.coef, L.blast.color, enemies, 'basic-blast', undefined, L.blast.status ? L : undefined);
+    }
     if (b.child) return;
     if (L.splash) this.splash(ex, ey, e, L, enemies);
     if (L.chain > 0) this.chain(e, L, enemies);
@@ -197,14 +246,26 @@ export class BasicAttack {
         const all = this.h.enemies().filter((o) => o.active);
         this.explode(e.x, e.y, L.freeze.burst.radius, L.freeze.burst.coef, 0x9be7ff, all, 'basic-freeze', L.slow);
       }
+      if (L.freezeShards && (froze || e.rank !== 'normal')) this.shards(e, L.freezeShards.count, L.freezeShards.coef, 'basic-freeze-shard');
     }
   }
 
-  private explode(x: number, y: number, radius: number, coef: number, color: number, enemies: Enemy[], tag = 'basic-explosion', slow?: { ratio: number; ms: number }): void {
-    const r = radius * this.h.stats.areaMult; // 범위형 기본공격이라 마력 확장 적용
+  private explode(
+    x: number, y: number, radius: number, coef: number, color: number, enemies: Enemy[],
+    tag = 'basic-explosion', slow?: { ratio: number; ms: number }, status?: BasicLevel,
+  ): void {
+    const r = this.area(radius); // 범위형 기본공격이라 마력 확장 적용
     for (const e of enemies) {
       if (e.active && Phaser.Math.Distance.Between(x, y, e.x, e.y) < r + e.def.radius) {
         if (slow) e.slow(slow.ratio, slow.ms * this.traits.slowDurMult);
+        if (status) {
+          // 최종 고유 공격: 드래곤 속성 상태이상을 함께(확률형 빙결·기절은 제외)
+          if (status.burn) e.burn(RED_BASIC.burn.perSec * (status.burnMult ?? 1), RED_BASIC.burn.ms, RED_BASIC.burn.maxStacks);
+          if (status.slow) e.slow(status.slow.ratio, status.slow.ms * this.traits.slowDurMult);
+          if (status.poison) e.poison(status.poison.perSec, status.poison.ms * this.traits.poisonDurMult, status.poison.maxStacks);
+          if (status.shock) e.shock(status.shock.mult, status.shock.ms);
+          if (status.knock) e.knock(e.x - x || 1, e.y - y, status.knock.speed, status.knock.ms);
+        }
         this.h.hit(e, { source: 'basic', coef, tag });
       }
     }
@@ -215,7 +276,7 @@ export class BasicAttack {
   /** 적중 지점 주변의 다른 적에게 피해(물보라·바위 파편·충격파) */
   private splash(x: number, y: number, main: Enemy, L: BasicLevel, enemies: Enemy[]): void {
     const s = L.splash!;
-    const r = s.radius * this.h.stats.areaMult;
+    const r = this.area(s.radius);
     for (const e of enemies) {
       if (e === main || !e.active) continue;
       const d = Phaser.Math.Distance.Between(x, y, e.x, e.y);
@@ -231,12 +292,14 @@ export class BasicAttack {
   /** 번개 연쇄: 가까운 다른 적으로 튄다. 튈 때마다 피해 감소(옐로 특성이 감소율을 줄임) */
   private chain(from: Enemy, L: BasicLevel, enemies: Enemy[]): void {
     const hit = new Set<number>([from.uid]);
-    const falloff = this.spec.chainFalloff * (1 - this.traits.chainRelief);
+    const falloff = this.spec.chainFalloff * Math.max(0, 1 - this.traits.chainRelief);
+    const range = this.spec.chainRange * (1 + (L.areaBonus ?? 0));
     let cur = { x: from.x, y: from.y };
     const g = this.h.scene.add.graphics().setDepth(9);
     g.lineStyle(3, 0xfff59d, 0.9);
-    for (let k = 1; k <= L.chain; k++) {
-      const next = this.nearestTo(cur.x, cur.y, this.spec.chainRange, enemies.filter((e) => e.active), hit);
+    const times = L.chain + this.traits.extraChain;
+    for (let k = 1; k <= times; k++) {
+      const next = this.nearestTo(cur.x, cur.y, range, enemies.filter((e) => e.active), hit);
       if (!next) break;
       hit.add(next.uid);
       g.lineBetween(cur.x, cur.y, next.x, next.y);
@@ -256,7 +319,7 @@ export class BasicAttack {
       const target = s.homing > 0 ? this.nearestTo(x, y, this.spec.range, others, new Set([main.uid])) : null;
       const img = this.h.scene.add.image(x, y, this.spec.texture).setDepth(9).setScale(0.6).setRotation(angle);
       this.queued.push({
-        img, target, angle, speed: L.speed * 0.9, homing: s.homing, life: 900, volley: b.volley, explode: false,
+        img, target, angle, speed: L.speed * 0.9, homing: s.homing, life: 900, volley: b.volley, explode: false, blast: false, bounceLeft: 0,
         pierceLeft: 0, hitSet: new Set([main.uid]), coef: s.coef, child: true, tag: 'basic-split', first: false,
       });
     }
@@ -267,21 +330,12 @@ export class BasicAttack {
     const L = this.L;
     if (byBasic && this.traits.killHealChance > 0) {
       // 기본 2%(Lv.5부터 4%) × 별 등급 특성 강화 배율
-      const chance = (L.healChance ?? BASE_HEAL) * (this.traits.killHealChance / BASE_HEAL);
+      const chance = (L.healChance ?? BASE_HEAL) * (this.traits.killHealChance / BASE_HEAL) + this.traits.healAdd;
       if (Math.random() < chance) this.h.heal?.(this.traits.killHealPct);
     }
-    if (byBasic && L.shardsOnKill) {
-      for (let i = 0; i < L.shardsOnKill.count; i++) {
-        const angle = (i / L.shardsOnKill.count) * Math.PI * 2 + Math.random() * 0.6;
-        const img = this.h.scene.add.image(e.x, e.y, this.spec.texture).setDepth(9).setScale(0.6).setRotation(angle);
-        this.queued.push({
-          img, target: null, angle, speed: 520, homing: 0, life: 600, volley: { hitUids: new Set(), index: 0 }, explode: false,
-          pierceLeft: 0, hitSet: new Set([e.uid]), coef: L.shardsOnKill.coef, child: true, tag: 'basic-shard', first: false,
-        });
-      }
-    }
+    if (byBasic && L.shardsOnKill) this.shards(e, L.shardsOnKill.count, L.shardsOnKill.coef, 'basic-shard');
     if (L.poisonBurst && e.poisonCount > 0 && L.poison) {
-      const r = L.poisonBurst.radius * this.h.stats.areaMult;
+      const r = this.area(L.poisonBurst.radius);
       const p = L.poison;
       // 독 폭발: 죽는 적 주변에 피해 + 중독 전염(연쇄 폭발이 무한히 이어지지 않도록 다음 프레임에 처리)
       this.h.scene.time.delayedCall(0, () => {
@@ -296,9 +350,21 @@ export class BasicAttack {
     }
   }
 
+  /** 적 자리에서 사방으로 흩어지는 작은 탄(처치 파편·빙결 파편) */
+  private shards(e: Enemy, count: number, coef: number, tag: string): void {
+    for (let i = 0; i < count; i++) {
+      const angle = (i / count) * Math.PI * 2 + Math.random() * 0.6;
+      const img = this.h.scene.add.image(e.x, e.y, this.spec.texture).setDepth(9).setScale(0.6).setRotation(angle);
+      this.queued.push({
+        img, target: null, angle, speed: 520, homing: 0, life: 600, volley: { hitUids: new Set(), index: 0 }, explode: false, blast: false, bounceLeft: 0,
+        pierceLeft: 0, hitSet: new Set([e.uid]), coef, child: true, tag, first: false,
+      });
+    }
+  }
+
   // ───────── 독구름 ─────────
   private addCloud(x: number, y: number, radius: number, ms: number): void {
-    const r = radius * this.h.stats.areaMult;
+    const r = this.area(radius);
     const g = this.h.scene.add.circle(x, y, r, 0x7cb342, 0.28).setStrokeStyle(3, 0xa35cff, 0.5).setDepth(3);
     this.clouds.push({ x, y, r, left: ms, tick: 0, g });
   }
@@ -331,7 +397,7 @@ export class BasicAttack {
     if (!s) return;
     while (this.spinImgs.length < s.count) this.spinImgs.push(this.h.scene.add.image(0, 0, this.spec.texture).setDepth(9).setScale(1.3));
     this.spinAngle += s.speed * (delta / 1000);
-    const r = s.radius * this.h.stats.areaMult;
+    const r = this.area(s.radius);
     const { x, y } = this.h.player;
     this.spinImgs.forEach((img, i) => {
       const a = this.spinAngle + (i / s.count) * Math.PI * 2;
@@ -354,7 +420,7 @@ export class BasicAttack {
     this.waveTimer -= delta;
     if (this.waveTimer > 0) return;
     const { x, y } = this.h.player;
-    const r = w.radius * this.h.stats.areaMult;
+    const r = this.area(w.radius);
     const near = this.h.enemies().filter((e) => e.active && Phaser.Math.Distance.Between(x, y, e.x, e.y) < r + e.def.radius);
     if (near.length === 0) {
       this.waveTimer = 0;

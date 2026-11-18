@@ -1,6 +1,7 @@
 import type { RunStats } from './stats';
 import { BASE_STATS } from './stats';
-import { levelBonus, NO_TRAITS, starBonus, type BasicTraits, type DragonDef } from './dragons';
+import { levelBonus, NO_TRAITS, starBonus, traitMultFor, type BasicTraits, type DragonDef } from './dragons';
+import { permState, type PermState } from './permGrowth';
 
 // 5단계 영구 성장 수치 (제작자 기획서 v1.0 + v1.1 수정, 2026-11-18 확정)
 // 테스트하며 조정할 수 있도록 숫자는 모두 이 파일에 모은다.
@@ -62,29 +63,34 @@ export function buildRunStats(
   def: DragonDef,
   up: PermanentUpgrades,
   owned: { level: number; stars: number },
-): { stats: RunStats; permHpBonus: number; traitMult: number; traits: BasicTraits } {
+): { stats: RunStats; permHpBonus: number; traitMult: number; traits: BasicTraits; perm: PermState } {
   const lb = levelBonus(owned.level);
   const sb = starBonus(owned.stars);
-  const t = def.trait.value * sb.traitMult;
+  const traitMult = traitMultFor(def.id, owned.stars);
+  const t = def.trait.value * traitMult;
+  const perm = permState(def.id, owned.level);
   const baseHp = def.baseHp;
   const stats: RunStats = {
     ...BASE_STATS,
     attack: def.baseAttack * (1 + up.attack * PERMANENT_UPGRADES.attack.bonusPerLevel + lb.attack + sb.attack),
     maxHp: baseHp * (1 + up.hp * PERMANENT_UPGRADES.hp.bonusPerLevel + lb.hp + sb.hp),
-    speed: def.baseMoveSpeed * (1 + up.speed * PERMANENT_UPGRADES.speed.bonusPerLevel + (def.trait.id === 'swift' ? t : 0)),
+    speed: def.baseMoveSpeed * (1 + up.speed * PERMANENT_UPGRADES.speed.bonusPerLevel + (def.trait.id === 'swift' ? t : 0) + perm.move),
     magnet: BASE_STATS.magnet * (1 + up.pickup * PERMANENT_UPGRADES.pickup.bonusPerLevel),
-    damageTaken: 1 - (def.trait.id === 'guard' ? t : 0),
+    damageTaken: 1 - (def.trait.id === 'guard' ? t : 0) - perm.guard,
   };
   const traits: BasicTraits = {
     ...NO_TRAITS,
     intervalMult: def.trait.id === 'haste' ? 1 - t : 1,
     poisonDurMult: def.trait.id === 'poisonDuration' ? 1 + t : 1,
     slowDurMult: def.trait.id === 'slowDuration' ? 1 + t : 1,
-    chainRelief: def.trait.id === 'chainRelief' ? t : 0,
+    chainRelief: (def.trait.id === 'chainRelief' ? t : 0) + perm.chainRelief,
     killHealChance: def.trait.id === 'killHeal' ? t : 0,
-    killHealPct: 0.01,
+    killHealPct: 0.01 * (1 + perm.healAmt),
+    healAdd: perm.healAdd,
+    executeBonus: (def.trait.id === 'execute' ? t : 0) + perm.executeAdd,
   };
-  return { stats, permHpBonus: stats.maxHp - baseHp, traitMult: sb.traitMult, traits };
+  // 35% 한 방 상한 기준 HP = 드래곤 기본 HP(종별). 연구소·영구 레벨·승급·장비로 오른 HP는 뺀다(v1.2 12장).
+  return { stats, permHpBonus: stats.maxHp - baseHp, traitMult, traits, perm };
 }
 
 // ───────── 골드 보상 (기획서 v1.0 4장 + v1.1) ─────────
@@ -129,7 +135,8 @@ export interface GoldBreakdown {
 }
 
 /** 한 판의 골드 계산. 순수 함수라 테스트로 바로 확인할 수 있다. */
-export function computeRunGold(r: RunSummary): GoldBreakdown {
+/** goldBonus: 용의 보물(장착형 특수 스킬) +10% 같은 전투 골드 보너스. 기본 0 → 5단계 정산과 같다. */
+export function computeRunGold(r: RunSummary, goldBonus = 0): GoldBreakdown {
   const clear = r.outcome === 'clear';
   // 클리어는 보스를 언제 잡든 8분 전체 생존 보상(v1.1 1번)
   const survivedMs = clear ? r.durationMs : r.elapsedMs;
@@ -144,6 +151,10 @@ export function computeRunGold(r: RunSummary): GoldBreakdown {
     { label: '스테이지 클리어', gold: clear ? GOLD.clear : 0 },
     { label: '보물 더미', gold: r.treasureGold },
   ];
+  if (goldBonus > 0) {
+    const base = lines.reduce((a, l) => a + l.gold, 0);
+    lines.push({ label: `용의 보물 +${Math.round(goldBonus * 100)}%`, gold: Math.floor(base * goldBonus) });
+  }
   const subtotal = lines.reduce((a, l) => a + l.gold, 0);
   const stageMult = stageGoldMult(r.stageId);
   const resultMult = clear ? 1 : r.outcome === 'quit' && r.elapsedMs < GOLD.quitGraceMs ? 0 : GOLD.failRate;

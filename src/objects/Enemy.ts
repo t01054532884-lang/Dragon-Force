@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { CC, ENEMIES, PATTERN, type EnemyDef, type EnemyKind } from '../data/enemies';
+import { CC, ENEMIES, HARD_CC_BOSS, PATTERN, type EnemyDef, type EnemyKind } from '../data/enemies';
 
 /** 적이 이번 프레임에 하겠다는 행동. 그리기·피해 판정은 장면이 한다(적은 화면·플레이어를 모른다). */
 export type EnemyAction =
@@ -276,9 +276,12 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
     return this.hp <= 0;
   }
 
+  /** 얼음의 심장(장착형 특수 스킬): 드래곤이 거는 모든 둔화 세기 배율. 판 시작 때 게임 장면이 정한다. */
+  static slowBoost = 1;
+
   /** 둔화. 엘리트·보스는 효과 60% 감소(군중제어 저항). */
   slow(ratio: number, ms: number): void {
-    const r = ratio * CC[this.def.rank].slowKeep;
+    const r = Math.min(0.8, ratio * Enemy.slowBoost) * CC[this.def.rank].slowKeep;
     this.slowRatio = Math.max(this.slowLeft > 0 ? this.slowRatio : 0, r);
     this.slowLeft = Math.max(this.slowLeft, ms);
     if (this.hitFlash <= 0) this.refreshTint();
@@ -334,12 +337,15 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
   }
 
   /**
-   * 빙결·기절. 일반 적만 멈춘다. 엘리트·보스는 패턴이 끊기지 않도록 멈추지 않고
-   * 같은 시간 동안 50% 둔화(군중제어 저항이 다시 곱해져 실제 20%)로 바꾼다.
+   * 빙결·기절. 일반 적만 멈춘다. 엘리트·보스는 무한 정지하지 않도록 멈추지 않고
+   * 이동속도 −15%·1초 둔화로 바꾼다(v1.2 QA: 저항을 다시 곱하지 않은 최종값 15%).
+   * 둔화는 가장 센 값 하나만 남고, 다시 걸리면 시간만 갱신된다.
    */
   hardCc(kind: 'freeze' | 'stun', ms: number): boolean {
     if (this.def.rank !== 'normal') {
-      this.slow(0.5, ms);
+      this.slowRatio = Math.max(this.slowLeft > 0 ? this.slowRatio : 0, HARD_CC_BOSS.slow);
+      this.slowLeft = Math.max(this.slowLeft, HARD_CC_BOSS.ms);
+      if (this.hitFlash <= 0) this.refreshTint();
       return false;
     }
     this.ccLeft = Math.max(this.ccLeft, ms);

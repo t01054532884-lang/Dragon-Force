@@ -40,12 +40,14 @@ export class StageDirector {
   private bossSpawnPoint: Phaser.Math.Vector2 | null = null;
   private diff;
 
-  constructor(private h: DirectorHost, readonly stage: StageData) {
+  /** mult: 난이도(쉬움·어려움·매우 어려움) 체력·피해 배율(v1.2). 쉬움은 1 → 기존과 같다. */
+  constructor(private h: DirectorHost, readonly stage: StageData, mult: { hp: number; damage: number } = { hp: 1, damage: 1 }) {
     this.eliteSlots = stage.eliteSpawns.map(() => 'pending');
     this.elites = stage.eliteSpawns.map(() => null);
     this.eliteSpawnPoint = stage.eliteSpawns.map(() => null);
     this.record.eliteKillMs = stage.eliteSpawns.map(() => null);
-    this.diff = difficulty(stage.id);
+    const base = difficulty(stage.id);
+    this.diff = { ...base, hp: base.hp * mult.hp, damage: base.damage * mult.damage };
     h.emit('stage:start', { stage: stage.id });
   }
 

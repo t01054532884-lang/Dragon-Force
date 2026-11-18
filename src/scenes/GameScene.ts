@@ -10,10 +10,16 @@ import { BasicAttack, NO_TRAITS } from '../systems/BasicAttack';
 import { resolveDamage, type HitSpec } from '../systems/Damage';
 import type { CombatHost } from '../systems/CombatHost';
 import { StageDirector } from '../systems/StageDirector';
-import { buildRunStats, computeRunGold, type GoldBreakdown, type RunOutcome } from '../data/progression';
+import { computeRunGold, type GoldBreakdown, type RunOutcome } from '../data/progression';
 import { DRAGONS, type DragonDef, type DragonId } from '../data/dragons';
 import { setBasicCard } from '../data/upgrades';
-import { Progress } from '../systems/Progress';
+import { eventActive, eventState, Progress, spinsAvailable, type Reward } from '../systems/Progress';
+import { WINTER_2026 } from '../data/events';
+import { gameNow } from '../ui/widgets';
+import { loadout } from '../systems/Loadout';
+import { Signature } from '../systems/Signature';
+import { SPECIAL_VALUES, type SpecialId } from '../data/specials';
+import { DIFFICULTY_LABEL, DIFFICULTY_MULT, type Difficulty } from '../data/economy';
 import { ITEM_RULES, ITEMS, rollNormalDrop, type ItemId } from '../data/items';
 
 const WORLD_SIZE = 2800; // 투기장을 담는 정사각형 세계
@@ -71,7 +77,18 @@ export class GameScene extends Phaser.Scene {
   /** 이번 판에 출격한 드래곤(전투 중에는 바뀌지 않음) */
   dragon: DragonDef = DRAGONS.red;
   private traitMult = 1;
-  private ticketRewards: { text: string; tickets: number }[] = [];
+  private runRewards: Reward[] = [];
+  private difficulty: Difficulty = 'easy';
+  /** 드래곤 전용 액티브(v1.2 3장) */
+  private signature!: Signature;
+  private sigBtn!: Phaser.GameObjects.Arc;
+  private sigIcon!: Phaser.GameObjects.Text;
+  private sigText!: Phaser.GameObjects.Text;
+  /** 장착형 특수 스킬(v1.2 9장) — 시간형 효과 상태 */
+  private special: SpecialId | null = null;
+  private specialTimer = 0;
+  private specialActive = 0;
+  private specialText!: Phaser.GameObjects.Text;
   private pauseLayer: Phaser.GameObjects.GameObject[] = [];
   private mode: Mode = 'play';
   private facing = new Phaser.Math.Vector2(0, -1);
@@ -110,8 +127,9 @@ export class GameScene extends Phaser.Scene {
     super('game');
   }
 
-  init(data: { stageId?: number; seed?: number; dragonId?: DragonId }): void {
+  init(data: { stageId?: number; seed?: number; dragonId?: DragonId; difficulty?: Difficulty }): void {
     this.forcedDragon = data?.dragonId;
+    this.difficulty = data?.difficulty ?? Progress.load().selectedDifficulty;
     this.stage = STAGES.find((s) => s.id === (data?.stageId ?? 1)) ?? STAGES[0];
     // 시드: 주소에 ?seed=123 이 있으면 그 값, 아니면 무작위. 같은 시드면 적 생성·위치가 똑같이 재현된다.
     const urlSeed = Number(new URLSearchParams(location.search).get('seed'));
@@ -123,15 +141,19 @@ export class GameScene extends Phaser.Scene {
     this.rng = new Phaser.Math.RandomDataGenerator([String(this.seed)]);
     // 출격 드래곤 확인 → 연구소·드래곤 레벨·승급을 판 시작 때 한 번만 적용해 고정(전투 중에는 바뀌지 않음)
     const prog = Progress.load();
-    const did = this.forcedDragon && prog.ownedDragons[this.forcedDragon] ? this.forcedDragon : prog.selectedDragonId;
+    const did = this.forcedDragon && prog.dragons[this.forcedDragon]?.unlocked ? this.forcedDragon : prog.selectedDragonId;
     this.dragon = DRAGONS[did] ?? DRAGONS.red;
-    const owned = prog.ownedDragons[this.dragon.id] ?? { level: 1, stars: 1 };
-    const built = buildRunStats(this.dragon, prog.upgrades, owned);
+    // 드래곤(종·영구 레벨·승급) + 연구소 + 장비 + 장착형 특수 스킬. 장비·특수 스킬이 없으면 5·6단계와 같은 값.
+    const built = loadout(prog, this.dragon.id);
     this.stats = built.stats;
     this.permHpBonus = built.permHpBonus;
     this.traitMult = built.traitMult;
     this.basicTraits = built.traits;
-    this.ticketRewards = [];
+    this.special = built.special;
+    this.specialTimer = 0;
+    this.specialActive = 0;
+    Enemy.slowBoost = this.special === 'iceHeart' ? 1 + SPECIAL_VALUES.iceHeart.slow : 1;
+    this.runRewards = [];
     setBasicCard(this.dragon.basic);
     this.hp = this.stats.maxHp;
     this.level = 1;
@@ -217,8 +239,10 @@ export class GameScene extends Phaser.Scene {
         this.popText(this.player.x, this.player.y - 50, `+${amount.toFixed(1)}`, '#fff3c4');
       },
     };
-    this.basic = new BasicAttack(host, this.dragon.basic, this.basicTraits);
+    this.basic = new BasicAttack(host, this.dragon.basic, this.basicTraits, built.perm);
     this.skills = new Skills(host);
+    if (this.special === 'resonance') this.skills.echo = SPECIAL_VALUES.resonance.chance;
+    this.signature = new Signature(host, this.dragon.id, built.signatureCdMult, () => this.basic.singleTargetDps(), (pct) => host.heal?.(pct));
 
     this.createHud();
     this.createJoystick();
@@ -237,8 +261,9 @@ export class GameScene extends Phaser.Scene {
         fail: (reason) => this.fail(reason),
       },
       this.stage,
+      DIFFICULTY_MULT[this.difficulty],
     );
-    this.banner(`${this.stage.id}단계 — ${this.stage.name}`, '#e0e0e0');
+    this.banner(`${this.stage.id}단계 — ${this.stage.name}${this.difficulty === 'easy' ? '' : ` (${DIFFICULTY_LABEL[this.difficulty]})`}`, '#e0e0e0');
   }
 
   /** 원형 투기장: 안쪽은 잿빛 돌바닥, 가장자리는 돌벽, 바깥은 어둠 */
@@ -281,6 +306,56 @@ export class GameScene extends Phaser.Scene {
     const pause = this.add.circle(670, 140, 32, 0x000000, 0.55).setStrokeStyle(3, 0xffffff, 0.7).setScrollFactor(0).setDepth(UI_DEPTH + 2);
     this.add.text(670, 140, 'II', { ...style, fontSize: '28px', fontStyle: 'bold' }).setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 3);
     pause.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.openPause());
+    // 드래곤 전용 액티브 버튼(화면 위쪽, 일반 액티브 6슬롯과 별개). PC는 스페이스·Q.
+    const sx = 560;
+    const sy = 140;
+    this.sigBtn = this.add.circle(sx, sy, 40, 0x000000, 0.6).setStrokeStyle(4, this.signature.def.color, 1).setScrollFactor(0).setDepth(UI_DEPTH + 2);
+    this.sigIcon = this.add.text(sx, sy - 4, this.signature.def.icon, { fontFamily: 'sans-serif', fontSize: '34px' }).setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 3);
+    this.sigText = this.add.text(sx, sy + 52, '', { ...style, fontSize: '18px', strokeThickness: 4 }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(UI_DEPTH + 3);
+    this.sigBtn.setInteractive({ useHandCursor: true }).on('pointerdown', (_p: Phaser.Input.Pointer, _x: number, _y: number, ev: Phaser.Types.Input.EventData) => {
+      ev.stopPropagation();
+      this.castSignature();
+    });
+    this.input.keyboard?.on('keydown-SPACE', () => this.castSignature());
+    this.input.keyboard?.on('keydown-Q', () => this.castSignature());
+    this.specialText = this.add.text(30, 128, '', { ...style, fontSize: '20px', color: '#e1bee7', strokeThickness: 4 }).setScrollFactor(0).setDepth(UI_DEPTH);
+  }
+
+  private castSignature(): void {
+    if (this.mode !== 'play') return;
+    if (this.signature.cast()) {
+      this.stageLog.push({ name: 'signature:cast', at: Math.round(this.elapsed) });
+      this.popText(this.player.x, this.player.y - 70, this.signature.def.name, '#ffffff');
+    }
+  }
+
+  /** 장착형 특수 스킬 중 시간형(용의 분노·고대의 보호막·마력 폭발) */
+  private updateSpecial(delta: number): void {
+    const sp = this.special;
+    if (sp !== 'rage' && sp !== 'aegis' && sp !== 'burst') return;
+    const V = SPECIAL_VALUES[sp];
+    this.specialTimer += delta;
+    if (this.specialActive > 0) this.specialActive -= delta;
+    if (this.specialTimer < V.every) return;
+    this.specialTimer -= V.every;
+    if (sp === 'burst') {
+      const r = SPECIAL_VALUES.burst.radius * M * this.stats.areaMult;
+      for (const e of this.enemies.getChildren() as Enemy[]) {
+        if (e.active && Phaser.Math.Distance.Between(this.player.x, this.player.y, e.x, e.y) < r + e.def.radius) this.hitEnemy(e, { source: 'active', coef: SPECIAL_VALUES.burst.coef, tag: 'special' });
+      }
+      const c = this.add.circle(this.player.x, this.player.y, r, 0xb693ff, 0.35).setDepth(8);
+      this.tweens.add({ targets: c, alpha: 0, scale: 1.15, duration: 300, onComplete: () => c.destroy() });
+    } else {
+      this.specialActive = (V as { ms: number }).ms;
+    }
+  }
+
+  /** 전투 중 공격력 배율: 용의 분노(시간형) · 암흑의 계약(HP 50% 이하) */
+  private attackMult(): number {
+    let m = 1;
+    if (this.special === 'rage' && this.specialActive > 0) m += SPECIAL_VALUES.rage.attack;
+    if (this.special === 'darkPact' && this.hp <= this.stats.maxHp * SPECIAL_VALUES.darkPact.hpBelow) m += SPECIAL_VALUES.darkPact.attack;
+    return m;
   }
 
   private drawHud(): void {
@@ -357,6 +432,17 @@ export class GameScene extends Phaser.Scene {
         .map((u) => `${u.icon}${this.upgradeLevels.get(u.id)}`)
         .join(' ');
     this.skillText.setText(`${icons(['basic', 'active'])}\n${icons(['passive'])}`);
+    // 전용 액티브 버튼: 준비되면 밝게, 쿨타임 중엔 남은 초와 테두리 진행
+    const sg = this.signature;
+    const ready = sg.ready;
+    this.sigBtn.setFillStyle(ready ? sg.def.color : 0x000000, ready ? 0.85 : 0.6);
+    this.sigIcon.setAlpha(ready ? 1 : 0.45);
+    this.sigText.setText(ready ? sg.def.name : `${Math.ceil(sg.cooldownLeft / 1000)}초`);
+    if (!ready) g.lineStyle(6, sg.def.color, 1).beginPath().arc(560, 140, 44, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * sg.charge).strokePath();
+    const sp = this.special;
+    this.specialText.setText(
+      sp === 'rage' && this.specialActive > 0 ? '⚔ 용의 분노' : sp === 'aegis' && this.specialActive > 0 ? '⬟ 보호막' : sg.reduce > 0 ? `🛡 ${sg.def.name}` : '',
+    );
   }
 
   private banner(text: string, color: string): void {
@@ -432,8 +518,10 @@ export class GameScene extends Phaser.Scene {
       return false;
     });
     this.updateEnemies(delta);
+    this.signature.update(delta);
     this.basic.update(delta);
     this.skills.update(delta);
+    this.updateSpecial(delta);
     this.pullGems(false);
     this.updateItems();
     this.drawHud();
@@ -447,7 +535,8 @@ export class GameScene extends Phaser.Scene {
     );
     if (dir.lengthSq() > 0) dir.normalize();
     else dir.copy(this.stickVec);
-    this.player.setVelocity(dir.x * this.stats.speed, dir.y * this.stats.speed);
+    const speed = this.stats.speed * (1 + (this.signature?.moveBoost ?? 0));
+    this.player.setVelocity(dir.x * speed, dir.y * speed);
     if (dir.lengthSq() > 0.01) {
       this.player.setRotation(dir.angle() + Math.PI / 2);
       this.facing.copy(dir).normalize();
@@ -561,7 +650,8 @@ export class GameScene extends Phaser.Scene {
   /** 모든 공격(기본공격·스킬·화상)이 적에게 피해를 줄 때 거치는 한 곳 */
   private hitEnemy(enemy: Enemy, spec: HitSpec): boolean {
     if (!enemy.active || this.mode !== 'play') return false;
-    const { amount, crit } = resolveDamage(this.stats, { ...spec, bonus: this.damageBonus(enemy, spec) });
+    // 전용 액티브 고정 피해(flat)는 DPS에 이미 공격력·보너스가 들어 있어 특성·감전·분노를 다시 곱하지 않는다(v1.3)
+    const { amount, crit } = resolveDamage(this.stats, { ...spec, bonus: spec.flat != null ? 1 : this.damageBonus(enemy, spec) });
     const tag = spec.tag ?? spec.source;
     this.dmgLog[tag] = (this.dmgLog[tag] ?? 0) + amount;
     if (crit) this.popText(enemy.x, enemy.y - 20, `${Math.round(amount)}!`, '#ffd34d');
@@ -581,11 +671,13 @@ export class GameScene extends Phaser.Scene {
     const v = t.value * this.traitMult;
     let add = 0;
     if (spec.source !== 'dot') {
-      if (t.id === 'burnBonus' && e.burnCount > 0) add += v; // 레드: 화상 상태 적 +10%
+      if (t.id === 'burnBonus' && e.burnCount > 0) add += v; // 레드: 5성부터 화상 상태 적 +20%(1~4성은 traitMult 0)
       if (t.id === 'slowBonus' && e.slowed) add += v; // 블루: 둔화된 적 +20%
-      if (t.id === 'execute' && spec.source === 'basic' && e.hp <= e.maxHp * 0.3) add += v; // 블랙: HP 30% 이하 +20%(기본 공격)
+      if (spec.source === 'basic' && e.hp <= e.maxHp * 0.3) add += this.basicTraits.executeBonus; // 블랙: HP 30% 이하(특성 + 영구 성장)
     }
-    return (1 + add) * e.vulnMult;
+    let m = (1 + add) * e.vulnMult * this.attackMult();
+    if (spec.tag === 'burn' && this.special === 'flameSeal') m *= 1 + SPECIAL_VALUES.flameSeal.burn; // 화염의 인장
+    return m;
   }
 
   private popText(x: number, y: number, text: string, color: string): void {
@@ -596,6 +688,10 @@ export class GameScene extends Phaser.Scene {
   private killEnemy(enemy: Enemy, tag = ''): void {
     this.kills++;
     this.basic.onKill(enemy, tag.startsWith('basic'));
+    if (this.special === 'holyLight' && Math.random() < SPECIAL_VALUES.holyLight.chance) {
+      const amount = Math.min(this.stats.maxHp - this.hp, this.stats.maxHp * SPECIAL_VALUES.holyLight.heal);
+      if (amount > 0) this.hp += amount;
+    }
     if (enemy.rank === 'normal') this.normalKills++;
     const d = this.director;
     if (enemy === d.boss) {
@@ -833,7 +929,9 @@ export class GameScene extends Phaser.Scene {
     }
     // 상한 기준 = 연구소 강화 전 최대 HP(기본 + 전투 중 패시브). 연구소 Lv.0이면 4단계와 똑같다.
     const cap = src ? HIT_CAP[src.rank] * (this.stats.maxHp - this.permHpBonus) : Infinity;
-    const dmg = Math.min(amount * this.stats.damageTaken, cap);
+    // 받는 피해 감소: 드래곤 특성·장비(damageTaken) × 전용 액티브(신성한 가호·대지의 수호) × 고대의 보호막
+    const aegis = this.special === 'aegis' && this.specialActive > 0 ? 1 - SPECIAL_VALUES.aegis.reduce : 1;
+    const dmg = Math.min(amount * this.stats.damageTaken * (1 - this.signature.reduce) * aegis, cap);
     this.hp -= dmg;
     this.invincibleUntil = this.time.now + 500;
     this.cameras.main.shake(120, 0.006);
@@ -985,7 +1083,7 @@ export class GameScene extends Phaser.Scene {
     this.physics.pause();
     const d = this.director;
     const outcome: RunOutcome = clear ? 'clear' : (reason ?? 'dead');
-    const gold = computeRunGold(this.runSummary(outcome));
+    const gold = computeRunGold(this.runSummary(outcome), this.special === 'treasure' ? SPECIAL_VALUES.treasure.gold : 0);
     // 정산은 판마다 한 번만(같은 runId는 저장소에서도 다시 지급하지 않음)
     let paid = false;
     if (!this.settled) {
@@ -993,18 +1091,31 @@ export class GameScene extends Phaser.Scene {
       const next = clear ? this.stage.id + 1 : undefined;
       const r = Progress.settle(this.runId, gold.total, next, {
         stageId: this.stage.id, cleared: clear, elapsedMs: this.elapsed, normalKills: this.normalKills, eliteKills: this.eliteKills,
-      });
+        difficulty: this.difficulty, dragonId: this.dragon.id, outcome,
+      }, gameNow());
       paid = r.paid;
-      this.ticketRewards = r.rewards;
+      this.runRewards = r.rewards;
+      // 겨울 축제 기간이면 룰렛 진행(정상 종료 + 60초 이상만 1판)
+      if (eventActive(gameNow())) {
+        const st = eventState(r.progress);
+        const counted = outcome !== 'quit' && this.elapsed >= WINTER_2026.minBattleMs;
+        const left = WINTER_2026.battlesPerSpin - (st.battles % WINTER_2026.battlesPerSpin);
+        this.runRewards.push({
+          id: 'event', text: counted ? `겨울 축제 룰렛 — 남은 기회 ${spinsAvailable(st)}회, 다음까지 ${left}판` : '겨울 축제: 포기·60초 미만 전투는 룰렛에 들어가지 않음',
+          gold: 0,
+        });
+      }
     }
     if (clear) this.stageLog.push({ name: 'stage:clear', at: Math.round(this.elapsed), data: { gold: gold.total } });
     this.stageLog.push({ name: 'run:settled', at: Math.round(this.elapsed), data: { ...gold, paid } });
     const bank = Progress.load().gold;
 
-    if (this.ticketRewards.length) {
-      // 소환권 보상 내역은 결과 화면 위에 잠깐 띄운다(첫 클리어·업적)
+    const rewardText = (r: Reward) =>
+      r.id === 'event' ? `❄ ${r.text}` : r.cards ? `🃏 ${r.text} +${r.cards.count}장` : r.rubies ? `💎 ${r.text} — 루비 +${r.rubies}` : `🪙 ${r.text} +${r.gold}G`;
+    if (this.runRewards.length) {
+      // 카드·업적 보상 내역은 결과 화면 위에 잠깐 띄운다
       const t = this.add
-        .text(360, 560, this.ticketRewards.map((r) => `🎟 ${r.text} — 소환권 +${r.tickets}`).join('\n'), {
+        .text(360, 560, this.runRewards.map(rewardText).join('\n'), {
           fontFamily: 'sans-serif', fontSize: '28px', fontStyle: 'bold', color: '#e1bee7', align: 'center', stroke: '#000', strokeThickness: 6, lineSpacing: 8,
         })
         .setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 120);
@@ -1037,7 +1148,9 @@ export class GameScene extends Phaser.Scene {
       `피해 비중: ${top || '—'}`,
       `시드 ${this.seed}`,
     ];
-    const tickets = this.ticketRewards.reduce((a, r) => a + r.tickets, 0);
+    const cards = this.runRewards.reduce((a, r) => a + (r.cards?.count ?? 0), 0);
+    const rubies = this.runRewards.reduce((a, r) => a + (r.rubies ?? 0), 0);
+    const extra = `${cards ? `  ·  🃏 +${cards}장` : ''}${rubies ? `  ·  💎 +${rubies}` : ''}`;
 
     const add = (o: Phaser.GameObjects.GameObject & { setScrollFactor: (n: number) => unknown; setDepth: (n: number) => unknown }) => {
       o.setScrollFactor(0);
@@ -1065,7 +1178,7 @@ export class GameScene extends Phaser.Scene {
     add(this.add.text(650, 695, goldValues(gold).join('\n'), { fontFamily: 'sans-serif', fontSize: '22px', color: '#dfe6f5', lineSpacing: 4, align: 'right' }).setOrigin(1, 0));
     add(
       this.add
-        .text(360, 993, `${paid ? '+' : ''}${gold.total}G 획득${tickets ? `  ·  🎟 +${tickets}장` : ''}  ·  보유 ${bank.toLocaleString()}G`, { fontFamily: 'sans-serif', fontSize: '28px', fontStyle: 'bold', color: '#ffd34d' })
+        .text(360, 993, `${paid ? '+' : ''}${gold.total}G 획득${extra}  ·  보유 ${bank.toLocaleString()}G`, { fontFamily: 'sans-serif', fontSize: '26px', fontStyle: 'bold', color: '#ffd34d' })
         .setOrigin(0.5),
     );
 
@@ -1079,7 +1192,7 @@ export class GameScene extends Phaser.Scene {
     const toLab = () => this.scene.start('lab', { from: 'result' });
     const toLobby = () => this.scene.start('lobby');
     if (clear) {
-      button(360, 1065, 600, next ? `다음 단계 — ${next.name}` : `${this.stage.id + 1}단계 해금 (준비 중)`, !!next, () => this.scene.restart({ stageId: next!.id }));
+      button(360, 1065, 600, next ? `다음 단계 — ${next.name}` : `${this.stage.id + 1}단계 해금 (준비 중)`, !!next, () => this.scene.restart({ stageId: next!.id, difficulty: this.difficulty }));
       button(160, 1180, 190, '재도전 (R)', true, () => this.retry());
       button(360, 1180, 190, '성장 연구소', true, toLab, 0x7a5a12);
       button(560, 1180, 190, '로비', true, toLobby, 0x3a4458);
@@ -1091,7 +1204,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private retry(): void {
-    this.scene.restart({ stageId: this.stage.id });
+    this.scene.restart({ stageId: this.stage.id, difficulty: this.difficulty });
   }
 }
 

@@ -1,15 +1,21 @@
 import Phaser from 'phaser';
 import { makeTextures } from '../textures';
 import { STAGES } from '../data/stages';
-import { buildRunStats } from '../data/progression';
 import { DRAGONS, ELEMENT_LABEL, RARITY_COLOR, RARITY_LABEL } from '../data/dragons';
-import { Progress } from '../systems/Progress';
-import { devMode, FONT, makeButton } from '../ui/widgets';
+import { DIFFICULTIES, DIFFICULTY_LABEL, STAGE_COUNT, type Difficulty } from '../data/economy';
+import { cpVerdict, recommendedCp } from '../data/power';
+import { SIGNATURES } from '../data/signature';
+import { attendedToday, eventActive, eventState, progressPct, Progress, spinsAvailable } from '../systems/Progress';
+import { loadout } from '../systems/Loadout';
+import { devMode, FONT, gameNow, makeButton, type Button } from '../ui/widgets';
 import { platform } from '../platform';
 
-// 메인 로비: 드래곤 선택 · 스테이지 선택 · 성장 연구소 · 전투 시작 (5단계 기획서 5장)
+/**
+ * 메인 로비(6단계 v1.2): 출격 드래곤·전투력 · 난이도(쉬움/어려움/매우 어려움) · 1~20단계(지금은 1단계만, 나머지 준비 중)
+ * · 권장 전투력 비교(입장 제한 아님) · 드래곤·상점·장비·연구소·보상.
+ */
 export class LobbyScene extends Phaser.Scene {
-  private stageIndex = 0;
+  private stageId = 1;
 
   constructor() {
     super('lobby');
@@ -50,59 +56,118 @@ export class LobbyScene extends Phaser.Scene {
     this.exitLayer = [];
     if (!this.textures.exists('dragon-red')) makeTextures(this);
     const p = Progress.load();
-    const playable = STAGES.filter((s) => p.unlockedStages.includes(s.id));
-    this.stageIndex = Math.min(this.stageIndex, playable.length - 1);
+    const dev = devMode();
+    const curDiff: Difficulty = this.devDiff ?? p.selectedDifficulty;
+    const dp = p.difficulty[curDiff];
+    if (!dp.unlocked.includes(this.stageId)) this.stageId = Math.max(1, ...dp.unlocked.filter((s) => STAGES.some((st) => st.id === s)));
 
     this.add.rectangle(360, 640, 720, 1280, 0x14181f);
-    this.add.text(360, 150, '드래곤 특공대', { fontFamily: FONT, fontSize: '68px', fontStyle: 'bold', color: '#ffd34d', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5);
-    this.add.text(360, 220, 'DRAGON FORCE', { fontFamily: FONT, fontSize: '26px', color: '#c9d3ee' }).setOrigin(0.5);
-    this.add.text(690, 24, `🪙 ${p.gold.toLocaleString()}G`, { fontFamily: FONT, fontSize: '28px', color: '#ffd34d' }).setOrigin(1, 0);
-    this.add.text(30, 24, `🎟 ${p.summonTickets}장`, { fontFamily: FONT, fontSize: '28px', color: '#e1bee7' });
+    this.add.text(30, 22, `💎 ${p.rubies.toLocaleString()}`, { fontFamily: FONT, fontSize: '26px', color: '#e1bee7' });
+    this.add.text(690, 22, `🪙 ${p.gold.toLocaleString()}G`, { fontFamily: FONT, fontSize: '26px', color: '#ffd34d' }).setOrigin(1, 0);
+    this.add.text(360, 110, '드래곤 특공대', { fontFamily: FONT, fontSize: '56px', fontStyle: 'bold', color: '#ffd34d', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5);
+    this.add.text(360, 166, 'DRAGON FORCE', { fontFamily: FONT, fontSize: '22px', color: '#c9d3ee' }).setOrigin(0.5);
 
     // 출격 드래곤(선택은 '드래곤' 화면에서)
     const d = DRAGONS[p.selectedDragonId];
-    const o = p.ownedDragons[d.id]!;
-    const st = buildRunStats(d, p.upgrades, o).stats;
+    const o = p.dragons[d.id];
+    const lo = loadout(p, d.id);
     const rc = RARITY_COLOR[d.rarity];
-    this.add.rectangle(360, 450, 640, 300, 0x1f2633).setStrokeStyle(3, rc, 0.9);
-    const dragon = this.add.image(180, 450, `portrait-${d.id}`).setScale(1.1);
-    this.tweens.add({ targets: dragon, y: 435, duration: 1100, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
-    this.add.text(310, 330, d.name, { fontFamily: FONT, fontSize: '38px', fontStyle: 'bold', color: '#ffffff' });
-    this.add.text(310, 382, `${ELEMENT_LABEL[d.element]} · ${RARITY_LABEL[d.rarity]} · ${d.basic.name}`, { fontFamily: FONT, fontSize: '22px', color: `#${rc.toString(16).padStart(6, '0')}` });
-    this.add.text(310, 420, `${'★'.repeat(o.stars)}${'☆'.repeat(5 - o.stars)}  영구 Lv.${o.level}`, { fontFamily: FONT, fontSize: '24px', color: '#ffd34d' });
-    this.add.text(310, 460, `공격력 ${st.attack.toFixed(1)} · HP ${Math.round(st.maxHp)}\n속도 ${Math.round(st.speed)} · 보석 반경 ${Math.round(st.magnet)}\n${d.trait.text}`, {
-      fontFamily: FONT, fontSize: '20px', color: '#c9d3ee', lineSpacing: 4, wordWrap: { width: 370 },
+    this.add.rectangle(360, 330, 660, 250, 0x1f2633).setStrokeStyle(3, rc, 0.9);
+    const dragon = this.add.image(150, 330, `portrait-${d.id}`).setScale(0.95);
+    this.tweens.add({ targets: dragon, y: 318, duration: 1100, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+    this.add.text(270, 220, d.name, { fontFamily: FONT, fontSize: '34px', fontStyle: 'bold', color: '#ffffff' });
+    this.add.text(270, 264, `${ELEMENT_LABEL[d.element]} · ${RARITY_LABEL[d.rarity]} · ${'★'.repeat(o.stars)}${'☆'.repeat(5 - o.stars)} · 영구 Lv.${o.level}`, {
+      fontFamily: FONT, fontSize: '20px', color: `#${rc.toString(16).padStart(6, '0')}`,
     });
-    this.add.text(360, 625, `보유 드래곤 ${Object.keys(p.ownedDragons).length} / 10`, { fontFamily: FONT, fontSize: '20px', color: '#6f7a8c' }).setOrigin(0.5);
+    this.add.text(270, 298, `전투력 ${lo.cp.toLocaleString()}`, { fontFamily: FONT, fontSize: '30px', fontStyle: 'bold', color: '#ffd34d' });
+    this.add.text(270, 342, `공격력 ${lo.stats.attack.toFixed(1)} · HP ${Math.round(lo.stats.maxHp)} · 속도 ${Math.round(lo.stats.speed)}\n전용 액티브 ${SIGNATURES[d.id].icon} ${SIGNATURES[d.id].name}`, {
+      fontFamily: FONT, fontSize: '19px', color: '#c9d3ee', lineSpacing: 4,
+    });
 
-    // 스테이지 선택(해금된 단계만)
-    const stageText = this.add.text(360, 760, '', { fontFamily: FONT, fontSize: '36px', color: '#ffffff' }).setOrigin(0.5);
+    // 난이도
+    DIFFICULTIES.forEach((k: Difficulty, i) => {
+      const real = p.difficulty[k].unlocked.length > 0;
+      const open = real || dev;
+      const color = k === curDiff ? 0xb35a00 : 0x2a3140;
+      const b = makeButton(this, 140 + i * 220, 505, 205, 66, `${DIFFICULTY_LABEL[k]}${real ? '' : ' 🔒'}`, color, () => {
+        if (real) {
+          this.devDiff = null;
+          Progress.selectDifficulty(k);
+        } else if (dev) {
+          this.devDiff = k; // 개발용(?dev=1): 잠긴 난이도 1단계 시험 플레이(선택은 저장하지 않음)
+        } else return;
+        this.scene.restart();
+      }, 24);
+      b.setEnabled(open, color);
+    });
+    const progressLine = DIFFICULTIES.map((k) => `${DIFFICULTY_LABEL[k]} ${p.difficulty[k].cleared.length}/${STAGE_COUNT}(${progressPct(p, k)}%)`).join(' · ');
+    this.add.text(360, 555, `왕국 정복 진행도 ${progressLine}`, { fontFamily: FONT, fontSize: '17px', color: '#8a93a6' }).setOrigin(0.5);
+
+    // 단계 선택(1~20, 진행도 분모 20 고정). 만들어진 단계만 플레이 가능 — 나머지는 "준비 중"
+    const stageText = this.add.text(360, 625, '', { fontFamily: FONT, fontSize: '32px', color: '#ffffff' }).setOrigin(0.5);
+    const sub = this.add.text(360, 672, '', { fontFamily: FONT, fontSize: '20px', color: '#9aa6bd', align: 'center' }).setOrigin(0.5);
+    const cpLine = this.add.text(360, 716, '', { fontFamily: FONT, fontSize: '22px', color: '#ffffff' }).setOrigin(0.5);
+    const unlocked = this.devDiff ? [1] : dp.unlocked;
+    let start: Button;
     const show = () => {
-      const s = playable[this.stageIndex];
-      stageText.setText(`${s.id}단계 — ${s.name}`);
-      prev.setEnabled(this.stageIndex > 0);
-      next.setEnabled(this.stageIndex < playable.length - 1);
+      const s = STAGES.find((st) => st.id === this.stageId);
+      const isOpen = unlocked.includes(this.stageId);
+      const cleared = p.difficulty[curDiff].cleared.includes(this.stageId);
+      stageText.setText(`${this.stageId}단계 — ${s ? s.name : '준비 중'}`);
+      sub.setText(!s ? '아직 만들지 않은 단계입니다(준비 중)' : !isOpen ? `${this.stageId - 1}단계를 클리어하면 열립니다` : cleared ? `클리어함 · 반복 클리어 시 카드 1장` : '첫 클리어 시 출격 드래곤 카드 2장');
+      const rec = recommendedCp(this.stageId, curDiff);
+      const v = cpVerdict(lo.cp, rec);
+      cpLine.setText(`권장 전투력 ${rec.toLocaleString()} · 현재 ${lo.cp.toLocaleString()} — ${v.text}`).setColor(v.color);
+      prev.setEnabled(this.stageId > 1);
+      next.setEnabled(this.stageId < STAGE_COUNT);
+      start.setEnabled(!!s && isOpen);
+      start.setText(!s ? '준비 중' : !isOpen ? '잠김' : `전투 시작 (${DIFFICULTY_LABEL[curDiff]})`);
     };
-    const prev = makeButton(this, 90, 760, 90, 90, '◀', 0x3a4458, () => (this.stageIndex--, show()));
-    const next = makeButton(this, 630, 760, 90, 90, '▶', 0x3a4458, () => (this.stageIndex++, show()));
-    this.add.text(360, 815, `해금 ${Math.max(...p.unlockedStages)}단계까지 · 지금 플레이 가능: ${STAGES.length}개`, { fontFamily: FONT, fontSize: '20px', color: '#6f7a8c' }).setOrigin(0.5);
+    const prev = makeButton(this, 70, 625, 90, 80, '◀', 0x3a4458, () => (this.stageId--, show()));
+    const next = makeButton(this, 650, 625, 90, 80, '▶', 0x3a4458, () => (this.stageId++, show()));
+    const go = () => {
+      const s = STAGES.find((st) => st.id === this.stageId);
+      if (s && unlocked.includes(this.stageId)) this.scene.start('game', { stageId: this.stageId, difficulty: curDiff });
+    };
+    start = makeButton(this, 360, 820, 560, 104, '전투 시작', 0xc0392b, go, 40);
     show();
 
-    makeButton(this, 360, 935, 560, 110, '전투 시작', 0xc0392b, () => this.scene.start('game', { stageId: playable[this.stageIndex].id }), 44);
-    makeButton(this, 160, 1070, 200, 100, '드래곤', 0x2e5d8a, () => this.scene.start('dragons'), 30);
-    makeButton(this, 360, 1070, 180, 100, '소환', 0x6a3fb5, () => this.scene.start('summon'), 30);
-    makeButton(this, 560, 1070, 200, 100, '연구소', 0x7a5a12, () => this.scene.start('lab', { from: 'lobby' }), 30);
-    this.add.text(360, 1190, 'PC: WASD·방향키 이동, ESC 일시정지 · 휴대폰: 화면을 끌어 이동', { fontFamily: FONT, fontSize: '20px', color: '#6f7a8c' }).setOrigin(0.5);
+    // 메뉴
+    makeButton(this, 135, 960, 210, 96, '드래곤', 0x2e5d8a, () => this.scene.start('dragons'), 28);
+    makeButton(this, 360, 960, 210, 96, '상점', 0x6a3fb5, () => this.scene.start('shop'), 28);
+    makeButton(this, 585, 960, 210, 96, '장비', 0x2e7d6a, () => this.scene.start('equip'), 28);
+    makeButton(this, 135, 1075, 210, 96, '연구소', 0x7a5a12, () => this.scene.start('lab', { from: 'lobby' }), 28);
+    makeButton(this, 360, 1075, 210, 96, '보상', 0x9a6b12, () => this.scene.start('missions'), 28);
+    if (this.hasClaimable()) this.add.circle(455, 1032, 12, 0xff5252).setStrokeStyle(2, 0xffffff);
+    // 2026 크리스마스 이벤트(드래곤의 겨울 축제): 기간 중엔 강조, 받을 것이 있으면 빨간 점
+    const now = gameNow();
+    const live = eventActive(now);
+    makeButton(this, 585, 1075, 210, 96, live ? '❄ 겨울 축제' : '겨울 축제\n12/1 시작', live ? 0x1565c0 : 0x2a3140, () => this.scene.start('event'), live ? 26 : 20);
+    if (live) {
+      const st = eventState(p);
+      if (spinsAvailable(st) > 0 || !attendedToday(p, now)) this.add.circle(680, 1032, 12, 0xff5252).setStrokeStyle(2, 0xffffff);
+    }
+    this.add.text(360, 1160, 'PC: WASD·방향키 이동, 스페이스·Q 전용 액티브, ESC 일시정지\n휴대폰: 화면을 끌어 이동, 위쪽 둥근 버튼으로 전용 액티브', {
+      fontFamily: FONT, fontSize: '18px', color: '#6f7a8c', align: 'center', lineSpacing: 4,
+    }).setOrigin(0.5);
 
-    this.input.keyboard?.on('keydown-ENTER', () => this.scene.start('game', { stageId: playable[this.stageIndex].id }));
-
-    if (devMode()) this.devReset();
+    this.input.keyboard?.on('keydown-ENTER', go);
+    if (dev) this.devTools();
   }
 
-  /** 개발·심사용 진행 초기화: 두 번 확인한다 */
-  private devReset(): void {
+  /** 개발용(?dev=1)으로 잠긴 난이도를 고른 경우(저장하지 않는 시험 플레이) */
+  private devDiff: Difficulty | null = null;
+
+  /** 받을 보상이 있으면 보상 버튼에 빨간 점 */
+  private hasClaimable(): boolean {
+    const p = Progress.load();
+    return DIFFICULTIES.some((k) => [25, 50, 100].some((s) => progressPct(p, k) >= s && !p.difficulty[k].claimed.includes(s)));
+  }
+
+  /** 개발·심사용: 진행 초기화(두 번 확인) */
+  private devTools(): void {
     let armed = false;
-    const t = this.add.text(360, 1245, '[개발용] 진행 초기화', { fontFamily: FONT, fontSize: '20px', color: '#8a5555' }).setOrigin(0.5);
+    const t = this.add.text(360, 1245, '[개발용] 진행 초기화', { fontFamily: FONT, fontSize: '19px', color: '#8a5555' }).setOrigin(0.5);
     t.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
       if (!armed) {
         armed = true;
@@ -114,6 +179,7 @@ export class LobbyScene extends Phaser.Scene {
         return;
       }
       Progress.reset();
+      this.devDiff = null;
       this.scene.restart();
     });
   }

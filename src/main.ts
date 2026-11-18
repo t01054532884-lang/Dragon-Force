@@ -3,7 +3,10 @@ import { GameScene } from './scenes/GameScene';
 import { LobbyScene } from './scenes/LobbyScene';
 import { LabScene } from './scenes/LabScene';
 import { DragonsScene } from './scenes/DragonsScene';
-import { SummonScene } from './scenes/SummonScene';
+import { ShopScene } from './scenes/ShopScene';
+import { EquipScene } from './scenes/EquipScene';
+import { MissionScene } from './scenes/MissionScene';
+import { EventScene } from './scenes/EventScene';
 import { initPlatform, platform } from './platform';
 import { STORAGE_KEYS } from './systems/Progress';
 
@@ -29,7 +32,7 @@ async function boot(): Promise<void> {
     backgroundColor: '#1b2a1f',
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
     physics: { default: 'arcade', arcade: { debug: false } },
-    scene: [LobbyScene, GameScene, LabScene, DragonsScene, SummonScene], // 첫 화면은 로비
+    scene: [LobbyScene, GameScene, LabScene, DragonsScene, ShopScene, EquipScene, MissionScene, EventScene], // 첫 화면은 로비
   });
 
   const active = (): (Phaser.Scene & PlatformAware) | undefined =>

@@ -31,6 +31,8 @@ export class Skills {
   private orbs: Phaser.GameObjects.Image[] = [];
   private orbAngle = 0;
   private now = 0;
+  /** 영혼의 공명: 액티브 추가 발동 확률 */
+  echo = 0;
 
   constructor(private h: CombatHost) {}
 
@@ -44,7 +46,11 @@ export class Skills {
       this.cd[id] -= delta;
       if (this.cd[id] > 0) continue;
       // 발동할 대상이 없으면 쿨다운을 다시 채우지 않고 기다린다(헛방 방지).
-      if (this[id](lv, live())) this.cd[id] = Math.max(this.cd[id], -100) + SKILL[id].interval(lv) * this.h.stats.cooldownMult;
+      if (this[id](lv, live())) {
+        this.cd[id] = Math.max(this.cd[id], -100) + SKILL[id].interval(lv) * this.h.stats.cooldownMult;
+        // 영혼의 공명(장착형 특수 스킬): 일정 확률로 0.3초 뒤 한 번 더
+        if (this.echo > 0 && Math.random() < this.echo) this.pending.push({ left: 300, run: () => this[id](lv, live()) });
+      }
     }
 
     this.pending = this.pending.filter((p) => {

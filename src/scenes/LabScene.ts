@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { getUpgradeCost, PERMANENT_UPGRADES, UPGRADE_TYPES, type UpgradeType } from '../data/progression';
 import { Progress } from '../systems/Progress';
+import { loadout } from '../systems/Loadout';
 import { STAGES } from '../data/stages';
 import { FONT, makeButton, type Button } from '../ui/widgets';
 
@@ -83,7 +84,7 @@ export class LabScene extends Phaser.Scene {
   /** 골드·레벨·효과·버튼 비용을 저장소 상태로 다시 그린다 */
   private refresh(): void {
     const p = Progress.load();
-    this.goldText.setText(`🪙 ${p.gold.toLocaleString()}G`);
+    this.goldText.setText(`🪙 ${p.gold.toLocaleString()}G  ·  전투력 ${loadout(p).cp.toLocaleString()}`).setFontSize(34);
     for (const c of this.cards) {
       const def = PERMANENT_UPGRADES[c.type];
       const lv = p.upgrades[c.type];
