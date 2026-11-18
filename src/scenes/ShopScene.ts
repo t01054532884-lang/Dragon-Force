@@ -6,6 +6,7 @@ import { equipDef, SLOT_ICON, SLOT_LABEL } from '../data/equipment';
 import { specialDef } from '../data/specials';
 import { poolOf, Progress, type BoxResult, type Reward } from '../systems/Progress';
 import { devMode, FONT, makeButton, type Button } from '../ui/widgets';
+import { ChestOpening } from '../ui/ChestOpening';
 
 const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
 
@@ -20,13 +21,15 @@ export class ShopScene extends Phaser.Scene {
   private layer: Phaser.GameObjects.GameObject[] = [];
   private busy = false;
   private tx = 0;
+  private opening: ChestOpening | null = null;
 
   constructor() {
     super('shop');
   }
 
   onPlatformBack(): boolean {
-    if (this.layer.length) this.clearLayer();
+    if (this.opening && !this.opening.finished) this.opening.skip(); // 연출 중 뒤로가기 = 건너뛰기
+    else if (this.layer.length) this.clearLayer();
     else this.scene.start('lobby');
     return true;
   }
@@ -36,6 +39,9 @@ export class ShopScene extends Phaser.Scene {
     this.layer = [];
     this.buttons = [];
     this.busy = false;
+    this.opening = null;
+    // 화면을 떠나면 연출만 정리(보상은 개봉 순간 이미 저장됨)
+    this.events.once('shutdown', () => this.opening?.destroy());
     this.add.rectangle(360, 640, 720, 1280, 0x140f22);
     this.add.text(360, 50, '상점', { fontFamily: FONT, fontSize: '44px', fontStyle: 'bold', color: '#e1bee7' }).setOrigin(0.5);
     this.info = this.add.text(360, 104, '', { fontFamily: FONT, fontSize: '25px', color: '#ffd34d' }).setOrigin(0.5);
@@ -94,14 +100,17 @@ export class ShopScene extends Phaser.Scene {
       this.cameras.main.shake(120, 0.004);
       return;
     }
+    // 보상은 위에서 확정·저장됨 → 이제 연출만(흔들림 → 뚜껑 → 빛·파티클 → 카드). 건너뛰어도 결과는 같다.
     this.busy = true;
     this.refresh();
-    this.cameras.main.flash(300, 200, 160, 255);
-    this.showResults(r.results, r.rewards);
-    this.time.delayedCall(400 + r.results.length * 90, () => {
-      this.busy = false;
-      this.refresh();
+    this.opening = new ChestOpening(this, box, r.results, () => {
+      this.showResults(r.results, r.rewards);
+      this.time.delayedCall(400 + r.results.length * 90, () => {
+        this.busy = false;
+        this.refresh();
+      });
     });
+    this.opening.play();
   }
 
   private clearLayer(): void {
