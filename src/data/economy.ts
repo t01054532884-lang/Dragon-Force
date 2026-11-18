@@ -30,6 +30,8 @@ export const CLEAR_CARDS = { first: 2, repeat: 1, maxLevelGold: 100 };
 export type Difficulty = 'easy' | 'hard' | 'extreme';
 export const DIFFICULTIES: Difficulty[] = ['easy', 'hard', 'extreme'];
 export const DIFFICULTY_LABEL: Record<Difficulty, string> = { easy: '쉬움', hard: '어려움', extreme: '매우 어려움' };
+/** 첫 출시: 쉬움만 입장(제작자 결정 2026-11-18). 어려움·매우 어려움은 데이터·진행도 저장은 유지하고 "출시 예정"으로만 표시 */
+export const DIFFICULTY_RELEASED: Record<Difficulty, boolean> = { easy: true, hard: false, extreme: false };
 export const DIFFICULTY_MULT: Record<Difficulty, { hp: number; damage: number }> = {
   easy: { hp: 1, damage: 1 },
   hard: { hp: 1.5, damage: 1.25 }, // AI 1차안
@@ -56,7 +58,7 @@ export interface BoxDef {
 }
 export const BOXES: Record<BoxId, BoxDef> = {
   dragon: { name: '드래곤·스킬 상자', desc: '정수·조각·카드·특수 스킬 조각', price1: 150, price10: 1350, color: 0x6a3fb5 },
-  equipment: { name: '장비 상자', desc: '무기·갑옷·목걸이·반지', price1: 100, price10: 900, color: 0x2e7d6a },
+  equipment: { name: '장비 상자', desc: '발톱 장식·비늘 갑주·목걸이·반지', price1: 100, price10: 900, color: 0x2e7d6a },
   gold: { name: '골드 상자', desc: '골드', price1: 50, price10: 450, color: 0x9a7a12 },
 };
 

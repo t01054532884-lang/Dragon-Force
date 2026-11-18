@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { makeTextures } from '../textures';
 import { STAGES } from '../data/stages';
 import { DRAGONS, ELEMENT_LABEL, RARITY_COLOR, RARITY_LABEL } from '../data/dragons';
-import { DIFFICULTIES, DIFFICULTY_LABEL, STAGE_COUNT, type Difficulty } from '../data/economy';
+import { DIFFICULTIES, DIFFICULTY_LABEL, DIFFICULTY_RELEASED, STAGE_COUNT, type Difficulty } from '../data/economy';
 import { cpVerdict, recommendedCp } from '../data/power';
 import { SIGNATURES } from '../data/signature';
 import { attendedToday, eventActive, eventState, progressPct, Progress, spinsAvailable } from '../systems/Progress';
@@ -86,10 +86,12 @@ export class LobbyScene extends Phaser.Scene {
 
     // 난이도
     DIFFICULTIES.forEach((k: Difficulty, i) => {
-      const real = p.difficulty[k].unlocked.length > 0;
+      const released = DIFFICULTY_RELEASED[k];
+      const real = released && p.difficulty[k].unlocked.length > 0;
       const open = real || dev;
       const color = k === curDiff ? 0xb35a00 : 0x2a3140;
-      const b = makeButton(this, 140 + i * 220, 505, 205, 66, `${DIFFICULTY_LABEL[k]}${real ? '' : ' 🔒'}`, color, () => {
+      const b = makeButton(this, 140 + i * 220, 505, 205, 66, released ? `${DIFFICULTY_LABEL[k]}${real ? '' : ' 🔒'}` : `${DIFFICULTY_LABEL[k]}
+출시 예정`, color, () => {
         if (real) {
           this.devDiff = null;
           Progress.selectDifficulty(k);

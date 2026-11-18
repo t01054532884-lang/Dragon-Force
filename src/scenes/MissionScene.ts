@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { DRAGON_ORDER, DRAGONS, RARITY_COLOR } from '../data/dragons';
 import {
-  ACHIEVEMENTS, DIFFICULTIES, DIFFICULTY_LABEL, PROGRESS_REWARDS, PROGRESS_STEPS, STAGE_COUNT, type MissionDef, type RewardBundle,
+  ACHIEVEMENTS, DIFFICULTIES, DIFFICULTY_RELEASED, DIFFICULTY_LABEL, PROGRESS_REWARDS, PROGRESS_STEPS, STAGE_COUNT, type MissionDef, type RewardBundle,
 } from '../data/economy';
 import { activeMissions, missionClaimed, missionProgress, progressPct, Progress, type PlayerProgress } from '../systems/Progress';
 import { FONT, gameNow, makeButton, type Button } from '../ui/widgets';
@@ -79,16 +79,17 @@ export class MissionScene extends Phaser.Scene {
     DIFFICULTIES.forEach((d, i) => {
       const y = 330 + i * 270;
       const dp = p.difficulty[d];
-      const open = dp.unlocked.length > 0;
+      const released = DIFFICULTY_RELEASED[d];
+      const open = released && dp.unlocked.length > 0;
       const pct = progressPct(p, d);
       this.A(this.add.rectangle(360, y, 680, 240, 0x1f1b28).setStrokeStyle(3, open ? 0xffd34d : 0x444455, 0.7));
-      this.A(this.add.text(40, y - 105, `${DIFFICULTY_LABEL[d]}${open ? '' : ' — 잠김'}`, { fontFamily: FONT, fontSize: '28px', fontStyle: 'bold', color: open ? '#ffffff' : '#6f7a8c' }));
+      this.A(this.add.text(40, y - 105, `${DIFFICULTY_LABEL[d]}${!released ? ' — 출시 예정' : open ? '' : ' — 잠김'}`, { fontFamily: FONT, fontSize: '28px', fontStyle: 'bold', color: open ? '#ffffff' : '#6f7a8c' }));
       this.A(this.add.text(680, y - 100, `${dp.cleared.length} / ${STAGE_COUNT} · ${pct}%`, { fontFamily: FONT, fontSize: '22px', color: '#ffd34d' }).setOrigin(1, 0));
       this.A(this.add.rectangle(360, y - 50, 640, 18, 0x0d0b12).setStrokeStyle(1, 0x555566));
       if (pct > 0) this.A(this.add.rectangle(40, y - 50, 640 * (pct / 100), 14, 0xffd34d).setOrigin(0, 0.5));
       if (!open) {
         const prev = d === 'hard' ? '쉬움' : '어려움';
-        this.A(this.add.text(360, y - 22, `${prev} ${STAGE_COUNT}단계를 모두 클리어하면 열립니다`, { fontFamily: FONT, fontSize: '18px', color: '#8a93a6' }).setOrigin(0.5));
+        this.A(this.add.text(360, y - 22, released ? `${prev} ${STAGE_COUNT}단계를 모두 클리어하면 열립니다` : '다음 업데이트에서 열립니다', { fontFamily: FONT, fontSize: '18px', color: '#8a93a6' }).setOrigin(0.5));
       }
       PROGRESS_STEPS.forEach((step, k) => {
         const x = 145 + k * 215;

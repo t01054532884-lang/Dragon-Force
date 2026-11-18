@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { makeDragonTextures } from './dragonArt';
+import { makeEnemyTextures } from './enemyArt';
 
 // 그림 파일 없이 도형으로 텍스처를 만든다(6단계 아트에서 교체).
 // 콘셉트 아트(기획서 이미지)는 방향 참고용이라 게임에 넣지 않는다.
@@ -111,6 +112,7 @@ export function makeTextures(scene: Phaser.Scene): void {
 
   g.destroy();
   makeDragonTextures(scene); // 6단계 드래곤 10종 + 투사체
+  makeEnemyTextures(scene); // 7단계 2~20단계 적·적 투사체·챕터 바닥
 }
 
 /** 위에서 본 늑대: 몸통 + 머리 + 귀 + 꼬리 + 무늬. 크기(size)만 바꿔 일반·엘리트·보스에 재사용 */

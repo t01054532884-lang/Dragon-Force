@@ -6,7 +6,8 @@ import type { Rarity } from './economy';
 
 export type Slot = 'weapon' | 'armor' | 'necklace' | 'ring';
 export const SLOTS: Slot[] = ['weapon', 'armor', 'necklace', 'ring'];
-export const SLOT_LABEL: Record<Slot, string> = { weapon: '무기', armor: '갑옷', necklace: '목걸이', ring: '반지' };
+// 슬롯 이름(제작자 결정 2026-11-18): 드래곤이 검을 드는 게 어색해 무기 → 발톱 장식, 갑옷 → 비늘 갑주. 저장 키(weapon·armor)는 호환 때문에 그대로.
+export const SLOT_LABEL: Record<Slot, string> = { weapon: '발톱 장식', armor: '비늘 갑주', necklace: '목걸이', ring: '반지' };
 export const SLOT_ICON: Record<Slot, string> = { weapon: '⚔', armor: '⬟', necklace: '◈', ring: '◉' };
 
 export interface EquipDef {
@@ -15,10 +16,10 @@ export interface EquipDef {
   slot: Slot;
 }
 export const EQUIPS: EquipDef[] = [
-  { id: 'sword', name: '용린 검', slot: 'weapon' },
-  { id: 'spear', name: '화룡 창', slot: 'weapon' },
-  { id: 'scale', name: '비늘 갑옷', slot: 'armor' },
-  { id: 'plate', name: '판금 갑옷', slot: 'armor' },
+  { id: 'sword', name: '용린 발톱', slot: 'weapon' }, // 아이디(sword 등)는 저장 호환 때문에 그대로
+  { id: 'spear', name: '화룡 발톱', slot: 'weapon' },
+  { id: 'scale', name: '용린 갑주', slot: 'armor' },
+  { id: 'plate', name: '화룡 갑주', slot: 'armor' },
   { id: 'fang', name: '송곳니 목걸이', slot: 'necklace' },
   { id: 'rune', name: '룬 목걸이', slot: 'necklace' },
   { id: 'ember', name: '불씨 반지', slot: 'ring' },

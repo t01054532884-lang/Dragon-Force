@@ -12,6 +12,7 @@ import {
   CLEAR_CARDS,
   DAILY_IDS,
   DIFFICULTIES,
+  DIFFICULTY_RELEASED,
   DRAGON_BOX,
   econRarity,
   EQUIPMENT_BOX,
@@ -252,7 +253,7 @@ export function sanitize(raw: Record<string, unknown>): PlayerProgress {
     upgrades,
     unlockedStages: difficulty.easy.unlocked,
     selectedDragonId: dragons[sel]?.unlocked ? sel : 'red',
-    selectedDifficulty: DIFFICULTIES.includes(selD) && difficulty[selD].unlocked.length ? selD : 'easy',
+    selectedDifficulty: DIFFICULTIES.includes(selD) && DIFFICULTY_RELEASED[selD] && difficulty[selD].unlocked.length ? selD : 'easy',
     rewardedRunIds: strs(raw.rewardedRunIds, MAX_RUN_IDS),
     txIds: strs(raw.txIds, MAX_TX_IDS),
     dragons,
@@ -586,7 +587,7 @@ export function selectDragon(p: PlayerProgress, id: DragonId): PlayerProgress {
 }
 
 export function selectDifficulty(p: PlayerProgress, d: Difficulty): PlayerProgress {
-  return p.difficulty[d].unlocked.length ? { ...p, selectedDifficulty: d } : p;
+  return DIFFICULTY_RELEASED[d] && p.difficulty[d].unlocked.length ? { ...p, selectedDifficulty: d } : p;
 }
 
 // ───────────────────────── 루비 상자(드래곤·스킬 / 장비 / 골드) ─────────────────────────

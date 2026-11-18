@@ -1,12 +1,23 @@
 import Phaser from 'phaser';
-import { CC, ENEMIES, HARD_CC_BOSS, PATTERN, type EnemyDef, type EnemyKind } from '../data/enemies';
+import { CC, ENEMIES, HARD_CC_BOSS, PATTERN, type EnemyDef, type EnemyKind, type PatternSpec } from '../data/enemies';
+import { M } from '../data/stats';
+
+/** 7단계 공통 패턴 예고시간(ms) — 모든 난이도에서 같다(원문 6장) */
+export const TELEGRAPH = { projectile: 800, charge: 1000, area: 1200, shockwave: 1300, breath: 1500, claw: 900, line: 1000 };
 
 /** 적이 이번 프레임에 하겠다는 행동. 그리기·피해 판정은 장면이 한다(적은 화면·플레이어를 모른다). */
 export type EnemyAction =
   | { kind: 'lineWarn'; x: number; y: number; angle: number; length: number; ms: number; width: number; curve?: number }
-  | { kind: 'circleHit'; x: number; y: number; r: number; ms: number; damage: number } // 원형 예고 → 판정
-  | { kind: 'coneHit'; x: number; y: number; angle: number; half: number; r: number; ms: number; damage: number } // 부채꼴 예고 → 판정
-  | { kind: 'summon'; enemy: EnemyKind; count: number; x: number; y: number };
+  | { kind: 'circleHit'; x: number; y: number; r: number; ms: number; damage: number; slowPlayer?: boolean } // 원형 예고 → 판정
+  | { kind: 'coneHit'; x: number; y: number; angle: number; half: number; r: number; ms: number; damage: number; slowPlayer?: boolean; breath?: boolean } // 부채꼴 예고 → 판정
+  | { kind: 'summon'; enemy: EnemyKind; count: number; x: number; y: number }
+  // ── 7단계 공통 패턴 ──
+  | { kind: 'shot'; x: number; y: number; angle: number; speed: number; damage: number; size: number } // 직선 투사체(예고선 뒤 발사)
+  | { kind: 'orb'; x: number; y: number; angle: number; speed: number; damage: number; lifeMs: number } // 느린 추적 구체
+  | { kind: 'lineHit'; x: number; y: number; angle: number; length: number; width: number; ms: number; damage: number } // 직선 범위 예고 → 판정
+  | { kind: 'ringHit'; x: number; y: number; inner: number; outer: number; ms: number; damage: number } // 고리(안쪽 안전) 예고 → 판정
+  | { kind: 'slowZone'; x: number; y: number; r: number; ms: number; slow: number }
+  | { kind: 'shield'; ms: number; front: boolean };
 
 /**
  * 패턴의 한 동작. 적은 동작 대기열(queue)을 앞에서부터 하나씩 실행한다.
@@ -19,7 +30,7 @@ interface Move {
   speed?: number;
   curve?: number; // 초당 회전(라디안) — 초승달 돌진
   untilWall?: boolean;
-  onEnd?: () => EnemyAction | null; // 동작이 끝날 때 일어날 일(벽 충돌 충격파 등)
+  onEnd?: () => EnemyAction | EnemyAction[] | null; // 동작이 끝날 때 일어날 일(벽 충돌 충격파 등)
 }
 
 /** 적이 알아야 하는 바깥 정보: 투기장 중심·반지름 */
@@ -64,6 +75,17 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
   private moveLeft = -1;
   private patternCd = 1800;
   private bossTurn = 0;
+  // ── 7단계 공통 AI·패턴 상태 ──
+  /** 패턴 위치를 고르는 난수(게임 장면이 시드로 만든 것으로 바꿔 끼운다 — 시드 재현) */
+  static rng: () => number = Math.random;
+  private patternIdx = 0;
+  private lastTarget = new Phaser.Math.Vector2();
+  private shieldLeft = 0;
+  private shieldFront = false;
+  private shieldReduce = 0;
+  private lifeLeft = Infinity;
+  /** 소환형이 부른 졸개(최대 수 확인용) */
+  minions: Enemy[] = [];
 
   constructor(scene: Phaser.Scene, x: number, y: number, readonly kind: EnemyKind, hpMult = 1) {
     const def = ENEMIES[kind];
@@ -76,6 +98,28 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
     const r = def.radius;
     this.body.setCircle(r, this.width / 2 - r, this.height / 2 - r);
     if (def.rank !== 'normal') this.setDepth(6);
+    if (def.lifeMs) this.lifeLeft = def.lifeMs;
+    // 원거리·소환형은 처음 공격 시각을 조금씩 어긋나게(한꺼번에 쏘지 않게, uid 기반이라 재현됨)
+    if (def.shot || def.summon) this.patternCd = 1200 + (this.uid % 10) * 150;
+  }
+
+  /** 분신·기병처럼 시간이 다 되면 보상 없이 사라지는 적 */
+  get expired(): boolean {
+    return this.lifeLeft <= 0;
+  }
+
+  get shielded(): boolean {
+    return this.shieldLeft > 0;
+  }
+
+  /** 받는 피해 배율: 방어형 정면(±60°) 감소 · 보스 방어 패턴(정면만 또는 전체) */
+  guardFactor(px: number, py: number): number {
+    const toP = Math.atan2(py - this.y, px - this.x);
+    const front = Math.abs(Phaser.Math.Angle.Wrap(toP - this.rotation)) < Math.PI / 3;
+    let m = 1;
+    if (this.def.guard && front) m *= 1 - this.def.guard;
+    if (this.shieldLeft > 0 && (!this.shieldFront || front)) m *= 1 - this.shieldReduce;
+    return m;
   }
 
   get rank() {
@@ -94,6 +138,9 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
   /** 매 프레임 이동·패턴. 행동이 있으면 돌려준다. */
   step(target: Phaser.Math.Vector2, delta: number, arena: Arena): EnemyAction[] {
     const out: EnemyAction[] = [];
+    this.lastTarget.set(target.x, target.y);
+    if (this.lifeLeft !== Infinity) this.lifeLeft -= delta;
+    if (this.shieldLeft > 0) this.shieldLeft -= delta;
     if (this.hitFlash > 0) {
       this.hitFlash -= delta;
       if (this.hitFlash <= 0) this.refreshTint();
@@ -152,7 +199,7 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
         this.queue.shift();
         this.moveLeft = -1;
         const end = m.onEnd?.();
-        if (end) out.push(end);
+        if (end) out.push(...(Array.isArray(end) ? end : [end]));
         this.refreshTint();
       }
       return out;
@@ -172,7 +219,19 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
     }
     let speed = this.def.speed * this.speedMult;
     if (this.slowLeft > 0) speed *= 1 - this.slowRatio;
-    this.body.setVelocity(Math.cos(aim) * speed, Math.sin(aim) * speed);
+    let vx = Math.cos(aim) * speed;
+    let vy = Math.sin(aim) * speed;
+    const keep = this.def.keep;
+    if (keep && dist < keep + 80) {
+      // 원거리·소환형: 너무 가까우면 물러나고, 알맞은 거리면 옆으로 돈다
+      const side = this.uid % 2 === 0 ? 1 : -1;
+      const back = dist < keep - 40;
+      const a = back ? aim + Math.PI : aim + (side * Math.PI) / 2;
+      const s = back ? speed : speed * 0.6;
+      vx = Math.cos(a) * s;
+      vy = Math.sin(a) * s;
+    }
+    this.body.setVelocity(vx, vy);
     this.setRotation(aim);
 
     // 3) 패턴 고르기
@@ -184,7 +243,27 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
   private choosePattern(t: Phaser.Math.Vector2, dist: number, arena: Arena): EnemyAction[] {
     const toT = Math.atan2(t.y - this.y, t.x - this.x);
     switch (this.def.behavior) {
-      case 'charger': {
+      case 'ranged': {
+        const s = this.def.shot!;
+        if (dist > 10 * M) {
+          this.patternCd = 400;
+          return [];
+        }
+        this.patternCd = s.every;
+        return this.fire(toT, s.count, s.spread, s.speed, s.damage, 1, false, 1);
+      }
+      case 'summoner': {
+        const s = this.def.summon!;
+        this.patternCd = s.every;
+        this.minions = this.minions.filter((m) => m.active);
+        if (this.minions.length >= s.max) return [];
+        this.queue.push({ kind: 'hold', ms: 600 });
+        return [{ kind: 'summon', enemy: s.kind, count: s.count, x: this.x, y: this.y }];
+      }
+      case 'module':
+        return this.runModule(toT, dist, arena);
+      case 'charger':
+      case 'charge': {
         const p = PATTERN.boar;
         if (dist > p.trigger) return [];
         this.patternCd = p.cooldown;
@@ -245,6 +324,141 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
     }
   }
 
+  // ───────── 7단계 보스·엘리트 패턴 모듈 ─────────
+
+  /** 패턴을 차례로 사용(시드 재현). HP 50% 이하면 강화 목록, 25% 이하면 대기시간 15% 단축. 근접 패턴은 가까워질 때까지 기다린다. */
+  private runModule(toT: number, dist: number, arena: Arena): EnemyAction[] {
+    const list = this.phase === 2 && this.def.patterns2 ? this.def.patterns2 : this.def.patterns ?? [];
+    if (list.length === 0) {
+      this.patternCd = 99999;
+      return [];
+    }
+    const spec = list[this.patternIdx % list.length];
+    if (spec.t === 'cone' && dist > spec.r + M) return this.wait();
+    if (spec.t === 'charge' && dist > 11 * M) return this.wait();
+    this.patternIdx++;
+    this.patternCd = (this.def.patternGap ?? 3000) * (this.hp <= this.maxHp * 0.25 ? 0.85 : 1);
+    return this.runSpec(spec, toT, arena);
+  }
+
+  private wait(): EnemyAction[] {
+    this.patternCd = 300;
+    return [];
+  }
+
+  private runSpec(spec: PatternSpec, toT: number, arena: Arena): EnemyAction[] {
+    const T = TELEGRAPH;
+    switch (spec.t) {
+      case 'projectile':
+        return this.fire(toT, spec.count, spec.spread, spec.speed, spec.damage, spec.size ?? 1, !!spec.radial, spec.repeat ?? 1);
+      case 'charge': {
+        for (let i = 0; i < spec.count; i++) {
+          this.queue.push({ kind: 'hold', ms: i === 0 ? T.charge : 700 }, { kind: 'dash', ms: spec.ms, speed: spec.speed });
+        }
+        const then = spec.then;
+        if (then) this.queue.push({ kind: 'hold', ms: 1, onEnd: () => this.runSpec(then, Math.atan2(this.lastTarget.y - this.y, this.lastTarget.x - this.x), arena) });
+        else this.queue.push({ kind: 'stun', ms: 500 });
+        return [];
+      }
+      case 'area': {
+        const ms = spec.delayMs ?? T.area;
+        const pts: [number, number][] = [];
+        for (let i = 0; i < spec.count; i++) {
+          if (spec.at === 'self') pts.push([this.x, this.y]);
+          else if (spec.at === 'player' && i === 0) pts.push([this.lastTarget.x, this.lastTarget.y]);
+          else {
+            const a = Enemy.rng() * Math.PI * 2;
+            const d = (spec.at === 'player' ? 1.5 : 1) * M + Enemy.rng() * 3 * M;
+            pts.push([this.lastTarget.x + Math.cos(a) * d, this.lastTarget.y + Math.sin(a) * d]);
+          }
+        }
+        this.queue.push({ kind: 'hold', ms: 600 });
+        return pts.map(([x, y]) => ({ kind: 'circleHit' as const, x, y, r: spec.r, ms, damage: spec.damage, slowPlayer: spec.slowPlayer }));
+      }
+      case 'shockwave':
+        this.queue.push({ kind: 'hold', ms: T.shockwave });
+        return [{ kind: 'circleHit', x: this.x, y: this.y, r: spec.r, ms: T.shockwave, damage: spec.damage }];
+      case 'ring':
+        this.queue.push({ kind: 'hold', ms: T.shockwave });
+        return [{ kind: 'ringHit', x: this.x, y: this.y, inner: spec.inner, outer: spec.outer, ms: T.shockwave, damage: spec.damage }];
+      case 'cone': {
+        const ms = spec.breath ? T.breath : T.claw;
+        this.queue.push({ kind: 'hold', ms });
+        return [{ kind: 'coneHit', x: this.x, y: this.y, angle: toT, half: spec.half, r: spec.r, ms, damage: spec.damage, slowPlayer: spec.slowPlayer, breath: spec.breath }];
+      }
+      case 'line': {
+        const hit = (angle: number): EnemyAction => ({ kind: 'lineHit', x: this.x, y: this.y, angle, length: spec.length, width: spec.width, ms: T.line, damage: spec.damage });
+        if (spec.cross) {
+          this.queue.push({ kind: 'hold', ms: T.line });
+          return [0, 1, 2, 3].map((k) => hit(toT + (k * Math.PI) / 2));
+        }
+        if (spec.sequential && spec.count > 1) {
+          // 서로 다른 순간에 다시 조준하는 연속 검기(0.55초 간격, 각자 1초 예고)
+          for (let i = 1; i < spec.count; i++) {
+            this.queue.push({ kind: 'hold', ms: 550, onEnd: () => hit(Math.atan2(this.lastTarget.y - this.y, this.lastTarget.x - this.x)) });
+          }
+          this.queue.push({ kind: 'hold', ms: T.line });
+          return [hit(toT)];
+        }
+        this.queue.push({ kind: 'hold', ms: T.line });
+        const n = spec.count;
+        return Array.from({ length: n }, (_, i) => hit(n > 1 ? toT - 0.2 * (n - 1) + 0.4 * i : toT));
+      }
+      case 'summon':
+        this.queue.push({ kind: 'hold', ms: 600 });
+        return [{ kind: 'summon', enemy: spec.kind, count: spec.count, x: this.x, y: this.y }];
+      case 'shield':
+        this.shieldLeft = spec.ms;
+        this.shieldFront = !!spec.front;
+        this.shieldReduce = spec.reduce;
+        this.queue.push({ kind: 'hold', ms: 400 });
+        return [{ kind: 'shield', ms: spec.ms, front: !!spec.front }];
+      case 'teleport':
+        this.setAlpha(0.3);
+        this.queue.push({
+          kind: 'hold',
+          ms: 500,
+          onEnd: () => {
+            const a = Enemy.rng() * Math.PI * 2;
+            let x = this.lastTarget.x + Math.cos(a) * 4.5 * M;
+            let y = this.lastTarget.y + Math.sin(a) * 4.5 * M;
+            const d = Math.hypot(x - arena.x, y - arena.y);
+            const max = arena.r - this.def.radius - 10;
+            if (d > max) {
+              x = arena.x + ((x - arena.x) / d) * max;
+              y = arena.y + ((y - arena.y) / d) * max;
+            }
+            this.setPosition(x, y).setAlpha(1);
+            return null;
+          },
+        }, { kind: 'hold', ms: 300 });
+        return [];
+      case 'orbs':
+        this.queue.push({
+          kind: 'hold',
+          ms: 600,
+          onEnd: () => Array.from({ length: spec.count }, (_, i) => ({
+            kind: 'orb' as const, x: this.x, y: this.y, angle: toT + (i - (spec.count - 1) / 2) * 0.9, speed: spec.speed, damage: spec.damage, lifeMs: spec.lifeMs,
+          })),
+        });
+        return [];
+      case 'slowZone':
+        this.queue.push({ kind: 'hold', ms: 500 });
+        return [{ kind: 'slowZone', x: this.lastTarget.x, y: this.lastTarget.y, r: spec.r, ms: spec.ms, slow: spec.slow }];
+    }
+  }
+
+  /** 투사체: 예고선(0.8초)을 먼저 그리고 그 방향 그대로 발사. 예고와 판정 방향이 같다. */
+  private fire(toT: number, count: number, spread: number, speed: number, damage: number, size: number, radial: boolean, repeat: number): EnemyAction[] {
+    const angles = radial
+      ? Array.from({ length: count }, (_, i) => toT + (i * Math.PI * 2) / count)
+      : Array.from({ length: count }, (_, i) => (count > 1 ? toT - spread / 2 + (spread * i) / (count - 1) : toT));
+    const shots = (): EnemyAction[] => angles.map((angle) => ({ kind: 'shot', x: this.x, y: this.y, angle, speed, damage, size }));
+    this.queue.push({ kind: 'hold', ms: TELEGRAPH.projectile, onEnd: shots });
+    for (let r = 1; r < repeat; r++) this.queue.push({ kind: 'hold', ms: 450, onEnd: shots });
+    return angles.map((a) => this.warnLine(a, 4 * M, TELEGRAPH.projectile, 10 * size));
+  }
+
   private warnLine(angle: number, length: number, ms: number, width: number, curve?: number): EnemyAction {
     return { kind: 'lineWarn', x: this.x, y: this.y, angle, length, ms, width, curve };
   }
@@ -265,6 +479,8 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
     this.queue = [];
     this.moveLeft = -1;
     this.patternCd = cd;
+    this.patternIdx = 0;
+    this.setAlpha(1);
     this.refreshTint();
   }
 

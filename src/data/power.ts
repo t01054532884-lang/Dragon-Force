@@ -13,8 +13,12 @@ export function combatPower(A: number, H: number, V: number, S: number): number 
   return Math.round(1000 * Math.pow(A / 10, 0.75) * Math.pow(H / 100, 0.35) * Math.pow(V / 260, 0.15) * (1 + S));
 }
 
-/** 1~20단계 쉬움 권장 CP(원문). 어려움 ×1.5, 매우 어려움 ×2.2 → 반올림 */
-export const RECOMMENDED_EASY = [900, 1050, 1200, 1350, 1500, 1650, 1800, 2000, 2200, 2400, 2600, 2850, 3100, 3350, 3600, 3850, 4100, 4400, 4700, 5000];
+/**
+ * 1~20단계 쉬움 권장 CP — v1.3 임시값(제작자 2026-11-18). v1.2 표(900~5,000)는 장비가 비율 보너스로 바뀌며 레드 최대 성장(약 2,700)으로 닿지 않아 교체.
+ * 입장 제한이 아닌 참고 수치. 몬스터 능력치와 연결되지 않는다. 클리어 시간 실측으로 다시 맞춘다.
+ * 어려움 ×1.5, 매우 어려움 ×2.2는 아직 확정 아님(해당 난이도 구현 때 다시 설정).
+ */
+export const RECOMMENDED_EASY = [900, 960, 1020, 1080, 1150, 1220, 1300, 1380, 1460, 1550, 1640, 1730, 1820, 1920, 2020, 2120, 2220, 2320, 2410, 2500];
 const DIFF_MULT: Record<Difficulty, number> = { easy: 1, hard: 1.5, extreme: 2.2 };
 
 export function recommendedCp(stageId: number, d: Difficulty): number {

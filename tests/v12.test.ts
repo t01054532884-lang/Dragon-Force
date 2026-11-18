@@ -270,11 +270,12 @@ describe('6-7 장착형 특수 스킬', () => {
 });
 
 describe('6-8 전투력', () => {
-  it('기본 레드 CP 1,000, 권장치 1단계 900/1,350/1,980, 20단계 5,000/7,500/11,000', () => {
+  it('기본 레드 CP 1,000, 권장치(v1.3 임시) 1단계 900/1,350/1,980, 20단계 2,500', () => {
     expect(loadout(defaultProgress(), 'red').cp).toBe(1000);
     expect(combatPower(10, 100, 260, 0)).toBe(1000);
     expect([recommendedCp(1, 'easy'), recommendedCp(1, 'hard'), recommendedCp(1, 'extreme')]).toEqual([900, 1350, 1980]);
-    expect([recommendedCp(20, 'easy'), recommendedCp(20, 'hard'), recommendedCp(20, 'extreme')]).toEqual([5000, 7500, 11000]);
+    expect(recommendedCp(20, 'easy')).toBe(2500);
+    expect(recommendedCp(10, 'easy')).toBe(1550);
     expect(cpVerdict(1000, 900).text).toBe('권장 이상');
     expect(cpVerdict(800, 1000).text).toBe('도전 가능');
   });

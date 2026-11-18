@@ -1,4 +1,6 @@
 import type { EnemyKind } from './enemies';
+import { ENEMIES } from './enemies';
+import { SEASON1_STAGE_ROWS } from './season1';
 
 // 스테이지 데이터 (4단계 기획서 16장 구조). 1단계만 먼저 완성하고, 이후 단계는 데이터만 바꿔 늘린다.
 export interface StageData {
@@ -11,6 +13,10 @@ export interface StageData {
   bossSpawnMs: number;
   bossId: EnemyKind;
   milestoneBoss: boolean; // 5·10·15·20단계 최종보스
+  /** 7단계: 일반 몬스터 3종 생성 비중. 없으면 1단계 고유 생성(늑대 무리·멧돼지) */
+  spawnTable?: { kind: EnemyKind; weight: number; fromMs: number; pack: [number, number] }[];
+  seasonId?: string;
+  chapterId?: number;
 }
 
 export const STAGES: StageData[] = [
@@ -27,7 +33,30 @@ export const STAGES: StageData[] = [
     bossSpawnMs: 350_000, // 5:50
     bossId: 'graymane_alpha',
     milestoneBoss: false,
+    seasonId: 's1',
+    chapterId: 1,
   },
+  // 2~20단계(7단계 기획서): 같은 8분 시간표, 공통 AI·패턴 데이터만 바꾼다
+  ...SEASON1_STAGE_ROWS.map(([id, name, normals, elites, boss]): StageData => ({
+    id,
+    name,
+    faction: id <= 10 ? 'beast' : 'human',
+    durationMs: 480_000,
+    enemyPool: normals,
+    eliteSpawns: [
+      { timeMs: 100_000, eliteId: elites[0] },
+      { timeMs: 220_000, eliteId: elites[1] },
+    ],
+    bossSpawnMs: 350_000,
+    bossId: boss,
+    milestoneBoss: id % 5 === 0,
+    seasonId: 's1',
+    chapterId: Math.floor((id - 1) / 4) + 1,
+    spawnTable: normals.map((kind, i) => {
+      const flyer = ['flyer', 'insect'].includes(ENEMIES[kind]?.art?.shape ?? '') && ENEMIES[kind].behavior === 'chase';
+      return { kind, weight: [55, 28, 17][i], fromMs: i === 2 ? 60_000 : 0, pack: flyer ? [2, 3] : [1, 1] };
+    }),
+  })),
 ];
 
 // 시간표 공통값
@@ -54,7 +83,7 @@ export function baseSpawn(elapsedMs: number): { interval: number; count: number;
 // 난이도 증가 공식 (기획서 14장). S = 스테이지 번호.
 export function difficulty(S: number) {
   return {
-    hp: Math.pow(1.12, S - 1),
+    hp: Math.pow(1.07, S - 1), // 7단계 기획서(제작자 결정 2026-11-18): ×1.12 → ×1.07. 1단계는 ×1 그대로. 피해·생성량 공식은 유지
     damage: Math.pow(1.075, S - 1),
     spawnRate: Math.min(2.0, 1 + 0.055 * (S - 1)),
   };

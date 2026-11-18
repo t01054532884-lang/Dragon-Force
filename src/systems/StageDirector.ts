@@ -40,6 +40,11 @@ export class StageDirector {
   private bossSpawnPoint: Phaser.Math.Vector2 | null = null;
   private diff;
 
+  /** 이 판의 일반 적 체력 배율(스테이지 × 난이도). 소환수가 같은 배율을 쓴다 */
+  get hpMult(): number {
+    return this.diff.hp;
+  }
+
   /** mult: 난이도(쉬움·어려움·매우 어려움) 체력·피해 배율(v1.2). 쉬움은 1 → 기존과 같다. */
   constructor(private h: DirectorHost, readonly stage: StageData, mult: { hp: number; damage: number } = { hp: 1, damage: 1 }) {
     this.eliteSlots = stage.eliteSpawns.map(() => 'pending');
@@ -137,10 +142,11 @@ export class StageDirector {
     const boss = this.boss;
     if (boss?.active) {
       // 60% 체력에서 패턴 변화(한 번만)
-      if (boss.phase === 1 && boss.hp <= boss.maxHp * PATTERN.graymane.phaseAt) {
+      // 강화: 1단계 회색갈기는 60%(기존), 2~20단계 보스는 50%(7단계 기획서)
+      if (boss.phase === 1 && boss.hp <= boss.maxHp * (boss.def.phaseAt ?? PATTERN.graymane.phaseAt)) {
         boss.phase = 2;
         boss.resetPattern(1000);
-        this.h.banner(`${boss.def.name} — 분노한 울부짖음`, '#ff8a65');
+        this.h.banner(`${boss.def.name} — ${boss.def.behavior === 'graymane' ? '분노한 울부짖음' : '강화 패턴!'}`, '#ff8a65');
         this.h.emit('boss:phase-change', { phase: 2, at: elapsed });
       }
       // 7:30 격노, 8:00 시간 초과 실패
@@ -180,6 +186,23 @@ export class StageDirector {
     if (this.spawnCd > 0 || this.h.enemyCount() >= 220) return;
     const b = baseSpawn(elapsed);
     this.spawnCd = b.interval / rate;
+    const table = this.stage.spawnTable;
+    if (table) {
+      // 2~20단계: 일반 몬스터 3종을 비중대로(셋째는 1분부터). 날벌레·새는 2~3마리 무리. 같은 시드면 같은 결과.
+      const open = table.filter((t) => elapsed >= t.fromMs);
+      const total = open.reduce((a, t) => a + t.weight, 0);
+      for (let i = 0; i < b.count; i++) {
+        let x = this.h.rng.frac() * total;
+        const pick = open.find((t) => (x -= t.weight) < 0) ?? open[open.length - 1];
+        const p = this.edgePoint();
+        const n = this.h.rng.between(pick.pack[0], pick.pack[1]);
+        for (let k = 0; k < n; k++) {
+          const e = this.h.spawn(pick.kind, p.x + this.h.rng.between(-40, 40), p.y + this.h.rng.between(-40, 40), this.diff.hp);
+          e.damageMult = this.diff.damage;
+        }
+      }
+      return;
+    }
     for (let i = 0; i < b.count; i++) {
       const kind: EnemyKind = this.h.rng.frac() < b.boarRatio ? 'iron_boar' : 'shadow_wolf';
       // 늑대는 무리로: 같은 방향 가장자리에서 2~3마리씩

@@ -21,6 +21,20 @@ import { Signature } from '../systems/Signature';
 import { SPECIAL_VALUES, type SpecialId } from '../data/specials';
 import { DIFFICULTY_LABEL, DIFFICULTY_MULT, type Difficulty } from '../data/economy';
 import { ITEM_RULES, ITEMS, rollNormalDrop, type ItemId } from '../data/items';
+import { chapterOf, SEASON1_FINALE } from '../data/season1';
+
+/** 적 투사체(직선탄·추적 구체) */
+interface EnemyShot {
+  img: Phaser.GameObjects.Image;
+  vx: number;
+  vy: number;
+  speed: number;
+  life: number;
+  damage: number;
+  r: number;
+  src: Enemy;
+  homing: boolean;
+}
 
 const WORLD_SIZE = 2800; // 투기장을 담는 정사각형 세계
 const ARENA_R = 22 * M; // 원형 투기장 반지름 22m = 1100px (사용자 결정 2026-11-17)
@@ -96,6 +110,13 @@ export class GameScene extends Phaser.Scene {
   private basic!: BasicAttack;
   private basicTraits = NO_TRAITS;
   private hazards: Hazard[] = [];
+  // ── 7단계 공통 패턴 ──
+  private enemyShots: EnemyShot[] = [];
+  private slowZones: { x: number; y: number; r: number; left: number; slow: number; g: Phaser.GameObjects.Arc }[] = [];
+  private followFx: { obj: Phaser.GameObjects.Arc; target: Enemy; left: number }[] = [];
+  private playerSlow = { until: 0, ratio: 0 };
+  /** 패턴 위치 전용 난수(적 생성 난수와 분리 — 1단계 시드 재현 보존) */
+  private patternRng!: Phaser.Math.RandomDataGenerator;
   private currentChoices: Upgrade[] = [];
   /** 전투 로그: 공격 원천별 누적 피해(밸런스 검증용) */
   dmgLog: Record<string, number> = {};
@@ -179,6 +200,12 @@ export class GameScene extends Phaser.Scene {
     this.mode = 'play';
     this.facing.set(0, -1);
     this.hazards = [];
+    this.enemyShots = [];
+    this.slowZones = [];
+    this.followFx = [];
+    this.playerSlow = { until: 0, ratio: 0 };
+    this.patternRng = new Phaser.Math.RandomDataGenerator([`${this.seed}:pattern`]);
+    Enemy.rng = () => this.patternRng.frac();
     this.currentChoices = [];
     this.choiceLayer = [];
     this.edgeArrows = [];
@@ -267,19 +294,21 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** 원형 투기장: 안쪽은 잿빛 돌바닥, 가장자리는 돌벽, 바깥은 어둠 */
+  /** 원형 투기장. 챕터마다 바닥·벽 색(7단계 5개 챕터 테마). 1단계 잿빛 숲은 기존 그대로 */
   private drawArena(): void {
     const { x, y, r } = this.arena;
+    const ch = chapterOf(this.stage.id);
     this.add.rectangle(0, 0, WORLD_SIZE, WORLD_SIZE, 0x0d0f14).setOrigin(0);
-    const floor = this.add.tileSprite(0, 0, WORLD_SIZE, WORLD_SIZE, 'ground').setOrigin(0);
+    const floor = this.add.tileSprite(0, 0, WORLD_SIZE, WORLD_SIZE, ch.id === 1 ? 'ground' : `ground-${ch.id}`).setOrigin(0);
     const mask = this.make.graphics({}, false).fillStyle(0xffffff).fillCircle(x, y, r);
     floor.setMask(mask.createGeometryMask());
     const g = this.add.graphics();
-    g.lineStyle(4, 0x6b2a2a, 0.35).strokeCircle(x, y, r * 0.35).strokeCircle(x, y, r * 0.7); // 바닥 문양
-    g.lineStyle(40, 0x24252b).strokeCircle(x, y, r + 20); // 벽
+    g.lineStyle(4, ch.line, 0.35).strokeCircle(x, y, r * 0.35).strokeCircle(x, y, r * 0.7); // 바닥 문양
+    g.lineStyle(40, ch.wall).strokeCircle(x, y, r + 20); // 벽
     g.lineStyle(6, 0x6d6e78).strokeCircle(x, y, r);
     for (let i = 0; i < 24; i++) {
       const a = (i / 24) * Math.PI * 2;
-      g.fillStyle(0x3b3d46).fillRect(x + Math.cos(a) * (r + 22) - 14, y + Math.sin(a) * (r + 22) - 14, 28, 28); // 벽 돌기둥
+      g.fillStyle(ch.stone).fillRect(x + Math.cos(a) * (r + 22) - 14, y + Math.sin(a) * (r + 22) - 14, 28, 28); // 벽 돌기둥
     }
   }
 
@@ -426,7 +455,7 @@ export class GameScene extends Phaser.Scene {
     this.levelText.setText(`Lv.${this.level}`);
     const sh = this.shieldUntil - this.elapsed;
     this.shieldText.setText(sh > 0 ? `🛡 수호막 ${Math.ceil(sh / 1000)}초` : '');
-    this.hpText.setText(`${Math.max(0, Math.ceil(this.hp))} / ${Math.round(this.stats.maxHp)}`);
+    this.hpText.setText(`${Math.max(0, Math.ceil(this.hp))} / ${Math.ceil(this.stats.maxHp)}`);
     const icons = (kinds: string[]) =>
       UPGRADES.filter((u) => kinds.includes(u.kind) && (this.upgradeLevels.get(u.id) ?? 0) > 0)
         .map((u) => `${u.icon}${this.upgradeLevels.get(u.id)}`)
@@ -535,7 +564,8 @@ export class GameScene extends Phaser.Scene {
     );
     if (dir.lengthSq() > 0) dir.normalize();
     else dir.copy(this.stickVec);
-    const speed = this.stats.speed * (1 + (this.signature?.moveBoost ?? 0));
+    const slow = this.playerSlow.until > this.elapsed ? this.playerSlow.ratio : 0;
+    const speed = this.stats.speed * (1 + (this.signature?.moveBoost ?? 0)) * (1 - slow);
     this.player.setVelocity(dir.x * speed, dir.y * speed);
     if (dir.lengthSq() > 0.01) {
       this.player.setRotation(dir.angle() + Math.PI / 2);
@@ -558,6 +588,13 @@ export class GameScene extends Phaser.Scene {
     for (const obj of [...this.enemies.getChildren()]) {
       const e = obj as Enemy;
       if (!e.active) continue;
+      if (e.expired) {
+        // 분신·기병: 시간이 다 되면 보상 없이 사라짐
+        const puff = this.add.circle(e.x, e.y, e.def.radius, 0xffffff, 0.4).setDepth(8);
+        this.tweens.add({ targets: puff, alpha: 0, scale: 1.4, duration: 250, onComplete: () => puff.destroy() });
+        e.destroy();
+        continue;
+      }
       for (const act of e.step(target, delta, this.arena)) this.doEnemyAction(e, act);
       this.keepInArena(e, e.def.radius);
       const burnCoef = e.tickBurn(delta);
@@ -566,6 +603,73 @@ export class GameScene extends Phaser.Scene {
       const poisonCoef = e.tickPoison(delta);
       if (poisonCoef > 0) this.hitEnemy(e, { source: 'dot', coef: poisonCoef, tag: 'poison' });
     }
+    this.updateEnemyShots(delta);
+  }
+
+  /** 적 투사체·둔화 지대·보호막 표시 */
+  private updateEnemyShots(delta: number): void {
+    const dt = delta / 1000;
+    const px = this.player.x;
+    const py = this.player.y;
+    this.enemyShots = this.enemyShots.filter((s) => {
+      s.life -= delta;
+      if (s.homing && s.life > 600) {
+        // 느린 추적 구체: 초당 90°까지만 꺾인다(피할 수 있게)
+        const want = Math.atan2(py - s.img.y, px - s.img.x);
+        const cur = Math.atan2(s.vy, s.vx);
+        const a = Phaser.Math.Angle.RotateTo(cur, want, (Math.PI / 2) * dt);
+        s.vx = Math.cos(a) * s.speed;
+        s.vy = Math.sin(a) * s.speed;
+      }
+      s.img.x += s.vx * dt;
+      s.img.y += s.vy * dt;
+      s.img.setRotation(Math.atan2(s.vy, s.vx));
+      if (Phaser.Math.Distance.Between(s.img.x, s.img.y, px, py) < s.r + 16) {
+        this.damagePlayer(s.damage * s.src.damageMult, s.src);
+        s.img.destroy();
+        return false;
+      }
+      const out = Phaser.Math.Distance.Between(s.img.x, s.img.y, this.arena.x, this.arena.y) > this.arena.r + 10;
+      if (s.life <= 0 || out) {
+        s.img.destroy();
+        return false;
+      }
+      return true;
+    });
+    this.slowZones = this.slowZones.filter((z) => {
+      z.left -= delta;
+      if (Phaser.Math.Distance.Between(z.x, z.y, px, py) < z.r) this.slowPlayerFor(300, z.slow);
+      if (z.left <= 0) {
+        z.g.destroy();
+        return false;
+      }
+      z.g.setAlpha(Math.min(1, z.left / 500));
+      return true;
+    });
+    this.followFx = this.followFx.filter((f) => {
+      f.left -= delta;
+      if (f.left <= 0 || !f.target.active) {
+        f.obj.destroy();
+        return false;
+      }
+      f.obj.setPosition(f.target.x, f.target.y);
+      return true;
+    });
+  }
+
+  /** 드래곤 둔화(서리 발톱·눈보라): 가장 센 값 하나, 시간은 갱신 */
+  private slowPlayerFor(ms: number, ratio: number): void {
+    const until = this.elapsed + ms;
+    this.playerSlow = { until: Math.max(this.playerSlow.until, until), ratio: this.playerSlow.until > this.elapsed ? Math.max(this.playerSlow.ratio, ratio) : ratio };
+  }
+
+  private clearEnemyShots(): void {
+    this.enemyShots.forEach((s) => s.img.destroy());
+    this.slowZones.forEach((z) => z.g.destroy());
+    this.followFx.forEach((f) => f.obj.destroy());
+    this.enemyShots = [];
+    this.slowZones = [];
+    this.followFx = [];
   }
 
   /** 적의 행동을 그림과 판정으로 바꾼다. 위험 공격은 붉은 바닥 예고 → 시간이 지나면 판정. */
@@ -610,13 +714,17 @@ export class GameScene extends Phaser.Scene {
             const boom = this.add.circle(act.x, act.y, act.r, 0xffcc80, 0.55).setDepth(8);
             this.tweens.add({ targets: boom, alpha: 0, duration: 300, onComplete: () => boom.destroy() });
             this.cameras.main.shake(150, 0.008);
-            if (Phaser.Math.Distance.Between(act.x, act.y, this.player.x, this.player.y) < act.r + 18) this.damagePlayer(dmg, e, true);
+            if (Phaser.Math.Distance.Between(act.x, act.y, this.player.x, this.player.y) < act.r + 18) {
+              this.damagePlayer(dmg, e, true);
+              if (act.slowPlayer) this.slowPlayerFor(1500, 0.35);
+            }
           },
         });
         break;
       }
       case 'coneHit': {
         const g = this.add.graphics({ x: act.x, y: act.y }).setDepth(4);
+        if (act.breath) g.fillStyle(0xff6d00, 0.22).slice(0, 0, act.r, act.angle - act.half, act.angle + act.half).fillPath();
         g.fillStyle(0xff1744, 0.18).slice(0, 0, act.r, act.angle - act.half, act.angle + act.half).fillPath();
         g.lineStyle(4, 0xff1744, 0.9).slice(0, 0, act.r, act.angle - act.half, act.angle + act.half).strokePath();
         const dmg = act.damage * e.damageMult;
@@ -630,18 +738,91 @@ export class GameScene extends Phaser.Scene {
             this.tweens.add({ targets: slash, alpha: 0, duration: 250, onComplete: () => slash.destroy() });
             const d = Phaser.Math.Distance.Between(act.x, act.y, this.player.x, this.player.y);
             const a = Phaser.Math.Angle.Between(act.x, act.y, this.player.x, this.player.y);
-            if (d < act.r + 18 && Math.abs(Phaser.Math.Angle.Wrap(a - act.angle)) <= act.half) this.damagePlayer(dmg, e, true);
+            if (d < act.r + 18 && Math.abs(Phaser.Math.Angle.Wrap(a - act.angle)) <= act.half) {
+              this.damagePlayer(dmg, e, true);
+              if (act.slowPlayer) this.slowPlayerFor(1500, 0.35);
+            }
           },
         });
         break;
       }
       case 'summon': {
+        // 1단계 회색갈기는 기존처럼 체력 배율 1, 2~20단계 소환수는 스테이지 체력 배율을 따른다
+        const hpMult = e.def.behavior === 'graymane' ? 1 : this.director.hpMult;
+        // 2~20단계: 전장 적이 200 이상이면 소환하지 않음(성능·폭증 방지). 1단계는 기존 그대로
+        if (e.def.behavior !== 'graymane' && this.enemies.countActive() >= 200) break;
+        // 보스전에는 일반 적 생성이 멈추므로(기존 규칙) 일반 소환형의 졸개 소환도 멈춘다. 보스·엘리트 소환은 그대로
+        if (e.rank === 'normal' && this.director.boss) break;
         for (let i = 0; i < act.count; i++) {
           const a = (i / act.count) * Math.PI * 2;
-          const w = this.spawnEnemy(act.enemy, act.x + Math.cos(a) * 90, act.y + Math.sin(a) * 90, 1);
+          const w = this.spawnEnemy(act.enemy, act.x + Math.cos(a) * 90, act.y + Math.sin(a) * 90, hpMult);
           w.damageMult = e.damageMult;
+          e.minions.push(w);
         }
         this.cameras.main.shake(200, 0.004);
+        break;
+      }
+      case 'shot':
+      case 'orb': {
+        const homing = act.kind === 'orb';
+        const img = this.add.image(act.x, act.y, homing ? 'e-orb' : 'e-shot').setDepth(9).setScale(homing ? 1 : act.kind === 'shot' ? act.size : 1);
+        this.enemyShots.push({
+          img, homing, speed: act.speed, vx: Math.cos(act.angle) * act.speed, vy: Math.sin(act.angle) * act.speed,
+          life: act.kind === 'orb' ? act.lifeMs : 4000, damage: act.damage, r: homing ? 14 : 8 * (act.kind === 'shot' ? act.size : 1), src: e,
+        });
+        break;
+      }
+      case 'lineHit': {
+        // 직선 범위(검기·뿌리·가시): 예고 직사각형 → 시간이 지나면 판정. 예고와 판정 위치가 같다.
+        const cx = act.x + (Math.cos(act.angle) * act.length) / 2;
+        const cy = act.y + (Math.sin(act.angle) * act.length) / 2;
+        const warn = this.add.rectangle(cx, cy, act.length, act.width, 0xff1744, 0.16).setStrokeStyle(4, 0xff1744, 0.85).setRotation(act.angle).setDepth(4);
+        const dmg = act.damage * e.damageMult;
+        this.hazards.push({
+          left: act.ms,
+          objs: [warn],
+          run: () => {
+            warn.destroy();
+            const fx = this.add.rectangle(cx, cy, act.length, act.width, 0xffe0b2, 0.6).setRotation(act.angle).setDepth(8);
+            this.tweens.add({ targets: fx, alpha: 0, duration: 250, onComplete: () => fx.destroy() });
+            const dx = this.player.x - act.x;
+            const dy = this.player.y - act.y;
+            const along = dx * Math.cos(act.angle) + dy * Math.sin(act.angle);
+            const side = Math.abs(-dx * Math.sin(act.angle) + dy * Math.cos(act.angle));
+            if (along > -18 && along < act.length + 18 && side < act.width / 2 + 18) this.damagePlayer(dmg, e, true);
+          },
+        });
+        break;
+      }
+      case 'ringHit': {
+        // 바깥으로 퍼지는 충격파: 안쪽 원은 안전(보스 가까이로 피함)
+        const g = this.add.graphics({ x: act.x, y: act.y }).setDepth(4);
+        g.fillStyle(0xff1744, 0.14).fillCircle(0, 0, act.outer);
+        g.fillStyle(0x0d0f14, 0.0).lineStyle(4, 0xff1744, 0.9).strokeCircle(0, 0, act.outer).strokeCircle(0, 0, act.inner);
+        const safe = this.add.circle(act.x, act.y, act.inner, 0x69f0ae, 0.15).setDepth(4);
+        const dmg = act.damage * e.damageMult;
+        this.hazards.push({
+          left: act.ms,
+          objs: [g, safe],
+          run: () => {
+            g.destroy();
+            safe.destroy();
+            const wave = this.add.circle(act.x, act.y, act.inner).setStrokeStyle(14, 0xffcc80, 0.8).setDepth(8);
+            this.tweens.add({ targets: wave, radius: act.outer, alpha: 0.1, duration: 300, onComplete: () => wave.destroy() });
+            const d = Phaser.Math.Distance.Between(act.x, act.y, this.player.x, this.player.y);
+            if (d > act.inner - 18 && d < act.outer + 18) this.damagePlayer(dmg, e, true);
+          },
+        });
+        break;
+      }
+      case 'slowZone': {
+        const g = this.add.circle(act.x, act.y, act.r, 0xb3e5fc, 0.22).setStrokeStyle(3, 0xe1f5fe, 0.8).setDepth(3);
+        this.slowZones.push({ x: act.x, y: act.y, r: act.r, left: act.ms, slow: act.slow, g });
+        break;
+      }
+      case 'shield': {
+        const ring = this.add.circle(e.x, e.y, e.def.radius + 12).setStrokeStyle(act.front ? 6 : 8, act.front ? 0xffd54f : 0x80d8ff, 0.9).setDepth(7);
+        this.followFx.push({ obj: ring, target: e, left: act.ms });
         break;
       }
     }
@@ -651,7 +832,11 @@ export class GameScene extends Phaser.Scene {
   private hitEnemy(enemy: Enemy, spec: HitSpec): boolean {
     if (!enemy.active || this.mode !== 'play') return false;
     // 전용 액티브 고정 피해(flat)는 DPS에 이미 공격력·보너스가 들어 있어 특성·감전·분노를 다시 곱하지 않는다(v1.3)
-    const { amount, crit } = resolveDamage(this.stats, { ...spec, bonus: spec.flat != null ? 1 : this.damageBonus(enemy, spec) });
+    const res = resolveDamage(this.stats, { ...spec, bonus: spec.flat != null ? 1 : this.damageBonus(enemy, spec) });
+    // 7단계 방어형·보호막: 정면(또는 전체) 피해 감소. 1단계 적은 해당 없음(배율 1)
+    const guard = enemy.guardFactor(this.player.x, this.player.y);
+    const amount = guard === 1 ? res.amount : Math.round(res.amount * guard * 10) / 10;
+    const crit = res.crit;
     const tag = spec.tag ?? spec.source;
     this.dmgLog[tag] = (this.dmgLog[tag] ?? 0) + amount;
     if (crit) this.popText(enemy.x, enemy.y - 20, `${Math.round(amount)}!`, '#ffd34d');
@@ -692,7 +877,7 @@ export class GameScene extends Phaser.Scene {
       const amount = Math.min(this.stats.maxHp - this.hp, this.stats.maxHp * SPECIAL_VALUES.holyLight.heal);
       if (amount > 0) this.hp += amount;
     }
-    if (enemy.rank === 'normal') this.normalKills++;
+    if (enemy.rank === 'normal' && !enemy.def.noReward) this.normalKills++; // 소환수·분신은 처치 골드에 넣지 않음
     const d = this.director;
     if (enemy === d.boss) {
       d.onBossKilled(this.elapsed);
@@ -707,7 +892,7 @@ export class GameScene extends Phaser.Scene {
       this.dropGem(enemy.x, enemy.y, enemy.def.xp);
       this.hp = Math.min(this.stats.maxHp, this.hp + this.stats.maxHp * REWARD.eliteHeal);
       this.popText(this.player.x, this.player.y - 50, `+${Math.round(this.stats.maxHp * REWARD.eliteHeal)} HP`, '#3ddc84');
-    } else if (enemy.rank === 'normal') {
+    } else if (enemy.rank === 'normal' && !enemy.def.noReward) {
       this.dropGem(enemy.x, enemy.y, enemy.def.xp);
       const drop = rollNormalDrop(this.itemRng.frac()); // 처치마다 한 번, 최대 1종
       if (drop) this.spawnItem(drop, enemy.x, enemy.y, false);
@@ -957,6 +1142,7 @@ export class GameScene extends Phaser.Scene {
     // 3) 적 위험 지역 제거
     this.hazards.forEach((h) => h.objs.forEach((o) => o.destroy()));
     this.hazards = [];
+    this.clearEnemyShots();
     this.edgeArrows = [];
     this.items.clear(true, true); // 남은 아이템은 사라짐(보스 보상은 결과 화면에서)
     this.shieldUntil = 0;
@@ -1146,6 +1332,7 @@ export class GameScene extends Phaser.Scene {
       ...eliteLines,
       `보스: ${d.record.bossKillMs != null ? `처치 ${sec(d.record.bossKillMs)}` : d.boss ? '생존' : '미등장'}${d.bossBuffs.length ? ` (흡수 강화: ${d.bossBuffs.join(', ')})` : ''}`,
       `피해 비중: ${top || '—'}`,
+      ...(clear && this.stage.id === 20 ? ['', `“${SEASON1_FINALE}”`] : []),
       `시드 ${this.seed}`,
     ];
     const cards = this.runRewards.reduce((a, r) => a + (r.cards?.count ?? 0), 0);
