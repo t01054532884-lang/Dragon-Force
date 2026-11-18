@@ -263,14 +263,16 @@ class GalleryScene extends Phaser.Scene {
     ribbon(this, 360, 182, 330, '장비', 0xe0a032, 70);
     altar(this, 360, 470, 300);
     this.add.image(360, 360, 'portrait-red').setDisplaySize(290, 290);
-    const eq: [string, RarityKey | null, string][] = [
-      ['equip-weapon', 'rare', 'Lv.5'], ['equip-armor', 'common', 'Lv.3'],
-      ['equip-necklace', null, ''], ['equip-ring', 'epic', 'Lv.2'],
+    // 슬롯 이름: 드래곤이라 무기·갑옷 대신 발톱 장식·비늘 갑주(제작자 결정 2026-11-18)
+    const eq: [string, string, RarityKey | null, string][] = [
+      ['equip-weapon', '발톱 장식', 'rare', 'Lv.5'], ['equip-armor', '비늘 갑주', 'common', 'Lv.3'],
+      ['equip-necklace', '목걸이', null, ''], ['equip-ring', '반지', 'epic', 'Lv.2'],
     ];
-    eq.forEach(([icon, r, lv], i) => {
+    eq.forEach(([icon, name, r, lv], i) => {
       const x = i < 2 ? 100 : 620;
-      const y = 300 + (i % 2) * 150;
+      const y = 296 + (i % 2) * 152;
       const sl = slot(this, x, y, 120, { icon: r ? icon : undefined, rarity: r ? RARITY[r] : undefined });
+      sl.add(text(this, 0, -76, name, TYPE.tiny, COLOR.textSub, true, true).setOrigin(0.5));
       if (lv) sl.add(text(this, 0, 46, lv, TYPE.tiny, COLOR.text, true, true).setOrigin(0.5));
     });
     // 능력치 줄

@@ -125,18 +125,26 @@ export function makeArtPlaceholders(scene: Phaser.Scene): void {
   chest('chest-gold', 0xb7791f, 0xfde68a, COLOR.ember, COLOR.gold);
 
   // 장비 4종(등급 색은 슬롯 테두리로)
+  // 발톱 장식(공격력): 금판 + 칼날 발톱 세 개
   make('equip-weapon', 128, () => {
-    g.fillStyle(0xe5e7eb).fillTriangle(64, 6, 54, 84, 74, 84);
-    g.fillStyle(0x9ca3af).fillTriangle(64, 6, 64, 84, 74, 84);
-    g.fillStyle(COLOR.gold).fillRoundedRect(36, 82, 56, 12, 6);
-    g.fillStyle(0x7c2d12).fillRect(58, 94, 12, 22);
-    g.fillStyle(COLOR.gold).fillCircle(64, 120, 7);
+    for (const [x, tip] of [[38, 10], [64, 4], [90, 10]] as const) {
+      g.fillStyle(0xe5e7eb).fillTriangle(x, tip, x - 12, 70, x + 12, 70);
+      g.fillStyle(0x9ca3af).fillTriangle(x, tip, x, 70, x + 12, 70);
+    }
+    g.fillStyle(COLOR.gold).fillRoundedRect(20, 66, 88, 40, 16);
+    g.fillStyle(COLOR.ruby).fillCircle(64, 86, 10);
+    g.fillStyle(0xffffff, 0.6).fillCircle(60, 82, 3);
   });
+  // 비늘 갑주(최대 HP·피해 감소): 비늘을 겹친 둥근 가슴판 + 금테
   make('equip-armor', 128, () => {
-    g.fillStyle(0x94a3b8).fillRoundedRect(28, 26, 72, 86, { tl: 26, tr: 26, bl: 16, br: 16 });
-    g.fillStyle(0x64748b).fillRect(60, 30, 8, 80);
-    g.fillStyle(0xcbd5e1).fillCircle(28, 34, 18).fillCircle(100, 34, 18);
-    g.fillStyle(COLOR.ember).fillCircle(64, 62, 9);
+    g.fillStyle(COLOR.gold).fillRoundedRect(22, 20, 84, 94, { tl: 30, tr: 30, bl: 40, br: 40 });
+    g.fillStyle(0xb91c1c).fillRoundedRect(28, 26, 72, 82, { tl: 26, tr: 26, bl: 36, br: 36 });
+    for (let row = 0; row < 4; row++)
+      for (let c = 0; c < 3; c++) {
+        const x = 40 + c * 24 + (row % 2) * 12 - (row % 2 ? 6 : 0);
+        g.fillStyle(row % 2 ? 0xdc2626 : 0xef4444).fillCircle(x, 40 + row * 17, 11);
+      }
+    g.fillStyle(COLOR.ember).fillCircle(64, 66, 10);
   });
   make('equip-necklace', 128, () => {
     g.lineStyle(6, COLOR.gold).beginPath().arc(64, 40, 38, 0.2, Math.PI - 0.2).strokePath();
