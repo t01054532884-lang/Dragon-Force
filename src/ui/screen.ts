@@ -10,6 +10,7 @@ import { topBar } from './kit2';
 import { COLOR, TYPE } from './theme';
 import { gameNow } from './widgets';
 import { playMusic } from '../systems/Music';
+import { openRubyShop } from './rubyShop';
 
 // 로비 밖 화면 공통 틀(8단계 v2.0 C): 로비와 같은 머리줄(출격 드래곤·행동력·골드·루비·전투력) + 금색 리본 제목 + 하단 탭.
 // 화면마다 따로 그리던 제목·재화 줄·"로비로" 버튼을 이 틀 하나로 바꾼다 → 색·위치·동작이 모든 화면에서 같다.
@@ -64,7 +65,7 @@ export function screenFrame(scene: Phaser.Scene, opts: { title: string; nav: str
       currencies: [
         { icon: 'ui-energy', value: '', onPlus: scene.scene.key === 'gifts' ? undefined : () => scene.scene.start('gifts') },
         { icon: 'ui-gold', value: p.gold },
-        { icon: 'ui-ruby', value: p.rubies },
+        { icon: 'ui-ruby', value: p.rubies, onPlus: () => openRubyShop(scene, () => draw()) }, // 루비 충전(첫 출시 결제)
       ],
     });
     barRoot = bar.root.setDepth(40);

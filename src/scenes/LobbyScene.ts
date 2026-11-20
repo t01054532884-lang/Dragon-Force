@@ -18,6 +18,8 @@ import { playMusic, preloadMusic } from '../systems/Music';
 import { altar, dragonCarousel, iconTile, plate, tabs, topBar, torch, wingBanner } from '../ui/kit2';
 import { COLOR, css, TYPE } from '../ui/theme';
 import { giftAlert } from '../ui/giftFx';
+import { openRubyShop } from '../ui/rubyShop';
+import { account, shortId } from '../systems/Account';
 import { DEMO, platform } from '../platform';
 import { goTab, NAV_TABS } from '../ui/screen';
 
@@ -100,7 +102,7 @@ export class LobbyScene extends Phaser.Scene {
       currencies: [
         { icon: 'ui-energy', value: '', onPlus: () => this.scene.start('gifts') },
         { icon: 'ui-gold', value: p.gold },
-        { icon: 'ui-ruby', value: p.rubies },
+        { icon: 'ui-ruby', value: p.rubies, onPlus: () => (this.settingsUi = openRubyShop(this, () => this.scene.restart())) },
       ],
     });
     const tickStamina = () => {
@@ -230,18 +232,60 @@ export class LobbyScene extends Phaser.Scene {
   private openSettings(): void {
     this.closeSettings();
     const st = loadSettings();
-    const m = modal(this, 560, 380, '설정', { closeOnBackdrop: true, ribbonColor: COLOR.violet });
-    m.body(text(this, -220, -40, '소리', TYPE.heading, COLOR.text, true, true).setOrigin(0, 0.5));
-    m.body(text(this, -220, 4, `효과음·배경 음악 ${st.sound ? '켜짐' : '꺼짐'}`, TYPE.tiny, COLOR.textSub, true).setOrigin(0, 0.5));
+    const m = modal(this, 600, 700, '설정', { closeOnBackdrop: true, ribbonColor: COLOR.violet });
+    m.body(text(this, -240, -230, '소리', TYPE.heading, COLOR.text, true, true).setOrigin(0, 0.5));
+    m.body(text(this, -240, -186, `효과음·배경 음악 ${st.sound ? '켜짐' : '꺼짐'}`, TYPE.tiny, COLOR.textSub, true).setOrigin(0, 0.5));
     m.body(
-      button(this, 150, -24, 170, 76, st.sound ? '켜짐' : '꺼짐', () => {
+      button(this, 170, -214, 170, 76, st.sound ? '켜짐' : '꺼짐', () => {
         saveSettings({ ...st, sound: !st.sound });
         applySound(this.game);
         if (!st.sound) playSfx(this, 'sfx-ui-tap'); // 켰을 때 확인 소리
         this.openSettings();
       }, { kind: st.sound ? 'growth' : 'secondary', size: TYPE.body }).root,
     );
-    m.body(button(this, 0, 110, 220, 70, '닫기', () => this.closeSettings(), { kind: 'secondary', size: TYPE.caption }).root);
+    // 계정(첫 출시: 게스트 자동 + Apple 연결, 앱 안 계정 삭제 — 애플 심사 5.1.1(v))
+    const acc = account.current();
+    m.body(this.add.rectangle(0, -120, 520, 2, COLOR.line));
+    m.body(text(this, -240, -70, '계정', TYPE.heading, COLOR.text, true, true).setOrigin(0, 0.5));
+    m.body(text(this, -240, -26, `${acc.provider === 'apple' ? 'Apple 연결됨' : '게스트'} · ${shortId(acc.uid)}`, TYPE.tiny, COLOR.textSub, true).setOrigin(0, 0.5));
+    const link = button(this, 170, -50, 220, 76, acc.provider === 'apple' ? '연결됨' : 'Apple로 연결', () => {
+      account.linkApple().then((r) => {
+        if (r.ok) this.openSettings();
+        else if (r.reason === 'unavailable') this.toast('Apple 연결은 App Store 앱에서 할 수 있어요');
+        else if (r.reason === 'failed') this.toast('연결하지 못했어요. 잠시 뒤 다시 시도해 주세요');
+      });
+    }, { kind: 'primary', size: TYPE.caption, sub: account.canLinkApple || acc.provider === 'apple' ? undefined : '기기 바꿔도 이어서' });
+    link.setEnabled(acc.provider !== 'apple');
+    m.body(link.root);
+    m.body(text(this, -240, 50, '연결하면 기기를 바꾸거나 앱을 다시 설치해도 이어서 할 수 있어요', 15, COLOR.textDim, true).setOrigin(0, 0.5));
+    m.body(button(this, 0, 140, 300, 66, '계정 삭제', () => this.confirmDelete(), { kind: 'danger', size: TYPE.caption }).root);
+    m.body(button(this, 0, 260, 220, 70, '닫기', () => this.closeSettings(), { kind: 'secondary', size: TYPE.caption }).root);
+    this.settingsUi = m;
+  }
+
+  /** 계정 삭제 확인: 모든 진행·루비가 사라지고 되돌릴 수 없음을 알리고 한 번 더 확인 */
+  private confirmDelete(): void {
+    this.closeSettings();
+    const m = modal(this, 600, 520, '계정 삭제', { closeOnBackdrop: true, ribbonColor: COLOR.danger });
+    m.body(
+      text(this, 0, -110, '계정을 삭제하면 드래곤·장비·골드·루비(구매한 루비 포함)와\n모든 진행 기록이 지워지고 되돌릴 수 없어요.', TYPE.caption, COLOR.text, true, true)
+        .setOrigin(0.5).setAlign('center').setLineSpacing(8),
+    );
+    m.body(text(this, 0, -20, '삭제 후에는 새 게스트로 처음부터 시작해요', TYPE.tiny, COLOR.textSub, true).setOrigin(0.5));
+    m.body(button(this, -130, 110, 220, 76, '취소', () => this.closeSettings(), { kind: 'secondary', size: TYPE.body }).root);
+    m.body(
+      button(this, 130, 110, 220, 76, '삭제', () => {
+        account.deleteAccount().then((r) => {
+          if (!r.ok) {
+            this.toast('삭제하지 못했어요. 잠시 뒤 다시 시도해 주세요');
+            return;
+          }
+          this.closeSettings();
+          this.registry.remove('gift-seen-ids');
+          this.scene.start('title');
+        });
+      }, { kind: 'danger', size: TYPE.body }).root,
+    );
     this.settingsUi = m;
   }
 

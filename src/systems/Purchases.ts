@@ -1,17 +1,17 @@
 import { RUBY_PRODUCTS } from '../data/economy';
 import { withTx, type PlayerProgress, type Result } from './Progress';
 
-// 인앱결제 자리(구조만, 첫 출시에는 현금 결제 없음 — 제작자 결정 2026-11-18).
-// 루비는 지금 게임 안 보상·이벤트로만 얻는다. 결제를 붙일 때 할 일:
-// 1) 플랫폼별 구현을 만든다(iOS: StoreKit/RevenueCat, 토스: 앱인토스 인앱결제 — 사업자등록 필요).
+// 인앱결제(첫 출시에 넣기 — 제작자 결정 2026-11-20: Firebase + RevenueCat, docs/MONETIZATION_PLAN.md).
+// 지금은 결제 창구(인터페이스)와 지급 규칙만 있고, 기본값은 "결제 없음"(웹·데모·서버 연결 전). 할 일:
+// 1) iOS 구현: RevenueCat Capacitor SDK로 상품·구매·복원 → setPurchaseProvider로 바꿔 끼움(토스는 이후).
 // 2) 결제 영수증은 반드시 서버에서 검증하고 거래 기록을 남긴다(기획 v1.2 15장: 유료 루비·확률형 결과는 서버 검증).
 // 3) 검증된 거래만 grantVerifiedRubies로 지급한다(거래 ID로 중복 지급 방지).
 // 4) 확률 고지·환불·스토어 정책을 출시 전에 확인한다.
 
 export interface RubyProduct {
   productId: string;
-  rubies: number;
-  priceLabel: string; // 스토어가 알려 주는 현지 가격 문자열
+  rubies: number; // 보너스 포함 지급량
+  priceLabel: string; // 스토어가 알려 주는 현지 가격 문자열(₩5,900 등)
 }
 
 export interface PurchaseProvider {
@@ -20,6 +20,8 @@ export interface PurchaseProvider {
   products(): Promise<RubyProduct[]>;
   /** 결제 → 서버 검증까지 끝난 거래 ID를 돌려준다(실패·취소면 null) */
   buy(productId: string): Promise<{ transactionId: string; rubies: number } | null>;
+  /** 구매 복원(애플 심사 필수 버튼). 소모형 루비는 서버 기록으로 지급 누락분만 다시 확인 → 다시 지급한 거래 수 */
+  restore(): Promise<{ transactionId: string; rubies: number }[]>;
 }
 
 /** 첫 출시용: 결제 없음 */
@@ -27,6 +29,7 @@ export const NoPurchases: PurchaseProvider = {
   available: false,
   products: async () => [],
   buy: async () => null,
+  restore: async () => [],
 };
 
 export let purchases: PurchaseProvider = NoPurchases;

@@ -116,6 +116,13 @@ export const MISSIONS: MissionDef[] = [
 export const DAILY_IDS = MISSIONS.filter((m) => m.period === 'daily').map((m) => m.id);
 export const KST_OFFSET_MS = 9 * 3600_000;
 
-// ───────── 인앱결제 자리(첫 출시 제외, 제작자 결정 2026-11-18) ─────────
-// 루비는 게임 안 보상·이벤트로만 얻는다. 결제를 붙일 때 이 목록과 src/systems/Purchases.ts만 채운다.
-export const RUBY_PRODUCTS: { productId: string; rubies: number }[] = [];
+// ───────── 인앱결제: 루비 묶음(첫 출시에 넣기 — 제작자 결정 2026-11-20) ─────────
+// ⚠ 기획자 확정 전 초안(docs/MONETIZATION_PLAN.md 4절). 실제 가격은 App Store Connect 상품 가격(스토어가 알려 줌),
+// 여기는 상품 ID와 지급 루비만. productId는 App Store Connect·RevenueCat에 같은 이름으로 등록해야 한다.
+export const RUBY_PRODUCTS: { productId: string; rubies: number; bonus: number }[] = [
+  { productId: 'ruby_100', rubies: 100, bonus: 0 },
+  { productId: 'ruby_550', rubies: 500, bonus: 50 },
+  { productId: 'ruby_1200', rubies: 1000, bonus: 200 },
+  { productId: 'ruby_2600', rubies: 2000, bonus: 600 },
+  { productId: 'ruby_6500', rubies: 5000, bonus: 1500 },
+];
