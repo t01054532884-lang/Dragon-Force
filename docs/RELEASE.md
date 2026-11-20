@@ -1,6 +1,6 @@
 # 출시 준비 — App Store · 앱인토스
 
-제작자 결정(2026-11-18): **App Store 먼저 → 그 자체등급 정보로 앱인토스**. 식별자 토스 `dragon-force` / iOS `com.dragonforce.game`.
+제작자 결정(2026-11-18): **App Store 먼저 → 그 자체등급 정보로 앱인토스**. 같은 날 추가 결정: **토스는 나중에, 지금은 App Store 출시에 맞춘다** → 진행·체크리스트는 `docs/APPSTORE.md`. 식별자 토스 `dragon-force` / iOS `com.dragonforce.game`.
 수익화: App Store로 먼저 내고, 수익이 나기 시작하면 사업자등록. 토스 인앱결제는 사업자등록이 먼저라 토스는 결제 없이 시작.
 
 ## 한 코드, 세 가지 빌드
