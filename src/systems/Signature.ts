@@ -1,26 +1,56 @@
 import Phaser from 'phaser';
 import type { Enemy } from '../objects/Enemy';
 import { RED_BASIC } from '../data/basicAttack';
-import { aoePerTarget, signatureCap, SIGNATURE_RULES as R, SIGNATURES, type SignatureDef } from '../data/signature';
+import { aoePerTarget, signatureCap, sigGrowth, SIGNATURE_RULES as R, SIGNATURES, type SigGrowth, type SignatureDef } from '../data/signature';
 import type { DragonId } from '../data/dragons';
 import type { CombatHost } from './CombatHost';
+import { playSfx } from './Sfx';
+
+/** 남는 바닥 효과(불길·냉기·독구름): 일정 간격마다 안의 적에게 피해·상태이상 */
+interface Zone {
+  x: number;
+  y: number;
+  r: number;
+  left: number;
+  every: number;
+  acc: number;
+  perTick: number;
+  kind: 'fire' | 'frost' | 'poison';
+  follow: boolean;
+  img: Phaser.GameObjects.Image;
+}
+
+/** 전투 효과 깊이: 바닥에 남는 것은 적 공격 예고(3~4)보다 아래, 순간 섬광은 위(짧고 반투명) */
+const DEPTH_GROUND = 2.6;
+const DEPTH_FLASH = 8;
+/** 바닥 효과 동시 최대 개수(저사양 기기 보호) */
+const MAX_ZONES = 4;
 
 /**
- * 드래곤 전용 액티브(v1.2 3장 · v1.3 2장). 화면 위 버튼(또는 스페이스·Q)으로 직접 쓴다.
- * 피해는 쓰는 순간의 기본 공격 DPS(dps())를 기준으로 한 고정 피해라 공격력·특성 보너스를 다시 곱하지 않는다.
- * 모든 시간은 update(delta)로만 흐르므로 일시정지·카드 선택 중에는 쿨타임과 지속시간이 같이 멈춘다.
- * 판마다 새로 만들어 준비 완료 상태로 시작한다(쿨타임은 저장하지 않음, 출격 드래곤은 전투 중 못 바꿈).
+ * 드래곤 전용 액티브(v1.2 3장 · v1.3 2장 · 2026-11-20 강화 · 2026-11-21 드래곤별 전투 방식·연출·성장).
+ * 화면 위 버튼(또는 스페이스·Q)으로 직접 쓴다. 피해는 쓰는 순간의 기본 공격 DPS(dps())를 기준으로 한 고정 피해라
+ * 공격력·특성 보너스를 다시 곱하지 않는다. 엘리트·보스는 한 번 사용 피해 상한(signatureCap)이 그대로 적용된다.
+ * 모든 시간은 update(delta)로만 흐르므로 일시정지·카드 선택 중에는 쿨타임·지속시간·바닥 효과가 같이 멈춘다.
+ * 성장(tier 0~3): 드래곤 영구 레벨 10·20·30 — sigGrowth()로 범위·개수·남는 시간이 바뀐다.
  */
 export class Signature {
   readonly def: SignatureDef;
   readonly cooldownMs: number;
+  readonly growth: SigGrowth;
   private cd = 0;
   private active = 0;
   private running = false; // 지속 효과가 걸려 있는 동안 true
   private tickLeft = 0;
   private tickTimer = 0;
+  private tickMs = 0;
   private tickDamage = 0; // 지속형 한 번에 넣는 피해(시전 순간 DPS로 고정)
-  private zone: { x: number; y: number; g: Phaser.GameObjects.Arc } | null = null;
+  private zones: Zone[] = [];
+  private blades: Phaser.GameObjects.Image[] = [];
+  private bladeAngle = 0;
+  private ghostAt = 0;
+  private bubble: Phaser.GameObjects.Image | null = null;
+  private pending: { at: number; run: () => void }[] = [];
+  private clock = 0;
   uses = 0;
   /** 이번 사용에서 엘리트·보스에게 넣은 피해(한 번 사용 상한용) */
   private dealt = new Map<Enemy, number>();
@@ -30,13 +60,16 @@ export class Signature {
 
   constructor(
     private h: CombatHost,
-    dragonId: DragonId,
+    private dragonId: DragonId,
     cdMult: number,
     private dps: () => number,
     private healPct: (pct: number) => void,
+    readonly tier = 0,
   ) {
     this.def = SIGNATURES[dragonId];
     this.cooldownMs = this.def.cooldownMs * cdMult;
+    this.growth = sigGrowth(dragonId, tier);
+    makeSigTextures(h.scene);
   }
 
   get ready(): boolean {
@@ -52,108 +85,166 @@ export class Signature {
     return Math.max(0, this.cd);
   }
 
+  private get scene(): Phaser.Scene {
+    return this.h.scene;
+  }
+
   cast(): boolean {
     if (!this.ready) return false;
     const d = this.def;
-    const dps = this.dps();
+    const g = this.growth;
+    const dps = this.dps() * g.dmg;
     this.cd = this.cooldownMs;
     this.uses++;
     this.dealt.clear();
     const { x, y } = this.h.player;
-    switch (d.kind) {
-      case 'aoe': {
-        this.ring(x, y, d.radius!, d.color);
-        const t = this.inCircle(x, y, d.radius!);
+    const rad = (d.radius ?? 0) * g.radius;
+    switch (this.dragonId) {
+      // ── 광역 3종: 폭발 + 속성별 남는 효과 ──
+      case 'red': {
+        this.burst(x, y, rad, d.color, 'fx-fire-ground');
+        const t = this.inCircle(x, y, rad);
         this.strike(t, aoePerTarget(dps, t.length));
+        // 폭발 뒤 바닥에 불길: 1초마다 DPS × 0.6 + 화상(광역 지속 피해)
+        this.addZone({ x, y, r: rad * 0.7, left: g.lingerMs, every: 500, perTick: dps * 0.3, kind: 'fire', follow: false, tex: 'fx-fire-ground' });
+        playSfx(this.scene, 'sfx-fire-ground');
         break;
       }
-      case 'beam': {
-        // 명중 편의: 24방향 중 적이 가장 많이 맞는 방향(엘리트·보스는 5마리 몫)으로 자동 조준
-        const ang = this.bestAngle(x, y, d.length!, d.width!);
-        const t = this.inBeam(x, y, ang, d.length!, d.width!);
-        this.strike(t, aoePerTarget(dps, t.length), ang);
-        const g = this.h.scene.add.rectangle(x + (Math.cos(ang) * d.length!) / 2, y + (Math.sin(ang) * d.length!) / 2, d.length!, d.width! * 2, d.color, 0.45)
-          .setRotation(ang).setDepth(8);
-        this.h.scene.tweens.add({ targets: g, alpha: 0, duration: 450, onComplete: () => g.destroy() });
+      case 'blue': {
+        this.burst(x, y, rad, d.color, 'fx-ice-crystal');
+        const t = this.inCircle(x, y, rad);
+        this.strike(t, aoePerTarget(dps, t.length));
+        // 냉기 장판: 안에 있는 적 45% 둔화(피해 없음, 생존·이동 방해)
+        this.addZone({ x, y, r: rad * 0.8, left: g.lingerMs, every: 400, perTick: 0, kind: 'frost', follow: false, tex: 'fx-ice-crystal' });
         break;
       }
-      case 'dot':
-        this.zone = { x, y, g: this.h.scene.add.circle(x, y, d.radius!, d.color, 0.25).setStrokeStyle(4, d.color, 0.8).setDepth(3) };
-        this.startTicks((dps * R.dotSec) / d.ticks!);
+      case 'yellow': {
+        this.burst(x, y, rad, d.color, null);
+        const t = this.inCircle(x, y, rad);
+        const each = aoePerTarget(dps, t.length);
+        this.strike(t, each);
+        // 연쇄 번개: 맞은 적에서 범위 밖 적에게 차례로 튄다(다수 처치)
+        this.chainOut(t, g.count, each * 0.6);
         break;
-      case 'move':
-        this.moveBoost = R.moveBoost;
-        this.startTicks((dps * R.moveWeakSec) / d.ticks!);
+      }
+      // ── 지속형: 드래곤을 따라다니는 독구름 ──
+      case 'green':
+        this.addZone({ x, y, r: rad, left: g.lingerMs, every: g.lingerMs / 10, perTick: (dps * R.dotSec) / 10, kind: 'poison', follow: true, tex: 'fx-poison-cloud' });
         break;
-      case 'single':
-        this.startTicks((dps * R.singleSec) / d.ticks!);
-        break;
-      case 'heal':
-        this.healPct(R.heal);
+      // ── 회복: 회복 + 빛의 보호막(피해 감소) + 밀쳐내기 ──
+      case 'white': {
+        this.healPct(R.heal + 0.05 * this.tier);
         this.reduce = R.healGuardReduce;
-        this.active = R.healGuardMs;
+        this.active = g.lingerMs;
         this.running = true;
-        for (const e of this.inCircle(x, y, d.radius!)) e.knock(e.x - x || 1, e.y - y, d.knock!, 200);
-        this.ring(x, y, d.radius!, d.color);
+        for (const e of this.inCircle(x, y, rad)) e.knock(e.x - x || 1, e.y - y, d.knock!, 200);
+        this.burst(x, y, rad, d.color, null);
+        this.showBubble('fx-light-shield', 0xfff3c4);
         break;
-      case 'guard':
+      }
+      // ── 전방형: 적이 많은 방향 자동 조준, 성장하면 그림자 분신이 빔 추가 ──
+      case 'black':
+      case 'water': {
+        const len = d.length!;
+        const half = d.width! * g.radius;
+        for (let k = 0; k < g.count; k++) {
+          const fire = () => {
+            const px = this.h.player.x;
+            const py = this.h.player.y;
+            const ang = this.bestAngle(px, py, len, half);
+            const t = this.inBeam(px, py, ang, len, half);
+            this.strike(t, aoePerTarget(dps, t.length) / (k === 0 ? 1 : 2), ang);
+            this.beamFx(px, py, ang, len, half, k > 0);
+          };
+          if (k === 0) fire();
+          else this.later(k * 420, fire);
+        }
+        break;
+      }
+      // ── 방어: 피해 감소 + 바위 파동(여러 번) ──
+      case 'stone': {
         this.reduce = R.guardReduce;
         this.active = R.guardMs;
         this.running = true;
-        {
-          const t = this.inCircle(x, y, d.radius!);
-          this.strike(t, dps * R.guardHitSec); // strike가 밀쳐내기(knock)도 함께
+        this.showBubble(null, d.color);
+        for (let k = 0; k < g.count; k++) {
+          const wave = () => {
+            const px = this.h.player.x;
+            const py = this.h.player.y;
+            this.strike(this.inCircle(px, py, rad), (dps * R.guardHitSec) / (k === 0 ? 1 : 2));
+            this.rockWave(px, py, rad);
+          };
+          if (k === 0) wave();
+          else this.later(k * 600, wave);
         }
-        this.ring(x, y, d.radius!, d.color);
         break;
+      }
+      // ── 이동: 질주 + 회전 바람 칼날 + 잔상 ──
+      case 'wind':
+        this.moveBoost = R.moveBoost;
+        this.startTicks(R.moveMs + g.lingerMs, 500, (dps * R.moveWeakSec) / ((R.moveMs + g.lingerMs) / 500));
+        this.spawnBlades(g.count);
+        break;
+      // ── 단일: 엘리트·보스 우선 마력탄 ──
+      case 'arcane': {
+        const dur = d.durationMs!;
+        this.startTicks(dur, dur / g.count, (dps * R.singleSec) / g.count);
+        break;
+      }
     }
     return true;
   }
 
   update(delta: number): void {
     this.cd -= delta;
+    this.clock += delta;
+    // 예약된 추가 공격(분신 빔·두 번째 파동)
+    if (this.pending.length) {
+      const due = this.pending.filter((p) => p.at <= this.clock);
+      this.pending = this.pending.filter((p) => p.at > this.clock);
+      due.forEach((p) => p.run());
+    }
     // 틱을 먼저 처리한 뒤 지속시간을 끝낸다(마지막 틱이 끝나는 순간과 겹쳐도 빠지지 않게)
     if (this.tickLeft > 0) {
       this.tickTimer -= delta;
       while (this.tickTimer <= 1e-6 && this.tickLeft > 0) {
-        this.tickTimer += this.def.durationMs! / this.def.ticks!;
+        this.tickTimer += this.tickMs;
         this.tickLeft--;
         this.tick();
       }
     }
+    this.updateBlades(delta);
+    this.updateZones(delta);
+    if (this.bubble) this.bubble.setPosition(this.h.player.x, this.h.player.y);
     if (this.active > 0) this.active -= delta;
     if (this.running && this.active <= 0 && this.tickLeft === 0) this.end();
   }
 
-  private startTicks(perTick: number): void {
-    this.active = this.def.durationMs!;
+  private later(ms: number, run: () => void): void {
+    this.pending.push({ at: this.clock + ms, run });
+  }
+
+  private startTicks(durationMs: number, everyMs: number, perTick: number): void {
+    this.active = durationMs;
     this.running = true;
-    this.tickLeft = this.def.ticks!;
-    this.tickTimer = this.def.durationMs! / this.def.ticks!; // 첫 틱은 한 칸 뒤(5초 동안 10번)
+    this.tickMs = everyMs;
+    this.tickLeft = Math.max(1, Math.round(durationMs / everyMs));
+    this.tickTimer = everyMs; // 첫 틱은 한 칸 뒤
     this.tickDamage = perTick;
   }
 
   private tick(): void {
-    const d = this.def;
-    if (d.kind === 'dot' && this.zone) {
-      // 독구름은 드래곤을 따라다닌다(맞히기 쉽게)
-      this.zone.x = this.h.player.x;
-      this.zone.y = this.h.player.y;
-      this.zone.g.setPosition(this.zone.x, this.zone.y);
+    const { x, y } = this.h.player;
+    if (this.dragonId === 'wind') {
+      const r = this.def.radius! * this.growth.radius;
+      const hit = this.inCircle(x, y, r);
+      this.strike(hit, this.tickDamage);
+      if (hit.length) playSfx(this.scene, 'sfx-wind-blade', { pitch: 0.9 + Math.random() * 0.2 });
     }
-    if (d.kind === 'dot' && this.zone) this.strike(this.inCircle(this.zone.x, this.zone.y, d.radius!), this.tickDamage);
-    if (d.kind === 'move') {
-      const { x, y } = this.h.player;
-      this.strike(this.inCircle(x, y, d.radius!), this.tickDamage);
-      this.ring(x, y, d.radius!, d.color, 180);
-    }
-    if (d.kind === 'single') {
-      const { x, y } = this.h.player;
-      const t = this.priorityTarget(x, y, d.radius!);
+    if (this.dragonId === 'arcane') {
+      const t = this.priorityTarget(x, y, this.def.radius!);
       if (!t) return;
-      const g = this.h.scene.add.graphics().setDepth(9);
-      g.lineStyle(4, d.color, 0.9).lineBetween(x, y, t.x, t.y);
-      this.h.scene.tweens.add({ targets: g, alpha: 0, duration: 200, onComplete: () => g.destroy() });
+      this.boltFx(x, y, t);
       this.strike([t], this.tickDamage);
     }
   }
@@ -164,8 +255,172 @@ export class Signature {
     this.reduce = 0;
     this.moveBoost = 0;
     this.tickLeft = 0;
-    this.zone?.g.destroy();
-    this.zone = null;
+    this.blades.forEach((b) => b.destroy());
+    this.blades = [];
+    if (this.bubble) {
+      const b = this.bubble;
+      this.bubble = null;
+      this.scene.tweens.add({ targets: b, alpha: 0, scale: b.scale * 1.3, duration: 250, onComplete: () => b.destroy() });
+    }
+  }
+
+  // ───────── 남는 바닥 효과 ─────────
+  private addZone(z: Omit<Zone, 'acc' | 'img'> & { tex: string }): void {
+    if (this.zones.length >= MAX_ZONES) this.dropZone(this.zones[0]);
+    const color = z.kind === 'fire' ? 0xff7a1a : z.kind === 'frost' ? 0x9be7ff : 0x8bc34a;
+    const img = this.scene.add.image(z.x, z.y, z.tex).setDepth(DEPTH_GROUND).setAlpha(0).setTint(z.tex === 'fx-ice-crystal' ? 0xffffff : 0xffffff);
+    img.setDisplaySize(z.r * 2, z.r * 2);
+    void color;
+    this.scene.tweens.add({ targets: img, alpha: z.kind === 'frost' ? 0.45 : 0.6, duration: 200 });
+    this.zones.push({ ...z, acc: 0, img });
+  }
+
+  private dropZone(z: Zone): void {
+    this.zones = this.zones.filter((o) => o !== z);
+    this.scene.tweens.add({ targets: z.img, alpha: 0, duration: 300, onComplete: () => z.img.destroy() });
+  }
+
+  private updateZones(delta: number): void {
+    for (const z of [...this.zones]) {
+      if (z.follow) {
+        z.x = this.h.player.x;
+        z.y = this.h.player.y;
+        z.img.setPosition(z.x, z.y);
+      }
+      z.img.rotation += (z.kind === 'poison' ? 0.4 : 0.15) * (delta / 1000);
+      z.left -= delta;
+      z.acc += delta;
+      while (z.acc >= z.every) {
+        z.acc -= z.every;
+        const t = this.inCircle(z.x, z.y, z.r, false);
+        if (z.kind === 'frost') t.forEach((e) => e.slow(0.45, 600));
+        else this.strike(t, z.perTick);
+      }
+      if (z.left <= 0) this.dropZone(z);
+    }
+  }
+
+  // ───────── 윈드: 회전 바람 칼날 + 잔상 ─────────
+  private spawnBlades(n: number): void {
+    this.blades.forEach((b) => b.destroy());
+    this.blades = [];
+    for (let i = 0; i < n; i++) this.blades.push(this.scene.add.image(this.h.player.x, this.h.player.y, 'fx-wind-blade').setDepth(DEPTH_FLASH).setDisplaySize(88, 88).setAlpha(1));
+  }
+
+  private updateBlades(delta: number): void {
+    if (!this.blades.length) return;
+    const r = this.def.radius! * this.growth.radius * 0.72;
+    this.bladeAngle += 7 * (delta / 1000);
+    const { x, y } = this.h.player;
+    this.blades.forEach((b, i) => {
+      const a = this.bladeAngle + (i / this.blades.length) * Math.PI * 2;
+      b.setPosition(x + Math.cos(a) * r, y + Math.sin(a) * r).setRotation(a + Math.PI / 2);
+    });
+    // 질주 잔상(약 0.1초마다, 짧게 사라짐)
+    this.ghostAt -= delta;
+    if (this.ghostAt <= 0) {
+      this.ghostAt = 100;
+      const key = this.scene.textures.exists(`top-${this.dragonId}`) ? `top-${this.dragonId}` : 'fx-wind-blade';
+      const gh = this.scene.add.image(x, y, key).setDepth(9).setAlpha(0.35).setTint(this.def.color).setDisplaySize(90, 90).setRotation(this.h.player.rotation);
+      this.scene.tweens.add({ targets: gh, alpha: 0, duration: 260, onComplete: () => gh.destroy() });
+    }
+  }
+
+  // ───────── 연출 ─────────
+  /** 광역 폭발: 퍼지는 고리 + (있으면) 속성 그림이 잠깐 번쩍 */
+  private burst(x: number, y: number, r: number, color: number, tex: string | null): void {
+    const c = this.scene.add.circle(x, y, 20).setStrokeStyle(12, color, 0.95).setDepth(DEPTH_FLASH);
+    this.scene.tweens.add({ targets: c, radius: r * this.h.stats.areaMult, alpha: 0.1, duration: 360, onComplete: () => c.destroy() });
+    const f = this.scene.add.circle(x, y, r * this.h.stats.areaMult, color, 0.22).setDepth(DEPTH_FLASH);
+    this.scene.tweens.add({ targets: f, alpha: 0, duration: 420, onComplete: () => f.destroy() });
+    if (tex) {
+      const im = this.scene.add.image(x, y, tex).setDepth(DEPTH_FLASH).setDisplaySize(r * 2, r * 2).setAlpha(0.8);
+      this.scene.tweens.add({ targets: im, alpha: 0, scale: im.scale * 1.15, duration: 450, onComplete: () => im.destroy() });
+    }
+    this.scene.cameras.main.shake(160, 0.004);
+  }
+
+  private beamFx(x: number, y: number, ang: number, len: number, half: number, clone: boolean): void {
+    const cx = x + (Math.cos(ang) * len) / 2;
+    const cy = y + (Math.sin(ang) * len) / 2;
+    const color = this.def.color;
+    const g = this.scene.add.rectangle(cx, cy, len, half * 2, color, clone ? 0.3 : 0.45).setRotation(ang).setDepth(DEPTH_FLASH);
+    this.scene.tweens.add({ targets: g, alpha: 0, duration: 450, onComplete: () => g.destroy() });
+    if (this.dragonId === 'water') {
+      // 해일: 물결 띠가 앞으로 밀려감
+      const w = this.scene.add.image(x, y, 'fx-wave').setDepth(DEPTH_FLASH).setRotation(ang).setDisplaySize(90, half * 2).setAlpha(0.85);
+      this.scene.tweens.add({ targets: w, x: x + Math.cos(ang) * len, y: y + Math.sin(ang) * len, alpha: 0.2, duration: 420, onComplete: () => w.destroy() });
+    } else {
+      // 암흑: 암흑 구체가 빔을 따라 날아감, 분신 빔은 반투명 분신에서
+      if (clone) {
+        const key = this.scene.textures.exists(`top-black`) ? 'top-black' : 'fx-shadow-orb';
+        const gh = this.scene.add.image(x - Math.cos(ang) * 40, y - Math.sin(ang) * 40, key).setDisplaySize(90, 90).setTint(0x4a2d7a).setAlpha(0.55).setDepth(9).setRotation(ang + Math.PI / 2);
+        this.scene.tweens.add({ targets: gh, alpha: 0, duration: 500, onComplete: () => gh.destroy() });
+      }
+      for (let i = 0; i < 3; i++) {
+        const o = this.scene.add.image(x, y, 'fx-shadow-orb').setDepth(DEPTH_FLASH).setDisplaySize(46, 46);
+        this.scene.tweens.add({ targets: o, x: x + Math.cos(ang) * len, y: y + Math.sin(ang) * len, delay: i * 60, duration: 320, onComplete: () => o.destroy() });
+      }
+    }
+  }
+
+  private rockWave(x: number, y: number, r: number): void {
+    const im = this.scene.add.image(x, y, 'fx-rock-wave').setDepth(DEPTH_FLASH).setDisplaySize(60, 60).setAlpha(0.95);
+    const size = r * 2 * this.h.stats.areaMult;
+    this.scene.tweens.add({ targets: im, displayWidth: size, displayHeight: size, alpha: 0.15, duration: 420, onComplete: () => im.destroy() });
+    this.scene.cameras.main.shake(200, 0.006);
+  }
+
+  private boltFx(x: number, y: number, t: Enemy): void {
+    const b = this.scene.add.image(x, y, 'fx-arcane-bolt').setDepth(DEPTH_FLASH).setDisplaySize(34, 34);
+    this.scene.tweens.add({ targets: b, x: t.x, y: t.y, duration: 140, onComplete: () => b.destroy() });
+  }
+
+  private showBubble(tex: string | null, color: number): void {
+    this.bubble?.destroy();
+    const key = tex ?? 'fx-rock-wave';
+    this.bubble = this.scene.add.image(this.h.player.x, this.h.player.y, key).setDepth(11).setDisplaySize(120, 120).setAlpha(0.55).setTint(tex ? 0xffffff : color);
+    this.scene.tweens.add({ targets: this.bubble, alpha: 0.3, duration: 600, yoyo: true, repeat: -1 });
+  }
+
+  /** 연쇄 번개: 이미 맞은 적에서 가장 가까운 새 적으로 n번 튄다(범위 밖까지) */
+  private chainOut(from: Enemy[], n: number, each: number): void {
+    const hitSet = new Set(from);
+    let cur: { x: number; y: number } = from[0] ?? this.h.player;
+    const points: { x: number; y: number }[] = [{ x: this.h.player.x, y: this.h.player.y }, { x: cur.x, y: cur.y }];
+    for (let i = 0; i < n; i++) {
+      let best: Enemy | null = null;
+      let bd = 7 * 50;
+      for (const e of this.live()) {
+        if (hitSet.has(e)) continue;
+        const d = Phaser.Math.Distance.Between(cur.x, cur.y, e.x, e.y);
+        if (d < bd) {
+          bd = d;
+          best = e;
+        }
+      }
+      if (!best) break;
+      hitSet.add(best);
+      points.push({ x: best.x, y: best.y });
+      this.strike([best], each);
+      cur = best;
+    }
+    if (points.length < 3) return;
+    const g = this.scene.add.graphics().setDepth(DEPTH_FLASH);
+    g.lineStyle(5, 0xfff176, 1);
+    for (let i = 1; i < points.length; i++) {
+      const a = points[i - 1];
+      const b = points[i];
+      // 지그재그 번개 줄기
+      g.beginPath().moveTo(a.x, a.y);
+      for (let s = 1; s <= 4; s++) {
+        const t = s / 5;
+        g.lineTo(a.x + (b.x - a.x) * t + (Math.random() - 0.5) * 22, a.y + (b.y - a.y) * t + (Math.random() - 0.5) * 22);
+      }
+      g.lineTo(b.x, b.y).strokePath();
+    }
+    g.lineStyle(2, 0xb388ff, 0.9).strokePoints(points.map((p) => new Phaser.Math.Vector2(p.x, p.y)));
+    this.scene.tweens.add({ targets: g, alpha: 0, duration: 380, onComplete: () => g.destroy() });
   }
 
   /** 대상마다 고정 피해(이미 DPS로 계산된 값) + 상태이상 */
@@ -182,7 +437,7 @@ export class Signature {
         const a = ang ?? Math.atan2(e.y - this.h.player.y, e.x - this.h.player.x);
         e.knock(Math.cos(a), Math.sin(a), d.knock, 200);
       }
-      // 엘리트·보스는 한 번 사용 피해 상한(보스가 한 번에 사라지지 않게)
+      // 엘리트·보스는 한 번 사용 피해 상한(보스가 한 번에 사라지지 않게) — 남는 불길·분신 빔·연쇄까지 합쳐서
       let amount = each;
       if (e.rank !== 'normal') {
         const used = this.dealt.get(e) ?? 0;
@@ -190,7 +445,7 @@ export class Signature {
         this.dealt.set(e, used + amount);
         if (amount <= 0) continue;
       }
-      this.h.hit(e, { source: 'active', coef: 0, flat: amount, tag: 'signature' });
+      if (amount > 0) this.h.hit(e, { source: 'active', coef: 0, flat: amount, tag: 'signature' });
     }
   }
 
@@ -198,8 +453,10 @@ export class Signature {
     return this.h.enemies().filter((e) => e.active);
   }
 
-  private inCircle(x: number, y: number, r: number): Enemy[] {
-    return this.live().filter((e) => Phaser.Math.Distance.Between(x, y, e.x, e.y) < r * this.h.stats.areaMult + e.def.radius);
+  /** area=true면 마력 확장(범위 패시브)을 곱한다. 남는 바닥 효과는 그림 크기와 맞추려고 곱하지 않음 */
+  private inCircle(x: number, y: number, r: number, area = true): Enemy[] {
+    const rr = area ? r * this.h.stats.areaMult : r;
+    return this.live().filter((e) => Phaser.Math.Distance.Between(x, y, e.x, e.y) < rr + e.def.radius);
   }
 
   private inBeam(x: number, y: number, ang: number, len: number, half: number): Enemy[] {
@@ -249,13 +506,86 @@ export class Signature {
     return best;
   }
 
-  private ring(x: number, y: number, r: number, color: number, ms = 350): void {
-    const c = this.h.scene.add.circle(x, y, 20).setStrokeStyle(10, color, 0.9).setDepth(8);
-    this.h.scene.tweens.add({ targets: c, radius: r * this.h.stats.areaMult, alpha: 0.15, duration: ms, onComplete: () => c.destroy() });
-  }
-
   destroy(): void {
-    this.zone?.g.destroy();
-    this.zone = null;
+    this.zones.forEach((z) => z.img.destroy());
+    this.zones = [];
+    this.blades.forEach((b) => b.destroy());
+    this.blades = [];
+    this.bubble?.destroy();
+    this.bubble = null;
   }
+}
+
+/**
+ * 전용 스킬 효과 그림(그림 요청서 5 A-1). public/art/fx/에 실제 그림이 들어와 ART_FILES로 읽히면 그 그림을 쓰고,
+ * 없는 것만 여기서 도형으로 그린다(키 이름이 같아서 코드는 그대로).
+ */
+export function makeSigTextures(scene: Phaser.Scene): void {
+  const need = ['fx-wind-blade', 'fx-fire-ground', 'fx-ice-crystal', 'fx-poison-cloud', 'fx-rock-wave', 'fx-light-shield', 'fx-shadow-orb', 'fx-arcane-bolt', 'fx-wave'];
+  if (need.every((k) => scene.textures.exists(k))) return;
+  const g = scene.make.graphics({}, false);
+  const make = (key: string, size: number, draw: () => void) => {
+    if (scene.textures.exists(key)) return;
+    g.clear();
+    draw();
+    g.generateTexture(key, size, size);
+  };
+  const S = 128;
+  const c = S / 2;
+  make('fx-wind-blade', S, () => {
+    // 초승달 바람 칼날: 겹친 호 몇 겹(바깥 진한 청록 → 안쪽 흰빛)
+    for (let i = 0; i < 6; i++) {
+      const a0 = -2.5 + i * 0.05;
+      g.lineStyle(10 - i * 1.4, i < 2 ? 0x6fd6b8 : 0xe6fffa, 0.9 - i * 0.1).beginPath().arc(c, c, 46 - i * 3, a0, 0.3 - i * 0.08, false).strokePath();
+    }
+  });
+  const radial = (key: string, inner: number, outer: number, size = 256) =>
+    make(key, size, () => {
+      const r = size / 2;
+      for (let i = 10; i >= 1; i--) {
+        const t = i / 10;
+        const col = Phaser.Display.Color.Interpolate.ColorWithColor(Phaser.Display.Color.ValueToColor(inner), Phaser.Display.Color.ValueToColor(outer), 10, 10 - i);
+        g.fillStyle(Phaser.Display.Color.GetColor(col.r, col.g, col.b), 0.12 + (1 - t) * 0.08).fillCircle(r, r, r * t);
+      }
+    });
+  radial('fx-fire-ground', 0xfff176, 0xff6d00);
+  radial('fx-poison-cloud', 0xc5e1a5, 0x6a1b9a);
+  make('fx-ice-crystal', 256, () => {
+    const r = 128;
+    g.fillStyle(0x9be7ff, 0.18).fillCircle(r, r, 120);
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      const tipX = r + Math.cos(a) * 110;
+      const tipY = r + Math.sin(a) * 110;
+      g.fillStyle(i % 2 ? 0xe1f5fe : 0x81d4fa, 0.85).fillTriangle(r + Math.cos(a + 0.25) * 30, r + Math.sin(a + 0.25) * 30, r + Math.cos(a - 0.25) * 30, r + Math.sin(a - 0.25) * 30, tipX, tipY);
+    }
+  });
+  make('fx-rock-wave', 256, () => {
+    const r = 128;
+    g.lineStyle(10, 0xb08d57, 0.9).strokeCircle(r, r, 116);
+    for (let i = 0; i < 14; i++) {
+      const a = (i / 14) * Math.PI * 2;
+      g.fillStyle(i % 2 ? 0x8d7558 : 0xc8a97a, 1).fillRect(r + Math.cos(a) * 112 - 9, r + Math.sin(a) * 112 - 9, 18, 18);
+    }
+  });
+  make('fx-light-shield', 256, () => {
+    const r = 128;
+    g.fillStyle(0xfff3c4, 0.22).fillCircle(r, r, 124);
+    g.lineStyle(8, 0xffe082, 0.9).strokeCircle(r, r, 118);
+    g.lineStyle(3, 0xffffff, 0.8).strokeCircle(r, r, 100);
+  });
+  make('fx-shadow-orb', 64, () => {
+    g.fillStyle(0x4a2d7a, 0.4).fillCircle(32, 32, 30);
+    g.fillStyle(0x7e57c2, 1).fillCircle(32, 32, 18);
+    g.fillStyle(0x1a1026, 1).fillCircle(32, 32, 10);
+  });
+  make('fx-arcane-bolt', 64, () => {
+    g.fillStyle(0xff8de8, 0.4).fillCircle(32, 32, 26);
+    g.fillStyle(0xb693ff, 1).fillCircle(32, 32, 14);
+    g.fillStyle(0xffffff, 1).fillCircle(28, 28, 5);
+  });
+  make('fx-wave', 128, () => {
+    for (let i = 0; i < 5; i++) g.fillStyle(i % 2 ? 0xbdeeff : 0x4fc3f7, 0.55 - i * 0.07).fillRoundedRect(10 + i * 16, 6, 24, 116, 12);
+  });
+  g.destroy();
 }

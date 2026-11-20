@@ -23,6 +23,7 @@ export class EquipScene extends Phaser.Scene {
   private selected: string | null = null;
   private selectedSpecial: SpecialId | null = null;
   private page = 0;
+  private sort: 'rarity' | 'level' | 'recent' = 'rarity';
   private layer: Phaser.GameObjects.GameObject[] = [];
   private frame!: ScreenFrame;
 
@@ -102,6 +103,7 @@ export class EquipScene extends Phaser.Scene {
       const box = A(slotBox(this, x, y, 116, { icon: it ? equipIcon(s, it.rarity) : undefined, rarity: it ? RARITY_COLOR[it.rarity] : undefined }));
       A(text(this, x, y - 76, SLOT_LABEL[s], TYPE.tiny, on ? COLOR.gold : COLOR.textSub, true, true).setOrigin(0.5));
       if (it) box.add(text(this, 0, 44, `Lv.${it.level}`, TYPE.tiny, COLOR.text, true, true).setOrigin(0.5));
+      if (it && it.level < EQUIP_RULES.maxLevel && p.gold >= EQUIP_RULES.upgradeCost(it.level)) box.add(text(this, 44, -42, '▲', 24, COLOR.ok, true, true).setOrigin(0.5));
       box.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
         this.slot = s;
         this.page = 0;
@@ -124,13 +126,24 @@ export class EquipScene extends Phaser.Scene {
       st.add(text(this, x - 34, 12, v, TYPE.caption, COLOR.text, true, true).setOrigin(0, 0.5));
     });
 
-    // 보유 목록(고른 슬롯, 등급 높은 순·레벨 높은 순)
+    // 보유 목록(고른 슬롯). 정렬: 등급순 · 레벨순 · 획득순(최근 먼저) — 2026-11-21 기획서 6장
+    const order = (u: string) => Number(u.replace(/\D/g, '')) || 0;
+    const byRarity = (a: EquipmentItem, b: EquipmentItem) => RARITIES.indexOf(b.rarity) - RARITIES.indexOf(a.rarity);
     const list = p.equipment.items
       .filter((it) => equipDef(it.itemId)!.slot === this.slot)
-      .sort((a, b) => RARITIES.indexOf(b.rarity) - RARITIES.indexOf(a.rarity) || b.level - a.level || a.uid.localeCompare(b.uid));
+      .sort((a, b) =>
+        this.sort === 'level' ? b.level - a.level || byRarity(a, b) || order(b.uid) - order(a.uid) :
+        this.sort === 'recent' ? order(b.uid) - order(a.uid) :
+        byRarity(a, b) || b.level - a.level || order(b.uid) - order(a.uid));
+    const SORT_LABEL = { rarity: '등급순', level: '레벨순', recent: '획득순' } as const;
+    this.B(button(this, 466, 680, 132, 42, `정렬: ${SORT_LABEL[this.sort]}`, () => {
+      this.sort = this.sort === 'rarity' ? 'level' : this.sort === 'level' ? 'recent' : 'rarity';
+      this.page = 0;
+      this.refresh();
+    }, { kind: 'secondary', size: 15 }));
     const pages = Math.max(1, Math.ceil(list.length / PAGE));
     this.page = Math.min(this.page, pages - 1);
-    A(text(this, 30, 680, `${SLOT_LABEL[this.slot]} ${list.length}개 · 같은 장비·등급 3개 → 한 등급 위`, TYPE.tiny, COLOR.textSub, true, true).setOrigin(0, 0.5));
+    A(text(this, 30, 680, `${SLOT_LABEL[this.slot]} ${list.length}개 · ▲ 강화 가능`, TYPE.tiny, COLOR.textSub, true, true).setOrigin(0, 0.5));
     if (pages > 1) {
       const prev = this.B(button(this, 576, 680, 56, 42, '◀', () => (this.page--, this.refresh()), { kind: 'secondary', size: TYPE.tiny }));
       const next = this.B(button(this, 660, 680, 56, 42, '▶', () => (this.page++, this.refresh()), { kind: 'secondary', size: TYPE.tiny }));
@@ -147,6 +160,8 @@ export class EquipScene extends Phaser.Scene {
       box.add(text(this, 0, 40, `Lv.${it.level}`, 15, COLOR.text, true, true).setOrigin(0.5));
       if (isEquipped(p, it.uid)) box.add(badge(this, -30, -40, '장착', COLOR.teal));
       if (it.locked) box.add(text(this, 38, -38, '🔒', 18).setOrigin(0.5));
+      // 지금 골드로 강화할 수 있는 장비에만 초록 화살표(자원이 부족하면 표시하지 않음)
+      else if (it.level < EQUIP_RULES.maxLevel && p.gold >= EQUIP_RULES.upgradeCost(it.level)) box.add(text(this, 38, -36, '▲', 22, COLOR.ok, true, true).setOrigin(0.5));
       box.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
         this.selected = it.uid;
         this.refresh();

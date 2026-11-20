@@ -28,6 +28,7 @@ import { WINTER_2026 } from '../data/events';
 import { gameNow } from '../ui/widgets';
 import { loadout } from '../systems/Loadout';
 import { Signature } from '../systems/Signature';
+import { sigTier } from '../data/signature';
 import { SPECIAL_VALUES, type SpecialId } from '../data/specials';
 import { DIFFICULTY_LABEL, DIFFICULTY_MULT, type Difficulty } from '../data/economy';
 import { decideDrop, ITEM_RULES, ITEMS, newDropState, type DropState, type ItemId } from '../data/items';
@@ -340,7 +341,8 @@ export class GameScene extends Phaser.Scene {
     this.basic = new BasicAttack(host, this.dragon.basic, this.basicTraits, built.perm);
     this.skills = new Skills(host);
     if (this.special === 'resonance') this.skills.echo = SPECIAL_VALUES.resonance.chance;
-    this.signature = new Signature(host, this.dragon.id, built.signatureCdMult, () => this.basic.singleTargetDps(), (pct) => host.heal?.(pct));
+    // 전용 스킬 성장 단계: 드래곤 영구 레벨 10·20·30(2026-11-21)
+    this.signature = new Signature(host, this.dragon.id, built.signatureCdMult, () => this.basic.singleTargetDps(), (pct) => host.heal?.(pct), sigTier(built.own.level));
 
     this.createHud();
     this.createJoystick();

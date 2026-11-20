@@ -4,7 +4,7 @@ import { STAGES } from '../data/stages';
 import { DRAGON_ORDER, DRAGONS, ELEMENT_LABEL, RARITY_COLOR, RARITY_LABEL } from '../data/dragons';
 import { DIFFICULTIES, DIFFICULTY_LABEL, DIFFICULTY_RELEASED, STAGE_COUNT, type Difficulty } from '../data/economy';
 import { cpVerdict, recommendedCp } from '../data/power';
-import { attendedToday, eventActive, eventState, progressPct, Progress, spinsAvailable } from '../systems/Progress';
+import { attendedToday, claimableMissions, eventActive, eventState, progressPct, Progress, spinsAvailable } from '../systems/Progress';
 import { loadout } from '../systems/Loadout';
 import { pendingGifts, staminaNow } from '../systems/Mailbox';
 import { STAMINA, formatLeft, nextRegenIn } from '../systems/Stamina';
@@ -307,7 +307,8 @@ export class LobbyScene extends Phaser.Scene {
   /** 받을 보상이 있으면 보상 버튼에 "!" */
   private hasClaimable(): boolean {
     const p = Progress.load();
-    return DIFFICULTIES.some((k) => [25, 50, 100].some((s) => progressPct(p, k) >= s && !p.difficulty[k].claimed.includes(s)));
+    // 진행도 상자 + 받을 수 있는 미션(2026-11-21: 미션 완료도 알림에 포함)
+    return DIFFICULTIES.some((k) => [25, 50, 100].some((s) => progressPct(p, k) >= s && !p.difficulty[k].claimed.includes(s))) || claimableMissions(p, gameNow()).length > 0;
   }
 
   /** 개발·심사용: 진행 초기화(두 번 확인) */

@@ -893,6 +893,51 @@ export function claimMission(p: PlayerProgress, missionId: string, now: number, 
   return { ok: true, progress: next, reward: rw };
 }
 
+/** 받을 수 있는 미션(선택 보상 포함) */
+export function claimableMissions(p: PlayerProgress, now: number): MissionDef[] {
+  return activeMissions(now).filter((m) => !missionClaimed(p, m, now) && missionProgress(p, m, now) >= m.goal);
+}
+
+/**
+ * 미션 모두 받기(2026-11-21 기획서 9.3): 골드·루비만 주는 완료 미션을 한 번에. 선택 카드·조각 미션은 드래곤을 골라야 해서 남긴다.
+ * 한 미션씩 claimMission을 그대로 거치므로 중복 지급 규칙(기간당 1회)도 같다.
+ */
+export function claimAllMissions(p: PlayerProgress, now: number): Result<{ got: MissionDef[]; left: number }> {
+  let cur = p;
+  const got: MissionDef[] = [];
+  let left = 0;
+  for (const m of claimableMissions(p, now)) {
+    if (m.reward.pickCards || m.reward.pickFragments) {
+      left++;
+      continue;
+    }
+    const r = claimMission(cur, m.id, now);
+    if (r.ok) {
+      cur = r.progress;
+      got.push(m);
+    }
+  }
+  if (!got.length) return fail('none');
+  return { ok: true, progress: cur, got, left };
+}
+
+/** 업적 진행(화면 표시용): 현재 값·목표·완료 여부 */
+export function achievementProgress(p: PlayerProgress): { id: string; cur: number; goal: number; done: boolean }[] {
+  const owned = DRAGON_ORDER.filter((id) => p.dragons[id].unlocked).length;
+  const val: Record<string, [number, number]> = {
+    'first-run': [p.lifetime.runs, 1],
+    'first-elite': [p.lifetime.eliteKills, 1],
+    'kills-1000': [p.lifetime.normalKills, 1000],
+    'kills-10000': [p.lifetime.normalKills, 10000],
+    'collector-3': [owned, 3],
+  };
+  return ACHIEVEMENTS.map((a) => {
+    const [cur, goal] = val[a.id] ?? [0, 1];
+    const done = p.claimed.includes(a.id) || cur >= goal;
+    return { id: a.id, cur: done ? goal : Math.min(cur, goal), goal, done };
+  });
+}
+
 // ───────────────────────── 기간 이벤트: 드래곤의 겨울 축제(v1.3) ─────────────────────────
 const EV = WINTER_2026;
 const evStart = Date.parse(EV.startKst);
@@ -1070,6 +1115,7 @@ export const Progress = {
   },
   claimProgress: (d: Difficulty, step: 25 | 50 | 100) => act((p) => claimProgressBox(p, d, step)),
   claimMission: (id: string, choice?: DragonId, now = Date.now()) => act((p) => claimMission(p, id, now, choice)),
+  claimAllMissions: (now = Date.now()) => act((p) => claimAllMissions(p, now)),
   equip: (uid: string) => act((p) => equipItem(p, uid)),
   unequip: (slot: Slot) => act((p) => unequipSlot(p, slot)),
   lock: (uid: string) => act((p) => toggleLock(p, uid)),

@@ -87,3 +87,49 @@ export function signatureCap(rank: 'normal' | 'elite' | 'boss', maxHp: number): 
   if (rank === 'elite') return maxHp * R.eliteCapPct;
   return Infinity;
 }
+
+// ───────── 전용 스킬 성장(2026-11-21 종합 개선 기획서 3.4) ─────────
+// 새 재화를 만들지 않고 기존 "드래곤 영구 레벨(카드+골드)"에 연결한다: Lv.10 · Lv.20 · Lv.30에서 한 단계씩.
+// 피해는 단계당 +8%만(이펙트와 피해가 동시에 크게 오르지 않게), 나머지는 범위·개수·남는 시간 같은 "전투 방식" 변화.
+export const SIG_TIER_LEVELS = [10, 20, 30];
+export const sigTier = (dragonLevel: number): number => SIG_TIER_LEVELS.filter((l) => dragonLevel >= l).length;
+
+export interface SigGrowth {
+  dmg: number; // 피해 배율
+  radius: number; // 범위·폭 배율
+  count: number; // 칼날·빔·파도·마력탄·연쇄 수(종류별 의미)
+  lingerMs: number; // 바닥에 남는 효과·보호막 등 유지 시간
+}
+
+/** 드래곤별 단계 값. 수치는 플레이 테스트용 1차안(docs/SIGNATURE_V2.md) */
+export function sigGrowth(id: DragonId, tier: number): SigGrowth {
+  const t = Math.max(0, Math.min(3, tier));
+  const dmg = 1 + 0.08 * t;
+  switch (id) {
+    case 'red': return { dmg, radius: 1 + 0.08 * t, count: 0, lingerMs: 3000 + 1000 * t }; // 폭발 뒤 불길
+    case 'blue': return { dmg, radius: 1 + 0.08 * t, count: 0, lingerMs: 3000 + 1000 * t }; // 냉기 장판
+    case 'yellow': return { dmg, radius: 1 + 0.06 * t, count: 3 + 2 * t, lingerMs: 0 }; // 범위 밖으로 튀는 연쇄 번개
+    case 'green': return { dmg, radius: 1 + 0.1 * t, count: 0, lingerMs: 5000 + 1000 * t }; // 따라다니는 독구름
+    case 'white': return { dmg, radius: 1 + 0.1 * t, count: 0, lingerMs: 4000 + 1000 * t }; // 빛의 보호막
+    case 'black': return { dmg, radius: 1 + 0.1 * t, count: 1 + Math.ceil(t / 2), lingerMs: 0 }; // 그림자 분신이 빔 추가
+    case 'stone': return { dmg, radius: 1 + 0.08 * t, count: t >= 3 ? 3 : t >= 2 ? 2 : 1, lingerMs: 0 }; // 바위 파동 횟수
+    case 'wind': return { dmg, radius: 1 + 0.1 * t, count: 2 + t, lingerMs: 500 * t }; // 회전 바람 칼날
+    case 'water': return { dmg, radius: 1 + 0.1 * t, count: t >= 2 ? 2 : 1, lingerMs: 0 }; // 해일 횟수
+    case 'arcane': return { dmg, radius: 1, count: 10 + 2 * t, lingerMs: 0 }; // 마력탄 수
+  }
+}
+
+/** 성장 표시용 핵심 수치 한 줄씩(드래곤 화면 "현재 → 다음") */
+export function sigGrowthLines(id: DragonId, tier: number): Record<string, string> {
+  const g = sigGrowth(id, tier);
+  const d = SIGNATURES[id];
+  const m = (px: number) => `${((px * g.radius) / M).toFixed(1)}m`;
+  const out: Record<string, string> = { 피해: `${Math.round(g.dmg * 100)}%` };
+  if (d.radius) out['범위'] = m(d.radius);
+  if (d.length) out['길이·폭'] = `${m(d.length)} · ${m(d.width! * 2)}`;
+  const label: Partial<Record<DragonId, string>> = { yellow: '연쇄 번개', black: '암흑 빔', stone: '바위 파동', wind: '바람 칼날', water: '해일', arcane: '마력탄' };
+  if (label[id]) out[label[id]!] = `${g.count}${id === 'yellow' ? '갈래' : id === 'arcane' || id === 'wind' ? '개' : '번'}`;
+  const linger: Partial<Record<DragonId, string>> = { red: '남는 불길', blue: '냉기 장판', green: '독구름', white: '보호막', wind: '질주 추가' };
+  if (linger[id] && g.lingerMs) out[linger[id]!] = `${(g.lingerMs / 1000).toFixed(1)}초`;
+  return out;
+}

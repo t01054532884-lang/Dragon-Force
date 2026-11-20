@@ -67,6 +67,17 @@ const RECIPES: Record<string, Recipe> = {
   'sfx-shield': { ch: 'battle', gap: 300, f0: 500, f1: 900, ms: 260, wave: 'triangle', gain: 0.04 },
   // 2026-11-20 개선: 큰 경험치 보석(금빛) — 밝게 올라가는 짧은 차임. 적 공격 예고(소리 없음·붉은 바닥)와 헷갈리지 않게 높은 음만
   'sfx-gem-big': { ch: 'reward', gap: 120, f0: 1320, f1: 2640, ms: 220, wave: 'sine', gain: 0.05 },
+  // 2026-11-21 종합 개선: 전용 스킬 연출·보상 화면(파일이 오면 public/sfx/에 같은 이름 — 그림·소리 요청서 5)
+  'sfx-wind-blade': { ch: 'battle', gap: 110, f0: 900, f1: 500, ms: 120, wave: 'sine', gain: 0.03, noise: 0.6 },
+  'sfx-fire-ground': { ch: 'battle', gap: 300, f0: 220, f1: 120, ms: 380, wave: 'sawtooth', gain: 0.035, noise: 0.8 },
+  'sfx-reward': { ch: 'reward', gap: 200, f0: 660, f1: 1320, ms: 320, wave: 'triangle', gain: 0.05 },
+  'sfx-reward-rare': { ch: 'reward', gap: 300, f0: 520, f1: 2080, ms: 650, wave: 'triangle', gain: 0.06 },
+  'sfx-claim': { ch: 'reward', gap: 120, f0: 990, f1: 1480, ms: 160, wave: 'square', gain: 0.025 },
+  'sfx-essence': { ch: 'reward', gap: 300, f0: 1200, f1: 2400, ms: 700, wave: 'sine', gain: 0.05 },
+  'sfx-dragon-unlock': { ch: 'reward', gap: 1000, f0: 330, f1: 1320, ms: 1400, wave: 'triangle', gain: 0.07 },
+  'sfx-day7': { ch: 'reward', gap: 500, f0: 784, f1: 1568, ms: 700, wave: 'triangle', gain: 0.06 },
+  'sfx-ui-confirm': { ch: 'ui', gap: 80, f0: 880, f1: 1320, ms: 120, wave: 'sine', gain: 0.035 },
+  'sfx-ui-error': { ch: 'ui', gap: 200, f0: 300, f1: 200, ms: 200, wave: 'square', gain: 0.025 },
   // 전용 스킬 준비 완료: 짧고 부드러운 딩
   'sfx-sig-ready': { ch: 'ui', gap: 1000, f0: 880, f1: 1175, ms: 180, wave: 'triangle', gain: 0.045 },
 };

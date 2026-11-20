@@ -7,7 +7,8 @@ import { specialDef } from '../data/specials';
 import { poolOf, Progress, type BoxResult, type Reward } from '../systems/Progress';
 import { devMode } from '../ui/widgets';
 import { ChestOpening } from '../ui/ChestOpening';
-import { CHEST_SFX_FILES, preloadSfx } from '../systems/Sfx';
+import { dragonUnlock } from '../ui/celebrate';
+import { CHEST_SFX_FILES, playSfx, preloadSfx } from '../systems/Sfx';
 import { CHEST_LAYER_KEYS, equipIcon, preloadArt, preloadKeys } from '../ui/art';
 import { badge, button, progressBar, text, type KitButton } from '../ui/kit';
 import { plate } from '../ui/kit2';
@@ -187,10 +188,22 @@ export class ShopScene extends Phaser.Scene {
       else card.add(text(this, 0, -40 * big, icon, 50 * big, color).setOrigin(0.5));
       card.add(text(this, 0, 30 * big, title, 17 * big, COLOR.text, true, true).setOrigin(0.5, 0).setWordWrapWidth(116 * big).setAlign('center'));
       card.add(text(this, 0, 76 * big, sub, 16 * big, color, true, true).setOrigin(0.5, 0));
+      // 드래곤 정수: 일반 보상보다 강한 빛(속성 색 고리가 숨 쉬듯) + "정수" 배지 + 정수 소리(2026-11-21 기획서 4.4)
+      if (res.kind === 'essence') {
+        const dc = DRAGONS[res.dragonId].color;
+        const glow = this.add.circle(0, -40 * big, 66 * big, dc, 0.35);
+        card.addAt(glow, 1);
+        this.tweens.add({ targets: glow, scale: 1.3, alpha: 0.08, duration: 650, yoyo: true, repeat: -1 });
+        card.add(badge(this, 0, -118 * big, res.isNew ? 'NEW 정수' : '정수', res.isNew ? COLOR.ruby : 0x7a4fd0));
+        this.time.delayedCall(i * 90 + 120, () => playSfx(this, 'sfx-essence'));
+      }
       card.setScale(0.01, 1);
       this.tweens.add({ targets: card, scaleX: 1, duration: 180, delay: i * 90 });
     });
     if (rewards.length) add(text(this, 360, 268, rewards.map((w) => `${w.text}: 루비 +${w.rubies}`).join('\n'), TYPE.caption, COLOR.gold, true, true).setOrigin(0.5).setAlign('center'));
+    // 새로 해금한 드래곤: 결과를 잠깐 보여 준 뒤 해금 축하(건너뛰기 가능, 여러 마리면 차례로)
+    const fresh = results.flatMap((r) => (r.kind === 'essence' && r.isNew ? [r.dragonId] : []));
+    if (fresh.length) this.time.delayedCall(700 + n * 90, () => dragonUnlock(this, fresh));
   }
 
   /** 확률 공개(원문: 희귀도별 확률과 천장 조건을 정확히 고지) */

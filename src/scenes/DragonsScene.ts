@@ -4,7 +4,8 @@ import {
   DRAGON_ORDER, DRAGONS, ELEMENT_LABEL, GROWTH, RARITY_COLOR, RARITY_LABEL, levelBonus, starBonus, traitMultFor, type DragonId,
 } from '../data/dragons';
 import { PERM_TIER_LEVELS, PERM_TIERS } from '../data/permGrowth';
-import { SIGNATURES } from '../data/signature';
+import { SIG_TIER_LEVELS, sigGrowthLines, sigTier, SIGNATURES } from '../data/signature';
+import { dragonUnlock } from '../ui/celebrate';
 import { econRarity, ESSENCE, UNIVERSAL } from '../data/economy';
 import { Progress, universalLimit } from '../systems/Progress';
 import { loadout } from '../systems/Loadout';
@@ -128,13 +129,21 @@ export class DragonsScene extends Phaser.Scene {
     const tm = traitMultFor(d.id, o.stars);
     const traitNote = d.id === 'red' ? (tm > 0 ? ' (활성)' : ' (1~4성 비활성)') : tm > 1 ? ` (승급 강화 ×${tm})` : '';
     this.A(text(this, 46, top + 206, `고유 특성: ${d.trait.text}${traitNote}`, 16, COLOR.ok, true).setOrigin(0, 0).setWordWrapWidth(628).setAlign('left'));
+    // 전용 스킬: 지금 단계와 다음 성장(영구 Lv.10·20·30)에서 무엇이 바뀌는지 숫자로(2026-11-21 기획서 5.2)
     const sg = SIGNATURES[d.id];
-    this.A(text(this, 46, top + 254, `전용 액티브: ${sg.icon} ${sg.name} — ${sg.detail} · 재사용 60초`, 16, 0xffcc80, true).setOrigin(0, 0).setWordWrapWidth(628).setAlign('left'));
+    const tier = sigTier(o.level);
+    const next = SIG_TIER_LEVELS[tier];
+    const cur = sigGrowthLines(d.id, tier);
+    const nxt = next ? sigGrowthLines(d.id, tier + 1) : null;
+    const diff = nxt ? Object.keys(nxt).filter((k) => nxt[k] !== cur[k]).map((k) => `${k} ${cur[k] ?? '—'} → ${nxt[k]}`).join(' · ') : '';
+    this.A(text(this, 46, top + 240, `전용 스킬 ${sg.icon} ${sg.name} · 성장 ${tier}/3단계 · 재사용 60초`, 17, 0xffcc80, true, true).setOrigin(0, 0));
+    this.A(text(this, 46, top + 268, nxt ? `다음 Lv.${next}: ${diff}` : '최고 단계 — 모든 성장 효과 적용 중', 15, nxt ? COLOR.gold : COLOR.ok, true).setOrigin(0, 0).setWordWrapWidth(628).setAlign('left'));
 
-    // 성장표·기본 공격 팝업
+    // 성장표·기본 공격·전용 스킬 팝업
     const ty = top + 340;
-    this.B(button(this, 200, ty, 300, 56, '영구 성장표', () => this.permPopup(), { kind: 'secondary', size: TYPE.caption }));
-    this.B(button(this, 520, ty, 300, 56, `기본 공격 ${d.basic.icon} ${d.basic.name}`, () => this.basicPopup(), { kind: 'secondary', size: TYPE.caption }));
+    this.B(button(this, 140, ty, 210, 56, '영구 성장표', () => this.permPopup(), { kind: 'secondary', size: TYPE.tiny }));
+    this.B(button(this, 360, ty, 210, 56, `기본 공격 ${d.basic.icon}`, () => this.basicPopup(), { kind: 'secondary', size: TYPE.tiny }));
+    this.B(button(this, 580, ty, 210, 56, `전용 스킬 ${sg.icon}`, () => this.sigPopup(), { kind: 'magic', size: TYPE.tiny }));
 
     // 육성 버튼
     const by = top + 432;
@@ -172,6 +181,30 @@ export class DragonsScene extends Phaser.Scene {
       const b = this.B(button(this, 360, by + 4, 440, 76, `조각 ${o.fragments}/${cost} → 정수로 해금`, () => this.grow('essence'), { kind: 'magic', size: TYPE.caption }));
       b.setEnabled(o.fragments >= cost);
     }
+  }
+
+  /** 전용 스킬 상세: 효과 설명 + 성장 단계 4개(기본 · Lv.10 · Lv.20 · Lv.30)의 핵심 수치, 지금 단계 강조 */
+  private sigPopup(): void {
+    const d = DRAGONS[this.viewing];
+    const o = Progress.load().dragons[d.id];
+    const sg = SIGNATURES[d.id];
+    const tier = o.unlocked ? sigTier(o.level) : -1;
+    const m = modal(this, 660, 700, `${sg.icon} ${sg.name}`, { closeOnBackdrop: true, ribbonColor: COLOR.violet });
+    m.body(text(this, 0, -262, sg.detail, 17, COLOR.text, true).setOrigin(0.5, 0).setWordWrapWidth(600).setAlign('center'));
+    ['기본', ...SIG_TIER_LEVELS.map((l) => `Lv.${l}`)].forEach((label, i) => {
+      const y = -150 + i * 92;
+      const on = i === tier;
+      const g = this.add.graphics();
+      g.fillStyle(on ? 0x3a2a6b : 0x221d36, 1).fillRoundedRect(-300, y - 38, 600, 80, 16);
+      if (on) g.lineStyle(3, COLOR.gold, 1).strokeRoundedRect(-300, y - 38, 600, 80, 16);
+      m.body(g);
+      m.body(text(this, -282, y, `${label}${on ? ' ◀ 지금' : i < tier ? ' ✔' : ''}`, 18, on ? COLOR.gold : i <= tier ? COLOR.ok : COLOR.textSub, true, true).setOrigin(0, 0.5));
+      const lines = Object.entries(sigGrowthLines(d.id, i)).map(([k, v]) => `${k} ${v}`).join(' · ');
+      m.body(text(this, -140, y, lines, 15, COLOR.text, true).setOrigin(0, 0.5).setWordWrapWidth(430).setAlign('left'));
+    });
+    m.body(text(this, 0, 222, '성장은 드래곤 영구 레벨(카드 + 골드)로 — 새 재화 없음', 15, COLOR.textSub, true).setOrigin(0.5));
+    m.body(button(this, 0, 282, 240, 64, '닫기', () => this.closePopup(), { kind: 'secondary', size: TYPE.caption }).root);
+    this.popup = m;
   }
 
   /** 영구 성장표(5레벨마다 고유 성장 8단계) */
@@ -213,6 +246,10 @@ export class DragonsScene extends Phaser.Scene {
         max: '이미 최대예요', locked: '보유하지 않은 드래곤이에요', owned: '이미 보유한 드래곤이에요', not5: '5성 이후에 교환할 수 있어요',
       };
       toast(this, msg[r.reason] ?? '할 수 없어요', COLOR.danger);
+    } else if (kind === 'essence') {
+      this.refresh();
+      dragonUnlock(this, [id], () => this.refresh()); // 조각 → 정수 교환으로 새 드래곤: 해금 축하(2026-11-21)
+      return;
     } else {
       popWord(this, { level: '레벨 업!', star: '승급!', essence: '해금!', universal: '범용 조각 교환' }[kind], 560);
     }

@@ -3,7 +3,10 @@ import { DRAGON_ORDER, DRAGONS, RARITY_COLOR } from '../data/dragons';
 import {
   ACHIEVEMENTS, DIFFICULTIES, DIFFICULTY_RELEASED, DIFFICULTY_LABEL, PROGRESS_REWARDS, PROGRESS_STEPS, STAGE_COUNT, type MissionDef, type RewardBundle,
 } from '../data/economy';
-import { activeMissions, missionClaimed, missionProgress, progressPct, Progress, type PlayerProgress } from '../systems/Progress';
+import { achievementProgress, activeMissions, claimableMissions, missionClaimed, missionProgress, progressPct, Progress, type PlayerProgress } from '../systems/Progress';
+import { rewardPopup, type RewardItem } from '../ui/celebrate';
+import { progressBar } from '../ui/kit';
+import { playSfx } from '../systems/Sfx';
 import { FONT, gameNow } from '../ui/widgets';
 import { preloadArt } from '../ui/art';
 import { button, text, type KitButton } from '../ui/kit';
@@ -24,7 +27,7 @@ const missionReward = (m: MissionDef) =>
  * 8단계 v2.0 C: 공통 머리줄·리본·하단 탭, 시안 형식 판·탭·버튼. 규칙은 그대로.
  */
 export class MissionScene extends Phaser.Scene {
-  private tab: 'progress' | 'missions' = 'progress';
+  private tab: Tab = 'progress';
   private layer: Phaser.GameObjects.GameObject[] = [];
   private frame!: ScreenFrame;
 
@@ -37,7 +40,7 @@ export class MissionScene extends Phaser.Scene {
     return true;
   }
 
-  init(data: { tab?: 'progress' | 'missions' }): void {
+  init(data: { tab?: Tab }): void {
     if (data?.tab) this.tab = data.tab;
   }
 
@@ -67,14 +70,16 @@ export class MissionScene extends Phaser.Scene {
     this.layer = [];
     const p = Progress.load();
     this.frame.refresh();
-    const keys: ('progress' | 'missions')[] = ['progress', 'missions'];
-    this.A(tabs(this, 262, ['왕국 정복 진행도', '미션'], keys.indexOf(this.tab), (i) => {
+    const keys: Tab[] = ['progress', 'missions', 'achievements'];
+    const nMission = claimableMissions(p, gameNow()).length;
+    this.A(tabs(this, 262, ['정복 진행도', `미션${nMission ? ` (${nMission})` : ''}`, '업적'], keys.indexOf(this.tab), (i) => {
       if (keys[i] === this.tab) return;
       this.tab = keys[i];
       this.refresh();
     }));
     if (this.tab === 'progress') this.drawProgress(p);
-    else this.drawMissions(p);
+    else if (this.tab === 'missions') this.drawMissions(p);
+    else this.drawAchievements(p);
   }
 
   private drawProgress(p: PlayerProgress): void {
@@ -109,39 +114,97 @@ export class MissionScene extends Phaser.Scene {
   private claimBox(d: (typeof DIFFICULTIES)[number], step: 25 | 50 | 100): void {
     const r = Progress.claimProgress(d, step);
     if (!r.ok) toast(this, r.reason === 'claimed' ? '이미 받았어요' : '아직 달성하지 못했어요', COLOR.danger);
-    if (r.ok) this.pop(`${bundleText(r.reward)} 획득!`);
+    if (r.ok) rewardPopup(this, '진행도 보상', [bundleItem(r.reward)]);
     this.refresh();
   }
 
+  /**
+   * 미션(2026-11-21 기획서 9장): 받을 수 있는 것 → 진행 중 → 받은 것 순서. 진행 막대, 진행 중이면 "이동"(로비 전투),
+   * 완료면 "받기", 받은 것은 체크. 위의 "모두 받기"는 골드·루비 미션을 한 번에(선택 보상은 하나씩 고름).
+   */
   private drawMissions(p: PlayerProgress): void {
     const now = gameNow();
-    this.A(text(this, 360, 314, '초기화(한국 시간): 일일 매일 자정 · 주간 월요일 자정 · 월간 매월 1일 자정', 16, COLOR.textSub, true).setOrigin(0.5));
-    const list = activeMissions(now);
-    list.forEach((m, i) => {
-      const y = 384 + i * 106;
+    const list = activeMissions(now).map((m) => {
       const prog = Math.min(m.goal, missionProgress(p, m, now));
       const claimed = missionClaimed(p, m, now);
-      const done = prog >= m.goal;
-      this.A(plate(this, 360, y, 664, 96, { r: 20, gold: done && !claimed }));
-      this.A(this.add.text(44, y - 36, `[${PERIOD_LABEL[m.period]}] ${m.text}`, { fontFamily: FONT, fontSize: '21px', color: '#ffffff', fontStyle: 'bold' }));
-      this.A(this.add.text(44, y + 2, `${prog.toLocaleString()} / ${m.goal.toLocaleString()}  ·  ${missionReward(m)}`, { fontFamily: FONT, fontSize: '18px', color: '#c9d3ee' }));
-      const b = this.keep(button(this, 600, y - 4, 150, 62, claimed ? '받음 ✔' : done ? '받기' : '진행 중', () => this.claimMission(m), { kind: 'growth', size: TYPE.caption }));
-      b.setEnabled(done && !claimed);
+      return { m, prog, claimed, done: prog >= m.goal };
     });
-    // 일회성 업적(루비)
-    const y0 = 384 + list.length * 106 - 20;
-    this.A(this.add.text(40, y0, '업적(한 번만)', { fontFamily: FONT, fontSize: '22px', fontStyle: 'bold', color: '#e1bee7' }));
-    ACHIEVEMENTS.forEach((a, i) => {
-      const got = p.claimed.includes(a.id);
-      this.A(this.add.text(40, y0 + 38 + i * 30, `${got ? '✔' : '·'} ${a.text} — 💎 ${a.rubies}`, { fontFamily: FONT, fontSize: '18px', color: got ? '#8bc34a' : '#9aa6bd' }));
+    const rank = (x: { claimed: boolean; done: boolean }) => (x.claimed ? 2 : x.done ? 0 : 1);
+    list.sort((a, b) => rank(a) - rank(b));
+    const ready = list.filter((x) => x.done && !x.claimed).length;
+    this.A(text(this, 40, 330, ready ? `받을 수 있는 보상 ${ready}개` : '진행 중인 미션을 완료해 보세요', TYPE.caption, ready ? COLOR.gold : COLOR.textSub, true, true).setOrigin(0, 0.5));
+    const all = this.keep(button(this, 572, 330, 240, 62, `모두 받기${ready ? ` (${ready})` : ''}`, () => this.claimAll(), { kind: 'cta', size: TYPE.caption }));
+    // 골드·루비만 주는 완료 미션이 있을 때만(선택 보상은 하나씩 고름)
+    all.setEnabled(list.some((x) => x.done && !x.claimed && !x.m.reward.pickCards && !x.m.reward.pickFragments));
+    list.forEach(({ m, prog, claimed, done }, i) => {
+      const y = 426 + i * 112;
+      this.A(plate(this, 360, y, 664, 100, { r: 20, gold: done && !claimed, fill: claimed ? 0x1a1626 : undefined }));
+      this.A(text(this, 44, y - 26, `[${PERIOD_LABEL[m.period]}] ${m.text}`, 20, claimed ? COLOR.textDim : COLOR.text, true, true).setOrigin(0, 0.5));
+      this.A(text(this, 44, y + 30, missionReward(m), 16, claimed ? COLOR.textDim : COLOR.gold, true).setOrigin(0, 0.5));
+      this.A(progressBar(this, 250, y + 4, 400, 18, prog / m.goal, claimed ? 0x4a5577 : done ? COLOR.ok : COLOR.violet, `${prog.toLocaleString()} / ${m.goal.toLocaleString()}`).root);
+      const label = claimed ? '받음 ✔' : done ? '받기' : '이동';
+      const b = this.keep(button(this, 604, y, 140, 64, label, () => (done ? this.claimMission(m) : this.scene.start('lobby')), {
+        kind: done && !claimed ? 'growth' : 'secondary', size: TYPE.caption,
+      }));
+      b.setEnabled(!claimed);
     });
+    this.A(text(this, 360, 426 + list.length * 112 - 20, '초기화(한국 시간): 일일 매일 자정 · 주간 월요일 자정 · 월간 매월 1일 자정', 15, COLOR.textSub, true).setOrigin(0.5));
   }
 
   private claimMission(m: MissionDef): void {
     if (m.reward.pickCards || m.reward.pickFragments) return this.choose(m);
     const r = Progress.claimMission(m.id, undefined, gameNow());
-    if (r.ok) this.pop('보상 획득!');
+    if (r.ok) rewardPopup(this, '미션 보상', missionItems(m));
     this.refresh();
+  }
+
+  private claimAll(): void {
+    const r = Progress.claimAllMissions(gameNow());
+    if (!r.ok) {
+      toast(this, '모두 받기는 골드·루비 미션만 — 선택 보상은 하나씩 골라 주세요', COLOR.danger);
+      return;
+    }
+    // 같은 보상끼리 합쳐 한 화면에(매번 팝업 X)
+    const sum = { gold: 0, rubies: 0 };
+    for (const m of r.got) {
+      sum.gold += m.reward.gold ?? 0;
+      sum.rubies += m.reward.rubies ?? 0;
+    }
+    const items: RewardItem[] = [];
+    if (sum.gold) items.push({ image: 'ui-gold', emoji: '🪙', label: '골드', amount: `+${sum.gold.toLocaleString()}` });
+    if (sum.rubies) items.push({ image: 'ui-ruby', emoji: '💎', label: '루비', amount: `+${sum.rubies.toLocaleString()}`, grade: 'rare' });
+    rewardPopup(this, `미션 ${r.got.length}개 보상`, items);
+    if (r.left) toast(this, `선택 보상 미션 ${r.left}개는 직접 골라 받아 주세요`, COLOR.gold, 1060);
+    this.refresh();
+  }
+
+  /**
+   * 업적(2026-11-21 기획서 11장): 카테고리별, 진행률 막대, 가까운 것부터. 업적 루비는 전투가 끝날 때 자동으로 들어온다(기존 규칙).
+   * 1,000·10,000마리 목표는 그대로(제작자 확정).
+   */
+  private drawAchievements(p: PlayerProgress): void {
+    const prog = achievementProgress(p);
+    const cats: { title: string; ids: string[] }[] = [
+      { title: '전투', ids: ['first-run', 'first-elite', 'kills-1000', 'kills-10000'] },
+      { title: '수집', ids: ['collector-3'] },
+    ];
+    const doneN = prog.filter((a) => a.done).length;
+    this.A(text(this, 40, 330, `달성 ${doneN} / ${prog.length} · 업적 루비는 달성한 판이 끝날 때 자동 지급`, TYPE.tiny, COLOR.textSub, true).setOrigin(0, 0.5));
+    let y = 392;
+    for (const c of cats) {
+      this.A(text(this, 40, y, c.title, TYPE.body, 0xe1bee7, true, true).setOrigin(0, 0.5));
+      y += 56;
+      const rows = c.ids.map((id) => ({ a: ACHIEVEMENTS.find((x) => x.id === id)!, pr: prog.find((x) => x.id === id)! }));
+      rows.sort((r1, r2) => Number(r1.pr.done) - Number(r2.pr.done) || r2.pr.cur / r2.pr.goal - r1.pr.cur / r1.pr.goal);
+      for (const { a, pr } of rows) {
+        this.A(plate(this, 360, y, 664, 92, { r: 20, fill: pr.done ? 0x1a1626 : undefined }));
+        this.A(text(this, 44, y - 22, `${pr.done ? '✔ ' : ''}${a.text}`, 19, pr.done ? COLOR.ok : COLOR.text, true, true).setOrigin(0, 0.5));
+        this.A(progressBar(this, 230, y + 20, 360, 16, pr.cur / pr.goal, pr.done ? COLOR.ok : COLOR.violet, `${pr.cur.toLocaleString()} / ${pr.goal.toLocaleString()}`).root);
+        this.A(text(this, 676, y, `💎 ${a.rubies}`, TYPE.caption, pr.done ? COLOR.textDim : COLOR.gold, true, true).setOrigin(1, 0.5));
+        y += 104;
+      }
+      y += 10;
+    }
   }
 
   /** 선택 카드·조각: 받을 드래곤 고르기(카드는 보유 드래곤만, 조각은 모든 드래곤 — 레드 조각 포함) */
@@ -164,7 +227,7 @@ export class MissionScene extends Phaser.Scene {
       fr.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
         const r = Progress.claimMission(m.id, id, gameNow());
         close();
-        if (r.ok) this.pop(`${DRAGONS[id].short} ${cards ? '카드' : '조각'} 획득!`);
+        if (r.ok) rewardPopup(this, '미션 보상', [{ portrait: id, label: `${DRAGONS[id].short} ${cards ? '카드' : '조각'}`, amount: `+${cards ? m.reward.pickCards : m.reward.pickFragments}`, grade: 'rare' }]);
         else toast(this, '받을 수 없어요', COLOR.danger);
         this.refresh();
       });
@@ -176,5 +239,23 @@ export class MissionScene extends Phaser.Scene {
 
   private pop(word: string): void {
     popWord(this, word, 640);
+    playSfx(this, 'sfx-claim');
   }
+}
+
+type Tab = 'progress' | 'missions' | 'achievements';
+
+/** 진행도 보상 → 보상 카드 */
+function bundleItem(b: RewardBundle): RewardItem {
+  if (b.gold) return { image: 'ui-gold', emoji: '🪙', label: '골드', amount: `+${b.gold.toLocaleString()}` };
+  if (b.rubies) return { image: 'ui-ruby', emoji: '💎', label: '루비', amount: `+${b.rubies.toLocaleString()}`, grade: 'epic' };
+  if (b.fragments) return { portrait: b.fragments.dragonId, label: `${DRAGONS[b.fragments.dragonId].short} 조각`, amount: `+${b.fragments.count}`, grade: 'rare' };
+  return { emoji: '🎁', label: bundleText(b) };
+}
+
+function missionItems(m: MissionDef): RewardItem[] {
+  const out: RewardItem[] = [];
+  if (m.reward.gold) out.push({ image: 'ui-gold', emoji: '🪙', label: '골드', amount: `+${m.reward.gold.toLocaleString()}` });
+  if (m.reward.rubies) out.push({ image: 'ui-ruby', emoji: '💎', label: '루비', amount: `+${m.reward.rubies}`, grade: 'rare' });
+  return out;
 }
