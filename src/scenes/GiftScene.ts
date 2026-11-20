@@ -1,93 +1,83 @@
 import Phaser from 'phaser';
 import { Progress } from '../systems/Progress';
 import { CLAIM_FAIL_TEXT, GIFT_LABEL, GIFT_KINDS, pendingGifts, staminaNow, type ClaimFail, type Gift, type GiftKind } from '../systems/Mailbox';
-import { STAMINA, formatLeft, nextRegenIn } from '../systems/Stamina';
-import { devMode, FONT, gameNow, makeButton } from '../ui/widgets';
+import { STAMINA, formatLeft } from '../systems/Stamina';
+import { devMode, gameNow } from '../ui/widgets';
 import { markGiftsSeen } from '../ui/giftFx';
+import { preloadArt } from '../ui/art';
+import { button, modal, text } from '../ui/kit';
+import { plate, tabs } from '../ui/kit2';
+import { screenFrame, toast, type ScreenFrame } from '../ui/screen';
+import { COLOR, TYPE } from '../ui/theme';
 
 const PER_PAGE = 6;
-const ROW_H = 120;
-const TOP = 250;
+const ROW_H = 106;
+const TOP = 296;
 const DAY = 86_400_000;
 
 /**
  * 선물함(8단계 v1.0 4장): 받을 선물 목록(오래된 순) · 개별 받기 · 모두 받기(받은 것/남긴 것 요약) · 받은 내역.
  * 규칙은 모두 src/systems/Mailbox.ts(순수 함수) — 이 화면은 결과를 보여 주기만 한다.
+ * 8단계 v2.0 C: 공통 머리줄(행동력 회복 시간 포함)·리본·하단 탭, 시안 형식 판·탭·버튼.
  */
 export class GiftScene extends Phaser.Scene {
   private tab: 'pending' | 'history' = 'pending';
   private page = 0;
   private layer: Phaser.GameObjects.GameObject[] = [];
-  private popup: Phaser.GameObjects.GameObject[] = [];
-  private msg!: Phaser.GameObjects.Text;
-  private wallet!: Phaser.GameObjects.Text;
+  private popup: { close: () => void } | null = null;
+  private frame!: ScreenFrame;
 
   constructor() {
     super('gifts');
   }
 
   onPlatformBack(): boolean {
-    if (this.popup.length) this.closePopup();
+    if (this.popup) this.closePopup();
     else this.scene.start('lobby');
     return true;
   }
 
+  preload(): void {
+    preloadArt(this);
+  }
+
   create(): void {
     this.layer = [];
-    this.popup = [];
+    this.popup = null;
     this.page = 0;
     Progress.syncMail(gameNow(), devMode());
     markGiftsSeen(this, pendingGifts(Progress.load().mailbox, gameNow()).map((g) => g.id)); // 선물함을 열면 새 선물 별 효과는 끝
-    this.add.rectangle(360, 640, 720, 1280, 0x14181f);
-    this.add.text(30, 22, '🎁 선물함', { fontFamily: FONT, fontSize: '40px', fontStyle: 'bold', color: '#ffd34d' });
-    this.wallet = this.add.text(30, 84, '', { fontFamily: FONT, fontSize: '21px', color: '#c9d3ee', lineSpacing: 6 });
-    this.time.addEvent({ delay: 1000, loop: true, callback: () => this.refreshWallet() });
-
-    const tabBtn = (x: number, label: string, t: 'pending' | 'history') =>
-      makeButton(this, x, 190, 320, 64, label, this.tab === t ? 0xb35a00 : 0x2a3140, () => {
-        this.tab = t;
-        this.scene.restart();
-      }, 24);
-    tabBtn(195, '받을 선물', 'pending');
-    tabBtn(525, '받은 내역', 'history');
-
-    this.msg = this.add.text(360, 1040, '', { fontFamily: FONT, fontSize: '22px', color: '#ff8a80', align: 'center' }).setOrigin(0.5);
-    makeButton(this, 205, 1220, 290, 80, '로비로', 0x3a4458, () => this.scene.start('lobby'), 30);
-    if (this.tab === 'pending') {
-      makeButton(this, 515, 1220, 290, 80, '모두 받기', 0x2e8b57, () => this.claimAll(), 30);
-    }
+    this.frame = screenFrame(this, { title: '선물함', nav: '', ribbonColor: COLOR.violet });
+    tabs(this, 262, ['받을 선물', '받은 내역'], this.tab === 'pending' ? 0 : 1, (i) => {
+      const t = i === 0 ? 'pending' : 'history';
+      if (t === this.tab) return;
+      this.tab = t;
+      this.scene.restart();
+    });
+    if (this.tab === 'pending') button(this, 360, 1076, 420, 76, '모두 받기', () => this.claimAll(), { kind: 'cta', size: TYPE.heading, icon: 'ui-mailbox' });
     this.input.keyboard?.on('keydown-ESC', () => this.onPlatformBack());
     this.render();
-  }
-
-  private refreshWallet(): void {
-    const now = gameNow();
-    const p = Progress.load();
-    const st = staminaNow(p, now);
-    const next = nextRegenIn(st, now);
-    this.wallet.setText(
-      `⚡ 행동력 ${st.value}/${STAMINA.max}${next === null ? '' : ` (+1까지 ${formatLeft(next)})`}\n` +
-        `💎 ${p.rubies.toLocaleString()} · 🪙 ${p.gold.toLocaleString()}G · 🎟 ${p.summon.legacyTickets} · 🧩 ${p.universalFragments}`,
-    );
   }
 
   private render(): void {
     this.layer.forEach((o) => o.destroy());
     this.layer = [];
-    this.refreshWallet();
+    this.frame.refresh();
     const add = <T extends Phaser.GameObjects.GameObject>(o: T): T => (this.layer.push(o), o);
     const now = gameNow();
     const p = Progress.load();
 
     if (this.tab === 'history') {
       const h = p.mailbox.history;
-      if (!h.length) add(this.add.text(360, 500, '아직 받은 선물이 없어요', { fontFamily: FONT, fontSize: '26px', color: '#8a93a6' }).setOrigin(0.5));
+      if (!h.length) add(text(this, 360, 560, '아직 받은 선물이 없어요', TYPE.body, COLOR.textDim, true).setOrigin(0.5));
+      add(plate(this, 360, 330 + 7 * 52, 664, 15 * 52 + 20, { r: 22 })).setVisible(h.length > 0);
       h.slice(0, 14).forEach((r, i) => {
         const L = GIFT_LABEL[r.kind];
-        add(this.add.text(40, TOP + 10 + i * 54, `${L.icon} ${L.name} ${r.amount.toLocaleString()}${L.unit}`, { fontFamily: FONT, fontSize: '23px', color: '#ffffff' }));
-        add(this.add.text(680, TOP + 10 + i * 54, `${r.title} · ${fmtDate(r.claimedAt)}`, { fontFamily: FONT, fontSize: '19px', color: '#9aa6bd' }).setOrigin(1, 0));
+        const y = 330 + i * 52;
+        add(text(this, 50, y, `${L.icon} ${L.name} ${r.amount.toLocaleString()}${L.unit}`, TYPE.caption, COLOR.text, true, true).setOrigin(0, 0.5));
+        add(text(this, 670, y, `${r.title} · ${fmtDate(r.claimedAt)}`, 17, COLOR.textSub, true).setOrigin(1, 0.5));
       });
-      if (h.length > 14) add(this.add.text(360, 1010, `최근 ${Math.min(h.length, 50)}건까지 보관`, { fontFamily: FONT, fontSize: '18px', color: '#6f7a8c' }).setOrigin(0.5));
+      if (h.length > 14) add(text(this, 360, 1060, `최근 ${Math.min(h.length, 50)}건까지 보관`, 16, COLOR.textDim, true).setOrigin(0.5));
       return;
     }
 
@@ -95,54 +85,54 @@ export class GiftScene extends Phaser.Scene {
     const pages = Math.max(1, Math.ceil(list.length / PER_PAGE));
     this.page = Math.min(this.page, pages - 1);
     if (!list.length) {
-      add(this.add.text(360, 520, '받을 선물이 없어요\n스테이지를 처음 클리어하면 행동력 20이 도착해요', {
-        fontFamily: FONT, fontSize: '25px', color: '#8a93a6', align: 'center', lineSpacing: 10,
-      }).setOrigin(0.5));
+      add(text(this, 360, 600, '받을 선물이 없어요\n스테이지를 처음 클리어하면 행동력 20이 도착해요', TYPE.caption, COLOR.textDim, true).setOrigin(0.5).setAlign('center').setLineSpacing(10));
     }
     const st = staminaNow(p, now);
     list.slice(this.page * PER_PAGE, (this.page + 1) * PER_PAGE).forEach((g, i) => {
-      const y = TOP + 60 + i * ROW_H;
+      const y = TOP + 50 + i * ROW_H;
       const L = GIFT_LABEL[g.kind];
       const over = g.kind === 'stamina' && st.value + g.amount > STAMINA.max;
-      add(this.add.rectangle(360, y, 660, ROW_H - 12, 0x1f2633).setStrokeStyle(2, g.sender === 'operator' ? 0xffd34d : 0x4fc3f7, 0.6));
-      const amt = add(this.add.text(50, y - 44, `${L.icon} ${g.amount.toLocaleString()}${L.unit}`, { fontFamily: FONT, fontSize: '30px', fontStyle: 'bold', color: '#ffffff' }));
-      add(this.add.text(amt.x + amt.width + 14, y - 37, clip(g.title, 18), { fontFamily: FONT, fontSize: '20px', fontStyle: 'bold', color: '#ffd34d' }));
-      add(this.add.text(50, y - 2, g.body ? clip(g.body, 30) : g.source, { fontFamily: FONT, fontSize: '19px', color: '#c9d3ee' }));
-      add(this.add.text(50, y + 24, over ? `행동력 ${st.value} + ${g.amount} > ${STAMINA.max} — 사용 후 받을 수 있어요` : expiryText(g, now), {
-        fontFamily: FONT, fontSize: '17px', color: over ? '#ff8a80' : '#8a93a6',
-      }));
-      const b = makeButton(this, 610, y - 6, 120, 70, '받기', 0x2e8b57, () => this.claimOne(g.id), 26);
-      add(b.bg);
-      add(b.label);
+      const row = add(plate(this, 360, y, 664, ROW_H - 10, { r: 20, gold: g.sender === 'operator' }));
+      const icon = g.kind === 'stamina' ? 'ui-energy' : g.kind === 'rubies' ? 'ui-ruby' : g.kind === 'gold' ? 'ui-gold' : g.kind === 'tickets' ? 'ui-ticket' : '';
+      if (icon && this.textures.exists(icon)) row.add(this.add.image(-282, 0, icon).setDisplaySize(64, 64));
+      else row.add(text(this, -282, 0, L.icon, 34).setOrigin(0.5));
+      const amt = text(this, -238, -24, `${g.amount.toLocaleString()}${L.unit}`, TYPE.body, COLOR.text, true, true).setOrigin(0, 0.5);
+      row.add(amt);
+      row.add(text(this, -238 + amt.width + 12, -24, clip(g.title, 16), 18, COLOR.gold, true, true).setOrigin(0, 0.5));
+      row.add(text(this, -238, 6, g.body ? clip(g.body, 26) : g.source, 16, COLOR.textSub, true).setOrigin(0, 0.5));
+      row.add(text(this, -238, 30, over ? `행동력 ${st.value} + ${g.amount} > ${STAMINA.max} — 사용 후 받을 수 있어요` : expiryText(g, now), 14, over ? COLOR.danger : COLOR.textDim, true).setOrigin(0, 0.5));
+      const b = button(this, 600, y - 4, 112, 62, '받기', () => this.claimOne(g.id), { kind: 'growth', size: TYPE.caption });
+      add(b.root);
       b.setEnabled(!over);
     });
     if (pages > 1) {
-      const prev = makeButton(this, 220, 985, 90, 56, '◀', 0x3a4458, () => (this.page--, this.render()), 24);
-      const next = makeButton(this, 500, 985, 90, 56, '▶', 0x3a4458, () => (this.page++, this.render()), 24);
+      const prev = button(this, 230, 1000, 90, 50, '◀', () => (this.page--, this.render()), { kind: 'secondary', size: TYPE.caption });
+      const next = button(this, 490, 1000, 90, 50, '▶', () => (this.page++, this.render()), { kind: 'secondary', size: TYPE.caption });
       prev.setEnabled(this.page > 0);
       next.setEnabled(this.page < pages - 1);
-      [prev.bg, prev.label, next.bg, next.label].forEach(add);
-      add(this.add.text(360, 985, `${this.page + 1} / ${pages}`, { fontFamily: FONT, fontSize: '22px', color: '#c9d3ee' }).setOrigin(0.5));
+      add(prev.root);
+      add(next.root);
+      add(text(this, 360, 1000, `${this.page + 1} / ${pages}`, TYPE.caption, COLOR.textSub, true).setOrigin(0.5));
     }
   }
 
   private claimOne(id: string): void {
     const r = Progress.claimGift(id, gameNow());
     if (!r.ok) {
-      this.msg.setColor('#ff8a80').setText(CLAIM_FAIL_TEXT[r.reason as ClaimFail]);
+      toast(this, CLAIM_FAIL_TEXT[r.reason as ClaimFail], COLOR.danger);
       this.cameras.main.shake(100, 0.002);
     } else {
       const L = GIFT_LABEL[r.gift.kind];
-      this.msg.setColor('#a5f3a5').setText(`${L.icon} ${L.name} ${r.gift.amount.toLocaleString()}${L.unit} 받았어요`);
+      toast(this, `${L.icon} ${L.name} ${r.gift.amount.toLocaleString()}${L.unit} 받았어요`, COLOR.ok);
     }
     this.render();
   }
 
   private claimAll(): void {
-    if (this.popup.length) return;
+    if (this.popup) return;
     const r = Progress.claimAllGifts(gameNow());
     if (!r.claimed.length && !r.kept.length) {
-      this.msg.setColor('#8a93a6').setText('받을 선물이 없어요');
+      toast(this, '받을 선물이 없어요', COLOR.textSub);
       return;
     }
     // 종류별 합계
@@ -155,24 +145,18 @@ export class GiftScene extends Phaser.Scene {
   }
 
   private showSummary(n: number, lines: string[], kept: string[]): void {
-    const add = <T extends Phaser.GameObjects.GameObject>(o: T): T => (this.popup.push(o), o);
-    add(this.add.rectangle(360, 640, 720, 1280, 0x000000, 0.7).setInteractive().setDepth(500));
-    add(this.add.rectangle(360, 620, 620, 620, 0x1e2430).setStrokeStyle(4, 0xffd34d, 0.8).setDepth(501));
-    add(this.add.text(360, 360, n ? `${n}개 받았어요` : '받을 수 있는 선물이 없어요', { fontFamily: FONT, fontSize: '34px', fontStyle: 'bold', color: '#ffd34d' }).setOrigin(0.5).setDepth(502));
-    add(this.add.text(360, 420, lines.join('\n') || '-', { fontFamily: FONT, fontSize: '26px', color: '#ffffff', align: 'center', lineSpacing: 10 }).setOrigin(0.5, 0).setDepth(502));
+    const m = modal(this, 600, 600, n ? `${n}개 받았어요` : '받을 수 있는 선물이 없어요', { ribbonColor: COLOR.violet });
+    m.body(text(this, 0, -200, lines.join('\n') || '-', TYPE.body, COLOR.text, true, true).setOrigin(0.5, 0).setAlign('center').setLineSpacing(10));
     if (kept.length) {
-      add(this.add.text(360, 640, `남겨 둔 선물 ${kept.length}개\n${kept.slice(0, 4).join('\n')}${kept.length > 4 ? '\n…' : ''}`, {
-        fontFamily: FONT, fontSize: '20px', color: '#ff8a80', align: 'center', lineSpacing: 6,
-      }).setOrigin(0.5, 0).setDepth(502));
+      m.body(text(this, 0, 20, `남겨 둔 선물 ${kept.length}개\n${kept.slice(0, 4).join('\n')}${kept.length > 4 ? '\n…' : ''}`, 18, COLOR.danger, true).setOrigin(0.5, 0).setAlign('center').setLineSpacing(6));
     }
-    const ok = makeButton(this, 360, 860, 240, 80, '확인', 0x2e8b57, () => this.closePopup(), 28);
-    add(ok.bg.setDepth(501));
-    add(ok.label.setDepth(502));
+    m.body(button(this, 0, 220, 240, 76, '확인', () => this.closePopup(), { kind: 'growth', size: TYPE.body }).root);
+    this.popup = m;
   }
 
   private closePopup(): void {
-    this.popup.forEach((o) => o.destroy());
-    this.popup = [];
+    this.popup?.close();
+    this.popup = null;
   }
 }
 

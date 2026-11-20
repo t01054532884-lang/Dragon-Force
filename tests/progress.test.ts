@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { applyPermanent, computeRunGold, getUpgradeCost, stageGoldMult, type RunSummary } from '../src/data/progression';
 import { BASE_STATS } from '../src/data/stats';
 import {
@@ -128,6 +128,13 @@ describe('중복 정산 방지', () => {
 });
 
 describe('저장·복원', () => {
+  // 기본값에 현재 시각(행동력 회복 기준)이 들어가므로 이 묶음은 시계를 고정한다
+  // (기본값을 두 번 만들 때 ms가 바뀌면 가끔 실패하던 것 — 2026-11-20 수정)
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-20T00:00:00Z'));
+  });
+  afterEach(() => vi.useRealTimers());
   it('저장 후 다시 읽으면 그대로(새로고침)', () => {
     const s = mem();
     const p = { ...withGold(123), upgrades: { attack: 3, hp: 2, speed: 1, pickup: 0 } };
@@ -144,16 +151,9 @@ describe('저장·복원', () => {
     expect(p.upgrades).toEqual({ attack: 20, hp: 0, speed: 0, pickup: 0 });
   });
   it('손상된 데이터: 원본 백업 후 기본값', () => {
-    // 기본값에 현재 시각(행동력 회복 기준)이 들어가므로 시계를 고정한다 — 두 호출이 다른 ms에 걸리면 가끔 실패하던 것 수정
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-11-20T00:00:00Z'));
-    try {
-      const s = mem({ [SAVE_KEY]: '{깨진 데이터' });
-      expect(loadProgress(s)).toEqual(defaultProgress());
-      expect(s.data.get(BACKUP_KEY)).toBe('{깨진 데이터');
-    } finally {
-      vi.useRealTimers();
-    }
+    const s = mem({ [SAVE_KEY]: '{깨진 데이터' });
+    expect(loadProgress(s)).toEqual(defaultProgress());
+    expect(s.data.get(BACKUP_KEY)).toBe('{깨진 데이터');
   });
   it('이전 버전(4단계 해금 키만 있음): 해금 유지', () => {
     const s = mem({ [LEGACY_UNLOCK_KEY]: '2' });

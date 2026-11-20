@@ -1,24 +1,27 @@
 import Phaser from 'phaser';
 import { getUpgradeCost, PERMANENT_UPGRADES, UPGRADE_TYPES, type UpgradeType } from '../data/progression';
 import { Progress } from '../systems/Progress';
-import { loadout } from '../systems/Loadout';
 import { STAGES } from '../data/stages';
-import { FONT, makeButton, type Button } from '../ui/widgets';
 import { enterBattle } from '../ui/entry';
+import { preloadArt } from '../ui/art';
+import { button, text, type KitButton } from '../ui/kit';
+import { plate } from '../ui/kit2';
+import { popWord, screenFrame, toast, type ScreenFrame } from '../ui/screen';
+import { COLOR, TYPE } from '../ui/theme';
 
 interface Card {
   type: UpgradeType;
-  bg: Phaser.GameObjects.Rectangle;
+  box: Phaser.GameObjects.Container;
   level: Phaser.GameObjects.Text;
   effect: Phaser.GameObjects.Text;
-  buy: Button;
+  buy: KitButton;
 }
 
 // 드래곤 성장 연구소: 골드로 영구 능력치 4종 강화 (5단계 기획서 6장)
+// 8단계 v2.0 C: 공통 머리줄·리본·하단 탭(연구소 탭), 카드는 시안 형식 판. 규칙·비용은 그대로.
 export class LabScene extends Phaser.Scene {
   private cards: Card[] = [];
-  private goldText!: Phaser.GameObjects.Text;
-  private msg!: Phaser.GameObjects.Text;
+  private frame!: ScreenFrame;
 
   constructor() {
     super('lab');
@@ -30,28 +33,32 @@ export class LabScene extends Phaser.Scene {
     return true;
   }
 
+  preload(): void {
+    preloadArt(this);
+  }
+
   create(): void {
     this.cards = [];
-    this.add.rectangle(360, 640, 720, 1280, 0x15120c);
-    this.add.text(360, 90, '드래곤 성장 연구소', { fontFamily: FONT, fontSize: '52px', fontStyle: 'bold', color: '#ffd34d', stroke: '#000', strokeThickness: 6 }).setOrigin(0.5);
-    this.add.text(360, 150, '영구 능력치 강화 · 모든 드래곤 공통 · 다음 전투부터 적용', { fontFamily: FONT, fontSize: '22px', color: '#c9b98f' }).setOrigin(0.5);
-    this.goldText = this.add.text(360, 215, '', { fontFamily: FONT, fontSize: '40px', fontStyle: 'bold', color: '#ffd34d' }).setOrigin(0.5);
+    this.frame = screenFrame(this, { title: '연구소', nav: 'lab' });
+    text(this, 360, 254, '영구 능력치 강화 · 모든 드래곤 공통 · 다음 전투부터 적용', TYPE.tiny, COLOR.textSub, true, true).setOrigin(0.5);
 
     UPGRADE_TYPES.forEach((type, i) => {
-      const y = 360 + i * 205;
+      const y = 368 + i * 186;
       const def = PERMANENT_UPGRADES[type];
-      const bg = this.add.rectangle(360, y, 660, 185, 0x241f16).setStrokeStyle(3, 0x7a5a12);
-      this.add.text(80, y, def.icon, { fontFamily: FONT, fontSize: '60px' }).setOrigin(0.5);
-      this.add.text(130, y - 62, def.name, { fontFamily: FONT, fontSize: '32px', fontStyle: 'bold', color: '#ffffff' });
-      const level = this.add.text(130, y - 18, '', { fontFamily: FONT, fontSize: '24px', color: '#ffd34d' });
-      const effect = this.add.text(130, y + 18, '', { fontFamily: FONT, fontSize: '22px', color: '#c9d3ee', lineSpacing: 4 });
-      const buy = makeButton(this, 580, y, 170, 120, '', 0x2e8b57, () => this.buy(type), 26);
-      this.cards.push({ type, bg, level, effect, buy });
+      const box = plate(this, 360, y, 664, 168, { r: 22 });
+      const g = this.add.graphics();
+      g.fillStyle(COLOR.ember, 0.18).fillCircle(-262, 0, 54);
+      box.add(g);
+      box.add(text(this, -262, 0, def.icon, 56).setOrigin(0.5));
+      box.add(text(this, -192, -46, def.name, TYPE.heading, COLOR.text, true, true).setOrigin(0, 0.5));
+      const level = text(this, -192, -6, '', TYPE.caption, COLOR.gold, true, true).setOrigin(0, 0.5);
+      const effect = text(this, -192, 34, '', 18, COLOR.textSub, true).setOrigin(0, 0.5);
+      box.add([level, effect]);
+      const buy = button(this, 580, y, 170, 112, '강화', () => this.buy(type), { kind: 'growth', size: TYPE.body, icon: 'ui-gold' });
+      this.cards.push({ type, box, level, effect, buy });
     });
 
-    this.msg = this.add.text(360, 1180, '', { fontFamily: FONT, fontSize: '24px', color: '#ff8a80' }).setOrigin(0.5);
-    makeButton(this, 205, 1235, 290, 80, '로비로', 0x3a4458, () => this.scene.start('lobby'), 30);
-    makeButton(this, 515, 1235, 290, 80, '바로 전투', 0xc0392b, () => enterBattle(this, { stageId: this.lastStage() }), 30);
+    button(this, 360, 1080, 420, 76, '바로 전투', () => enterBattle(this, { stageId: this.lastStage() }), { kind: 'cta', size: TYPE.heading, icon: 'ic-swords' });
     this.input.keyboard?.on('keydown-ESC', () => this.scene.start('lobby'));
     this.refresh();
   }
@@ -67,16 +74,14 @@ export class LabScene extends Phaser.Scene {
     const r = Progress.buy(type);
     const card = this.cards.find((c) => c.type === type)!;
     if (!r.ok) {
-      this.msg.setText(r.reason === 'max' ? '이미 최대 레벨입니다.' : `골드가 부족합니다. (필요 ${r.cost}G)`);
+      toast(this, r.reason === 'max' ? '이미 최대 레벨이에요' : `골드가 부족해요 (필요 ${r.cost}G)`, COLOR.danger);
       this.cameras.main.shake(120, 0.003);
     } else {
-      this.msg.setText('');
-      // 구매 이펙트: 카드 테두리 번쩍 + 위로 떠오르는 글자
-      this.tweens.killTweensOf(card.bg);
-      card.bg.setScale(1).setStrokeStyle(6, 0xffe082);
-      this.tweens.add({ targets: card.bg, scaleX: 1.03, scaleY: 1.06, duration: 90, yoyo: true, onComplete: () => card.bg.setStrokeStyle(3, 0x7a5a12) });
-      const t = this.add.text(card.bg.x, card.bg.y - 40, `강화! Lv.${r.progress.upgrades[type]}`, { fontFamily: FONT, fontSize: '34px', fontStyle: 'bold', color: '#ffe082', stroke: '#000', strokeThickness: 5 }).setOrigin(0.5);
-      this.tweens.add({ targets: t, y: t.y - 60, alpha: 0, duration: 700, onComplete: () => t.destroy() });
+      // 구매 이펙트: 카드가 살짝 튀고 금색 글자
+      this.tweens.killTweensOf(card.box);
+      card.box.setScale(1);
+      this.tweens.add({ targets: card.box, scaleX: 1.03, scaleY: 1.06, duration: 90, yoyo: true });
+      popWord(this, `강화! Lv.${r.progress.upgrades[type]}`, card.box.y - 40);
       this.beep();
     }
     this.refresh();
@@ -85,7 +90,7 @@ export class LabScene extends Phaser.Scene {
   /** 골드·레벨·효과·버튼 비용을 저장소 상태로 다시 그린다 */
   private refresh(): void {
     const p = Progress.load();
-    this.goldText.setText(`🪙 ${p.gold.toLocaleString()}G  ·  전투력 ${loadout(p).cp.toLocaleString()}`).setFontSize(34);
+    this.frame.refresh();
     for (const c of this.cards) {
       const def = PERMANENT_UPGRADES[c.type];
       const lv = p.upgrades[c.type];
@@ -93,14 +98,15 @@ export class LabScene extends Phaser.Scene {
       const max = lv >= def.maxLevel;
       c.level.setText(`Lv.${lv} / ${def.maxLevel}`);
       c.effect.setText(max ? `${def.effect} ${pct(lv)} (최대)` : `${def.effect} ${pct(lv)} → ${pct(lv + 1)}`);
+      c.buy.root.destroy();
+      const y = c.box.y;
       if (max) {
-        c.buy.setText('MAX');
+        c.buy = button(this, 580, y, 170, 112, 'MAX', () => {}, { kind: 'secondary', size: TYPE.body });
         c.buy.setEnabled(false);
       } else {
         const cost = getUpgradeCost(lv);
-        const can = p.gold >= cost;
-        c.buy.setText(can ? `강화\n${cost}G` : `골드 부족\n${cost}G`);
-        c.buy.setEnabled(can, 0x2e8b57);
+        c.buy = button(this, 580, y, 170, 112, '강화', () => this.buy(c.type), { kind: 'growth', size: TYPE.body, sub: `${cost.toLocaleString()}G` });
+        c.buy.setEnabled(p.gold >= cost);
       }
     }
   }

@@ -60,7 +60,7 @@ export function screenFrame(scene: Phaser.Scene, opts: { title: string; nav: str
       level: p.dragons[d.id].level,
       cp: loadout(p, d.id).cp.toLocaleString(),
       currencies: [
-        { icon: 'ui-energy', value: '', onPlus: opts.nav === 'gifts' ? undefined : () => scene.scene.start('gifts') },
+        { icon: 'ui-energy', value: '', onPlus: scene.scene.key === 'gifts' ? undefined : () => scene.scene.start('gifts') },
         { icon: 'ui-gold', value: p.gold },
         { icon: 'ui-ruby', value: p.rubies },
       ],
