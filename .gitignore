@@ -3,6 +3,9 @@ dist/
 .DS_Store
 *.log
 
+# 오프라인 전달용 Git 묶음은 로컬 보관(커밋은 묶음에서 가져온다)
+*.bundle
+
 # 플랫폼 빌드 결과물
 *.ait
 .granite/

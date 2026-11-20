@@ -84,11 +84,14 @@
 클라우드 작업 공간에서는 이 저장소에 push 권한이 없어서(세션 저장소 목록에 없음), 바뀐 내용은 **묶음 파일**(`claude-commits-1120.bundle`)로 제작자 폴더에 넣어 둔다. 폴더(OneDrive)에서 아래를 실행하면 GitHub에 올라간다.
 
 ```bash
-git fetch claude-commits-1120.bundle main:claude-update
+git status --short   # 수정 파일이 있으면 먼저 별도 보관·비교. 그대로 다음 명령을 진행하지 않는다.
+git fetch origin
+git fetch claude-commits-1120.bundle main:refs/remotes/imported/claude-1120
 git checkout main
-git reset --hard claude-update   # 이 폴더의 커밋 안 된 수정은 사라짐(Claude가 넣은 파일과 같은 내용이면 문제없음)
+git merge --ff-only refs/remotes/imported/claude-1120
 git push origin main
-git branch -D claude-update
 ```
 
-다음부터 Claude가 직접 push하게 하려면 이 저장소를 Claude 세션의 GitHub 저장소 목록에 추가한다.
+이 명령은 작업 폴더가 정리되어 있고 fast-forward가 가능한 경우에 사용한다. 이미 같은 커밋이 GitHub에 있으면 번들을 다시 반영할 필요가 없다. 로컬 수정이 있는 경우 원본을 보관하고 별도 작업 폴더에서 내용을 비교해 반영한다.
+
+2026-11-20 동기화에서는 원래 작업 폴더의 파일 스냅샷을 별도 ZIP으로 보관하고, 격리된 검증 폴더에서 번들 커밋 이력과 현재 파일을 비교했다. 코드 본문은 일치했으며 그림 102개는 PNG/WebP 파일 바이트 차이만 있고 디코딩한 RGBA 픽셀은 모두 같았다. 현재 폴더의 그림 파일을 그대로 보존해 반영한다. 번들 파일은 `.gitignore`에서 제외하며 원본 그림은 기존처럼 `art-src/`에 보관한다.
