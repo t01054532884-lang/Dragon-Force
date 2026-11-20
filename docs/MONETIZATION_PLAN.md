@@ -98,3 +98,4 @@
 - iOS 앱 등록 `com.dragonforce.game` → `GoogleService-Info.plist`는 `ios/App/App/`에 두고 `.gitignore`로 저장소 제외(Codemagic 비밀 값으로 넣을 것).
 - Firestore: Standard, **asia-northeast3(서울)**, 프로덕션 모드(기본 전부 거부 — 보안 규칙은 코드와 함께 작성). 백업은 Blaze 뒤 설정.
 - 남음: Blaze 요금제(제작자 카드 입력) → 예산 알림 → Firestore 백업 → RevenueCat.
+- **Blaze 요금제 연결 완료**(2026-11-20): 결제 계정 "내 결제 계정"(Google Cloud 무료 체험 크레딧 ₩402,977, 2027-02-19 만료), **예산 알림 월 10,000원**(넘으면 메일 — 요금을 막지는 않음). Firestore 백업은 출시 전에 켤 것(저장 비용 소량).
