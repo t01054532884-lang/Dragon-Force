@@ -66,7 +66,7 @@ Claude 미리보기는 `.claude/launch.json`의 `dragon-force` 설정으로 연�
 | `src/data/*.ts` | 수치 표: `stats`(1m=50px, 기본 능력치), `basicAttack`, `upgrades`(카드·가중치·보장), `enemies`(마수 5종·패턴·피해 상한), `stages`(스테이지·시간표·난이도 공식·보상) |
 | `src/textures.ts` | 도형으로 그린 임시 그림(6단계 아트에서 교체) |
 | `src/platform/` | 플랫폼 공통 창구: `store`(저장), 안전 영역, 뒤로가기, 백그라운드. 구현 `web.ts`·`ios.ts`(Capacitor Preferences·App)·`toss.ts`(앱인토스 SDK) 중 빌드 모드(`VITE_PLATFORM`) 하나만 번들에 |
-| `ios/` · `capacitor.config.ts` · `codemagic.yaml` | iOS 앱(Capacitor 8, SPM, `com.dragonforce.game`, 세로·아이폰 전용·한국어) |
+| `ios/` · `capacitor.config.ts` · `codemagic.yaml` | iOS 앱(Capacitor 8, SPM, `com.dragonforce.app`, 세로·아이폰 전용·한국어) |
 | `apps-in-toss.config.ts` | 앱인토스 설정(appName `dragon-force`, 투명 내비게이션 바) |
 | `public/privacy.html` · `.github/workflows/pages.yml` | 개인정보처리방침, GitHub Pages 배포 |
 
@@ -81,7 +81,7 @@ Claude 미리보기는 `.claude/launch.json`의 `dragon-force` 설정으로 연�
 
 - 6단계(11/18 밤, 제작자 부재 중 AI 진행, `docs/DRAGONS.md`): 드래곤 10종·공통 기본 공격 엔진·특성·상태이상, 능력치 = 기본 × (1 + 연구소 + 레벨(Lv.1 초과분 공 1%/HP 1.5%) + 승급(2성 공5·3성 HP5·5성 공10)), 영구 Lv.30(골드), 승급 5성(조각 20/40/80/160), 소환 70/22/7/1·연속 10회 희귀·90회 전설 보장, 중복 조각 10/20/40/80, 소환권 튜토리얼 1·첫 클리어 10·업적. **결정 대기 11개는 DRAGONS.md 맨 아래.**
 
-- 출시(11/18): 식별자 토스 `dragon-force` / iOS `com.dragonforce.game`. 첫 출시는 유료 결제 없이도 가능하게 만들고, 제작자는 App Store로 먼저 수익화 → 수익이 생기면 사업자등록(토스 인앱결제는 사업자등록 필수). 루비 유료 결제를 넣을 때는 결제 검증(RevenueCat 등)과 확률 고지가 필요.
+- 출시(11/18): 식별자 토스 `dragon-force` / iOS `com.dragonforce.app`. 첫 출시는 유료 결제 없이도 가능하게 만들고, 제작자는 App Store로 먼저 수익화 → 수익이 생기면 사업자등록(토스 인앱결제는 사업자등록 필수). 루비 유료 결제를 넣을 때는 결제 검증(RevenueCat 등)과 확률 고지가 필요.
 
 - **6단계 v1.2(11/18, `docs/V12.md`)**: 영구 Lv.40 = 카드 99장(1/2/3/4장) + 골드(1→30 12,890G 유지, 31~40 곡선 연장), 5레벨 고유 성장, 탄 상한 5발, 종별 능력치, 레드 특성 5성부터 +20%, 보스·엘리트 빙결/기절 → 15% 둔화 1초. 기존 소환권 = 무료 개봉권. 클리어 카드 최초 2·반복 1·실패 0·Lv.40은 100G(임시). 20단계 × 3난이도, 지금은 1단계만 플레이·나머지 준비 중, 분모 20. 루비는 게임 안 보상으로만(현금 결제 없음, 구조만). 미정 수치는 모두 설정 파일의 임시 값. **확인 요청 14건은 `docs/V12.md` 검토 표.**
 

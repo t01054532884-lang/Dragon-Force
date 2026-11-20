@@ -56,7 +56,7 @@
 |---|---|---|
 | 1 | **사업자등록**(+ 통신판매업 신고 대상인지 확인) | 수익이 생기면 사업자등록이 필요하고, 애플 유료 앱 계약의 사업자 정보에도 씀. 통신판매업 신고는 규모 등에 따라 면제될 수 있어 관할 구청·세무사에 확인(AI가 확정할 수 없음) |
 | 2 | App Store Connect: **유료 앱 계약(Paid Apps Agreement)·세금·은행 정보** | 이게 없으면 인앱결제 상품이 동작하지 않음 |
-| 3 | App Store Connect: 앱 만들기(`com.dragonforce.game`), **인앱결제 상품 등록**(가격표는 4절, 기획자 확정 후) | 상품 ID를 코드에 넣음 |
+| 3 | App Store Connect: 앱 만들기(`com.dragonforce.app`), **인앱결제 상품 등록**(가격표는 4절, 기획자 확정 후) | 상품 ID를 코드에 넣음 |
 | 4 | Apple Developer: Bundle ID에 **Sign in with Apple·In-App Purchase** 기능 켜기 | |
 | 5 | **Firebase 프로젝트** 만들기 → iOS 앱 등록 → `GoogleService-Info.plist`(저장소에 올리지 않음, Codemagic 비밀 값) · Blaze 요금제 · 예산 알림 | |
 | 6 | **RevenueCat** 계정 → 앱 등록 → App Store Connect 공유 비밀키·API 키 연결 | |
@@ -95,7 +95,7 @@
 ### 2026-11-20 ② Firebase 설정(제작자와 같이, 콘솔)
 - 프로젝트 `dragon-force` (ID **`dragon-force-eb552`**), Google 애널리틱스 끔(추적 없음 유지), Firebase Gemini 끔.
 - Authentication: **익명** 켬(자동 정리 끔 — 켜면 30일 지난 미연결 게스트가 삭제됨), **Apple** 켬(iOS 전용이라 서비스 ID 없음).
-- iOS 앱 등록 `com.dragonforce.game` → `GoogleService-Info.plist`는 `ios/App/App/`에 두고 `.gitignore`로 저장소 제외(Codemagic 비밀 값으로 넣을 것).
+- iOS 앱 등록 `com.dragonforce.app` → `GoogleService-Info.plist`는 `ios/App/App/`에 두고 `.gitignore`로 저장소 제외(Codemagic 비밀 값으로 넣을 것).
 - Firestore: Standard, **asia-northeast3(서울)**, 프로덕션 모드(기본 전부 거부 — 보안 규칙은 코드와 함께 작성). 백업은 Blaze 뒤 설정.
 - 남음: Blaze 요금제(제작자 카드 입력) → 예산 알림 → Firestore 백업 → RevenueCat.
 - **Blaze 요금제 연결 완료**(2026-11-20): 결제 계정 "내 결제 계정"(Google Cloud 무료 체험 크레딧 ₩402,977, 2027-02-19 만료), **예산 알림 월 10,000원**(넘으면 메일 — 요금을 막지는 않음). Firestore 백업은 출시 전에 켤 것(저장 비용 소량).
@@ -105,3 +105,8 @@
 - RevenueCat 카드 등록은 월 매출 $2,500 넘을 때 필요 → 지금은 안 함.
 - 지금 프로젝트는 RevenueCat "Test Store"(테스트용 가상 스토어)에 연결된 상태. **실제 App Store 연결**은 App Store Connect에 앱이 있어야 가능(인앱결제 키 필요).
 - 참고: RevenueCat에 "인앱 재화(virtual currency)" 기능이 있어, 루비 잔액·유료/무료 구분 장부를 RevenueCat 쪽에 둘 수도 있음 → 서버 설계 때 Firebase 장부와 비교해 결정.
+
+### 2026-11-20 ④ Apple 번들 ID 변경
+- `com.dragonforce.game`은 Apple 전체에서 **이미 다른 개발자가 사용 중**이라 등록 불가 → 제작자 결정으로 **`com.dragonforce.app`** 등록(Team ID DMZS853A8Y, Sign In with Apple 켬, In-App Purchase 기본 켬).
+- 코드·설정(capacitor.config, Xcode 프로젝트, codemagic.yaml)과 문서의 식별자를 모두 바꿈. 작업 기록(AI_LOG)의 옛 이름은 기록이라 그대로.
+- Firebase iOS 앱도 `com.dragonforce.app`로 다시 등록하고 새 `GoogleService-Info.plist`로 바꿔야 함(옛 `com.dragonforce.game` 앱은 지워도 됨).

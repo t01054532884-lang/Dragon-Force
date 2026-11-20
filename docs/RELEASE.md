@@ -1,6 +1,6 @@
 # 출시 준비 — App Store · 앱인토스
 
-제작자 결정(2026-11-18): **App Store 먼저 → 그 자체등급 정보로 앱인토스**. 같은 날 추가 결정: **토스는 나중에, 지금은 App Store 출시에 맞춘다** → 진행·체크리스트는 `docs/APPSTORE.md`. 식별자 토스 `dragon-force` / iOS `com.dragonforce.game`.
+제작자 결정(2026-11-18): **App Store 먼저 → 그 자체등급 정보로 앱인토스**. 같은 날 추가 결정: **토스는 나중에, 지금은 App Store 출시에 맞춘다** → 진행·체크리스트는 `docs/APPSTORE.md`. 식별자 토스 `dragon-force` / iOS `com.dragonforce.app`.
 수익화: App Store로 먼저 내고, 수익이 나기 시작하면 사업자등록. 토스 인앱결제는 사업자등록이 먼저라 토스는 결제 없이 시작.
 
 ## 한 코드, 세 가지 빌드
@@ -49,7 +49,7 @@
 
 ### 제작자가 할 일 (계정·콘솔)
 - [x] GitHub 저장소 Settings → Pages → Source "GitHub Actions" (11/18 완료, 웹·처리방침 주소 열림 확인)
-- [ ] Apple Developer: Bundle ID `com.dragonforce.game` 등록
+- [ ] Apple Developer: Bundle ID `com.dragonforce.app` 등록
 - [ ] App Store Connect: 새 앱 만들기 → Apple ID를 `codemagic.yaml`의 `APP_STORE_APPLE_ID`에
 - [ ] Codemagic: Dragon-Force 저장소 앱 추가(API 키·인증서는 예전 앱과 같은 것)
 - [ ] App Store Connect: 개인정보 "데이터를 수집하지 않음", 연령 등급 설문, 처리방침 URL, 설명·스크린샷 → 심사 제출(버튼은 제작자)

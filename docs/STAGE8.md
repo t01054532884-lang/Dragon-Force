@@ -61,7 +61,7 @@ App Store 첫 제출(11/21~22 목표)에는 검증된 기능만 넣는다는 초
 3. 실패하면 기기 저장 그대로 두고 다음 접속 때 재시도.
 
 ### 필요한 클라우드 설정(제작자 할 일, 업데이트 1부터)
-- Firebase 프로젝트 생성, iOS 앱 등록(`com.dragonforce.game`), `GoogleService-Info.plist`(저장소에 올리지 않음 — Codemagic 비밀 값으로).
+- Firebase 프로젝트 생성, iOS 앱 등록(`com.dragonforce.app`), `GoogleService-Info.plist`(저장소에 올리지 않음 — Codemagic 비밀 값으로).
 - Apple Developer: Sign in with Apple 기능 켜기, 서비스 ID·키.
 - Google Cloud: OAuth 클라이언트(iOS).
 - 요금제·예산 알림, 백업.

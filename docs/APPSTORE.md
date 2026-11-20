@@ -3,7 +3,7 @@
 ## 지금 상태
 | 항목 | 상태 |
 |---|---|
-| iOS 프로젝트 | ✅ Capacitor 8 · `com.dragonforce.game` · 아이폰 전용 · 세로 고정 · 전체 화면 · 상태 표시줄 숨김 · 한국어 |
+| iOS 프로젝트 | ✅ Capacitor 8 · `com.dragonforce.app` · 아이폰 전용 · 세로 고정 · 전체 화면 · 상태 표시줄 숨김 · 한국어 |
 | 시작 화면 | ✅ Capacitor 기본(흰 배경 + 로고) → 게임 배경색 단색 |
 | 개인정보 매니페스트 | ✅ `ios/App/App/PrivacyInfo.xcprivacy`: 추적 없음, 수집 없음, UserDefaults 사용 이유 CA92.1(진행 저장). Capacitor 코어는 자체 매니페스트가 있고 Preferences 플러그인은 없어서 앱에서 신고 |
 | 암호화 수출 질문 | ✅ `ITSAppUsesNonExemptEncryption = false`(업로드마다 묻지 않음) |
@@ -45,7 +45,7 @@
 
 ## 제작자가 할 일 (순서)
 1. GitHub 저장소 Settings → Pages → Source "GitHub Actions" → 처리방침·지원 주소 확인
-2. Apple Developer → Identifiers → `com.dragonforce.game` 등록
+2. Apple Developer → Identifiers → `com.dragonforce.app` 등록
 3. App Store Connect → 앱 추가(이름·기본 언어 한국어·Bundle ID·SKU 예: dragonforce001) → 앱 정보의 Apple ID(숫자)를 `codemagic.yaml`의 `APP_STORE_APPLE_ID`에
 4. Codemagic → Dragon-Force 저장소 추가 → 워크플로 `ios-testflight` 실행 → TestFlight에서 아이폰 설치·플레이
 5. 아이콘·스크린샷·설명 넣고 연령 등급 설문 → 심사 제출(버튼은 제작자)

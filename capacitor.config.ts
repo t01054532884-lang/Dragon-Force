@@ -5,7 +5,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
  * "웹사이트를 감싼 앱"(심사 4.2)으로 보이지 않게. 빌드: npm run build:ios → Codemagic.
  */
 const config: CapacitorConfig = {
-  appId: 'com.dragonforce.game',
+  appId: 'com.dragonforce.app',
   appName: '드래곤 특공대',
   webDir: 'dist',
   ios: {
