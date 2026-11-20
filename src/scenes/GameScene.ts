@@ -374,6 +374,7 @@ export class GameScene extends Phaser.Scene {
         },
         fail: (reason) => this.fail(reason),
         enemyAction: (e, act) => this.doEnemyAction(e, act),
+        sfx: (key) => playSfx(this, key),
         aura: (e, color) => {
           // 강화·광폭화 오라: 적을 따라다니며 숨 쉬는 붉은 고리(공격 예고와 다른 모양 — 채움 없이 테두리만)
           const ring = this.add.circle(e.x, e.y, e.def.radius + 18).setStrokeStyle(6, color, 0.85).setDepth(7);
@@ -894,6 +895,8 @@ export class GameScene extends Phaser.Scene {
   private doEnemyAction(e: Enemy, act0: EnemyAction): void {
     // 어려움 3단계: 보스 공격 범위 배율(예고와 판정이 같은 값을 쓴다, 예고 시간은 그대로)
     const act = e.areaMult !== 1 ? scaleAction(act0, e.areaMult) : act0;
+    // 어려움 공격 순서 조정: 엘리트·보스가 예고 중인 시각을 기록(다른 개체는 그동안 큰 공격을 시작하지 않음)
+    if (e.def.rank !== 'normal' && 'ms' in act && typeof act.ms === 'number') e.telegraphUntil = Math.max(e.telegraphUntil, this.elapsed + act.ms);
     // 어려움 16·18단계: 원형·직선·부채꼴 공격 뒤 짧은 지연 2차 공격(새 예고와 함께 — 피할 수 있게)
     const echoed = (act0 as { echoed?: boolean }).echoed;
     if (e.echo && !echoed && (act.kind === 'circleHit' || act.kind === 'lineHit' || act.kind === 'coneHit')) {
@@ -949,6 +952,7 @@ export class GameScene extends Phaser.Scene {
               const zr = act.r * 0.7;
               const g = this.add.circle(act.x, act.y, zr, 0xff6d00, 0.22).setStrokeStyle(3, 0xff9100, 0.8).setDepth(3);
               this.dangerZones.push({ x: act.x, y: act.y, r: zr, left: 2500, dmg: dmg * 0.25, src: e, g });
+              playSfx(this, 'sfx-danger-zone');
             }
           },
         });
@@ -1280,6 +1284,7 @@ export class GameScene extends Phaser.Scene {
       if (alt && !choices.includes(alt)) choices[choices.length - 1] = alt;
     }
     if (choices.some((u) => u.kind === 'basic')) this.basicEverOffered = true;
+    if (k === 1) playSfx(this, 'sfx-hard-start');
     this.showCards(`시작 스킬 ${k}/${total}`, '어려움: 전투 전에 스킬을 하나씩 골라요', choices, false);
   }
 
@@ -1560,6 +1565,7 @@ export class GameScene extends Phaser.Scene {
       });
     }
     this.time.delayedCall(600, () => this.banner('드래곤의 최종 시련 정복!', '#ffd34d'));
+    playSfx(this, 'sfx-hard-clear');
   }
 
   private fail(reason: 'dead' | 'timeout' | 'quit'): void {

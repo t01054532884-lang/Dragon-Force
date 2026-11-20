@@ -45,7 +45,8 @@ export function rewardPopup(scene: Phaser.Scene, title: string, items: RewardIte
   const bg = add(scene.add.rectangle(360, 640, 720, 1280, 0x05040a, 0.85).setInteractive());
   bg.on('pointerdown', () => scene.time.delayedCall(250, close));
   const rare = items.some((i) => i.grade && i.grade !== 'common');
-  playSfx(scene, rare ? 'sfx-reward-rare' : 'sfx-reward');
+  playSfx(scene, 'sfx-claim');
+  scene.time.delayedCall(120, () => playSfx(scene, rare ? 'sfx-reward-rare' : 'sfx-reward'));
   // 뒤에서 도는 빛줄기
   ensureRays(scene);
   const rays = add(scene.add.image(360, 600, 'fx-unlock-rays').setAlpha(rare ? 0.55 : 0.3).setDisplaySize(900, 900));

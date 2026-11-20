@@ -11,6 +11,7 @@ import { COLOR, TYPE } from './theme';
 import { gameNow } from './widgets';
 import { playMusic } from '../systems/Music';
 import { openRubyShop } from './rubyShop';
+import { playSfx } from '../systems/Sfx';
 
 // 로비 밖 화면 공통 틀(8단계 v2.0 C): 로비와 같은 머리줄(출격 드래곤·행동력·골드·루비·전투력) + 금색 리본 제목 + 하단 탭.
 // 화면마다 따로 그리던 제목·재화 줄·"로비로" 버튼을 이 틀 하나로 바꾼다 → 색·위치·동작이 모든 화면에서 같다.
@@ -88,6 +89,7 @@ export function screenFrame(scene: Phaser.Scene, opts: { title: string; nav: str
 
 /** 짧은 안내(화면 가운데, 1.4초 뒤 사라짐) — 화면마다 따로 두던 빨간 안내 줄 대신 */
 export function toast(scene: Phaser.Scene, msg: string, color: number = COLOR.text, y = 640): void {
+  if (color === COLOR.danger) playSfx(scene, 'sfx-ui-error'); // 처리 불가 안내
   const t = text(scene, 360, y, msg, TYPE.body, color, true, true).setOrigin(0.5).setDepth(1000);
   t.setWordWrapWidth(600).setAlign('center');
   const bg = scene.add.rectangle(360, y, Math.min(680, t.width + 60), t.height + 36, 0x000000, 0.78).setDepth(999);
@@ -96,6 +98,7 @@ export function toast(scene: Phaser.Scene, msg: string, color: number = COLOR.te
 
 /** 성공 연출(강화!·해금! 등): 크게 떠올랐다 사라지는 금색 글자 */
 export function popWord(scene: Phaser.Scene, word: string, y = 600): void {
+  playSfx(scene, 'sfx-ui-confirm'); // 성공(레벨 업·승급 등)
   const t = text(scene, 360, y, word, 46, COLOR.gold, true, true).setOrigin(0.5).setDepth(1000);
   t.setScale(0.6);
   scene.tweens.add({ targets: t, scale: 1, duration: 160, ease: 'Back.Out' });

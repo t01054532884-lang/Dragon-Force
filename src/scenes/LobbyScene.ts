@@ -14,7 +14,7 @@ import { enterBattle } from '../ui/entry';
 import { drawLobbyBackdrop, makeArtPlaceholders, preloadArt } from '../ui/art';
 import { button, modal, navBar, text, type KitButton } from '../ui/kit';
 import { applySound, loadSettings, saveSettings } from '../systems/Settings';
-import { playSfx } from '../systems/Sfx';
+import { playSfx, preloadSfx, UI_SFX_FILES } from '../systems/Sfx';
 import { playMusic, preloadMusic, refreshMusic } from '../systems/Music';
 import { altar, dragonCarousel, iconTile, plate, tabs, topBar, torch, wingBanner } from '../ui/kit2';
 import { COLOR, css, TYPE } from '../ui/theme';
@@ -45,6 +45,7 @@ export class LobbyScene extends Phaser.Scene {
     // 기획자 그림 전체(로비가 첫 화면이라 여기서 한 번 읽으면 다른 화면도 같은 그림을 쓴다)
     preloadArt(this);
     preloadMusic(this, ['bgm-lobby']);
+    preloadSfx(this, UI_SFX_FILES); // 보상·해금·확인 소리(상점·보상·드래곤 화면이 같이 씀)
   }
 
   /**

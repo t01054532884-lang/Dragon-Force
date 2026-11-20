@@ -368,16 +368,11 @@ export class Signature {
     }
   }
 
-  /** 바위 파동: 바위 조각 8개가 고리 모양으로 바깥까지 솟아 나감 + 퍼지는 고리 */
+  /** 바위 파동: 위에서 본 바위 고리 그림이 범위 끝까지 퍼져 나감 */
   private rockWave(x: number, y: number, r: number): void {
-    const rr = r * this.h.stats.areaMult;
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * Math.PI * 2;
-      const im = this.scene.add.image(x + Math.cos(a) * 30, y + Math.sin(a) * 30, 'fx-rock-wave').setDepth(DEPTH_FLASH).setDisplaySize(84, 84).setFlipX(Math.cos(a) < 0);
-      this.scene.tweens.add({ targets: im, x: x + Math.cos(a) * rr, y: y + Math.sin(a) * rr, alpha: 0.2, duration: 420, ease: 'Quad.Out', onComplete: () => im.destroy() });
-    }
-    const c = this.scene.add.circle(x, y, 20).setStrokeStyle(8, 0xb08d57, 0.8).setDepth(DEPTH_FLASH);
-    this.scene.tweens.add({ targets: c, radius: rr, alpha: 0.1, duration: 420, onComplete: () => c.destroy() });
+    const size = r * 2 * this.h.stats.areaMult;
+    const im = this.scene.add.image(x, y, 'fx-rock-wave').setDepth(DEPTH_FLASH).setDisplaySize(80, 80).setAlpha(1);
+    this.scene.tweens.add({ targets: im, displayWidth: size, displayHeight: size, alpha: 0.25, duration: 460, ease: 'Quad.Out', onComplete: () => im.destroy() });
     this.scene.cameras.main.shake(200, 0.006);
   }
 
@@ -437,7 +432,8 @@ export class Signature {
         const a = points[i - 1];
         const b = points[i];
         const len = Math.hypot(b.x - a.x, b.y - a.y);
-        const im = this.scene.add.image((a.x + b.x) / 2, (a.y + b.y) / 2, 'fx-lightning-arc').setDepth(DEPTH_FLASH).setDisplaySize(len * 1.2, len * 1.2).setRotation(Math.atan2(b.y - a.y, b.x - a.x) + 0.75);
+        // 가로로 긴 번개 줄기 그림을 두 적 사이에 맞춰 늘이고 돌린다
+        const im = this.scene.add.image((a.x + b.x) / 2, (a.y + b.y) / 2, 'fx-lightning-arc').setDepth(DEPTH_FLASH).setDisplaySize(len * 1.15, len * 1.15).setRotation(Math.atan2(b.y - a.y, b.x - a.x));
         this.scene.tweens.add({ targets: im, alpha: 0, duration: 380, onComplete: () => im.destroy() });
       }
     }

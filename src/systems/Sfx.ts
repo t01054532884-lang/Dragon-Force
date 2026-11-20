@@ -15,11 +15,17 @@ export const SFX_FILES: string[] = [
   'sfx-red-fire', 'sfx-hit', 'sfx-player-hit', 'sfx-enemy-die', 'sfx-levelup', 'sfx-crit', 'sfx-explode', 'sfx-boss-die', 'sfx-gem', 'sfx-ui-tap',
   // 속성 8종 — 제작자 직접 합성(2026-11-20)
   'sfx-ice-shard', 'sfx-thunder-breath', 'sfx-wing-wind', 'sfx-water-blast', 'sfx-shadow-magic', 'sfx-heal', 'sfx-coin-pickup', 'sfx-shield',
+  // 요청서 5 1차 납품 18종 — 제작자 오리지널 합성(2026-11-21), 출처 기록은 docs/SOUND.md
+  'sfx-wind-blade', 'sfx-fire-ground', 'sfx-sig-ready', 'sfx-gem-big',
+  'sfx-boss-enrage', 'sfx-danger-zone', 'sfx-hard-clear', 'sfx-boss-double', 'sfx-elite-split', 'sfx-hard-start',
+  'sfx-reward', 'sfx-reward-rare', 'sfx-claim', 'sfx-essence', 'sfx-dragon-unlock', 'sfx-day7', 'sfx-ui-confirm', 'sfx-ui-error',
 ];
+/** 보상·화면 소리(로비에서 미리 읽어 상점·보상·드래곤 화면이 같이 쓴다) */
+export const UI_SFX_FILES = ['sfx-reward', 'sfx-reward-rare', 'sfx-claim', 'sfx-essence', 'sfx-dragon-unlock', 'sfx-day7', 'sfx-ui-confirm', 'sfx-ui-error'];
 /** 상자 개봉 화면에서 미리 읽는 것 */
 export const CHEST_SFX_FILES = SFX_FILES.filter((k) => k.startsWith('sfx-chest') || k.startsWith('sfx-card'));
 /** 전투에서 미리 읽는 것 */
-export const BATTLE_SFX_FILES = SFX_FILES.filter((k) => !CHEST_SFX_FILES.includes(k));
+export const BATTLE_SFX_FILES = SFX_FILES.filter((k) => !CHEST_SFX_FILES.includes(k) && !UI_SFX_FILES.includes(k));
 
 type Channel = 'ui' | 'battle' | 'reward';
 const CHANNEL_VOL: Record<Channel, number> = { ui: 0.45, battle: 0.35, reward: 0.6 };
@@ -78,6 +84,13 @@ const RECIPES: Record<string, Recipe> = {
   'sfx-day7': { ch: 'reward', gap: 500, f0: 784, f1: 1568, ms: 700, wave: 'triangle', gain: 0.06 },
   'sfx-ui-confirm': { ch: 'ui', gap: 80, f0: 880, f1: 1320, ms: 120, wave: 'sine', gain: 0.035 },
   'sfx-ui-error': { ch: 'ui', gap: 200, f0: 300, f1: 200, ms: 200, wave: 'square', gain: 0.025 },
+  // 어려움 모드(파일 있음, 합성음은 대체)
+  'sfx-boss-enrage': { ch: 'battle', gap: 800, f0: 140, f1: 70, ms: 900, wave: 'sawtooth', gain: 0.07, noise: 0.5, fileVol: 1.3 },
+  'sfx-danger-zone': { ch: 'battle', gap: 400, f0: 200, f1: 120, ms: 300, wave: 'sawtooth', gain: 0.03, noise: 0.7, fileVol: 0.7 },
+  'sfx-hard-clear': { ch: 'reward', gap: 2000, f0: 392, f1: 1568, ms: 2000, wave: 'triangle', gain: 0.07 },
+  'sfx-boss-double': { ch: 'battle', gap: 1500, f0: 220, f1: 330, ms: 900, wave: 'square', gain: 0.05, fileVol: 1.3 },
+  'sfx-elite-split': { ch: 'battle', gap: 300, f0: 660, f1: 440, ms: 220, wave: 'triangle', gain: 0.04 },
+  'sfx-hard-start': { ch: 'ui', gap: 500, f0: 330, f1: 660, ms: 500, wave: 'triangle', gain: 0.05 },
   // 전용 스킬 준비 완료: 짧고 부드러운 딩
   'sfx-sig-ready': { ch: 'ui', gap: 1000, f0: 880, f1: 1175, ms: 180, wave: 'triangle', gain: 0.045 },
 };

@@ -25,6 +25,8 @@ export interface DirectorHost {
   enemyAction?(e: Enemy, act: EnemyAction): void;
   /** 어려움 기믹: 강화·광폭화 오라(적을 따라다니는 표시) */
   aura?(e: Enemy, color: number): void;
+  /** 효과음(어려움 기믹 순간) */
+  sfx?(key: string): void;
 }
 
 /**
@@ -215,6 +217,7 @@ export class StageDirector {
       // 어려움 4단계: 한 마리를 잡으면 남은 엘리트가 빨라진다
       const haste = this.hard?.specialMechanic.eliteDeathHaste;
       if (haste) rest.forEach((x) => (x.speedMult *= 1 + haste));
+      if (this.hard) this.h.sfx?.('sfx-elite-split');
       this.h.emit('elite:member-defeated', { slot: i + 1, left: rest.length });
       return 'member';
     }
@@ -239,6 +242,7 @@ export class StageDirector {
     for (const p of this.bossSpawnPoints) this.h.warnSpawn(p.x, p.y, TIMELINE.bossWarnMs, 0xff1744);
     this.h.darken(TIMELINE.bossWarnMs);
     this.h.banner(n > 1 ? '경고 — 우두머리 둘이 다가온다' : '경고 — 우두머리가 다가온다', '#ff5252');
+    if (n > 1) this.h.sfx?.('sfx-boss-double');
     this.h.emit('boss:warning', { at: elapsed, count: n });
   }
 
@@ -270,6 +274,7 @@ export class StageDirector {
         });
         this.enraged = true;
         this.h.banner('격노! 30초 안에 쓰러뜨려라', '#ff1744');
+        this.h.sfx?.('sfx-boss-enrage');
       }
     }
     if (elapsed >= s.durationMs && this.phase !== 'CLEAR') {
@@ -328,6 +333,7 @@ export class StageDirector {
           this.h.aura?.(b, 0xff1744);
         });
         this.h.banner(mech.finalEnrage ? `${rest[0].def.name} — 최종 광폭화!` : `${rest[0].def.name} — 분노! 공격이 빨라진다`, '#ff5252');
+        this.h.sfx?.('sfx-boss-enrage');
       }
       this.h.emit('boss:member-defeated', { left: rest.length, at: elapsed });
       return false;
@@ -339,11 +345,16 @@ export class StageDirector {
   }
 
   // ───────── 어려움 기믹 ─────────
-  /** 엘리트끼리·보스끼리: 다른 개체가 막 공격을 시작했으면 잠깐 기다림(공격 예고가 겹쳐 안전지대가 사라지지 않게) */
+  /**
+   * 엘리트끼리·보스끼리 번갈아 공격(공격 예고가 겹쳐 안전지대가 사라지지 않게 — 어려움 확정 요청 2026-11-21):
+   * 다른 개체가 ① 1.6초 안에 공격을 시작했거나 ② 아직 예고 중이거나(+0.3초 여유) ③ 연속 동작 중이면 기다린다.
+   */
   private allowAttack(e: Enemy): boolean {
     const key = e.def.rank === 'boss' ? 'boss' : 'elite';
     const group = key === 'boss' ? this.bosses : this.elites;
-    if (group.filter((x) => x.active).length < 2) return true;
+    const others = group.filter((x) => x.active && x !== e);
+    if (!others.length) return true;
+    if (others.some((o) => o.busy || this.now < o.telegraphUntil + 300)) return false;
     const g = this.gate[key];
     if (g.last && g.last !== e && g.last.active && this.now < g.until) return false;
     g.last = e;
@@ -369,6 +380,7 @@ export class StageDirector {
         b.patternSpeed *= 1 + m.bossEnrage.haste;
         this.h.aura?.(b, 0xff1744);
         this.h.banner(`${b.def.name} — 광폭화!`, '#ff1744');
+        this.h.sfx?.('sfx-boss-enrage');
       }
       // 13단계: HP 70%·35%에서 바깥으로 퍼지는 충격파(보스 가까이가 안전지대), 단계마다 넓어짐
       m.bossThresholdAoe?.forEach((at, k) => {

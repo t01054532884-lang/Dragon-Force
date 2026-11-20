@@ -66,6 +66,12 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
   echo = false;
   /** 원형 공격 뒤 위험 지대가 남음 */
   lingers = false;
+  /** 예고 중인 공격이 끝나는 시각(게임 시간 ms) — 어려움 공격 순서 조정용(장면이 기록) */
+  telegraphUntil = 0;
+  /** 연속 동작(돌진 묶음·연속 검기·투사체 반복 등)이 아직 남았는지 */
+  get busy(): boolean {
+    return this.queue.length > 0 || this.moveLeft > 0;
+  }
   /** 같은 그룹 공격 순서 조정(장면이 정함). false면 이번엔 기다림 */
   static attackGate: ((e: Enemy) => boolean) | null = null;
   phase = 1; // 보스 페이즈(60%에서 2)

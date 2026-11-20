@@ -48,6 +48,29 @@
 | `public/bgm/bgm-battle-adventure.mp3` | 전투 시작 · 140 BPM 13.7초 반복 |
 | `public/bgm/bgm-boss-crown.mp3` | 보스 경고(5:40)부터 · 128 BPM 15초 반복 |
 
+## 요청서 5 1차 납품 18종 (2026-11-21)
+출처: 제작자 직접 합성(묶음 `Dragon-Force-Request5-part1-FX10-SFX18.zip`). 묶음 안내문(`README_ASSETS.md`): "오리지널 전자 합성음, 44.1kHz 모노 MP3. WAV 합성→MP3 인코딩". 다른 게임 소리·샘플 사용 없음.
+
+| 파일 | 쓰는 곳 |
+|---|---|
+| `sfx-wind-blade` | 윈드 전용 스킬 회전 칼날 타격 |
+| `sfx-fire-ground` | 레드 전용 스킬 바닥 불길 |
+| `sfx-sig-ready` | 전용 스킬 준비 완료 |
+| `sfx-gem-big` | 큰 경험치 보석·경험치 자석 |
+| `sfx-reward` · `sfx-reward-rare` · `sfx-claim` | 보상 팝업(받기 소리 → 일반/희귀 등장음) |
+| `sfx-essence` | 상자 결과 드래곤 정수 |
+| `sfx-dragon-unlock` | 새 드래곤 해금 축하 |
+| `sfx-day7` | 출석 7일차(상시 출석이 생기면, 지금은 미사용) |
+| `sfx-ui-confirm` · `sfx-ui-error` | 성공 문구(레벨 업·승급 등) · 처리 불가 안내 |
+| `sfx-boss-enrage` | 보스 광폭화·최종 광폭화·한 마리 처치 후 분노·제한시간 격노 |
+| `sfx-danger-zone` | 어려움 8단계 위험 지대 생성(음량 70%) |
+| `sfx-hard-clear` | 어려움 20단계 전용 클리어 연출 |
+| `sfx-boss-double` | 보스 2마리 등장 경고 |
+| `sfx-elite-split` | 엘리트 무리 중 한 마리 처치(어려움) |
+| `sfx-hard-start` | 어려움 시작 스킬 고르기 화면 |
+
+보상·화면 소리 8개는 로비에서 미리 읽고(`UI_SFX_FILES`), 나머지는 전투에서 읽는다. 동시 효과음 8개·같은 소리 최소 간격 규칙 그대로(보스 겹침 대비).
+
 ## 음량·길이 규칙(코드 `src/systems/Sfx.ts`·`Music.ts`)
 - 채널 기본 음량: 배경 음악 0.35 · 전투 0.35 · 보상 0.6 · UI 0.45(기획 10.2).
 - **기본 공격 발사음**(화염탄 등)은 1~1.2초마다 나는 가장 잦은 소리라 **앞 0.3초만, 음량 60%**(끝 0.08초는 줄여 끔) — 제작자 요청 "계속 들으면 피곤". 파일은 그대로 두고 코드에서 자름.
