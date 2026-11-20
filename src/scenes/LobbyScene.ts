@@ -14,6 +14,7 @@ import { drawLobbyBackdrop, makeArtPlaceholders, preloadArt } from '../ui/art';
 import { button, modal, navBar, text, type KitButton } from '../ui/kit';
 import { applySound, loadSettings, saveSettings } from '../systems/Settings';
 import { playSfx } from '../systems/Sfx';
+import { playMusic, preloadMusic } from '../systems/Music';
 import { altar, dragonCarousel, iconTile, plate, tabs, topBar, torch, wingBanner } from '../ui/kit2';
 import { COLOR, css, TYPE } from '../ui/theme';
 import { giftAlert } from '../ui/giftFx';
@@ -40,6 +41,7 @@ export class LobbyScene extends Phaser.Scene {
   preload(): void {
     // 기획자 그림 전체(로비가 첫 화면이라 여기서 한 번 읽으면 다른 화면도 같은 그림을 쓴다)
     preloadArt(this);
+    preloadMusic(this, ['bgm-lobby']);
   }
 
   /**
@@ -85,6 +87,7 @@ export class LobbyScene extends Phaser.Scene {
     if (!dp.unlocked.includes(this.stageId)) this.stageId = Math.max(1, ...dp.unlocked.filter((s) => STAGES.some((st) => st.id === s)));
 
     drawLobbyBackdrop(this);
+    playMusic(this, 'bgm-lobby'); // 메뉴 화면끼리는 같은 곡을 끊지 않고 이어 감
     const d = DRAGONS[p.selectedDragonId];
     const o = p.dragons[d.id];
     const lo = loadout(p, d.id);
@@ -225,8 +228,8 @@ export class LobbyScene extends Phaser.Scene {
     this.closeSettings();
     const st = loadSettings();
     const m = modal(this, 560, 380, '설정', { closeOnBackdrop: true, ribbonColor: COLOR.violet });
-    m.body(text(this, -220, -40, '효과음', TYPE.heading, COLOR.text, true, true).setOrigin(0, 0.5));
-    m.body(text(this, -220, 4, st.sound ? '켜져 있어요' : '꺼져 있어요', TYPE.tiny, COLOR.textSub, true).setOrigin(0, 0.5));
+    m.body(text(this, -220, -40, '소리', TYPE.heading, COLOR.text, true, true).setOrigin(0, 0.5));
+    m.body(text(this, -220, 4, `효과음·배경 음악 ${st.sound ? '켜짐' : '꺼짐'}`, TYPE.tiny, COLOR.textSub, true).setOrigin(0, 0.5));
     m.body(
       button(this, 150, -24, 170, 76, st.sound ? '켜짐' : '꺼짐', () => {
         saveSettings({ ...st, sound: !st.sound });

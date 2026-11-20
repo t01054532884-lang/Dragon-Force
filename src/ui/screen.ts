@@ -9,6 +9,7 @@ import { navBar, ribbon, text } from './kit';
 import { topBar } from './kit2';
 import { COLOR, TYPE } from './theme';
 import { gameNow } from './widgets';
+import { playMusic } from '../systems/Music';
 
 // 로비 밖 화면 공통 틀(8단계 v2.0 C): 로비와 같은 머리줄(출격 드래곤·행동력·골드·루비·전투력) + 금색 리본 제목 + 하단 탭.
 // 화면마다 따로 그리던 제목·재화 줄·"로비로" 버튼을 이 틀 하나로 바꾼다 → 색·위치·동작이 모든 화면에서 같다.
@@ -39,9 +40,10 @@ export interface ScreenFrame {
  * 공통 틀 그리기. nav = 선택된 하단 탭 키(탭에 없는 화면은 ''), ribbonColor = 제목 리본 색.
  * 행동력 게이지는 1초마다 갱신, + 는 선물함(결제 없음 — 로비와 같음).
  */
-export function screenFrame(scene: Phaser.Scene, opts: { title: string; nav: string; ribbonColor?: number }): ScreenFrame {
+export function screenFrame(scene: Phaser.Scene, opts: { title: string; nav: string; ribbonColor?: number; banner?: string }): ScreenFrame {
   makeArtPlaceholders(scene);
   drawScreenBackdrop(scene);
+  playMusic(scene, 'bgm-lobby'); // 전투에서 돌아온 경우 로비 곡으로(이미 나오고 있으면 그대로)
   let bar: ReturnType<typeof topBar> | null = null;
   let barRoot: Phaser.GameObjects.Container | null = null;
   const tick = () => {
@@ -70,7 +72,13 @@ export function screenFrame(scene: Phaser.Scene, opts: { title: string; nav: str
   };
   draw();
   scene.time.addEvent({ delay: 1000, loop: true, callback: tick });
-  ribbon(scene, 360, 182, 340, opts.title, opts.ribbonColor ?? 0xe0a032, 70).setDepth(40);
+  if (opts.banner && scene.textures.exists(opts.banner)) {
+    // 제목 대신 기획자 배너 그림(겨울 축제 등) — 글자가 그림에 있어 리본은 생략
+    const b = scene.add.image(360, 190, opts.banner).setDepth(41);
+    b.setScale(380 / b.width);
+  } else {
+    ribbon(scene, 360, 182, 340, opts.title, opts.ribbonColor ?? 0xe0a032, 70).setDepth(40);
+  }
   navBar(scene, NAV_TABS, opts.nav, (k) => {
     if (k !== opts.nav) goTab(scene, k);
   }).setDepth(40);

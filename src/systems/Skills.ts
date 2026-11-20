@@ -3,6 +3,7 @@ import type { Enemy } from '../objects/Enemy';
 import { SKILL } from '../data/upgrades';
 import { RED_BASIC } from '../data/basicAttack';
 import type { CombatHost } from './CombatHost';
+import { playSfx, SKILL_SFX } from './Sfx';
 
 interface Shard {
   img: Phaser.GameObjects.Image;
@@ -47,6 +48,8 @@ export class Skills {
       if (this.cd[id] > 0) continue;
       // 발동할 대상이 없으면 쿨다운을 다시 채우지 않고 기다린다(헛방 방지).
       if (this[id](lv, live())) {
+        const sk = SKILL_SFX[id];
+        if (sk) playSfx(this.h.scene, sk, { vol: 0.8, maxMs: 450 });
         this.cd[id] = Math.max(this.cd[id], -100) + SKILL[id].interval(lv) * this.h.stats.cooldownMult;
         // 영혼의 공명(장착형 특수 스킬): 일정 확률로 0.3초 뒤 한 번 더
         if (this.echo > 0 && Math.random() < this.echo) this.pending.push({ left: 300, run: () => this[id](lv, live()) });

@@ -8,7 +8,8 @@ import { Enemy, type EnemyAction } from '../objects/Enemy';
 import { Skills } from '../systems/Skills';
 import { BasicAttack, NO_TRAITS } from '../systems/BasicAttack';
 import { BattleFx, FX, PALETTE } from '../fx/BattleFx';
-import { BATTLE_SFX_FILES, playSfx, preloadSfx } from '../systems/Sfx';
+import { BASIC_FIRE_SFX, BATTLE_SFX_FILES, playSfx, preloadSfx, SIGNATURE_SFX } from '../systems/Sfx';
+import { playMusic, preloadMusic, stopMusic } from '../systems/Music';
 import { preloadArt } from '../ui/art';
 import { badge, button as kitButton, ribbon, text as ktext } from '../ui/kit';
 import { plate } from '../ui/kit2';
@@ -181,6 +182,7 @@ export class GameScene extends Phaser.Scene {
   preload(): void {
     preloadArt(this); // 탑다운 드래곤 그림(로비에서 이미 읽었으면 건너뜀)
     preloadSfx(this, BATTLE_SFX_FILES); // 전투 효과음(실제 실행 경로에서만 읽음 — 기획 13.2)
+    preloadMusic(this, ['bgm-battle', 'bgm-boss']);
   }
 
   init(data: { stageId?: number; seed?: number; dragonId?: DragonId; difficulty?: Difficulty }): void {
@@ -331,12 +333,16 @@ export class GameScene extends Phaser.Scene {
         warnSpawn: (x, y, ms, color) => this.warnSpawn(x, y, ms, color),
         banner: (t, c) => this.banner(t, c),
         darken: (ms) => this.darken(ms),
-        emit: (name, data) => this.stageLog.push({ name, at: Math.round(this.elapsed), data }),
+        emit: (name, data) => {
+          this.stageLog.push({ name, at: Math.round(this.elapsed), data });
+          if (name === 'boss:warning') playMusic(this, 'bgm-boss'); // 보스 경고부터 보스전 곡
+        },
         fail: (reason) => this.fail(reason),
       },
       this.stage,
       DIFFICULTY_MULT[this.difficulty],
     );
+    playMusic(this, 'bgm-battle');
     this.banner(`${this.stage.id}단계 — ${this.stage.name}${this.difficulty === 'easy' ? '' : ` (${DIFFICULTY_LABEL[this.difficulty]})`}`, '#e0e0e0');
   }
 
@@ -405,6 +411,8 @@ export class GameScene extends Phaser.Scene {
   private castSignature(): void {
     if (this.mode !== 'play') return;
     if (this.signature.cast()) {
+      const ss = SIGNATURE_SFX[this.dragon.id];
+      if (ss) playSfx(this, ss);
       this.stageLog.push({ name: 'signature:cast', at: Math.round(this.elapsed) });
       this.popText(this.player.x, this.player.y - 70, this.signature.def.name, '#ffffff');
     }
@@ -969,7 +977,9 @@ export class GameScene extends Phaser.Scene {
     this.tweens.killTweensOf(s);
     s.setScale(this.skinScale);
     this.tweens.add({ targets: s, scaleX: this.skinScale * 0.92, scaleY: this.skinScale * 1.06, duration: FX.recoilMs / 2, yoyo: true, ease: 'Quad.Out' });
-    if (this.dragon.basic.texture === 'fireball') playSfx(this, 'sfx-red-fire', { pitch: 0.95 + Math.random() * 0.1 });
+    // 드래곤별 발사음 — 가장 잦은 소리라 앞 0.3초만·음량 60%(화염탄과 같은 기준)
+    const fs = BASIC_FIRE_SFX[this.dragon.id];
+    if (fs) playSfx(this, fs, { pitch: 0.95 + Math.random() * 0.1, vol: 0.6, maxMs: 300 });
   }
 
   private killEnemy(enemy: Enemy, tag = ''): void {
@@ -996,6 +1006,7 @@ export class GameScene extends Phaser.Scene {
       this.dropGem(enemy.x, enemy.y, enemy.def.xp);
       this.hp = Math.min(this.stats.maxHp, this.hp + this.stats.maxHp * REWARD.eliteHeal);
       this.popText(this.player.x, this.player.y - 50, `+${Math.round(this.stats.maxHp * REWARD.eliteHeal)} HP`, '#3ddc84');
+      playSfx(this, 'sfx-heal');
     } else if (enemy.rank === 'normal' && !enemy.def.noReward) {
       this.dropGem(enemy.x, enemy.y, enemy.def.xp);
       const drop = rollNormalDrop(this.itemRng.frac()); // 처치마다 한 번, 최대 1종
@@ -1132,8 +1143,13 @@ export class GameScene extends Phaser.Scene {
   private pickChoice(index: number): void {
     const u = this.currentChoices[index];
     if (this.mode !== 'choose' || !u) return;
-    if (u.id === 'heal') this.hp = Math.min(this.stats.maxHp, this.hp + this.stats.maxHp * 0.3);
-    else if (u.id === 'gold') this.treasureGold += 20;
+    if (u.id === 'heal') {
+      this.hp = Math.min(this.stats.maxHp, this.hp + this.stats.maxHp * 0.3);
+      playSfx(this, 'sfx-heal');
+    } else if (u.id === 'gold') {
+      this.treasureGold += 20;
+      playSfx(this, 'sfx-coin-pickup');
+    }
     else {
       const next = (this.upgradeLevels.get(u.id) ?? 0) + 1;
       const beforeMax = this.stats.maxHp;
@@ -1204,12 +1220,14 @@ export class GameScene extends Phaser.Scene {
       const heal = Math.min(this.stats.maxHp - this.hp, this.stats.maxHp * ITEM_RULES.potionHeal);
       this.hp += heal;
       at(`회복 +${Math.round(heal)}`);
+      playSfx(this, 'sfx-heal');
     } else if (id === 'magnet') {
       for (const g of this.gems.getChildren()) g.setData({ pulled: true, magnet: true });
       at('경험치 자석!');
     } else if (id === 'shield') {
       this.shieldUntil = this.elapsed + ITEM_RULES.shieldMs; // 최대 1개, 다시 얻으면 60초로 갱신
       at('용의 수호막!');
+      playSfx(this, 'sfx-shield');
     }
   }
 
@@ -1231,6 +1249,7 @@ export class GameScene extends Phaser.Scene {
       const burst = this.add.circle(this.player.x, this.player.y, 44).setStrokeStyle(6, 0x9be7ff).setDepth(12);
       this.tweens.add({ targets: burst, scale: 2, alpha: 0, duration: 350, onComplete: () => burst.destroy() });
       this.popText(this.player.x, this.player.y - 60, '방어!', '#9be7ff');
+      playSfx(this, 'sfx-shield');
       return;
     }
     // 상한 기준 = 연구소 강화 전 최대 HP(기본 + 전투 중 패시브). 연구소 Lv.0이면 4단계와 똑같다.
@@ -1381,6 +1400,7 @@ export class GameScene extends Phaser.Scene {
   private showResult(clear: boolean, reason?: 'dead' | 'timeout' | 'quit'): void {
     if (this.mode === 'result') return;
     this.mode = 'result';
+    stopMusic(this);
     this.drawHud();
     this.physics.pause();
     const d = this.director;

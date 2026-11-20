@@ -31,5 +31,30 @@
 
 묶음 안내문(`README.txt`): "original procedural synthesis outputs, not sampled from existing games". 모노 44.1kHz 128kbps.
 
+## 속성 8종 · 배경 음악 3곡 (2026-11-20)
+출처: 제작자 직접 작곡·합성(2026-11-20). 묶음 안내문(`README_AUDIO.md`): "Original algorithmic synthesis & composition … No third-party samples, imported tracks, or copyrighted melodies used." 효과음 모노·배경 음악 스테레오, 32kHz 128kbps.
+
+| 파일 | 쓰는 곳 |
+|---|---|
+| `sfx-ice-shard.mp3` | 얼음 파편 스킬, 블루 기본 공격, 블루 전용 액티브 |
+| `sfx-thunder-breath.mp3` | 번개 숨결 스킬, 옐로 기본 공격·전용 액티브 |
+| `sfx-wing-wind.mp3` | 날개 폭풍 스킬, 윈드 기본 공격·전용 액티브 |
+| `sfx-water-blast.mp3` | 워터 기본 공격·전용 액티브 |
+| `sfx-shadow-magic.mp3` | 블랙·아케인 기본 공격·전용 액티브 |
+| `sfx-heal.mp3` | 회복 물약, 엘리트 처치 회복, 용의 만찬 카드, 화이트 전용 액티브 |
+| `sfx-coin-pickup.mp3` | 보물 더미 카드(골드) |
+| `sfx-shield.mp3` | 용의 수호막 획득·막음, 스톤 전용 액티브 |
+| `public/bgm/bgm-lobby-fantasy.mp3` | 시작 화면 터치 뒤·로비·메뉴 화면(화면끼리 이동해도 끊기지 않음) · 100 BPM 19.2초 반복 |
+| `public/bgm/bgm-battle-adventure.mp3` | 전투 시작 · 140 BPM 13.7초 반복 |
+| `public/bgm/bgm-boss-crown.mp3` | 보스 경고(5:40)부터 · 128 BPM 15초 반복 |
+
+## 음량·길이 규칙(코드 `src/systems/Sfx.ts`·`Music.ts`)
+- 채널 기본 음량: 배경 음악 0.35 · 전투 0.35 · 보상 0.6 · UI 0.45(기획 10.2).
+- **기본 공격 발사음**(화염탄 등)은 1~1.2초마다 나는 가장 잦은 소리라 **앞 0.3초만, 음량 60%**(끝 0.08초는 줄여 끔) — 제작자 요청 "계속 들으면 피곤". 파일은 그대로 두고 코드에서 자름.
+- 액티브 스킬 발동음은 0.45초까지, 음량 80%.
+- 곡 바꿀 때 0.7초 페이드. 결과 화면에서 곡을 줄여 끔.
+- 같은 소리 최소 간격(적중 60ms 등), 동시 효과음 8개.
+- 남은 확인: 실제 기기에서 곡 반복 이음매(MP3 앞뒤 공백), 소리 크기 균형.
+
 ## 소리 설정
-로비 오른쪽 "설정" → 효과음 켜기/끄기(제작자 결정 2026-11-20, 첫 제출은 이것만). 저장 키 `dragon-force:settings`(진행 저장과 따로), 앱을 다시 켜도 유지. 끄면 파일·합성음 모두 안 남.
+로비 오른쪽 "설정" → 소리(효과음·배경 음악) 켜기/끄기(제작자 결정 2026-11-20, 첫 제출은 이것만). 저장 키 `dragon-force:settings`(진행 저장과 따로), 앱을 다시 켜도 유지. 끄면 파일·합성음 모두 안 남.

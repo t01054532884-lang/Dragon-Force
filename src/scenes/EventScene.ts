@@ -46,7 +46,7 @@ export class EventScene extends Phaser.Scene {
     this.layer = [];
     this.last = null;
     this.busy = false;
-    this.frame = screenFrame(this, { title: '겨울 축제', nav: '', ribbonColor: 0x3b82c4 });
+    this.frame = screenFrame(this, { title: '겨울 축제', nav: '', ribbonColor: 0x3b82c4, banner: 'event-winter' });
     this.add.rectangle(360, 640, 720, 1280, 0x0e2a4a, 0.45); // 겨울 빛(공통 배경 위에 푸른 막)
     // 눈송이 배경
     for (let i = 0; i < 40; i++) {
