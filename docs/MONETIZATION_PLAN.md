@@ -99,3 +99,9 @@
 - Firestore: Standard, **asia-northeast3(서울)**, 프로덕션 모드(기본 전부 거부 — 보안 규칙은 코드와 함께 작성). 백업은 Blaze 뒤 설정.
 - 남음: Blaze 요금제(제작자 카드 입력) → 예산 알림 → Firestore 백업 → RevenueCat.
 - **Blaze 요금제 연결 완료**(2026-11-20): 결제 계정 "내 결제 계정"(Google Cloud 무료 체험 크레딧 ₩402,977, 2027-02-19 만료), **예산 알림 월 10,000원**(넘으면 메일 — 요금을 막지는 않음). Firestore 백업은 출시 전에 켤 것(저장 비용 소량).
+
+### 2026-11-20 ③ RevenueCat
+- 가입(제작자) → 프로젝트 **"Dragon Force"**(ID `6270cd21`, 카테고리 Games, 플랫폼 Capacitor). 제안된 구독 상품(월간·연간·평생)은 우리 방식(소모형 루비)과 달라 건너뜀.
+- RevenueCat 카드 등록은 월 매출 $2,500 넘을 때 필요 → 지금은 안 함.
+- 지금 프로젝트는 RevenueCat "Test Store"(테스트용 가상 스토어)에 연결된 상태. **실제 App Store 연결**은 App Store Connect에 앱이 있어야 가능(인앱결제 키 필요).
+- 참고: RevenueCat에 "인앱 재화(virtual currency)" 기능이 있어, 루비 잔액·유료/무료 구분 장부를 RevenueCat 쪽에 둘 수도 있음 → 서버 설계 때 Firebase 장부와 비교해 결정.
