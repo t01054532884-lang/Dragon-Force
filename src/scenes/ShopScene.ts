@@ -7,6 +7,7 @@ import { specialDef } from '../data/specials';
 import { poolOf, Progress, type BoxResult, type Reward } from '../systems/Progress';
 import { devMode } from '../ui/widgets';
 import { ChestOpening } from '../ui/ChestOpening';
+import { preloadSfx } from '../systems/Sfx';
 import { CHEST_LAYER_KEYS, equipIcon, preloadArt, preloadKeys } from '../ui/art';
 import { badge, button, progressBar, text, type KitButton } from '../ui/kit';
 import { plate } from '../ui/kit2';
@@ -43,6 +44,7 @@ export class ShopScene extends Phaser.Scene {
     // 상자 개봉 연출 그림(파일이 없으면 ChestOpening이 도형 임시 그림으로 대신)
     preloadKeys(this, CHEST_LAYER_KEYS);
     preloadArt(this); // 로비에서 이미 읽었으면 건너뜀(로비 로딩 중 바로 넘어온 경우 대비)
+    preloadSfx(this); // 상자 개봉 효과음(public/sfx, 없으면 합성음)
   }
 
   create(): void {

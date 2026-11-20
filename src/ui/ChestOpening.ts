@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { playSfx } from '../systems/Sfx';
 import type { BoxId, Rarity } from '../data/economy';
 import { CHEST_FX, CHEST_INNER, CHEST_MOUTH_Y, CHEST_SFX, INNER_BASE_Y, openingTier, type ChestTierFx } from '../data/chestFx';
 import type { BoxResult } from '../systems/Progress';
@@ -176,7 +177,7 @@ export class ChestOpening {
     const s = this.scene;
     try {
       if (s.cache.audio.exists(key)) {
-        s.sound.play(key);
+        playSfx(s, key, { channel: 'reward' }); // 보상 채널 음량 0.6(기획 10.2)
         return;
       }
       const ctx = (s.sound as Phaser.Sound.WebAudioSoundManager).context;

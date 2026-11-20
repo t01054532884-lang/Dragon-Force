@@ -28,6 +28,7 @@ interface Bullet {
   child: boolean; // 분열·파편으로 생긴 탄(다시 분열하지 않음)
   tag: string;
   first: boolean; // 묶음의 첫 발(독구름 위치)
+  stopTrail?: () => void; // 화염탄 꼬리(연출) 끄기
 }
 
 interface Cloud {
@@ -114,6 +115,9 @@ export class BasicAttack {
         const explode = !!L.explodeEvery && this.volleyCount % L.explodeEvery === 0;
         const blast = !!L.blast && this.volleyCount % L.blast.every === 0;
         targets.forEach((t, i) => this.spawnBullet(t, volley, explode && i === 0, i, targets, blast && i === 0));
+        // 연출: 묶음당 한 번(탄마다 소리를 내지 않음 — 기획 10.1)
+        const { x: px, y: py } = this.h.player;
+        this.h.onFire?.(Phaser.Math.Angle.Between(px, py, targets[0].x, targets[0].y));
         this.timer += L.interval * this.traits.intervalMult * this.hasteMult; // 넘친 시간을 버리지 않고 이어 간다
       }
     }
@@ -162,6 +166,8 @@ export class BasicAttack {
     this.bullets.push({
       img, target, angle, speed: L.speed, homing: L.homing, life: this.spec.life, volley, explode, blast, bounceLeft: L.bounce ?? 0,
       pierceLeft: L.pierce, hitSet: new Set(), coef: L.coef, child: false, tag: 'basic', first: index === 0,
+      // 레드 화염탄: 밝은 중심 + 짧은 꼬리(기획 7.2). 다른 드래곤은 확장 단계에서 속성 색으로
+      stopTrail: this.spec.texture === 'fireball' ? this.h.fx?.trail(img) : undefined,
     });
   }
 
@@ -269,6 +275,7 @@ export class BasicAttack {
         this.h.hit(e, { source: 'basic', coef, tag });
       }
     }
+    this.h.fx?.explode(x, y, r, color); // 연출: 실제 반지름 r까지만
     const boom = this.h.scene.add.circle(x, y, r, color, 0.55).setDepth(8);
     this.h.scene.tweens.add({ targets: boom, alpha: 0, scale: 1.2, duration: 300, onComplete: () => boom.destroy() });
   }
@@ -455,13 +462,14 @@ export class BasicAttack {
   }
 
   private kill(b: Bullet): false {
+    b.stopTrail?.();
     b.img.destroy();
     return false;
   }
 
   /** 판이 끝날 때 남은 그림 정리 */
   destroy(): void {
-    [...this.bullets, ...this.queued].forEach((b) => b.img.destroy());
+    [...this.bullets, ...this.queued].forEach((b) => (b.stopTrail?.(), b.img.destroy()));
     this.clouds.forEach((c) => c.g.destroy());
     this.spinImgs.forEach((i) => i.destroy());
     this.bullets = [];

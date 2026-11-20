@@ -7,6 +7,9 @@ import { rollOffer, UPGRADES, type Upgrade } from '../data/upgrades';
 import { Enemy, type EnemyAction } from '../objects/Enemy';
 import { Skills } from '../systems/Skills';
 import { BasicAttack, NO_TRAITS } from '../systems/BasicAttack';
+import { BattleFx, FX, PALETTE } from '../fx/BattleFx';
+import { playSfx } from '../systems/Sfx';
+import { preloadArt } from '../ui/art';
 import { resolveDamage, type HitSpec } from '../systems/Damage';
 import type { CombatHost } from '../systems/CombatHost';
 import { StageDirector } from '../systems/StageDirector';
@@ -47,6 +50,9 @@ interface Hazard {
   run: () => void;
   objs: Phaser.GameObjects.GameObject[]; // 예고 그림(클리어 때 함께 지운다)
 }
+
+/** 전투 드래곤 그림 크기(화면 80~100px — 그림 요청서 3). 충돌 범위(반지름 18)는 그대로 */
+const SKIN_SIZE = 96;
 
 export class GameScene extends Phaser.Scene {
   private player!: Phaser.Types.Physics.Arcade.ImageWithDynamicBody;
@@ -109,6 +115,12 @@ export class GameScene extends Phaser.Scene {
   private facing = new Phaser.Math.Vector2(0, -1);
   private skills!: Skills;
   private basic!: BasicAttack;
+  /** 연출(보이기만): 드래곤 그림 층·발사·적중·처치·레벨업 */
+  private fx!: BattleFx;
+  /** 드래곤 그림 층: 물리 몸체(this.player)를 따라다니는 탑다운 그림. 반동·피격 색은 여기에만 → 판정·좌표는 그대로 */
+  private skin!: Phaser.GameObjects.Image;
+  private skinScale = 1;
+  private emberAt = 0;
   private basicTraits = NO_TRAITS;
   private hazards: Hazard[] = [];
   // ── 7단계 공통 패턴 ──
@@ -147,6 +159,10 @@ export class GameScene extends Phaser.Scene {
 
   constructor() {
     super('game');
+  }
+
+  preload(): void {
+    preloadArt(this); // 탑다운 드래곤 그림(로비에서 이미 읽었으면 건너뜀)
   }
 
   init(data: { stageId?: number; seed?: number; dragonId?: DragonId; difficulty?: Difficulty }): void {
@@ -226,6 +242,16 @@ export class GameScene extends Phaser.Scene {
 
     this.player = this.physics.add.image(this.arena.x, this.arena.y + ARENA_R * 0.4, `dragon-${this.dragon.id}`).setDepth(10);
     this.player.setCircle(18, 14, 18);
+    // 8단계 D: 기획자 탑다운 그림(top-<id>)이 있으면 그 그림을 보이고 물리 몸체(충돌 범위 그대로)는 숨긴다
+    this.fx = new BattleFx(this);
+    const topKey = `top-${this.dragon.id}`;
+    if (this.textures.exists(topKey)) {
+      this.player.setVisible(false);
+      this.skin = this.add.image(this.player.x, this.player.y, topKey).setDepth(10).setDisplaySize(SKIN_SIZE, SKIN_SIZE);
+    } else {
+      this.skin = this.player; // 그림이 없으면 예전 도형 그림 그대로
+    }
+    this.skinScale = this.skin.scaleX;
     this.cameras.main.startFollow(this.player, true, 0.15, 0.15);
 
     this.enemies = this.physics.add.group();
@@ -260,6 +286,8 @@ export class GameScene extends Phaser.Scene {
       enemies: () => this.enemies.getChildren() as Enemy[],
       level: (id) => this.upgradeLevels.get(id) ?? 0,
       hit: (e, spec) => this.hitEnemy(e, spec),
+      fx: this.fx,
+      onFire: (angle) => this.onFire(angle),
       heal: (pct) => {
         const amount = Math.min(this.stats.maxHp - this.hp, this.stats.maxHp * pct);
         if (amount <= 0) return;
@@ -529,6 +557,7 @@ export class GameScene extends Phaser.Scene {
   // ───────────────────────── 매 프레임 ─────────────────────────
 
   update(_time: number, rawDelta: number): void {
+    if (this.skin && this.skin !== this.player) this.skin.setPosition(this.player.x, this.player.y).setRotation(this.player.rotation);
     if (this.mode !== 'play' && this.mode !== 'clearing') return;
     const delta = rawDelta * this.timeScale;
     if (this.mode === 'clearing') {
@@ -598,12 +627,14 @@ export class GameScene extends Phaser.Scene {
       }
       for (const act of e.step(target, delta, this.arena)) this.doEnemyAction(e, act);
       this.keepInArena(e, e.def.radius);
+      if (e.burnCount > 0 && this.elapsed >= this.emberAt) this.fx.ember(e.x, e.y, e.def.radius);
       const burnCoef = e.tickBurn(delta);
       if (burnCoef > 0) this.hitEnemy(e, { source: 'dot', coef: burnCoef, tag: 'burn' });
       if (!e.active) continue;
       const poisonCoef = e.tickPoison(delta);
       if (poisonCoef > 0) this.hitEnemy(e, { source: 'dot', coef: poisonCoef, tag: 'poison' });
     }
+    if (this.elapsed >= this.emberAt) this.emberAt = this.elapsed + FX.emberEveryMs;
     this.updateEnemyShots(delta);
   }
 
@@ -840,7 +871,11 @@ export class GameScene extends Phaser.Scene {
     const crit = res.crit;
     const tag = spec.tag ?? spec.source;
     this.dmgLog[tag] = (this.dmgLog[tag] ?? 0) + amount;
-    if (crit) this.popText(enemy.x, enemy.y - 20, `${Math.round(amount)}!`, '#ffd34d');
+    if (spec.source !== 'dot') {
+      this.fx.hit(enemy.x, enemy.y, crit, PALETTE[this.dragon.id]);
+      playSfx(this, crit ? 'sfx-crit' : 'sfx-hit', { pitch: 0.9 + Math.random() * 0.2 });
+    }
+    if (crit) this.popText(enemy.x + (Math.random() - 0.5) * 16, enemy.y - 20, `★${Math.round(amount)}`, '#ffd34d', 31);
     if (enemy.hurt(amount)) {
       this.killEnemy(enemy, tag);
       return true;
@@ -866,9 +901,20 @@ export class GameScene extends Phaser.Scene {
     return m;
   }
 
-  private popText(x: number, y: number, text: string, color: string): void {
-    const t = this.add.text(x, y, text, { fontFamily: 'sans-serif', fontSize: '26px', fontStyle: 'bold', color, stroke: '#000', strokeThickness: 4 }).setOrigin(0.5).setDepth(50);
-    this.tweens.add({ targets: t, y: y - 40, alpha: 0, duration: 600, onComplete: () => t.destroy() });
+  private popText(x: number, y: number, text: string, color: string, size = 26): void {
+    const t = this.add.text(x, y, text, { fontFamily: 'sans-serif', fontSize: `${size}px`, fontStyle: 'bold', color, stroke: '#000', strokeThickness: 4 }).setOrigin(0.5).setDepth(50);
+    // 떠오름 18~28px · 450~650ms(기획 7.3)
+    this.tweens.add({ targets: t, y: y - 26, alpha: 0, duration: 560, ease: 'Quad.Out', onComplete: () => t.destroy() });
+  }
+
+  /** 기본 공격 한 묶음 발사: 발사점 섬광 + 그림 층 반동(좌표·충돌체는 그대로) + 발사음 1번 */
+  private onFire(angle: number): void {
+    this.fx.muzzle(this.player.x, this.player.y, angle);
+    const s = this.skin;
+    this.tweens.killTweensOf(s);
+    s.setScale(this.skinScale);
+    this.tweens.add({ targets: s, scaleX: this.skinScale * 0.92, scaleY: this.skinScale * 1.06, duration: FX.recoilMs / 2, yoyo: true, ease: 'Quad.Out' });
+    if (this.dragon.basic.texture === 'fireball') playSfx(this, 'sfx-red-fire', { pitch: 0.95 + Math.random() * 0.1 });
   }
 
   private killEnemy(enemy: Enemy, tag = ''): void {
@@ -881,6 +927,8 @@ export class GameScene extends Phaser.Scene {
     if (enemy.rank === 'normal' && !enemy.def.noReward) this.normalKills++; // 소환수·분신은 처치 골드에 넣지 않음
     const d = this.director;
     if (enemy === d.boss) {
+      this.fx.bossDie(enemy.x, enemy.y, enemy.def.radius);
+      playSfx(this, 'sfx-boss-die');
       d.onBossKilled(this.elapsed);
       enemy.destroy();
       this.clearSequence();
@@ -898,6 +946,8 @@ export class GameScene extends Phaser.Scene {
       const drop = rollNormalDrop(this.itemRng.frac()); // 처치마다 한 번, 최대 1종
       if (drop) this.spawnItem(drop, enemy.x, enemy.y, false);
     }
+    this.fx.die(enemy);
+    playSfx(this, 'sfx-enemy-die', { pitch: 0.9 + Math.random() * 0.25 });
     enemy.destroy();
   }
 
@@ -924,12 +974,19 @@ export class GameScene extends Phaser.Scene {
     if (!gem.active) return;
     this.xp += (gem.getData('value') as number) * this.stats.xpMult;
     gem.destroy();
+    this.fx.pickup(this.player.x, this.player.y);
+    playSfx(this, 'sfx-gem');
     if (this.mode === 'clearing') return; // 클리어 중 회수한 경험치는 레벨업 카드를 띄우지 않는다
+    const before = this.level;
     while (this.xp >= xpToNext(this.level)) {
       this.xp -= xpToNext(this.level);
       this.level++;
       this.pendingLevelUps++;
       this.choiceQueue.push('level');
+    }
+    if (this.level > before) {
+      this.fx.levelUp(this.player.x, this.player.y);
+      playSfx(this, 'sfx-levelup');
     }
     this.openNext();
   }
@@ -1120,9 +1177,9 @@ export class GameScene extends Phaser.Scene {
     const dmg = Math.min(amount * this.stats.damageTaken * (1 - this.signature.reduce) * aegis, cap);
     this.hp -= dmg;
     this.invincibleUntil = this.time.now + 500;
-    this.cameras.main.shake(120, 0.006);
-    this.player.setTint(0xff9999);
-    this.time.delayedCall(150, () => this.player.clearTint());
+    // 연출(기획 7.4): 그림 층만 붉게 80~120ms, 화면 흔들림은 큰 피해(최대 HP 15% 이상)만·300ms 간격
+    this.fx.playerHit(this.skin, dmg >= this.stats.maxHp * 0.15);
+    playSfx(this, 'sfx-player-hit');
     if (this.hp <= 0) this.fail('dead');
   }
 
