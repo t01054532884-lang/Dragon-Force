@@ -3,6 +3,7 @@ import { drawLobbyBackdrop, makeArtPlaceholders, preloadArt } from '../ui/art';
 import { text } from '../ui/kit';
 import { COLOR, TYPE } from '../ui/theme';
 import { playMusic, preloadMusic } from '../systems/Music';
+import { DEMO } from '../platform';
 
 /**
  * 시작 화면(8단계 HANDOFF 5번): 기획자 그림 한글 로고(logo-ko) + 타이틀 장식(title-deco).
@@ -52,6 +53,7 @@ export class TitleScene extends Phaser.Scene {
     const tap = text(this, 360, 1140, '화면을 눌러 시작', TYPE.heading, COLOR.text, true, true).setOrigin(0.5);
     this.tweens.add({ targets: tap, alpha: 0.35, duration: 800, yoyo: true, repeat: -1 });
     text(this, 360, 1236, 'Dragon Force', TYPE.tiny, COLOR.textDim, true).setOrigin(0.5);
+    if (DEMO) text(this, 360, 1060, 'DEMO · 시험용 저장(실제 진행과 따로)', TYPE.caption, 0xffb74d, true, true).setOrigin(0.5);
 
     let going = false;
     const go = () => {

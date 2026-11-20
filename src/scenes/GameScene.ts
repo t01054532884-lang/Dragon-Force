@@ -17,7 +17,10 @@ import { COLOR, TYPE } from '../ui/theme';
 import { resolveDamage, type HitSpec } from '../systems/Damage';
 import type { CombatHost } from '../systems/CombatHost';
 import { StageDirector } from '../systems/StageDirector';
-import { computeRunGold, type GoldBreakdown, type RunOutcome } from '../data/progression';
+import { computeRunGold, getUpgradeCost, PERMANENT_UPGRADES, UPGRADE_TYPES, type GoldBreakdown, type RunOutcome } from '../data/progression';
+import { cpVerdict, recommendedCp } from '../data/power';
+import { GROWTH } from '../data/dragons';
+import { markTip, tipSeen } from '../systems/Settings';
 import { DRAGONS, type DragonDef, type DragonId } from '../data/dragons';
 import { setBasicCard } from '../data/upgrades';
 import { eventActive, eventState, Progress, spinsAvailable, type Reward } from '../systems/Progress';
@@ -139,6 +142,8 @@ export class GameScene extends Phaser.Scene {
   private skin!: Phaser.GameObjects.Image;
   private skinScale = 1;
   private emberAt = 0;
+  /** 첫 전투 안내(이동·자동 공격). 움직이거나 7초가 지나면 사라지고 다시 안 나옴 */
+  private moveTip: Phaser.GameObjects.GameObject[] = [];
   private basicTraits = NO_TRAITS;
   private hazards: Hazard[] = [];
   // ── 7단계 공통 패턴 ──
@@ -343,6 +348,8 @@ export class GameScene extends Phaser.Scene {
       DIFFICULTY_MULT[this.difficulty],
     );
     playMusic(this, 'bgm-battle');
+    this.moveTip = [];
+    if (!tipSeen('battle-move')) this.showMoveTip();
     this.banner(`${this.stage.id}단계 — ${this.stage.name}${this.difficulty === 'easy' ? '' : ` (${DIFFICULTY_LABEL[this.difficulty]})`}`, '#e0e0e0');
   }
 
@@ -542,6 +549,30 @@ export class GameScene extends Phaser.Scene {
     );
   }
 
+  /** 첫 전투 안내: 화면 아래 손가락 + "드래그해서 이동 · 공격은 자동" (기획자 요청 6) */
+  private showMoveTip(): void {
+    const ui = <T extends Phaser.GameObjects.GameObject>(o: T): T => {
+      (o as unknown as { setScrollFactor: (n: number) => void; setDepth: (n: number) => void }).setScrollFactor(0);
+      (o as unknown as { setDepth: (n: number) => void }).setDepth(UI_DEPTH + 6);
+      this.moveTip.push(o);
+      return o;
+    };
+    ui(plate(this, 360, 980, 560, 150, { r: 26 }));
+    ui(ktext(this, 360, 950, '화면을 드래그해서 이동해요', TYPE.heading, COLOR.text, true, true).setOrigin(0.5));
+    ui(ktext(this, 360, 1002, '공격은 가까운 적에게 자동으로 나가요', TYPE.caption, COLOR.gold, true, true).setOrigin(0.5));
+    const hand = ui(this.add.text(300, 1100, '👆', { fontSize: '64px' }).setOrigin(0.5));
+    this.tweens.add({ targets: hand, x: 420, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+    this.time.delayedCall(7000, () => this.hideMoveTip());
+  }
+
+  private hideMoveTip(): void {
+    if (!this.moveTip.length) return;
+    markTip('battle-move');
+    const objs = this.moveTip;
+    this.moveTip = [];
+    this.tweens.add({ targets: objs, alpha: 0, duration: 250, onComplete: () => objs.forEach((o) => o.destroy()) });
+  }
+
   /** 머리줄 아래 보유 스킬 그림 줄: 기본·액티브 한 줄, 패시브 한 줄. 레벨이 바뀔 때만 다시 그린다 */
   private drawSkillIcons(): void {
     const owned = UPGRADES.filter((u) => u.kind !== 'filler' && (this.upgradeLevels.get(u.id) ?? 0) > 0);
@@ -621,6 +652,7 @@ export class GameScene extends Phaser.Scene {
 
   update(_time: number, rawDelta: number): void {
     if (this.skin && this.skin !== this.player) this.skin.setPosition(this.player.x, this.player.y).setRotation(this.player.rotation);
+    if (this.moveTip.length && this.mode === 'play' && this.player.body && (this.player.body as Phaser.Physics.Arcade.Body).speed > 10) this.hideMoveTip();
     if (this.mode !== 'play' && this.mode !== 'clearing') return;
     const delta = rawDelta * this.timeScale;
     if (this.mode === 'clearing') {
@@ -1108,6 +1140,13 @@ export class GameScene extends Phaser.Scene {
     rb.setScale(0.6).setAlpha(0);
     this.tweens.add({ targets: rb, scale: 1, alpha: 1, duration: 190, ease: 'Back.Out' });
     if (subtitle) add(ktext(this, 360, 372, subtitle, TYPE.caption, COLOR.text, true, true).setOrigin(0.5).setDepth(UI_DEPTH + 11));
+    // 첫 레벨업 안내(기획자 요청 6): 카드 종류 설명 — 고르면 다시 안 나옴
+    if (!isBox && !tipSeen('first-card')) {
+      add(plate(this, 360, 1150, 640, 150, { r: 22, fill: 0x1d3a52 }).setDepth(UI_DEPTH + 11));
+      add(ktext(this, 360, 1112, '카드 하나를 골라 이번 판의 스킬을 키워요', TYPE.caption, COLOR.text, true, true).setOrigin(0.5).setDepth(UI_DEPTH + 12));
+      add(ktext(this, 360, 1150, '액티브: 자동으로 나가는 공격 기술 · 패시브: 능력치 상승', 18, COLOR.textSub, true, true).setOrigin(0.5).setDepth(UI_DEPTH + 12));
+      add(ktext(this, 360, 1184, '기본 공격: 드래곤의 기본 공격이 강해져요 (판이 끝나면 초기화)', 18, COLOR.textSub, true, true).setOrigin(0.5).setDepth(UI_DEPTH + 12));
+    }
     choices.forEach((u, i) => {
       const y = 500 + i * 196;
       const next = (this.upgradeLevels.get(u.id) ?? 0) + 1;
@@ -1143,6 +1182,7 @@ export class GameScene extends Phaser.Scene {
   private pickChoice(index: number): void {
     const u = this.currentChoices[index];
     if (this.mode !== 'choose' || !u) return;
+    markTip('first-card');
     if (u.id === 'heal') {
       this.hp = Math.min(this.stats.maxHp, this.hp + this.stats.maxHp * 0.3);
       playSfx(this, 'sfx-heal');
@@ -1463,10 +1503,14 @@ export class GameScene extends Phaser.Scene {
       `${this.stage.id}단계 ${this.stage.name} · ${this.dragon.name}`,
       headline,
       `Lv.${this.level} · 처치 ${this.kills}`,
+      ...(clear ? [] : ['', ...this.growthHints()]),
       '',
-      '전투 기록',
-      ...eliteLines,
-      `보스: ${d.record.bossKillMs != null ? `처치 ${sec(d.record.bossKillMs)}` : d.boss ? '생존' : '미등장'}${d.bossBuffs.length ? ` (흡수 강화: ${d.bossBuffs.join(', ')})` : ''}`,
+      // 실패 때는 성장 목표가 더 중요해 엘리트·보스 기록 줄은 생략(화면 넘침 방지)
+      ...(clear ? [
+        '전투 기록',
+        ...eliteLines,
+        `보스: ${d.record.bossKillMs != null ? `처치 ${sec(d.record.bossKillMs)}` : d.boss ? '생존' : '미등장'}${d.bossBuffs.length ? ` (흡수 강화: ${d.bossBuffs.join(', ')})` : ''}`,
+      ] : []),
       `피해 비중: ${top || '—'}`,
       ...(clear && this.stage.id === 20 ? ['', `“${SEASON1_FINALE}”`] : []),
       `시드 ${this.seed}`,
@@ -1489,7 +1533,7 @@ export class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: rb, scale: 1, alpha: 1, duration: 220, ease: 'Back.Out' });
     add(
       this.add
-        .text(360, 222, lines.join('\n'), { fontFamily: 'sans-serif', fontSize: '23px', color: '#ffffff', align: 'center', lineSpacing: 5, wordWrap: { width: 640 }, stroke: '#0b0d17', strokeThickness: 4 })
+        .text(360, 222, lines.join('\n'), { fontFamily: 'sans-serif', fontSize: lines.length > 13 ? '20px' : '23px', color: '#ffffff', align: 'center', lineSpacing: lines.length > 13 ? 3 : 5, wordWrap: { width: 640 }, stroke: '#0b0d17', strokeThickness: 4 })
         .setOrigin(0.5, 0),
     );
     // 골드 정산표
@@ -1518,11 +1562,53 @@ export class GameScene extends Phaser.Scene {
       button(160, 1180, 196, '재도전', true, () => this.retry(), 'primary');
       button(360, 1180, 196, '성장 연구소', true, toLab, 'growth');
       button(560, 1180, 196, '로비', true, toLobby, 'secondary');
+      this.labTip(360, 1180);
     } else {
       button(360, 1065, 600, '재도전', true, () => this.retry(), 'primary');
       button(205, 1180, 290, '성장 연구소', true, toLab, 'growth');
       button(515, 1180, 290, '로비', true, toLobby, 'secondary');
+      this.labTip(205, 1180);
     }
+  }
+
+  /**
+   * 실패 후 다음 성장 목표(기획자 요청 7): 지금 가진 골드·카드로 할 수 있는 것 또는 얼마나 남았는지.
+   * 표시만 한다(수치·규칙 변경 없음).
+   */
+  private growthHints(): string[] {
+    const p = Progress.load();
+    const out: string[] = ['▶ 다음 성장 목표'];
+    // 연구소: 가장 싼 강화
+    const lab = UPGRADE_TYPES.map((t) => ({ t, lv: p.upgrades[t], def: PERMANENT_UPGRADES[t] }))
+      .filter((o) => o.lv < o.def.maxLevel)
+      .map((o) => ({ ...o, cost: getUpgradeCost(o.lv) }))
+      .sort((a, b) => a.cost - b.cost)[0];
+    if (lab) {
+      out.push(p.gold >= lab.cost
+        ? `연구소 ${lab.def.name} Lv.${lab.lv + 1} 바로 가능 (${lab.cost}G)`
+        : `연구소 ${lab.def.name}까지 ${(lab.cost - p.gold).toLocaleString()}G 더 모으기`);
+    }
+    // 출격 드래곤 레벨업
+    const d = p.dragons[this.dragon.id];
+    if (d.unlocked && d.level < GROWTH.maxLevel) {
+      const cards = GROWTH.cardCost(d.level);
+      const gold = GROWTH.levelCost(d.level);
+      if (d.cards >= cards && p.gold >= gold) out.push(`${this.dragon.short} 레벨업 가능 (카드 ${cards} · ${gold}G)`);
+    }
+    // 이 단계 권장 전투력
+    const cp = loadout(p, this.dragon.id).cp;
+    const rec = recommendedCp(this.stage.id, this.difficulty);
+    out.push(`권장 전투력 ${rec.toLocaleString()} · 현재 ${cp.toLocaleString()} — ${cpVerdict(cp, rec).text}`);
+    return out;
+  }
+
+  /** 첫 판이 끝나면 한 번: 연구소 버튼 위 말풍선 "골드로 영구 강화"(기획자 요청 6) */
+  private labTip(x: number, y: number): void {
+    if (tipSeen('lab')) return;
+    markTip('lab');
+    // 연구소 버튼 오른쪽 위에 "골드로 강화!" 배지가 통통 튐(다른 버튼을 가리지 않게)
+    const tip = badge(this, x + 70, y - 46, '골드로 강화!', COLOR.ruby).setScrollFactor(0).setDepth(UI_DEPTH + 130);
+    this.tweens.add({ targets: tip, y: y - 54, scale: 1.08, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
   }
 
   private retry(): void {

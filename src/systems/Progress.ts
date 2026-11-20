@@ -1080,6 +1080,20 @@ export const Progress = {
   spin: (now: number) => act((p) => spinRoulette(p, now)),
   attend: (now: number) => act((p) => claimAttendance(p, now)),
   /** 개발용(?dev=1): 루비·골드·카드 추가 */
+  /**
+   * 데모 저장 처음 만들기(?demo=1, 웹 전용 · 진짜 저장과 따로): 루비 30,000 · 골드 300,000 · 개봉권 30,
+   * 드래곤 10종 보유(카드 50장씩), 쉬움 1~20단계 열림. 이미 데모 저장이 있으면 그대로(이어서 시험).
+   */
+  seedDemo(): void {
+    if (browserStore().getItem(SAVE_KEY)) return;
+    let n = defaultProgress();
+    n = { ...n, rubies: 30000, gold: 300000, summon: { ...n.summon, legacyTickets: 30 } };
+    for (const id of DRAGON_ORDER) n = { ...n, dragons: { ...n.dragons, [id]: { ...n.dragons[id], unlocked: true } } };
+    for (const id of DRAGON_ORDER) n = addCards(n, id, 50);
+    const all = Array.from({ length: 20 }, (_, i) => i + 1);
+    n = { ...n, unlockedStages: all, difficulty: { ...n.difficulty, easy: { ...n.difficulty.easy, unlocked: all } } };
+    this.save(n);
+  },
   devGrant(): void {
     let n = this.load();
     n = { ...n, rubies: n.rubies + 3000, gold: n.gold + 20000 };

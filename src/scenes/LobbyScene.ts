@@ -18,7 +18,7 @@ import { playMusic, preloadMusic } from '../systems/Music';
 import { altar, dragonCarousel, iconTile, plate, tabs, topBar, torch, wingBanner } from '../ui/kit2';
 import { COLOR, css, TYPE } from '../ui/theme';
 import { giftAlert } from '../ui/giftFx';
-import { platform } from '../platform';
+import { DEMO, platform } from '../platform';
 import { goTab, NAV_TABS } from '../ui/screen';
 
 /**
@@ -153,14 +153,17 @@ export class LobbyScene extends Phaser.Scene {
       text(this, 360, 784, '상점에서 드래곤을 모으면 여기서 바꿀 수 있어요', TYPE.tiny, COLOR.textSub, true, true).setOrigin(0.5);
     }
 
-    // ── 난이도 탭(출시 안 된 난이도는 '출시 예정', 잠긴 난이도는 🔒 — 개발 모드는 시험 플레이)
-    const labels = DIFFICULTIES.map((k) => {
+    // ── 난이도 탭: 출시한 난이도만 보인다(기획자 요청 1, 2026-11-20 — 심사 2.1 미완성 노출 방지). 진행 데이터는 그대로 둔다.
+    // 개발 모드에서는 미출시 난이도도 보여 시험 플레이. 보이는 난이도가 하나뿐이면 탭을 그리지 않는다.
+    // 데모(?demo=1)는 출시 화면과 같게 보여야 하므로 미출시 난이도를 숨긴다
+    const shownDiffs = DIFFICULTIES.filter((k) => DIFFICULTY_RELEASED[k] || (dev && !DEMO));
+    const labels = shownDiffs.map((k) => {
       const released = DIFFICULTY_RELEASED[k];
       const real = released && p.difficulty[k].unlocked.length > 0;
       return released ? `${DIFFICULTY_LABEL[k]}${real ? '' : ' 🔒'}` : `${DIFFICULTY_LABEL[k]} · 출시 예정`;
     });
-    tabs(this, 906, labels, DIFFICULTIES.indexOf(curDiff), (i) => {
-      const k = DIFFICULTIES[i];
+    if (shownDiffs.length > 1) tabs(this, 906, labels, shownDiffs.indexOf(curDiff), (i) => {
+      const k = shownDiffs[i];
       const real = DIFFICULTY_RELEASED[k] && p.difficulty[k].unlocked.length > 0;
       if (real) {
         this.devDiff = null;

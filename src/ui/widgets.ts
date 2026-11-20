@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { DEMO, PLATFORM } from '../platform';
 
 export const FONT = 'sans-serif';
 
@@ -45,7 +46,9 @@ export function makeButton(
 }
 
 /** 개발용 기능(진행 초기화) 표시 여부: 개발 서버이거나 주소에 ?dev=1 */
-export const devMode = () => import.meta.env.DEV || new URLSearchParams(location.search).get('dev') === '1';
+// iOS·토스 빌드에서는 주소창이 없어도 혹시 모를 노출을 막기 위해 항상 끔(App Store 심사: 개발용 UI 노출 금지)
+export const devMode = () =>
+  PLATFORM === 'web' && (import.meta.env.DEV || DEMO || new URLSearchParams(location.search).get('dev') === '1');
 
 /**
  * 게임 안 현재 시각. 개발용(?dev=1&now=2026-12-05 또는 2026-12-05T23:59:30)으로 날짜를 바꿔 이벤트·미션을 시험할 수 있다.

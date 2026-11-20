@@ -79,7 +79,8 @@ export class MissionScene extends Phaser.Scene {
 
   private drawProgress(p: PlayerProgress): void {
     this.A(text(this, 360, 314, `진행도 = 난이도별로 클리어한 서로 다른 단계 ÷ ${STAGE_COUNT} · 같은 단계 반복은 한 번만`, 16, COLOR.textSub, true).setOrigin(0.5));
-    DIFFICULTIES.forEach((d, i) => {
+    // 출시한 난이도만(기획자 요청 1). 미출시 난이도 진행 데이터는 저장에 그대로 남는다
+    DIFFICULTIES.filter((d) => DIFFICULTY_RELEASED[d]).forEach((d, i) => {
       const y = 450 + i * 256;
       const dp = p.difficulty[d];
       const released = DIFFICULTY_RELEASED[d];

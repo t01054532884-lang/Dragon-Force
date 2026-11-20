@@ -9,12 +9,19 @@ export const PLATFORM: PlatformId = (import.meta.env.VITE_PLATFORM as PlatformId
 let impl: PlatformImpl = webPlatform;
 const cache = new Map<string, string>();
 
+/**
+ * 데모(시험용 저장): 웹에서 주소에 ?demo=1 → 모든 저장 키 앞에 'demo:'를 붙여 진짜 진행과 완전히 따로 저장.
+ * 기획자·테스터가 재화가 많은 상태로 확인하는 용도. iOS·토스 빌드에서는 항상 꺼짐(심사·실사용자에게 노출 금지).
+ */
+export const DEMO: boolean = PLATFORM === 'web' && typeof location !== 'undefined' && new URLSearchParams(location.search).get('demo') === '1';
+const mapKey = (k: string) => (DEMO ? `demo:${k}` : k);
+
 /** 게임 저장소: 읽기는 메모리(동기), 쓰기는 메모리 + 기기 저장(비동기) */
 export const store: SyncStore = {
-  getItem: (k) => cache.get(k) ?? null,
+  getItem: (k) => cache.get(mapKey(k)) ?? null,
   setItem: (k, v) => {
-    cache.set(k, v);
-    impl.writeStore(k, v);
+    cache.set(mapKey(k), v);
+    impl.writeStore(mapKey(k), v);
   },
 };
 
@@ -27,7 +34,7 @@ export async function initPlatform(storageKeys: string[]): Promise<void> {
   else if (PLATFORM === 'ios') impl = (await import('./ios')).iosPlatform;
   try {
     await impl.init();
-    const loaded = await impl.loadStore(storageKeys);
+    const loaded = await impl.loadStore(storageKeys.map(mapKey));
     loaded.forEach((v, k) => cache.set(k, v));
   } catch (e) {
     console.warn('플랫폼 초기화 일부 실패', e);

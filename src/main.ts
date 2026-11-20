@@ -9,7 +9,8 @@ import { MissionScene } from './scenes/MissionScene';
 import { EventScene } from './scenes/EventScene';
 import { GiftScene } from './scenes/GiftScene';
 import { TitleScene } from './scenes/TitleScene';
-import { initPlatform, platform } from './platform';
+import { DEMO, initPlatform, platform } from './platform';
+import { Progress } from './systems/Progress';
 import { STORAGE_KEYS } from './systems/Progress';
 import { applySound, SETTINGS_KEY } from './systems/Settings';
 
@@ -24,6 +25,7 @@ export interface PlatformAware {
 async function boot(): Promise<void> {
   // 저장소·안전 영역·세로 고정을 먼저 맞춘 뒤 게임을 만든다(저장된 진행을 동기로 읽기 위해)
   await initPlatform([...STORAGE_KEYS, SETTINGS_KEY]);
+  if (DEMO) Progress.seedDemo(); // 시험용 저장(진짜 진행과 따로)
 
   // 게임 전체 설정. 화면 크기는 세로형 휴대폰(9:16)을 기준으로 잡고,
   // Scale.FIT으로 PC 브라우저·휴대폰 어디서든 비율을 지키며 꽉 차게 한다(안전 영역 안쪽에서).
