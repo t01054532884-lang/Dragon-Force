@@ -58,7 +58,7 @@ export interface BoxDef {
   color: number;
 }
 export const BOXES: Record<BoxId, BoxDef> = {
-  // 종합 개선 기획서 v1.1(2026-11-21) 권장안: 루비 수급이 많다는 의견 → 150/1,350 → 250/2,200(10회 12% 할인). 실제 소모 속도로 다시 조정
+  // 종합 개선 기획서 v1.1(2026-11-21): 150/1,350 → 250/2,200(10회 12% 할인). 제작자 확정 — 이벤트 루비가 많아 초반 영향은 괜찮음
   dragon: { name: '드래곤·스킬 상자', desc: '정수·조각·카드·특수 스킬 조각', price1: 250, price10: 2200, color: 0x6a3fb5 },
   equipment: { name: '장비 상자', desc: '발톱 장식·비늘 갑주·목걸이·반지', price1: 100, price10: 900, color: 0x2e7d6a },
   gold: { name: '골드 상자', desc: '골드', price1: 50, price10: 450, color: 0x9a7a12 },
