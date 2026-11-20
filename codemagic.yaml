@@ -19,7 +19,7 @@ workflows:
         distribution_type: app_store
         bundle_identifier: com.dragonforce.app
       vars:
-        APP_STORE_APPLE_ID: 0 # TODO: App Store Connect에서 앱을 만든 뒤 그 앱의 Apple ID(숫자)로 바꾸기
+        APP_STORE_APPLE_ID: 6837190960 # App Store Connect "드래곤 특공대" 앱 Apple ID(2026-11-20 생성)
       node: 22
       xcode: latest
     scripts:

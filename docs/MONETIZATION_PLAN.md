@@ -110,3 +110,8 @@
 - `com.dragonforce.game`은 Apple 전체에서 **이미 다른 개발자가 사용 중**이라 등록 불가 → 제작자 결정으로 **`com.dragonforce.app`** 등록(Team ID DMZS853A8Y, Sign In with Apple 켬, In-App Purchase 기본 켬).
 - 코드·설정(capacitor.config, Xcode 프로젝트, codemagic.yaml)과 문서의 식별자를 모두 바꿈. 작업 기록(AI_LOG)의 옛 이름은 기록이라 그대로.
 - Firebase iOS 앱도 `com.dragonforce.app`로 다시 등록하고 새 `GoogleService-Info.plist`로 바꿔야 함(옛 `com.dragonforce.game` 앱은 지워도 됨).
+
+### 2026-11-20 ⑤ App Store Connect 앱 생성
+- 앱 **"드래곤 특공대"**, iOS, 기본 언어 한국어, 번들 ID `com.dragonforce.app`, SKU `dragonforce001`, 사용자 액세스 전체 → **Apple ID 6837190960**(`codemagic.yaml` `APP_STORE_APPLE_ID`에 넣음).
+- 다음: 유료 앱 계약·세금·은행(제작자 직접) → Small Business Program 신청 → 인앱결제 키 → RevenueCat App Store 연결 → 루비 상품 등록(가격 확정 뒤).
+
