@@ -25,6 +25,9 @@ AI(Claude Code)와 협업해 만들고 있으며, 단계별로 무엇을 AI에�
 | [docs/V12.md](docs/V12.md) | 6단계 기획 수정안 v1.2 구현·회귀 검증·검토 |
 | [docs/V13.md](docs/V13.md) | 경제 밸런스·크리스마스 이벤트 v1.3 구현·검증 |
 | [docs/STAGE7.md](docs/STAGE7.md) | 개발 7단계 시즌 1 1~20단계 구현·20단계 측정 |
+| [기획서 읽는 순서](docs/plan/README.md) | 8단계 v1.0 기반 기획 → v2.0 추가 요청 → 구현 기록의 관계·우선 적용 기준 |
+| [8단계 기획안 v1.0 초안](docs/plan/개발8단계_기획안_v1.0_초안.md) | 로그인·클라우드·선물함·운영자 시스템 기반 기획 전문 |
+| [8단계 추가 요청서 v2.0](docs/plan/개발8단계_추가요청서_v2.0.md) | 개발 질문 답변·첫 제출 범위·디자인·연출 상세 명세 |
 
 ## 플레이·출시
 - 웹: https://t01054532884-lang.github.io/Dragon-Force/ (GitHub Pages, main에 push하면 자동 배포)
