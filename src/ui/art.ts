@@ -62,6 +62,10 @@ export const ART_FILES: Record<string, string> = {
   'logo-ko': 'logo-ko.webp',
   'title-deco': 'title-deco.webp',
   'event-winter': 'event-winter.webp',
+  // 1단계 적 5종·얼굴 3·잿빛 바닥(scripts/process_art_batch7.py, 기획자 요청 5)
+  ...Object.fromEntries(['wolf', 'boar', 'moonfang', 'matriarch', 'graymane'].map((k) => [`art-${k}`, `enemy/art-${k}.webp`])),
+  ...Object.fromEntries(['graymane', 'moonfang', 'matriarch'].map((k) => [`face-${k}`, `enemy/face-${k}.webp`])),
+  'floor-ash': 'floor-ash.webp',
   ...Object.fromEntries(['blue', 'purple', 'gold'].map((c) => [`chest-inner-${c}`, `chest/chest-inner-${c}.webp`])),
 };
 

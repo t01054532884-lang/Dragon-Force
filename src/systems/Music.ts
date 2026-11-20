@@ -49,7 +49,19 @@ export function stopMusic(scene: Phaser.Scene): void {
   if (!current) return;
   const old = current.snd;
   current = null;
-  fade(scene, old, 0, () => old.destroy());
+  let gone = false;
+  const kill = () => {
+    if (gone) return;
+    gone = true;
+    try {
+      old.stop();
+      old.destroy();
+    } catch {
+      /* 이미 지워짐 */
+    }
+  };
+  fade(scene, old, 0, kill);
+  setTimeout(kill, FADE_MS + 150); // 화면 갱신이 멈춘 상태(백그라운드 등)에서도 이전 곡이 반드시 꺼지게
 }
 
 function fade(scene: Phaser.Scene, snd: Phaser.Sound.BaseSound, to: number, done?: () => void): void {

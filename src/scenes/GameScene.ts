@@ -359,7 +359,10 @@ export class GameScene extends Phaser.Scene {
     const { x, y, r } = this.arena;
     const ch = chapterOf(this.stage.id);
     this.add.rectangle(0, 0, WORLD_SIZE, WORLD_SIZE, 0x0d0f14).setOrigin(0);
-    const floor = this.add.tileSprite(0, 0, WORLD_SIZE, WORLD_SIZE, ch.id === 1 ? 'ground' : `ground-${ch.id}`).setOrigin(0);
+    // 1단계 챕터(잿빛 숲)는 기획자 바닥 그림(이음새 없는 512 무늬)이 있으면 그것으로
+    const floorKey = ch.id === 1 ? (this.textures.exists('floor-ash') ? 'floor-ash' : 'ground') : `ground-${ch.id}`;
+    const floor = this.add.tileSprite(0, 0, WORLD_SIZE, WORLD_SIZE, floorKey).setOrigin(0);
+    if (floorKey === 'floor-ash') floor.setTileScale(0.5).setTint(0x9a9aa8); // 캐릭터가 잘 보이게 조금 어둡게
     const mask = this.make.graphics({}, false).fillStyle(0xffffff).fillCircle(x, y, r);
     floor.setMask(mask.createGeometryMask());
     const g = this.add.graphics();
@@ -722,6 +725,7 @@ export class GameScene extends Phaser.Scene {
       }
       for (const act of e.step(target, delta, this.arena)) this.doEnemyAction(e, act);
       this.keepInArena(e, e.def.radius);
+      e.syncSkin();
       if (e.burnCount > 0 && this.elapsed >= this.emberAt) this.fx.ember(e.x, e.y, e.def.radius);
       const burnCoef = e.tickBurn(delta);
       if (burnCoef > 0) this.hitEnemy(e, { source: 'dot', coef: burnCoef, tag: 'burn' });
@@ -1044,7 +1048,7 @@ export class GameScene extends Phaser.Scene {
       const drop = rollNormalDrop(this.itemRng.frac()); // 처치마다 한 번, 최대 1종
       if (drop) this.spawnItem(drop, enemy.x, enemy.y, false);
     }
-    this.fx.die(enemy);
+    this.fx.die(enemy.skin ?? enemy);
     playSfx(this, 'sfx-enemy-die', { pitch: 0.9 + Math.random() * 0.25 });
     enemy.destroy();
   }
@@ -1333,7 +1337,8 @@ export class GameScene extends Phaser.Scene {
       e.body.setVelocity(0, 0);
       e.body.enable = false;
       e.setTint(0xfff3c4);
-      this.tweens.add({ targets: e, alpha: 0, scale: 1.4, duration: 600, onComplete: () => e.destroy() });
+      e.skin?.setTint(0xfff3c4);
+      this.tweens.add({ targets: e.skin ? [e, e.skin] : e, alpha: 0, scaleX: '*=1.4', scaleY: '*=1.4', duration: 600, onComplete: () => e.destroy() });
     }
     // 6) 무적
     this.invulnerable = true;

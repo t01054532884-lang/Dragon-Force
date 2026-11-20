@@ -40,6 +40,9 @@ export interface Arena {
   r: number;
 }
 
+/** 그림 크기 = 반지름 × 3.6 (늑대 반지름 15 → 54px, 보스 52 → 187px — 기획 요청 5: 일반·엘리트·보스가 크기로 구별) */
+const ART_SCALE = 3.6;
+
 export class Enemy extends Phaser.Physics.Arcade.Image {
   private static nextUid = 0;
   declare body: Phaser.Physics.Arcade.Body;
@@ -98,9 +101,39 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
     const r = def.radius;
     this.body.setCircle(r, this.width / 2 - r, this.height / 2 - r);
     if (def.rank !== 'normal') this.setDepth(6);
+    // 기획자 그림(옆모습, 머리 오른쪽)이 있으면 그 그림을 위에 보이고 원래 도형은 숨긴다(충돌 범위는 그대로).
+    // 옆모습이라 몸체를 돌리지 않고 이동 방향에 따라 좌우만 뒤집는다. 색(피격·상태)·투명도는 매 프레임 따라 함.
+    const artKey = `art-${def.texture}`;
+    if (scene.textures.exists(artKey)) {
+      this.skin = scene.add.image(x, y, artKey).setDepth(this.depth);
+      this.skin.setDisplaySize(def.radius * ART_SCALE, def.radius * ART_SCALE);
+      this.setVisible(false);
+    }
     if (def.lifeMs) this.lifeLeft = def.lifeMs;
     // 원거리·소환형은 처음 공격 시각을 조금씩 어긋나게(한꺼번에 쏘지 않게, uid 기반이라 재현됨)
     if (def.shot || def.summon) this.patternCd = 1200 + (this.uid % 10) * 150;
+  }
+
+  /** 기획자 그림 층(없으면 원래 도형) */
+  skin?: Phaser.GameObjects.Image;
+  private faceLeft = false;
+
+  /** 그림 층을 몸체에 맞춤: 위치·좌우(가로 속도 기준, 돌진 방향 포함)·색·투명도 */
+  syncSkin(): void {
+    const s = this.skin;
+    if (!s) return;
+    const vx = this.body ? (this.body as Phaser.Physics.Arcade.Body).velocity.x : 0;
+    if (vx < -8) this.faceLeft = true;
+    else if (vx > 8) this.faceLeft = false;
+    else if (Math.abs(vx) <= 8 && this.rotation !== 0) this.faceLeft = Math.cos(this.rotation) < 0;
+    s.setPosition(this.x, this.y).setFlipX(this.faceLeft).setAlpha(this.alpha);
+    s.setTint(this.tintTopLeft);
+  }
+
+  destroy(fromScene?: boolean): void {
+    this.skin?.destroy();
+    this.skin = undefined;
+    super.destroy(fromScene);
   }
 
   /** 분신·기병처럼 시간이 다 되면 보상 없이 사라지는 적 */

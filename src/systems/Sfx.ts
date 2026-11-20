@@ -111,14 +111,26 @@ export function playSfx(scene: Phaser.Scene, key: string, opts: { pitch?: number
         // 긴 파일을 앞부분만: 재생 → (최대 길이 − 80ms)부터 줄여서 끄기
         const snd = scene.sound.add(key, { volume: v });
         let gone = false;
+        // 줄여 끄기 트윈과 소리 끝 중 먼저 오는 쪽에서 한 번만 정리(트윈을 먼저 멈춰야 지워진 소리를 건드리지 않음 —
+        // 2026-11-20 시험 중 발견: 소리가 먼저 끝나 지워진 뒤 트윈이 음량을 읽다가 게임이 멈춤)
+        let fadeTw: Phaser.Tweens.Tween | null = null;
         const done = () => {
           if (gone) return;
           gone = true;
+          scene.events.off('shutdown', done);
+          fadeTw?.remove();
+          fadeTw = null;
+          try {
+            snd.stop();
+          } catch {
+            /* 이미 멈춤 */
+          }
           snd.destroy();
         };
         snd.once('complete', done);
         snd.play();
-        scene.tweens.add({ targets: snd, volume: 0, delay: maxMs - 80, duration: 80, onComplete: () => (snd.stop(), done()) });
+        fadeTw = scene.tweens.add({ targets: snd, volume: 0, delay: maxMs - 80, duration: 80, onComplete: done });
+        scene.events.once('shutdown', done); // 화면이 바뀌면 같이 정리
         hold(maxMs);
       } else {
         scene.sound.play(key, { volume: v });
