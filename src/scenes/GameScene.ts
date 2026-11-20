@@ -1750,70 +1750,93 @@ export class GameScene extends Phaser.Scene {
         .setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 120);
       this.tweens.add({ targets: t, alpha: 0, delay: 2600, duration: 600, onComplete: () => t.destroy() });
     }
-    const sec = (ms: number | null | undefined) => (ms == null ? '—' : `${(ms / 1000).toFixed(1)}초`);
-    const eliteLines = d.eliteSlots.map((st, i) => {
-      const label = { pending: '미등장', warning: '미등장', alive: '생존', killed: `처치 ${sec(d.record.eliteKillMs[i])}`, absorbed: '보스에 흡수' }[st];
-      return `엘리트 ${i + 1}: ${label}`;
-    });
-    const total = Object.values(this.dmgLog).reduce((a, b) => a + b, 0) || 1;
-    const top = Object.entries(this.dmgLog)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 4)
-      .map(([k, v]) => `${k === 'basic' ? this.dragon.basic.name : sourceName(k)} ${Math.round((v / total) * 100)}%`)
-      .join(' · ');
-    const timeTxt = this.timeText.text.split(' /')[0];
-    const headline =
-      clear ? `클리어 시간 ${timeTxt}` :
-      reason === 'timeout' ? `시간 초과 — ${Math.round(this.stage.durationMs / 60_000 * 10) / 10}분 안에 보스를 쓰러뜨리지 못했다` :
-      reason === 'quit' ? `포기 — ${timeTxt}` : `버틴 시간 ${timeTxt}`;
-    const lines = [
-      `${this.stage.id}단계 ${this.stage.name} · ${this.dragon.name}`,
-      headline,
-      `Lv.${this.level} · 처치 ${this.kills}`,
-      ...(clear ? [] : ['', ...this.growthHints()]),
-      '',
-      // 실패 때는 성장 목표가 더 중요해 엘리트·보스 기록 줄은 생략(화면 넘침 방지)
-      ...(clear ? [
-        '전투 기록',
-        ...eliteLines,
-        `보스: ${d.record.bossKillMs != null ? `처치 ${sec(d.record.bossKillMs)}` : d.boss ? '생존' : '미등장'}${d.bossBuffs.length ? ` (흡수 강화: ${d.bossBuffs.join(', ')})` : ''}`,
-      ] : []),
-      `피해 비중: ${top || '—'}`,
-      ...(clear && this.stage.id === 20 ? ['', `“${SEASON1_FINALE}”`] : []),
-      `시드 ${this.seed}`,
-    ];
+    // ── 결과 화면(종합 개선 기획서 v1.1 3장): 정보 한 판 → 성장 목표 한 줄 → 피해 상위 3 → 작은 골드 정산 ──
+    const mmss = (ms: number) => `${String(Math.floor(ms / 60000)).padStart(2, '0')}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`;
+    const secTxt = (ms: number | null | undefined) => (ms == null ? '—' : `${Math.round(ms / 1000)}초`);
+    const stageLabel = this.hard ? `어려움 ${this.stage.id}단계 ${this.hard.title}` : `${this.stage.id}단계 ${this.stage.name}`;
+    const head = clear ? `클리어 ${mmss(this.elapsed)}` : reason === 'timeout' ? '시간 초과' : reason === 'quit' ? `포기 ${mmss(this.elapsed)}` : `생존 ${mmss(this.elapsed)}`;
     const cards = this.runRewards.reduce((a, r) => a + (r.cards?.count ?? 0), 0);
     const rubies = this.runRewards.reduce((a, r) => a + (r.rubies ?? 0), 0);
-    const extra = `${cards ? `  ·  🃏 +${cards}장` : ''}${rubies ? `  ·  💎 +${rubies}` : ''}`;
 
-    const add = (o: Phaser.GameObjects.GameObject & { setScrollFactor: (n: number) => unknown; setDepth: (n: number) => unknown }) => {
+    const add = <T extends Phaser.GameObjects.GameObject & { setScrollFactor: (n: number) => unknown; setDepth: (n: number) => unknown }>(o: T): T => {
       o.setScrollFactor(0);
       o.setDepth(UI_DEPTH + 101);
       return o;
     };
-    add(this.add.rectangle(360, 640, 720, 1280, 0x000000, 0.8));
+    const T = (x: number, y: number, str: string, size: number, color: number = COLOR.text, ox = 0.5) => add(ktext(this, x, y, str, size, color, true, true).setOrigin(ox, 0.5));
+    add(this.add.rectangle(360, 640, 720, 1280, 0x000000, 0.82));
     const titleTxt = clear ? '성지 탈환!' : reason === 'timeout' ? '시간 초과' : reason === 'quit' ? '전투 포기' : '드래곤이 쓰러졌다';
-    add(plate(this, 360, 420, 680, 470, { r: 28, gold: clear }));
     const rb = ribbon(this, 360, 160, 440, titleTxt, clear ? 0xe0a032 : COLOR.danger, 84);
     add(rb);
     rb.setScale(0.6).setAlpha(0);
     this.tweens.add({ targets: rb, scale: 1, alpha: 1, duration: 220, ease: 'Back.Out' });
-    add(
-      this.add
-        .text(360, 222, lines.join('\n'), { fontFamily: 'sans-serif', fontSize: lines.length > 13 ? '20px' : '23px', color: '#ffffff', align: 'center', lineSpacing: lines.length > 13 ? 3 : 5, wordWrap: { width: 640 }, stroke: '#0b0d17', strokeThickness: 4 })
-        .setOrigin(0.5, 0),
-    );
-    // 골드 정산표
-    add(plate(this, 360, 812, 660, 330, { r: 24, gold: true, fill: 0x221d36 }));
-    if (this.textures.exists('ui-gold')) add(this.add.image(268, 674, 'ui-gold').setDisplaySize(44, 44));
-    add(ktext(this, 376, 674, '골드 정산', TYPE.heading, COLOR.gold, true, true).setOrigin(0.5));
-    add(this.add.text(70, 708, goldLines(gold).join('\n'), { fontFamily: 'sans-serif', fontSize: '21px', color: '#dfe6f5', lineSpacing: 4 }));
-    add(this.add.text(650, 708, goldValues(gold).join('\n'), { fontFamily: 'sans-serif', fontSize: '21px', color: '#dfe6f5', lineSpacing: 4, align: 'right' }).setOrigin(1, 0));
-    add(
-      this.add
-        .text(360, 1000, `${paid ? '+' : ''}${gold.total}G 획득${extra}  ·  보유 ${bank.toLocaleString()}G`, { fontFamily: 'sans-serif', fontSize: '25px', fontStyle: 'bold', color: '#ffd34d', stroke: '#0b0d17', strokeThickness: 5 })
-        .setOrigin(0.5),
-    );
+
+    // 1) 정보
+    add(plate(this, 360, 268, 660, 104, { r: 22, gold: clear }));
+    T(360, 246, `${stageLabel} · ${this.dragon.name}`, 22);
+    T(360, 284, `${head} · Lv.${this.level} · 처치 ${this.kills}`, 20, COLOR.textSub);
+
+    // 2) 다음 성장 목표(실패) — 한 줄 / 전투 기록(클리어) — 한 줄
+    add(plate(this, 360, 384, 660, 104, { r: 22 }));
+    if (!clear) {
+      const lo = loadout(Progress.load(), this.dragon.id);
+      const rec = recommendedCp(this.stage.id, this.difficulty);
+      const short = lo.cp < rec;
+      T(360, 360, short ? '전투력 부족 → 강화 필요' : '도전 가능', 22, short ? COLOR.gold : COLOR.ok);
+      T(360, 398, `권장 ${rec.toLocaleString()} · 현재 ${lo.cp.toLocaleString()}`, 18, COLOR.textSub);
+    } else {
+      const el = d.eliteSlots.map((st, i) => (st === 'killed' ? secTxt(d.record.eliteKillMs[i]) : st === 'absorbed' ? '흡수' : '—')).join(' · ');
+      T(360, 360, '전투 기록', 20, COLOR.gold);
+      T(360, 398, `엘리트 ${el} · 보스 ${secTxt(d.record.bossKillMs)}${this.stage.id === 20 && !this.hard ? '  ·  시즌 1 완료!' : ''}`, 18, COLOR.textSub);
+    }
+
+    // 3) 피해 비중 상위 3(이름 + 비율)
+    const total = Object.values(this.dmgLog).reduce((a, b) => a + b, 0) || 1;
+    const top = Object.entries(this.dmgLog).sort((a, b) => b[1] - a[1]).slice(0, 3);
+    add(plate(this, 360, 540, 660, 176, { r: 22 }));
+    T(54, 474, '피해 비중 · 상위 3', 19, COLOR.gold, 0);
+    const gbar = add(this.add.graphics());
+    top.forEach(([k, v], i) => {
+      const y = 514 + i * 40;
+      const pct = v / total;
+      const name = k === 'basic' ? this.dragon.basic.name : k === 'signature' ? this.signature.def.name : sourceName(k);
+      gbar.fillStyle(0x0b0d17, 0.8).fillRoundedRect(250, y - 9, 330, 18, 9);
+      gbar.fillStyle(i === 0 ? COLOR.ember : 0x8a63ff, 1).fillRoundedRect(250, y - 9, Math.max(10, 330 * pct), 18, 9);
+      T(60, y, name, 19, COLOR.text, 0);
+      T(664, y, `${Math.round(pct * 100)}%`, 20, COLOR.text, 1);
+    });
+    if (!top.length) T(360, 540, '—', 20, COLOR.textSub);
+
+    // 4) 골드 정산(작게): 기본+생존 한 줄, 처치 골드 따로, 나머지 보너스 한 줄, 합계 강조
+    const L = gold.lines.map((l) => l.gold);
+    const rows: [string, number][] = [
+      ['기본 + 생존 보상', L[0] + L[1]],
+      ['처치 골드', L[2]],
+      ['엘리트·보스·클리어', L[3] + L[4] + L[5]],
+      ['보물 더미·용의 보물', (L[6] ?? 0) + (L[7] ?? 0)],
+    ];
+    const shown = rows.filter(([label, g], i) => i < 2 || g > 0 || label === '');
+    const notes = [
+      gold.stageMult !== 1 ? `단계 ×${gold.stageMult}` : '',
+      this.hard ? `어려움 ×${HARD_GOLD_MULT}` : '',
+      gold.resultMult === 1 ? '' : gold.resultMult === 0 ? '30초 전 포기 0%' : '실패 50%',
+    ].filter(Boolean);
+    const gh = 96 + shown.length * 32;
+    const gy = 640 + gh / 2;
+    add(plate(this, 360, gy, 660, gh, { r: 22, gold: true, fill: 0x221d36 }));
+    if (this.textures.exists('ui-gold')) add(this.add.image(66, 664, 'ui-gold').setDisplaySize(34, 34));
+    T(92, 664, '골드 정산', 20, COLOR.gold, 0);
+    shown.forEach(([label, g], i) => {
+      T(60, 700 + i * 32, label, 18, COLOR.textSub, 0);
+      T(664, 700 + i * 32, `${g}G`, 18, COLOR.text, 1);
+    });
+    const ty = 700 + shown.length * 32 + 6;
+    add(this.add.rectangle(360, ty - 16, 610, 2, COLOR.line));
+    T(60, ty + 4, `총 획득${notes.length ? `(${notes.join(' · ')})` : ''}`, 20, COLOR.gold, 0);
+    T(664, ty + 4, `${paid ? '+' : ''}${gold.total}G`, 26, COLOR.gold, 1);
+    const extra = [cards ? `🃏 카드 +${cards}장` : '', rubies ? `💎 루비 +${rubies}` : '', `보유 ${bank.toLocaleString()}G`].filter(Boolean).join('  ·  ');
+    T(360, gy + gh / 2 + 30, extra, 19, COLOR.text);
+    T(360, gy + gh / 2 + 60, `시드 ${this.seed}`, 14, COLOR.textDim);
 
     const next = STAGES.find((s) => s.id === this.stage.id + 1);
     type K = 'cta' | 'primary' | 'secondary' | 'growth' | 'magic';
@@ -1881,20 +1904,6 @@ export class GameScene extends Phaser.Scene {
   private retry(): void {
     enterBattle(this, { stageId: this.stage.id, difficulty: this.difficulty }, { restart: true });
   }
-}
-
-function goldLines(g: GoldBreakdown): string[] {
-  const rows = g.lines.filter((l) => l.gold > 0).map((l) => l.label);
-  rows.push(`합계 × 단계 배율 ×${g.stageMult}`);
-  rows.push(g.resultMult === 1 ? '× 클리어 100%' : g.resultMult === 0 ? '× 30초 전 포기 0%' : '× 실패 50%');
-  return rows;
-}
-
-function goldValues(g: GoldBreakdown): string[] {
-  const rows = g.lines.filter((l) => l.gold > 0).map((l) => `${l.gold}G`);
-  rows.push(`${Math.floor(g.subtotal * g.stageMult)}G`);
-  rows.push(`= ${g.total}G`);
-  return rows;
 }
 
 function sourceName(tag: string): string {

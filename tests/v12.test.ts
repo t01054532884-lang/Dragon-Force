@@ -150,9 +150,10 @@ describe('6-4 난이도·진행도', () => {
 });
 
 describe('6-5 루비 상자·천장', () => {
-  it('가격: 1회/10회 = 150/1350 · 100/900 · 50/450(10% 할인)', () => {
-    for (const b of Object.values(BOXES)) expect(b.price10).toBe(b.price1 * 9);
-    expect([BOXES.dragon.price1, BOXES.equipment.price1, BOXES.gold.price1]).toEqual([150, 100, 50]);
+  it('가격: 드래곤 250/2,200(v1.1, 12% 할인) · 장비 100/900 · 골드 50/450(10% 할인)', () => {
+    expect([BOXES.dragon.price1, BOXES.dragon.price10]).toEqual([250, 2200]);
+    for (const b of [BOXES.equipment, BOXES.gold]) expect(b.price10).toBe(b.price1 * 9);
+    expect([BOXES.dragon.price1, BOXES.equipment.price1, BOXES.gold.price1]).toEqual([250, 100, 50]);
   });
   it('확률 합 100%: 1차 추첨·정수 희귀도·장비·골드', () => {
     const sum = (o: Record<string, number>) => Object.values(o).reduce((a, b) => a + b, 0);
@@ -161,11 +162,11 @@ describe('6-5 루비 상자·천장', () => {
     expect(sum(EQUIPMENT_BOX.rarity)).toBe(100);
     expect(GOLD_BOX.table.reduce((a, [, w]) => a + w, 0)).toBe(100);
   });
-  it('루비 부족이면 아무것도 안 바뀜, 10회는 1,350 차감·결과 10개', () => {
-    expect(openBox({ ...defaultProgress(), rubies: 149 }, 'dragon', 1)).toMatchObject({ ok: false, reason: 'rubies' });
-    const r = openBox({ ...defaultProgress(), rubies: 2000 }, 'dragon', 10, 'ruby', seeded(3));
-    // 1,350 차감(드래곤 3종 보유 업적 루비가 같이 들어올 수 있음)
-    expect(r.ok && r.progress.rubies).toBe(2000 - 1350 + (r.ok ? r.rewards.reduce((a, x) => a + (x.rubies ?? 0), 0) : 0));
+  it('루비 부족이면 아무것도 안 바뀜, 10회는 10회 가격 차감·결과 10개', () => {
+    expect(openBox({ ...defaultProgress(), rubies: BOXES.dragon.price1 - 1 }, 'dragon', 1)).toMatchObject({ ok: false, reason: 'rubies' });
+    const r = openBox({ ...defaultProgress(), rubies: 2000 + BOXES.dragon.price10 }, 'dragon', 10, 'ruby', seeded(3));
+    // 10회 가격 차감(드래곤 3종 보유 업적 루비가 같이 들어올 수 있음)
+    expect(r.ok && r.progress.rubies).toBe(2000 + (r.ok ? r.rewards.reduce((a, x) => a + (x.rubies ?? 0), 0) : 0));
     expect(r.ok && r.results).toHaveLength(10);
   });
   it('기존 소환권 = 드래곤·스킬 상자 무료 개봉권(다른 상자에는 못 씀)', () => {

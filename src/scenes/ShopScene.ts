@@ -16,7 +16,7 @@ import { screenFrame, type ScreenFrame } from '../ui/screen';
 import { COLOR, css, TYPE } from '../ui/theme';
 
 /**
- * 루비 상점(6단계 v1.2 6장): 드래곤·스킬 상자 / 장비 상자 / 골드 상자, 1회·10회(10% 할인).
+ * 루비 상점(6단계 v1.2 6장): 드래곤·스킬 상자 / 장비 상자 / 골드 상자, 1회·10회(드래곤 상자 12% · 나머지 10% 할인 — v1.1).
  * 기존 소환권은 드래곤·스킬 상자 무료 개봉권으로 쓴다. 루비는 게임 안 보상·이벤트로만 얻는다(첫 출시: 현금 결제 없음).
  * 8단계 v2.0 C: 로비와 같은 머리줄·리본·하단 탭, 시안 형식(큰 소환 배너 · 보장 진행 막대 · 상자 카드 2장). 규칙·가격·저장은 그대로.
  */
@@ -109,7 +109,8 @@ export class ShopScene extends Phaser.Scene {
     const kind = box === 'dragon' ? undefined : 'magic';
     const b1 = button(this, cx - w / 2 - gap, y, w, h, '1회', () => this.open(box, 1, 'ruby'), { kind: kind ?? 'growth', icon: 'ui-ruby', sub: def.price1.toLocaleString(), size });
     const b10 = button(this, cx + w / 2 + gap, y, w, h, '10회', () => this.open(box, 10, 'ruby'), { kind: kind ?? 'cta', icon: 'ui-ruby', sub: def.price10.toLocaleString(), size });
-    if (box === 'dragon') b10.root.add(badge(this, w / 2 - 34, -h / 2 - 6, '10% 할인', COLOR.ruby));
+    const off = Math.round((1 - def.price10 / (def.price1 * 10)) * 100);
+    if (box === 'dragon' && off > 0) b10.root.add(badge(this, w / 2 - 34, -h / 2 - 6, `${off}% 할인`, COLOR.ruby));
     this.buttons.push({ btn: b1, box, count: 1, pay: 'ruby' }, { btn: b10, box, count: 10, pay: 'ruby' });
   }
 

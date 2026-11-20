@@ -5,6 +5,10 @@ import { aoePerTarget, signatureCap, sigGrowth, SIGNATURE_RULES as R, SIGNATURES
 import type { DragonId } from '../data/dragons';
 import type { CombatHost } from './CombatHost';
 import { playSfx } from './Sfx';
+import { ART_FILES } from '../ui/art';
+
+/** 기획자 그림이 들어온 효과인지(그림은 비스듬한 시점이라 돌리지 않음) */
+const isArt = (key: string): boolean => !!ART_FILES[key];
 
 /** 남는 바닥 효과(불길·냉기·독구름): 일정 간격마다 안의 적에게 피해·상태이상 */
 interface Zone {
@@ -115,7 +119,7 @@ export class Signature {
         const t = this.inCircle(x, y, rad);
         this.strike(t, aoePerTarget(dps, t.length));
         // 냉기 장판: 안에 있는 적 45% 둔화(피해 없음, 생존·이동 방해)
-        this.addZone({ x, y, r: rad * 0.8, left: g.lingerMs, every: 400, perTick: 0, kind: 'frost', follow: false, tex: 'fx-ice-crystal' });
+        this.addZone({ x, y, r: rad * 0.8, left: g.lingerMs, every: 400, perTick: 0, kind: 'frost', follow: false, tex: 'fx-frost-ground' });
         break;
       }
       case 'yellow': {
@@ -287,7 +291,7 @@ export class Signature {
         z.y = this.h.player.y;
         z.img.setPosition(z.x, z.y);
       }
-      z.img.rotation += (z.kind === 'poison' ? 0.4 : 0.15) * (delta / 1000);
+      if (!isArt(z.img.texture.key)) z.img.rotation += (z.kind === 'poison' ? 0.4 : 0.15) * (delta / 1000);
       z.left -= delta;
       z.acc += delta;
       while (z.acc >= z.every) {
@@ -348,7 +352,7 @@ export class Signature {
     this.scene.tweens.add({ targets: g, alpha: 0, duration: 450, onComplete: () => g.destroy() });
     if (this.dragonId === 'water') {
       // 해일: 물결 띠가 앞으로 밀려감
-      const w = this.scene.add.image(x, y, 'fx-wave').setDepth(DEPTH_FLASH).setRotation(ang).setDisplaySize(90, half * 2).setAlpha(0.85);
+      const w = this.scene.add.image(x, y, 'fx-wave').setDepth(DEPTH_FLASH).setRotation(ang).setFlipX(true).setDisplaySize(half * 1.6, half * 1.6).setAlpha(0.9);
       this.scene.tweens.add({ targets: w, x: x + Math.cos(ang) * len, y: y + Math.sin(ang) * len, alpha: 0.2, duration: 420, onComplete: () => w.destroy() });
     } else {
       // 암흑: 암흑 구체가 빔을 따라 날아감, 분신 빔은 반투명 분신에서
@@ -364,22 +368,28 @@ export class Signature {
     }
   }
 
+  /** 바위 파동: 바위 조각 8개가 고리 모양으로 바깥까지 솟아 나감 + 퍼지는 고리 */
   private rockWave(x: number, y: number, r: number): void {
-    const im = this.scene.add.image(x, y, 'fx-rock-wave').setDepth(DEPTH_FLASH).setDisplaySize(60, 60).setAlpha(0.95);
-    const size = r * 2 * this.h.stats.areaMult;
-    this.scene.tweens.add({ targets: im, displayWidth: size, displayHeight: size, alpha: 0.15, duration: 420, onComplete: () => im.destroy() });
+    const rr = r * this.h.stats.areaMult;
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      const im = this.scene.add.image(x + Math.cos(a) * 30, y + Math.sin(a) * 30, 'fx-rock-wave').setDepth(DEPTH_FLASH).setDisplaySize(84, 84).setFlipX(Math.cos(a) < 0);
+      this.scene.tweens.add({ targets: im, x: x + Math.cos(a) * rr, y: y + Math.sin(a) * rr, alpha: 0.2, duration: 420, ease: 'Quad.Out', onComplete: () => im.destroy() });
+    }
+    const c = this.scene.add.circle(x, y, 20).setStrokeStyle(8, 0xb08d57, 0.8).setDepth(DEPTH_FLASH);
+    this.scene.tweens.add({ targets: c, radius: rr, alpha: 0.1, duration: 420, onComplete: () => c.destroy() });
     this.scene.cameras.main.shake(200, 0.006);
   }
 
   private boltFx(x: number, y: number, t: Enemy): void {
-    const b = this.scene.add.image(x, y, 'fx-arcane-bolt').setDepth(DEPTH_FLASH).setDisplaySize(34, 34);
+    const b = this.scene.add.image(x, y, 'fx-arcane-bolt').setDepth(DEPTH_FLASH).setDisplaySize(64, 64).setRotation(Math.atan2(t.y - y, t.x - x));
     this.scene.tweens.add({ targets: b, x: t.x, y: t.y, duration: 140, onComplete: () => b.destroy() });
   }
 
   private showBubble(tex: string | null, color: number): void {
     this.bubble?.destroy();
-    const key = tex ?? 'fx-rock-wave';
-    this.bubble = this.scene.add.image(this.h.player.x, this.h.player.y, key).setDepth(11).setDisplaySize(120, 120).setAlpha(0.55).setTint(tex ? 0xffffff : color);
+    // 스톤 방어막은 같은 보호막 그림을 흙빛으로
+    this.bubble = this.scene.add.image(this.h.player.x, this.h.player.y, 'fx-light-shield').setDepth(11).setDisplaySize(130, 130).setAlpha(0.6).setTint(tex ? 0xffffff : color);
     this.scene.tweens.add({ targets: this.bubble, alpha: 0.3, duration: 600, yoyo: true, repeat: -1 });
   }
 
@@ -421,6 +431,16 @@ export class Signature {
     }
     g.lineStyle(2, 0xb388ff, 0.9).strokePoints(points.map((p) => new Phaser.Math.Vector2(p.x, p.y)));
     this.scene.tweens.add({ targets: g, alpha: 0, duration: 380, onComplete: () => g.destroy() });
+    // 번개 줄기 그림을 구간마다(그림이 있을 때)
+    if (isArt('fx-lightning-arc')) {
+      for (let i = 1; i < points.length; i++) {
+        const a = points[i - 1];
+        const b = points[i];
+        const len = Math.hypot(b.x - a.x, b.y - a.y);
+        const im = this.scene.add.image((a.x + b.x) / 2, (a.y + b.y) / 2, 'fx-lightning-arc').setDepth(DEPTH_FLASH).setDisplaySize(len * 1.2, len * 1.2).setRotation(Math.atan2(b.y - a.y, b.x - a.x) + 0.75);
+        this.scene.tweens.add({ targets: im, alpha: 0, duration: 380, onComplete: () => im.destroy() });
+      }
+    }
   }
 
   /** 대상마다 고정 피해(이미 DPS로 계산된 값) + 상태이상 */
@@ -521,7 +541,7 @@ export class Signature {
  * 없는 것만 여기서 도형으로 그린다(키 이름이 같아서 코드는 그대로).
  */
 export function makeSigTextures(scene: Phaser.Scene): void {
-  const need = ['fx-wind-blade', 'fx-fire-ground', 'fx-ice-crystal', 'fx-poison-cloud', 'fx-rock-wave', 'fx-light-shield', 'fx-shadow-orb', 'fx-arcane-bolt', 'fx-wave'];
+  const need = ['fx-wind-blade', 'fx-fire-ground', 'fx-frost-ground', 'fx-ice-crystal', 'fx-poison-cloud', 'fx-rock-wave', 'fx-light-shield', 'fx-shadow-orb', 'fx-arcane-bolt', 'fx-wave'];
   if (need.every((k) => scene.textures.exists(k))) return;
   const g = scene.make.graphics({}, false);
   const make = (key: string, size: number, draw: () => void) => {
@@ -549,6 +569,7 @@ export function makeSigTextures(scene: Phaser.Scene): void {
       }
     });
   radial('fx-fire-ground', 0xfff176, 0xff6d00);
+  radial('fx-frost-ground', 0xe1f5fe, 0x4fc3f7); // 냉기 장판(그림 요청 없이 도형 유지)
   radial('fx-poison-cloud', 0xc5e1a5, 0x6a1b9a);
   make('fx-ice-crystal', 256, () => {
     const r = 128;

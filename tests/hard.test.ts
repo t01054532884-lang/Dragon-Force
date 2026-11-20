@@ -56,7 +56,9 @@ describe('어려움 보상·기록', () => {
     const run = { stageId: 5, cleared: true, elapsedMs: 300_000, normalKills: 100, eliteKills: 2, difficulty: 'hard' as const };
     const a = settleRun(p, 'h1', 0, 6, run);
     expect(a.rewards.find((r) => r.id === 'hard-first:5')?.rubies).toBe(hardStage(5).clearReward.rubies); // 업적 루비는 따로
-    expect(hardStage(5).clearReward.rubies).toBe(230);
+    expect(hardStage(5).clearReward.rubies).toBe(100); // v1.1: 단계마다 100
+    expect(hardStage(20).clearReward.rubies).toBe(400); // 20단계 100 + 장식 대체 300
+    expect(HARD_STAGES.reduce((a, h) => a + h.clearReward.rubies, 0)).toBe(2300);
     expect(a.progress.difficulty.hard.best?.['5']).toBe(300_000);
     const b = settleRun(a.progress, 'h2', 0, 6, { ...run, elapsedMs: 280_000 });
     expect(b.progress.rubies).toBe(a.progress.rubies); // 반복 클리어엔 루비 없음

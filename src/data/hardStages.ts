@@ -62,9 +62,12 @@ export interface HardStageDef {
 }
 
 const ELITE_EACH = 0.75;
-/** 어려움 최초 클리어 루비(AI 1차안): 단계마다 30, 5·10·15·20단계 특별 보상 200·300·400·500 → 20단계 합계 2,000 */
-const RUBY = 30;
-const MILESTONE: Record<number, number> = { 5: 200, 10: 300, 15: 400, 20: 500 };
+/**
+ * 어려움 최초 클리어 루비(종합 개선 기획서 v1.1, 2026-11-21): 단계마다 100(확정),
+ * 20단계는 장식 시스템 전까지 장식 대신 추가 300(제안) → 20단계 합계 2,300
+ */
+const RUBY = 100;
+const MILESTONE: Record<number, number> = { 20: 300 };
 
 type Row = [title: string, rec: number, arena: number, hp: number, dmg: number, elites: [number, number], bosses: 1 | 2, bossHp: number, mech: HardMechanics, text: string];
 const ROWS: Row[] = [

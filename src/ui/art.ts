@@ -67,6 +67,10 @@ export const ART_FILES: Record<string, string> = {
   ...Object.fromEntries(['graymane', 'moonfang', 'matriarch'].map((k) => [`face-${k}`, `enemy/face-${k}.webp`])),
   'floor-ash': 'floor-ash.webp',
   ...Object.fromEntries(['blue', 'purple', 'gold'].map((c) => [`chest-inner-${c}`, `chest/chest-inner-${c}.webp`])),
+  // 8차분(2026-11-21, 그림·소리 요청서 5 A-1, scripts/process_art_batch8.py): 전용 스킬 전투 효과 10장 512×512
+  ...Object.fromEntries(
+    ['fx-wind-blade', 'fx-fire-ground', 'fx-ice-crystal', 'fx-lightning-arc', 'fx-poison-cloud', 'fx-rock-wave', 'fx-light-shield', 'fx-shadow-orb', 'fx-wave', 'fx-arcane-bolt'].map((k) => [k, `fx/${k}.webp`]),
+  ),
 };
 
 /** 필요한 그림만 읽는다(키가 ART_FILES에 없거나 이미 읽었으면 건너뜀). 화면별 preload()에서 쓴다 */
