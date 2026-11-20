@@ -91,3 +91,10 @@
 ### 다음(외부 설정 필요)
 ② Firebase 계정 구현(익명 로그인 → Apple 연결, 같은 UID) · ③ 클라우드 저장(첫 업로드·충돌 선택) · ④ RevenueCat 결제 구현 · ⑤ 서버 함수(루비 지급·계정 삭제 시 서버 기록 삭제) · ⑥ 개인정보처리방침·이용약관 개정 · ⑦ TestFlight 샌드박스 결제 시험.
 
+
+### 2026-11-20 ② Firebase 설정(제작자와 같이, 콘솔)
+- 프로젝트 `dragon-force` (ID **`dragon-force-eb552`**), Google 애널리틱스 끔(추적 없음 유지), Firebase Gemini 끔.
+- Authentication: **익명** 켬(자동 정리 끔 — 켜면 30일 지난 미연결 게스트가 삭제됨), **Apple** 켬(iOS 전용이라 서비스 ID 없음).
+- iOS 앱 등록 `com.dragonforce.game` → `GoogleService-Info.plist`는 `ios/App/App/`에 두고 `.gitignore`로 저장소 제외(Codemagic 비밀 값으로 넣을 것).
+- Firestore: Standard, **asia-northeast3(서울)**, 프로덕션 모드(기본 전부 거부 — 보안 규칙은 코드와 함께 작성). 백업은 Blaze 뒤 설정.
+- 남음: Blaze 요금제(제작자 카드 입력) → 예산 알림 → Firestore 백업 → RevenueCat.
