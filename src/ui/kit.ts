@@ -60,14 +60,27 @@ export function button(
   const size = opts.size ?? TYPE.heading;
   const lbl = text(scene, 0, opts.sub ? -size * 0.35 : 0, label, size, COLOR.text, true, true).setOrigin(0.5);
   content.add(lbl);
-  if (opts.sub) content.add(text(scene, 0, size * 0.55, opts.sub, TYPE.caption, COLOR.text, true, true).setOrigin(0.5));
+  // 글자가 버튼보다 길면 버튼 폭에 맞게 줄인다(가격·재료 수가 커져도 넘치지 않게)
+  const fit = (t: Phaser.GameObjects.Text, max: number) => {
+    if (t.width > max) t.setScale(max / t.width);
+  };
+  let st: Phaser.GameObjects.Text | null = null;
+  if (opts.sub) {
+    st = text(scene, 0, size * 0.55, opts.sub, TYPE.caption, COLOR.text, true, true).setOrigin(0.5);
+    fit(st, w - 20);
+    content.add(st);
+  }
   if (opts.icon && scene.textures.exists(opts.icon)) {
     const is = Math.min(h * 0.62, 64);
     const ic = scene.add.image(0, 0, opts.icon).setDisplaySize(is, is);
     content.add(ic);
-    const total = is + 8 + lbl.width;
+    fit(lbl, w - 28 - is);
+    const total = is + 8 + lbl.displayWidth;
     ic.setX(-total / 2 + is / 2);
-    lbl.setX(ic.x + is / 2 + 8 + lbl.width / 2);
+    lbl.setX(ic.x + is / 2 + 8 + lbl.displayWidth / 2);
+    st?.setX(lbl.x); // 가격 등 아래 글씨는 이름 밑에 맞춘다
+  } else {
+    fit(lbl, w - 20);
   }
   const items: Phaser.GameObjects.GameObject[] = [base, face, content];
   if (opts.alert) items.push(alertDot(scene, w / 2 - 6, -h / 2 + 2));

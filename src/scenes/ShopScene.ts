@@ -5,20 +5,24 @@ import { BOXES, DRAGON_BOX, EQUIPMENT_BOX, ESSENCE, GOLD_BOX, RARITIES, type Box
 import { equipDef, SLOT_ICON, SLOT_LABEL } from '../data/equipment';
 import { specialDef } from '../data/specials';
 import { poolOf, Progress, type BoxResult, type Reward } from '../systems/Progress';
-import { devMode, FONT, makeButton, type Button } from '../ui/widgets';
+import { devMode } from '../ui/widgets';
 import { ChestOpening } from '../ui/ChestOpening';
-import { CHEST_LAYER_KEYS, preloadKeys } from '../ui/art';
-
-const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
+import { CHEST_LAYER_KEYS, equipIcon, preloadArt, preloadKeys } from '../ui/art';
+import { badge, button, progressBar, text, type KitButton } from '../ui/kit';
+import { plate } from '../ui/kit2';
+import { screenFrame, type ScreenFrame } from '../ui/screen';
+import { COLOR, css, TYPE } from '../ui/theme';
 
 /**
  * 루비 상점(6단계 v1.2 6장): 드래곤·스킬 상자 / 장비 상자 / 골드 상자, 1회·10회(10% 할인).
  * 기존 소환권은 드래곤·스킬 상자 무료 개봉권으로 쓴다. 루비는 게임 안 보상·이벤트로만 얻는다(첫 출시: 현금 결제 없음).
+ * 8단계 v2.0 C: 로비와 같은 머리줄·리본·하단 탭, 시안 형식(큰 소환 배너 · 보장 진행 막대 · 상자 카드 2장). 규칙·가격·저장은 그대로.
  */
 export class ShopScene extends Phaser.Scene {
-  private info!: Phaser.GameObjects.Text;
-  private pity!: Phaser.GameObjects.Text;
-  private buttons: { btn: Button; box: BoxId; count: 1 | 10; pay: 'ruby' | 'ticket' }[] = [];
+  private frame!: ScreenFrame;
+  private buttons: { btn: KitButton; box: BoxId; count: 1 | 10; pay: 'ruby' | 'ticket' }[] = [];
+  private pityRoot: Phaser.GameObjects.Container | null = null;
+  private ticketText!: Phaser.GameObjects.Text;
   private layer: Phaser.GameObjects.GameObject[] = [];
   private busy = false;
   private tx = 0;
@@ -38,6 +42,7 @@ export class ShopScene extends Phaser.Scene {
   preload(): void {
     // 상자 개봉 연출 그림(파일이 없으면 ChestOpening이 도형 임시 그림으로 대신)
     preloadKeys(this, CHEST_LAYER_KEYS);
+    preloadArt(this); // 로비에서 이미 읽었으면 건너뜀(로비 로딩 중 바로 넘어온 경우 대비)
   }
 
   create(): void {
@@ -46,56 +51,81 @@ export class ShopScene extends Phaser.Scene {
     this.buttons = [];
     this.busy = false;
     this.opening = null;
+    this.pityRoot = null;
     // 화면을 떠나면 연출만 정리(보상은 개봉 순간 이미 저장됨)
     this.events.once('shutdown', () => this.opening?.destroy());
-    this.add.rectangle(360, 640, 720, 1280, 0x140f22);
-    this.add.text(360, 50, '상점', { fontFamily: FONT, fontSize: '44px', fontStyle: 'bold', color: '#e1bee7' }).setOrigin(0.5);
-    this.info = this.add.text(360, 104, '', { fontFamily: FONT, fontSize: '25px', color: '#ffd34d' }).setOrigin(0.5);
+    this.frame = screenFrame(this, { title: '상점', nav: 'shop' });
 
-    const rows: BoxId[] = ['dragon', 'equipment', 'gold'];
-    const layout = { dragon: { y: 280, h: 270 }, equipment: { y: 565, h: 220 }, gold: { y: 810, h: 220 } };
-    rows.forEach((box) => {
-      const def = BOXES[box];
-      const { y, h } = layout[box];
-      const top = y - h / 2;
-      const by = box === 'dragon' ? top + 135 : top + 150;
-      this.add.rectangle(360, y, 680, h, 0x1f1830).setStrokeStyle(3, def.color, 0.8);
-      this.add.text(40, top + 16, def.name, { fontFamily: FONT, fontSize: '30px', fontStyle: 'bold', color: '#ffffff' });
-      this.add.text(40, top + 56, def.desc, { fontFamily: FONT, fontSize: '20px', color: '#c9bfe0' });
-      const b1 = makeButton(this, 180, by, 280, 80, `1회\n💎 ${def.price1.toLocaleString()}`, def.color, () => this.open(box, 1, 'ruby'), 23);
-      const b10 = makeButton(this, 500, by, 280, 80, `10회\n💎 ${def.price10.toLocaleString()} (10% 할인)`, def.color, () => this.open(box, 10, 'ruby'), 21);
-      this.buttons.push({ btn: b1, box, count: 1, pay: 'ruby' }, { btn: b10, box, count: 10, pay: 'ruby' });
-    });
-    // 드래곤·스킬 상자 무료 개봉권(기존 소환권)
-    const ty = layout.dragon.y + layout.dragon.h / 2 - 38;
-    const t1 = makeButton(this, 180, ty, 280, 48, '무료 개봉권 1회', 0x8e24aa, () => this.open('dragon', 1, 'ticket'), 20);
-    const t10 = makeButton(this, 500, ty, 280, 48, '무료 개봉권 10회', 0x8e24aa, () => this.open('dragon', 10, 'ticket'), 20);
+    // ── 드래곤·스킬 상자: 큰 배너
+    const D = BOXES.dragon;
+    const ban = plate(this, 360, 392, 664, 300, { r: 26, gold: true, fill: 0x3a2370 });
+    const glow = this.add.circle(0, -18, 130, COLOR.violet, 0.28);
+    ban.add(glow);
+    this.tweens.add({ targets: glow, scale: 1.12, alpha: 0.12, yoyo: true, repeat: -1, duration: 1100 });
+    ban.add(this.add.image(-200, 0, 'portrait-blue').setDisplaySize(160, 160));
+    ban.add(this.add.image(200, 0, 'portrait-arcane').setDisplaySize(160, 160));
+    ban.add(this.add.image(0, -22, 'chest-dragon').setDisplaySize(210, 210));
+    ban.add(text(this, 0, 92, D.name, 36, COLOR.gold, true, true).setOrigin(0.5));
+    ban.add(text(this, 0, 124, D.desc, TYPE.tiny, COLOR.text, true, true).setOrigin(0.5));
+    this.ticketText = text(this, -312, -128, '', TYPE.tiny, COLOR.text, true, true).setOrigin(0, 0.5);
+    ban.add(this.ticketText);
+
+    this.boxButtons('dragon', 600, 300, 88, TYPE.heading);
+    // 무료 개봉권(기존 소환권) — 드래곤·스킬 상자 전용
+    const t1 = button(this, 205, 692, 300, 58, '무료 개봉권 1회', () => this.open('dragon', 1, 'ticket'), { kind: 'secondary', icon: 'ui-ticket', size: TYPE.caption });
+    const t10 = button(this, 515, 692, 300, 58, '무료 개봉권 10회', () => this.open('dragon', 10, 'ticket'), { kind: 'secondary', icon: 'ui-ticket', size: TYPE.caption });
     this.buttons.push({ btn: t1, box: 'dragon', count: 1, pay: 'ticket' }, { btn: t10, box: 'dragon', count: 10, pay: 'ticket' });
-    this.pity = this.add.text(360, 1000, '', { fontFamily: FONT, fontSize: '19px', color: '#c9d3ee', align: 'center', lineSpacing: 6, wordWrap: { width: 660 } }).setOrigin(0.5);
 
-    makeButton(this, 360, 1085, 440, 64, '확률·보장 안내 보기', 0x2c3346, () => this.showRates(), 24);
-    this.add.text(360, 1140, '루비 획득: 난이도 진행도 100% 보상 · 업적 · 미션 · 이벤트 (현금 결제 없음)', { fontFamily: FONT, fontSize: '17px', color: '#7d7394' }).setOrigin(0.5);
-    makeButton(this, 205, 1220, 290, 76, '로비로', 0x3a4458, () => this.scene.start('lobby'), 28);
-    makeButton(this, 515, 1220, 290, 76, '드래곤', 0x2e5d8a, () => this.scene.start('dragons'), 28);
+    // ── 장비 상자 · 골드 상자 카드
+    (['equipment', 'gold'] as const).forEach((box, i) => {
+      const def = BOXES[box];
+      const x = 196 + i * 328;
+      const card = plate(this, x, 935, 316, 214, { r: 22, fill: box === 'equipment' ? 0x1d3a52 : 0x4a3612 });
+      card.add(this.add.image(-92, -36, `chest-${box}`).setDisplaySize(128, 128));
+      card.add(text(this, 46, -62, def.name, TYPE.body, COLOR.text, true, true).setOrigin(0.5));
+      card.add(text(this, 46, -26, def.desc, 16, COLOR.textSub, true).setOrigin(0.5).setWordWrapWidth(170).setAlign('center'));
+      this.boxButtons(box, 935 + 60, 142, 60, TYPE.caption, x);
+    });
+
+    // ── 확률 안내 · 루비 얻는 곳
+    button(this, 360, 1074, 360, 52, '확률 · 보장 안내 보기', () => this.showRates(), { kind: 'secondary', size: TYPE.caption });
+    text(this, 360, 1112, '루비: 진행도 100% 보상 · 업적 · 미션 · 이벤트 (현금 결제 없음)', 16, COLOR.textDim, true).setOrigin(0.5);
+
     if (devMode()) {
-      const t = this.add.text(690, 18, '[개발용] 루비·골드·카드 +', { fontFamily: FONT, fontSize: '17px', color: '#8a5555' }).setOrigin(1, 0);
+      const t = text(this, 704, 238, '[개발용] 루비·골드·카드 +', 16, 0xc98a8a, true, true).setOrigin(1, 0.5).setDepth(41);
       t.setInteractive({ useHandCursor: true }).on('pointerdown', () => (Progress.devGrant(), this.refresh()));
     }
     this.input.keyboard?.on('keydown-ESC', () => this.onPlatformBack());
     this.refresh();
   }
 
+  /** 1회·10회 버튼 한 쌍. cx = 두 버튼의 가운데(기본 화면 가운데) */
+  private boxButtons(box: BoxId, y: number, w: number, h: number, size: number, cx = 360): void {
+    const def = BOXES[box];
+    const gap = box === 'dragon' ? 10 : 6;
+    const kind = box === 'dragon' ? undefined : 'magic';
+    const b1 = button(this, cx - w / 2 - gap, y, w, h, '1회', () => this.open(box, 1, 'ruby'), { kind: kind ?? 'growth', icon: 'ui-ruby', sub: def.price1.toLocaleString(), size });
+    const b10 = button(this, cx + w / 2 + gap, y, w, h, '10회', () => this.open(box, 10, 'ruby'), { kind: kind ?? 'cta', icon: 'ui-ruby', sub: def.price10.toLocaleString(), size });
+    if (box === 'dragon') b10.root.add(badge(this, w / 2 - 34, -h / 2 - 6, '10% 할인', COLOR.ruby));
+    this.buttons.push({ btn: b1, box, count: 1, pay: 'ruby' }, { btn: b10, box, count: 10, pay: 'ruby' });
+  }
+
   private refresh(): void {
     const p = Progress.load();
-    this.info.setText(`💎 ${p.rubies.toLocaleString()}  ·  🎟 무료 개봉권 ${p.summon.legacyTickets}  ·  🪙 ${p.gold.toLocaleString()}G`);
-    this.pity.setText(
-      `드래곤·스킬 상자 보장: 희귀 이상 정수 ${p.summon.tenPity} / ${DRAGON_BOX.rareGuarantee}  ·  전설 정수 ${p.summon.legendaryPity} / ${DRAGON_BOX.legendaryGuarantee}\n` +
-        `매 ${DRAGON_BOX.rareGuarantee}회째 희귀 이상 정수, ${DRAGON_BOX.legendaryGuarantee}회째까지 전설 정수가 없으면 전설 정수 확정(겹치면 전설 우선)`,
-    );
+    this.frame.refresh();
+    this.ticketText.setText(`무료 개봉권 ${p.summon.legacyTickets}장`);
+    // 보장 진행: 희귀 이상(10회) 막대 + 전설(90회) 숫자
+    this.pityRoot?.destroy();
+    const pity = plate(this, 360, 770, 664, 68, { r: 20 });
+    pity.add(text(this, -306, 0, '희귀 이상 보장', TYPE.tiny, COLOR.text, true, true).setOrigin(0, 0.5));
+    const r10 = p.summon.tenPity / DRAGON_BOX.rareGuarantee;
+    pity.add(progressBar(this, 10, 0, 250, 22, r10, COLOR.violet, `${p.summon.tenPity}/${DRAGON_BOX.rareGuarantee}`).root);
+    pity.add(text(this, 306, 0, `전설 정수 ${p.summon.legendaryPity}/${DRAGON_BOX.legendaryGuarantee}`, TYPE.tiny, RARITY_COLOR.legendary, true, true).setOrigin(1, 0.5));
+    this.pityRoot = pity;
     for (const b of this.buttons) {
       const price = b.count === 10 ? BOXES[b.box].price10 : BOXES[b.box].price1;
       const can = b.pay === 'ticket' ? p.summon.legacyTickets >= b.count : p.rubies >= price;
-      b.btn.setEnabled(!this.busy && can, BOXES[b.box].color);
+      b.btn.setEnabled(!this.busy && can);
     }
   }
 
@@ -124,14 +154,16 @@ export class ShopScene extends Phaser.Scene {
     this.layer = [];
   }
 
-  private overlay(title: string): <T extends Phaser.GameObjects.GameObject>(o: T) => T {
+  /** 결과·확률 창: 화면을 어둡게 덮고 판 + 리본 제목 + 닫기 */
+  private overlay(title: string, h = 980): <T extends Phaser.GameObjects.GameObject>(o: T) => T {
     this.clearLayer();
     const add = <T extends Phaser.GameObjects.GameObject>(o: T) => (this.layer.push(o), (o as unknown as { setDepth: (n: number) => T }).setDepth?.(100) ?? o);
     add(this.add.rectangle(360, 640, 720, 1280, 0x000000, 0.82).setInteractive());
-    add(this.add.text(360, 170, title, { fontFamily: FONT, fontSize: '36px', fontStyle: 'bold', color: '#ffd34d' }).setOrigin(0.5));
-    const close = makeButton(this, 360, 1150, 360, 80, '닫기', 0x3a4458, () => this.clearLayer(), 28);
-    add(close.bg);
-    add(close.label);
+    add(plate(this, 360, 660, 680, h, { r: 28 }));
+    const rb = add(this.add.container(360, 660 - h / 2, []));
+    rb.add(plate(this, 0, 0, 360, 70, { r: 35, gold: true, fill: 0x3a2a6b }));
+    rb.add(text(this, 0, 0, title, TYPE.heading, COLOR.gold, true, true).setOrigin(0.5));
+    add(button(this, 360, 660 + h / 2 - 70, 340, 76, '닫기', () => this.clearLayer(), { kind: 'secondary', size: TYPE.body }).root);
     return add;
   }
 
@@ -139,19 +171,24 @@ export class ShopScene extends Phaser.Scene {
     const add = this.overlay('개봉 결과');
     const n = results.length;
     results.forEach((res, i) => {
-      const x = n === 1 ? 360 : 76 + (i % 5) * 142;
-      const y = n === 1 ? 560 : 400 + Math.floor(i / 5) * 260;
+      const x = n === 1 ? 360 : 92 + (i % 5) * 134;
+      const y = n === 1 ? 600 : 470 + Math.floor(i / 5) * 270;
       const big = n === 1 ? 1.6 : 1;
-      const { color, title, sub, portrait, icon } = describe(res);
-      const card = add(this.add.rectangle(x, y, 132 * big, 220 * big, 0x221a33).setStrokeStyle(4, color));
-      if (portrait) add(this.add.image(x, y - 30 * big, `portrait-${portrait}`).setDisplaySize(106 * big, 106 * big));
-      else add(this.add.text(x, y - 30 * big, icon, { fontFamily: FONT, fontSize: `${54 * big}px` }).setOrigin(0.5));
-      add(this.add.text(x, y + 48 * big, title, { fontFamily: FONT, fontSize: `${17 * big}px`, color: '#ffffff', align: 'center', wordWrap: { width: 124 * big } }).setOrigin(0.5, 0));
-      add(this.add.text(x, y + 82 * big, sub, { fontFamily: FONT, fontSize: `${16 * big}px`, color: hex(color), fontStyle: 'bold', align: 'center' }).setOrigin(0.5, 0));
+      const { color, title, sub, portrait, image, icon } = describe(res);
+      const card = add(this.add.container(x, y));
+      card.add(plate(this, 0, 0, 124 * big, 230 * big, { r: 18, fill: 0x221a33 }));
+      const g = this.add.graphics();
+      g.lineStyle(5, color, 1).strokeRoundedRect(-62 * big + 4, -115 * big + 4, 124 * big - 8, 230 * big - 8, 14);
+      card.add(g);
+      if (portrait) card.add(this.add.image(0, -40 * big, `portrait-${portrait}`).setDisplaySize(108 * big, 108 * big));
+      else if (image && this.textures.exists(image)) card.add(this.add.image(0, -40 * big, image).setDisplaySize(96 * big, 96 * big));
+      else card.add(text(this, 0, -40 * big, icon, 50 * big, color).setOrigin(0.5));
+      card.add(text(this, 0, 30 * big, title, 17 * big, COLOR.text, true, true).setOrigin(0.5, 0).setWordWrapWidth(116 * big).setAlign('center'));
+      card.add(text(this, 0, 76 * big, sub, 16 * big, color, true, true).setOrigin(0.5, 0));
       card.setScale(0.01, 1);
       this.tweens.add({ targets: card, scaleX: 1, duration: 180, delay: i * 90 });
     });
-    if (rewards.length) add(this.add.text(360, 230, rewards.map((w) => `💎 ${w.text}: 루비 +${w.rubies}`).join('\n'), { fontFamily: FONT, fontSize: '22px', color: '#ffd34d', align: 'center' }).setOrigin(0.5));
+    if (rewards.length) add(text(this, 360, 268, rewards.map((w) => `${w.text}: 루비 +${w.rubies}`).join('\n'), TYPE.caption, COLOR.gold, true, true).setOrigin(0.5).setAlign('center'));
   }
 
   /** 확률 공개(원문: 희귀도별 확률과 천장 조건을 정확히 고지) */
@@ -177,11 +214,11 @@ export class ShopScene extends Phaser.Scene {
     lines.push(`[골드 상자] ${GOLD_BOX.table.map(([g, w]) => `${g.toLocaleString()}G ${w}%`).join(' · ')}`);
     lines.push('');
     lines.push('모든 수치는 출시 전 임시 밸런스 값입니다. 루비는 게임 안 보상으로만 얻으며 현금 결제는 없습니다.');
-    add(this.add.text(36, 230, lines.join('\n'), { fontFamily: FONT, fontSize: '18px', color: '#e1d5f5', lineSpacing: 9, wordWrap: { width: 650 } }));
+    add(this.add.text(48, 230, lines.join('\n'), { fontFamily: 'sans-serif', fontSize: '18px', color: css(0xe1d5f5), lineSpacing: 9, wordWrap: { width: 624 } }));
   }
 }
 
-function describe(res: BoxResult): { color: number; title: string; sub: string; portrait?: string; icon: string } {
+function describe(res: BoxResult): { color: number; title: string; sub: string; portrait?: string; image?: string; icon: string } {
   switch (res.kind) {
     case 'essence':
       return {
@@ -199,9 +236,9 @@ function describe(res: BoxResult): { color: number; title: string; sub: string; 
     }
     case 'equipment': {
       const d = equipDef(res.item.itemId)!;
-      return { color: RARITY_COLOR[res.item.rarity], icon: SLOT_ICON[d.slot], title: `${d.name}\n${SLOT_LABEL[d.slot]}`, sub: RARITY_LABEL[res.item.rarity] };
+      return { color: RARITY_COLOR[res.item.rarity], image: equipIcon(d.slot, res.item.rarity), icon: SLOT_ICON[d.slot], title: `${d.name}\n${SLOT_LABEL[d.slot]}`, sub: RARITY_LABEL[res.item.rarity] };
     }
     case 'gold':
-      return { color: 0xffd34d, icon: '🪙', title: '골드', sub: `+${res.gold.toLocaleString()}G` };
+      return { color: 0xffd34d, image: 'ui-gold', icon: '🪙', title: '골드', sub: `+${res.gold.toLocaleString()}G` };
   }
 }

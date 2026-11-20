@@ -16,15 +16,7 @@ import { altar, dragonCarousel, iconTile, plate, tabs, topBar, torch, wingBanner
 import { COLOR, css, TYPE } from '../ui/theme';
 import { giftAlert } from '../ui/giftFx';
 import { platform } from '../platform';
-
-/** 하단 탭(로비 = 전투 탭). 다른 화면은 아직 예전 머리줄이라 탭은 로비에만 둔다 */
-const NAV = [
-  { key: 'shop', label: '상점', icon: 'ic-shop' },
-  { key: 'dragons', label: '드래곤', icon: 'ic-dragon' },
-  { key: 'lobby', label: '전투', icon: 'ic-swords' },
-  { key: 'equip', label: '장비', icon: 'ic-gear' },
-  { key: 'lab', label: '연구소', icon: 'ic-upgrade' },
-];
+import { goTab, NAV_TABS } from '../ui/screen';
 
 /**
  * 메인 로비(8단계 v2.0 필수 B, 기획자 UI 시안 형식): 머리줄(출격 드래곤·행동력·골드·루비·전투력) · 날개 배너(단계·난이도·진행도)
@@ -211,9 +203,8 @@ export class LobbyScene extends Phaser.Scene {
     if (canGo) this.tweens.add({ targets: startBtn.root, scale: 1.03, yoyo: true, repeat: -1, duration: 900, ease: 'Sine.InOut' });
 
     // ── 하단 탭
-    navBar(this, NAV, 'lobby', (k) => {
-      if (k === 'lobby') return;
-      this.scene.start(k, k === 'lab' ? { from: 'lobby' } : undefined);
+    navBar(this, NAV_TABS, 'lobby', (k) => {
+      if (k !== 'lobby') goTab(this, k);
     });
 
     this.input.keyboard?.on('keydown-ENTER', go);
