@@ -19,3 +19,6 @@ art-src/
 
 # 스토어용 가공본(앱 아이콘 등)은 release/appstore 브랜치에 넣는다
 store/
+
+# Firebase 설정(공개 저장소에 올리지 않음 — Codemagic 비밀 값으로)
+ios/App/App/GoogleService-Info.plist
