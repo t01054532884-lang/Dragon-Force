@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { musicOn } from './Settings';
 
 // 배경 음악(8단계 v2.0 10.2: BGM 기본 음량 0.35). 제작자가 만드는 3곡: 로비 · 일반 전투 · 보스전.
 // 파일이 MUSIC_FILES에 적혀 있을 때만 읽고 튼다 → 곡이 오기 전에는 조용히 아무 일도 안 함.
@@ -17,6 +18,8 @@ const VOLUME = 0.35;
 const FADE_MS = 700; // 화면 전환 페이드 0.5~1초(제작자 요청)
 
 let current: { key: Track; snd: Phaser.Sound.BaseSound } | null = null;
+/** 지금 장면이 원하는 곡(배경 음악을 껐다 켜면 이 곡을 다시 튼다) */
+let wanted: Track | null = null;
 
 /** 이 장면에서 쓸 곡만 미리 읽기(처음부터 모든 곡을 읽지 않음 — 기획 13.2) */
 export function preloadMusic(scene: Phaser.Scene, keys: Track[]): void {
@@ -31,6 +34,8 @@ export function preloadMusic(scene: Phaser.Scene, keys: Track[]): void {
  * 파일이 없으면 아무것도 안 한다.
  */
 export function playMusic(scene: Phaser.Scene, key: Track): void {
+  wanted = key;
+  if (!musicOn()) return; // 설정에서 배경 음악 끔
   if (current?.key === key && current.snd.isPlaying) return;
   if (!scene.cache.audio.exists(key)) return;
   stopMusic(scene);
@@ -44,8 +49,15 @@ export function playMusic(scene: Phaser.Scene, key: Track): void {
   }
 }
 
-/** 지금 곡을 줄여서 끄기(결과 화면 등) */
-export function stopMusic(scene: Phaser.Scene): void {
+/** 배경 음악 설정을 바꾼 직후: 끄면 지금 곡을 멈추고, 켜면 장면이 원하던 곡을 다시 튼다 */
+export function refreshMusic(scene: Phaser.Scene): void {
+  if (!musicOn()) stopMusic(scene, true);
+  else if (wanted) playMusic(scene, wanted);
+}
+
+/** 지금 곡을 줄여서 끄기(결과 화면 등). keepWanted=false면 다시 켜도 이어 틀지 않음 */
+export function stopMusic(scene: Phaser.Scene, keepWanted = false): void {
+  if (!keepWanted) wanted = null;
   if (!current) return;
   const old = current.snd;
   current = null;

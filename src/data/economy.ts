@@ -106,7 +106,8 @@ export interface MissionDef {
 }
 export const MISSIONS: MissionDef[] = [
   { id: 'd-clear', period: 'daily', text: '스테이지 1회 클리어', metric: 'clears', goal: 1, reward: { pickCards: 1 } },
-  { id: 'd-kills', period: 'daily', text: '몬스터 1,000마리 처치', metric: 'normalKills', goal: 1000, reward: { gold: 300 } },
+  // 2026-11-20: 몬스터 수 −30%·판 길이 단축(1단계 클리어 판 처치 약 340~530마리) → 일일 처치 목표 1,000 → 300(약 한 판)
+  { id: 'd-kills', period: 'daily', text: '몬스터 300마리 처치', metric: 'normalKills', goal: 300, reward: { gold: 300 } },
   { id: 'w-clear', period: 'weekly', text: '스테이지 10회 클리어', metric: 'clears', goal: 10, reward: { pickCards: 5 } },
   { id: 'w-elite', period: 'weekly', text: '엘리트 15마리 처치', metric: 'eliteKills', goal: 15, reward: { pickFragments: 10 } },
   { id: 'm-daily', period: 'monthly', text: '일일 미션 20일 완료', metric: 'dailyDays', goal: 20, reward: { rubies: 300, pickCards: 5 } },

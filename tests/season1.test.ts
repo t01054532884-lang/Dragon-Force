@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ENEMIES } from '../src/data/enemies';
-import { difficulty, rankHpMult, STAGES } from '../src/data/stages';
+import { difficulty, pace, rankHpMult, STAGES } from '../src/data/stages';
 import { SEASON1_STAGE_ROWS, chapterOf } from '../src/data/season1';
 import { recommendedCp } from '../src/data/power';
 import { DIFFICULTY_RELEASED } from '../src/data/economy';
@@ -13,11 +13,12 @@ describe('7단계 시즌 1 데이터', () => {
     expect(s1.eliteSpawns.map((e) => e.eliteId)).toEqual(['moonfang_alpha', 'ironback_matriarch']);
     expect(s1.spawnTable).toBeUndefined(); // 1단계는 기존 생성 코드(시드 재현 보존)
   });
-  it('2~20단계: 일반 3종 · 엘리트 2종(1:40·3:40) · 보스 1종(5:50), 모든 적 정의·패턴 존재', () => {
+  it('2~20단계: 일반 3종 · 엘리트 2종 · 보스 1종(구간별 진행표 pace), 모든 적 정의·패턴 존재', () => {
     for (const s of STAGES.slice(1)) {
       expect(s.enemyPool).toHaveLength(3);
-      expect(s.eliteSpawns.map((e) => e.timeMs)).toEqual([100_000, 220_000]);
-      expect(s.bossSpawnMs).toBe(350_000);
+      expect(s.eliteSpawns.map((e) => e.timeMs)).toEqual(pace(s.id).elite);
+      expect(s.bossSpawnMs).toBe(pace(s.id).bossSpawnMs);
+      expect(s.waveKills).toEqual(pace(s.id).waveKills);
       for (const k of [...s.enemyPool, ...s.eliteSpawns.map((e) => e.eliteId), s.bossId]) expect(ENEMIES[k], `${s.id}단계 ${k}`).toBeDefined();
       const boss = ENEMIES[s.bossId];
       expect(boss.rank).toBe('boss');

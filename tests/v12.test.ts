@@ -4,7 +4,7 @@ import { applyPerm, permState, PERM_TIERS, ZERO_PERM } from '../src/data/permGro
 import { BOXES, DRAGON_BOX, GOLD_BOX, EQUIPMENT_BOX, PROGRESS_REWARDS } from '../src/data/economy';
 import { equipValue, EQUIP_RULES } from '../src/data/equipment';
 import { combatPower, recommendedCp, cpVerdict } from '../src/data/power';
-import { aoePerTarget, SIGNATURE_RULES, SIGNATURES } from '../src/data/signature';
+import { aoePerTarget, signatureCap, SIGNATURE_RULES, SIGNATURES } from '../src/data/signature';
 import { SPECIALS } from '../src/data/specials';
 import { loadout } from '../src/systems/Loadout';
 import {
@@ -67,13 +67,22 @@ describe('6-2 전용 액티브 데이터', () => {
     expect(SIGNATURES.white.kind).toBe('heal');
     expect(SIGNATURES.stone.kind).toBe('guard');
     expect(SIGNATURES.wind.kind).toBe('move');
-    expect([SIGNATURE_RULES.heal, SIGNATURE_RULES.guardReduce, SIGNATURE_RULES.guardMs, SIGNATURE_RULES.moveBoost, SIGNATURE_RULES.moveMs]).toEqual([0.15, 0.25, 4000, 0.25, 5000]);
+    // 2026-11-20 강화: 회복 30% · 방어 −40% 6초 · 이동 +40% 6초
+    expect([SIGNATURE_RULES.heal, SIGNATURE_RULES.guardReduce, SIGNATURE_RULES.guardMs, SIGNATURE_RULES.moveBoost, SIGNATURE_RULES.moveMs]).toEqual([0.3, 0.4, 6000, 0.4, 6000]);
   });
-  it('광역: 대상당 DPS×3초, 총합 최대 DPS×12초(4마리부터 나눔)', () => {
-    expect(aoePerTarget(10, 1)).toBe(30);
-    expect(aoePerTarget(10, 4)).toBe(30);
-    expect(aoePerTarget(10, 8)).toBe(15);
-    expect(aoePerTarget(10, 8) * 8).toBe(120);
+  it('광역: 대상당 DPS×4초, 총합 최대 DPS×24초(7마리부터 나눔)', () => {
+    expect(aoePerTarget(10, 1)).toBe(40);
+    expect(aoePerTarget(10, 6)).toBe(40);
+    expect(aoePerTarget(10, 12)).toBe(20);
+    expect(aoePerTarget(10, 12) * 12).toBe(240);
+  });
+  it('2026-11-20: 광역 반경 +25% 이상, 보스 한 번 사용 상한 8%·엘리트 25%·일반 없음', () => {
+    expect(SIGNATURES.red.radius! / 50).toBeCloseTo(5); // 4m → 5m
+    expect(SIGNATURES.blue.radius! / 50).toBeCloseTo(5.6); // 4.5m → 5.6m
+    expect(SIGNATURES.yellow.radius! / 50).toBeCloseTo(6.2); // 5m → 6.2m
+    expect(signatureCap('boss', 10_000)).toBe(800);
+    expect(signatureCap('elite', 1000)).toBe(250);
+    expect(signatureCap('normal', 10)).toBe(Infinity);
   });
 });
 

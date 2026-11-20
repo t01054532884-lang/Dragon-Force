@@ -62,7 +62,25 @@ const STAGE1: Record<string, EnemyDef> = {
   graymane_alpha: { name: '회색갈기 우두머리', texture: 'graymane', rank: 'boss', behavior: 'graymane', hp: 3000, speed: 80, contactDamage: 20, radius: 52, xp: 0, phaseAt: 0.6 },
 };
 
-export const ENEMIES: Record<EnemyKind, EnemyDef> = { ...STAGE1, ...SEASON1_ENEMIES };
+/**
+ * 일반 몬스터 재조정(2026-11-20 전투 속도·성장 체감 개선 4번): 몬스터 수 −30%, 대신 한 마리를 "구분하며" 싸우게.
+ * - 가벼운 적(기본 체력 15 이하: 늑대·추적·고속·원거리·소환형): 체력 +6, 13~15 사이 → 초반 기본 공격(공격력 10) 2회 명중.
+ *   공격력 +30% 정도 성장한 드래곤 + 기본 공격 Lv.2(+20%)면 한 번에 처치(15.6 ≥ 15).
+ * - 무거운 적(돌진·방어형 등 15 초과): 체력은 그대로(3~4회). 공격력(접촉·사격 피해)은 올리지 않는다.
+ * - 경험치: 보상 있는 일반 몬스터 모두 +1(늑대 1 → 2). 수가 줄어든 만큼 레벨업 속도를 지킨다.
+ * 소환수·분신(noReward)은 바꾸지 않는다.
+ */
+export const NORMAL_RETUNE = { lightMaxHp: 15, hpAdd: 6, hpMin: 13, hpMax: 15, xpAdd: 1 };
+function retune(def: EnemyDef): EnemyDef {
+  if (def.rank !== 'normal' || def.noReward) return def;
+  const R = NORMAL_RETUNE;
+  const hp = def.hp <= R.lightMaxHp ? Math.min(R.hpMax, Math.max(R.hpMin, def.hp + R.hpAdd)) : def.hp;
+  return { ...def, hp, xp: def.xp + R.xpAdd };
+}
+
+export const ENEMIES: Record<EnemyKind, EnemyDef> = Object.fromEntries(
+  Object.entries({ ...STAGE1, ...SEASON1_ENEMIES }).map(([k, d]) => [k, retune(d)]),
+);
 
 // 군중제어 저항 (기획서 4장): 엘리트는 둔화 효과 60% 감소, 밀치기 거리 30%만. 보스는 밀리지 않음.
 export const CC = {

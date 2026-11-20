@@ -3,13 +3,13 @@ import { makeTextures } from '../textures';
 import { HIT_CAP, type EnemyKind } from '../data/enemies';
 import { BASE_STATS, M, xpToNext, type RunStats } from '../data/stats';
 import { REWARD, STAGES, type StageData } from '../data/stages';
-import { rollOffer, UPGRADES, type Upgrade } from '../data/upgrades';
+import { BASIC_TAGS, compareText, rollOffer, synergyWith, UPGRADES, type Upgrade } from '../data/upgrades';
 import { Enemy, type EnemyAction } from '../objects/Enemy';
 import { Skills } from '../systems/Skills';
 import { BasicAttack, NO_TRAITS } from '../systems/BasicAttack';
 import { BattleFx, FX, PALETTE } from '../fx/BattleFx';
 import { BASIC_FIRE_SFX, BATTLE_SFX_FILES, playSfx, preloadSfx, SIGNATURE_SFX } from '../systems/Sfx';
-import { playMusic, preloadMusic, stopMusic } from '../systems/Music';
+import { playMusic, preloadMusic, refreshMusic, stopMusic } from '../systems/Music';
 import { preloadArt } from '../ui/art';
 import { badge, button as kitButton, ribbon, text as ktext } from '../ui/kit';
 import { plate } from '../ui/kit2';
@@ -20,7 +20,7 @@ import { StageDirector } from '../systems/StageDirector';
 import { computeRunGold, getUpgradeCost, PERMANENT_UPGRADES, UPGRADE_TYPES, type GoldBreakdown, type RunOutcome } from '../data/progression';
 import { cpVerdict, recommendedCp } from '../data/power';
 import { GROWTH } from '../data/dragons';
-import { markTip, tipSeen } from '../systems/Settings';
+import { applySound, loadSettings, markTip, saveSettings, tipSeen } from '../systems/Settings';
 import { DRAGONS, type DragonDef, type DragonId } from '../data/dragons';
 import { setBasicCard } from '../data/upgrades';
 import { eventActive, eventState, Progress, spinsAvailable, type Reward } from '../systems/Progress';
@@ -30,7 +30,8 @@ import { loadout } from '../systems/Loadout';
 import { Signature } from '../systems/Signature';
 import { SPECIAL_VALUES, type SpecialId } from '../data/specials';
 import { DIFFICULTY_LABEL, DIFFICULTY_MULT, type Difficulty } from '../data/economy';
-import { ITEM_RULES, ITEMS, rollNormalDrop, type ItemId } from '../data/items';
+import { decideDrop, ITEM_RULES, ITEMS, newDropState, type DropState, type ItemId } from '../data/items';
+import { GEM_MERGE, gemTier, mergeGroups } from '../systems/GemMerge';
 import { chapterOf, SEASON1_FINALE } from '../data/season1';
 import { enterBattle } from '../ui/entry';
 
@@ -95,6 +96,16 @@ export class GameScene extends Phaser.Scene {
   /** 아이템 전용 난수: 적 생성 난수와 분리해 기존 시드의 적 등장이 그대로 재현되게 함 */
   private itemRng!: Phaser.Math.RandomDataGenerator;
   private shieldUntil = 0; // 용의 수호막 끝나는 시각(elapsed 기준). 0 = 없음
+  /** 드롭 천장(물약·자석이 오래 안 나오는 상황 방지) */
+  private dropState: DropState = newDropState();
+  /** 전투 중 주운 골드(단계 배율 전) */
+  private coinGold = 0;
+  /** 첫 판 자석 확정(기능 배우기)을 아직 줘야 하는지 */
+  private firstMagnetPending = false;
+  private gemMergeAt = 0;
+  private sigWasReady = true;
+  private sigGlow!: Phaser.GameObjects.Arc;
+  private waveText!: Phaser.GameObjects.Text;
   private shieldFx!: Phaser.GameObjects.Arc;
   /** 아이템 기록(밸런스 확인용): 드롭·획득 개수 */
   itemLog = { drop: {} as Record<string, number>, pick: {} as Record<string, number>, shieldBlocks: 0 };
@@ -217,7 +228,7 @@ export class GameScene extends Phaser.Scene {
     this.specialActive = 0;
     Enemy.slowBoost = this.special === 'iceHeart' ? 1 + SPECIAL_VALUES.iceHeart.slow : 1;
     this.runRewards = [];
-    setBasicCard(this.dragon.basic);
+    setBasicCard(this.dragon.basic, BASIC_TAGS[this.dragon.id]);
     this.hp = this.stats.maxHp;
     this.level = 1;
     this.xp = 0;
@@ -226,6 +237,11 @@ export class GameScene extends Phaser.Scene {
     this.itemRng = new Phaser.Math.RandomDataGenerator([`${this.seed}:items`]);
     this.shieldUntil = 0;
     this.itemLog = { drop: {}, pick: {}, shieldBlocks: 0 };
+    this.dropState = newDropState();
+    this.coinGold = 0;
+    this.firstMagnetPending = !tipSeen('first-magnet');
+    this.gemMergeAt = 0;
+    this.sigWasReady = true;
     this.upgradeLevels = new Map([['basic', 1]]);
     this.basicEverOffered = false;
     this.invincibleUntil = 0;
@@ -260,6 +276,7 @@ export class GameScene extends Phaser.Scene {
     this.tweens.timeScale = 1;
     this.time.paused = false;
     if (!this.textures.exists('dragon-red')) makeTextures(this);
+    if (!this.textures.exists('gem-large')) makeGemTextures(this);
 
     this.drawArena();
     this.physics.world.setBounds(0, 0, WORLD_SIZE, WORLD_SIZE);
@@ -397,7 +414,9 @@ export class GameScene extends Phaser.Scene {
     this.skillText = this.add.text(110, 62, '', { ...style, fontSize: '22px', lineSpacing: 6 }).setScrollFactor(0).setDepth(UI_DEPTH).setVisible(false);
     this.bossText = this.add.text(360, 234, '', { ...style, fontSize: '24px', align: 'center' }).setOrigin(0.5, 1).setScrollFactor(0).setDepth(UI_DEPTH + 1);
     this.eliteText = this.add.text(360, 280, '', { ...style, fontSize: '20px', align: 'center' }).setOrigin(0.5, 1).setScrollFactor(0).setDepth(UI_DEPTH + 1);
-    this.shieldText = this.add.text(360, 140, '', { ...style, fontSize: '22px', color: '#9be7ff' }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(UI_DEPTH);
+    this.shieldText = this.add.text(360, 176, '', { ...style, fontSize: '22px', color: '#9be7ff' }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(UI_DEPTH);
+    // 웨이브 진행(2026-11-20): 목표를 채우면 다음 단계가 앞당겨진다
+    this.waveText = ktext(this, 360, 150, '', TYPE.tiny, COLOR.gold, true, true).setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 1);
     // 일시정지 버튼(휴대폰용). PC는 ESC·P 키.
     const pause = this.add.circle(670, 140, 32, 0x2b2442, 0.92).setStrokeStyle(5, COLOR.outline, 1).setScrollFactor(0).setDepth(UI_DEPTH + 2);
     this.add.circle(670, 140, 27).setStrokeStyle(3, 0x4b4170, 1).setScrollFactor(0).setDepth(UI_DEPTH + 2);
@@ -406,6 +425,9 @@ export class GameScene extends Phaser.Scene {
     // 드래곤 전용 액티브 버튼(화면 위쪽, 일반 액티브 6슬롯과 별개). PC는 스페이스·Q.
     const sx = 560;
     const sy = 140;
+    // 준비 완료 빛(2026-11-20): 쓸 수 있을 때 버튼 둘레가 숨 쉬듯 빛난다
+    this.sigGlow = this.add.circle(sx, sy, 46).setStrokeStyle(8, this.signature.def.color, 0.85).setScrollFactor(0).setDepth(UI_DEPTH + 1);
+    this.tweens.add({ targets: this.sigGlow, scale: 1.22, alpha: 0.25, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
     this.sigBtn = this.add.circle(sx, sy, 40, 0x000000, 0.6).setStrokeStyle(4, this.signature.def.color, 1).setScrollFactor(0).setDepth(UI_DEPTH + 2);
     this.sigIcon = this.add.text(sx, sy - 4, this.signature.def.icon, { fontFamily: 'sans-serif', fontSize: '34px' }).setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 3);
     this.sigText = this.add.text(sx, sy + 52, '', { ...style, fontSize: '18px', strokeThickness: 4 }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(UI_DEPTH + 3);
@@ -538,11 +560,24 @@ export class GameScene extends Phaser.Scene {
         .map((u) => `${u.icon}${this.upgradeLevels.get(u.id)}`)
         .join(' ');
     this.skillText.setText(`${icons(['basic', 'active'])}\n${icons(['passive'])}`);
-    this.drawSkillIcons();
+    // 보유 스킬은 일시정지 화면에서 크게 보여 준다(제작자 요청 2026-11-20: 전투 화면 왼쪽 위 작은 아이콘은 없앰)
+    const w = d.waveInfo;
+    this.waveText.setText(
+      w ? `웨이브 ${w.index + 1}/3 · 처치 ${Math.min(w.kills, w.goal)}/${w.goal}` :
+      d.phase === 'BOSS_WARNING' ? '보스 접근 중' :
+      d.phase === 'BOSS' ? '' :
+      d.eliteSlots.some((s) => s === 'warning' || s === 'alive') ? '엘리트를 쓰러뜨리면 다음 웨이브' : '',
+    );
     // 전용 액티브 버튼: 준비되면 밝게, 쿨타임 중엔 남은 초와 테두리 진행
     const sg = this.signature;
     const ready = sg.ready;
     this.sigBtn.setFillStyle(ready ? sg.def.color : 0x000000, ready ? 0.85 : 0.6);
+    this.sigGlow.setVisible(ready);
+    if (ready && !this.sigWasReady) {
+      playSfx(this, 'sfx-sig-ready');
+      this.tweens.add({ targets: [this.sigBtn, this.sigIcon], scale: 1.25, duration: 140, yoyo: true, ease: 'Quad.Out' });
+    }
+    this.sigWasReady = ready;
     this.sigIcon.setAlpha(ready ? 1 : 0.45);
     this.sigText.setText(ready ? sg.def.name : `${Math.ceil(sg.cooldownLeft / 1000)}초`);
     if (!ready) g.lineStyle(6, sg.def.color, 1).beginPath().arc(560, 140, 44, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * sg.charge).strokePath();
@@ -680,6 +715,7 @@ export class GameScene extends Phaser.Scene {
     this.skills.update(delta);
     this.updateSpecial(delta);
     this.pullGems(false);
+    this.mergeGems();
     this.updateItems();
     this.drawHud();
   }
@@ -1025,7 +1061,10 @@ export class GameScene extends Phaser.Scene {
       const amount = Math.min(this.stats.maxHp - this.hp, this.stats.maxHp * SPECIAL_VALUES.holyLight.heal);
       if (amount > 0) this.hp += amount;
     }
-    if (enemy.rank === 'normal' && !enemy.def.noReward) this.normalKills++; // 소환수·분신은 처치 골드에 넣지 않음
+    if (enemy.rank === 'normal' && !enemy.def.noReward) {
+      this.normalKills++; // 소환수·분신은 처치 수·웨이브 목표에 넣지 않음
+      this.director.onNormalKill();
+    }
     const d = this.director;
     if (enemy === d.boss) {
       this.fx.bossDie(enemy.x, enemy.y, enemy.def.radius);
@@ -1045,8 +1084,16 @@ export class GameScene extends Phaser.Scene {
       playSfx(this, 'sfx-heal');
     } else if (enemy.rank === 'normal' && !enemy.def.noReward) {
       this.dropGem(enemy.x, enemy.y, enemy.def.xp);
-      const drop = rollNormalDrop(this.itemRng.frac()); // 처치마다 한 번, 최대 1종
-      if (drop) this.spawnItem(drop, enemy.x, enemy.y, false);
+      // 처치마다 한 번, 최대 1종. 오래 안 나오면 천장, 체력이 낮으면 물약 확률 ×2, 물약은 판당 상한
+      let drop = decideDrop(this.dropState, this.itemRng.frac(), this.hp / this.stats.maxHp);
+      if (this.firstMagnetPending && this.elapsed >= ITEM_RULES.firstMagnetAtMs && drop !== 'magnet') {
+        drop = 'magnet'; // 첫 판: 자석 확정 1번(주우면 다시 안 나옴)
+        this.firstMagnetPending = false;
+        this.dropState.sinceMagnet = 0;
+        this.popText(enemy.x, enemy.y - 40, '경험치 자석! 주우면 보석이 모두 날아와요', '#4fc3f7', 22);
+      }
+      if (drop === 'coin') this.dropCoin(enemy.x, enemy.y);
+      else if (drop) this.spawnItem(drop, enemy.x, enemy.y, false);
     }
     this.fx.die(enemy.skin ?? enemy);
     playSfx(this, 'sfx-enemy-die', { pitch: 0.9 + Math.random() * 0.25 });
@@ -1055,10 +1102,43 @@ export class GameScene extends Phaser.Scene {
 
   // ───────────────────────── 경험치·레벨업 ─────────────────────────
 
-  private dropGem(x: number, y: number, value: number): void {
-    const gem = this.physics.add.image(x, y, 'gem').setDepth(5);
+  /**
+   * 경험치 보석: 양에 따라 색·크기·빛이 다르다(소량 파랑 · 중량 보라 · 대량 금빛 + 빛).
+   * 공격 예고(깊이 3~4)보다 아래(깊이 2)에 그려 예고를 가리지 않는다.
+   */
+  private dropGem(x: number, y: number, value: number): Phaser.Physics.Arcade.Image {
+    const tier = gemTier(value);
+    const gem = this.physics.add.image(x, y, `gem-${tier}`).setDepth(2);
     this.gems.add(gem);
-    gem.setData('value', value).setScale(value >= 20 ? 2.4 : value >= 2 ? 1.3 : 1);
+    gem.setData({ value, kind: 'xp', tier });
+    if (tier === 'large') this.tweens.add({ targets: gem, scale: 1.15, duration: 520, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+    return gem;
+  }
+
+  /** 골드: 보석처럼 끌려와 줍는다(자석·클리어 회수 포함). 결과 정산의 "주운 골드" */
+  private dropCoin(x: number, y: number): void {
+    const c = this.physics.add.image(x, y, 'coin').setDepth(2);
+    this.gems.add(c);
+    c.setData({ value: ITEM_RULES.coinGold, kind: 'coin' });
+    this.itemLog.drop.coin = (this.itemLog.drop.coin ?? 0) + 1;
+  }
+
+  /** 화면에 보석이 많이 쌓이면 가까운 경험치 보석끼리 합친다(총량은 그대로, 골드는 합치지 않음) */
+  private mergeGems(): void {
+    if (this.elapsed < this.gemMergeAt) return;
+    this.gemMergeAt = this.elapsed + GEM_MERGE.everyMs;
+    const list = (this.gems.getChildren() as Phaser.Physics.Arcade.Image[]).filter((g) => g.active && g.getData('kind') === 'xp' && !g.getData('pulled'));
+    if (list.length <= GEM_MERGE.above) return;
+    const groups = mergeGroups(list.map((g) => ({ x: g.x, y: g.y, value: g.getData('value') as number })), GEM_MERGE.radius);
+    for (const grp of groups) {
+      const head = list[grp[0]];
+      let total = 0;
+      for (const i of grp) total += list[i].getData('value') as number;
+      const x = head.x;
+      const y = head.y;
+      for (const i of grp) list[i].destroy();
+      this.dropGem(x, y, total);
+    }
   }
 
   private pullGems(all: boolean): void {
@@ -1074,10 +1154,19 @@ export class GameScene extends Phaser.Scene {
 
   private collectGem(gem: Phaser.Physics.Arcade.Image): void {
     if (!gem.active) return;
+    if (gem.getData('kind') === 'coin') {
+      this.coinGold += gem.getData('value') as number;
+      this.itemLog.pick.coin = (this.itemLog.pick.coin ?? 0) + 1;
+      gem.destroy();
+      playSfx(this, 'sfx-coin-pickup', { pitch: 0.95 + Math.random() * 0.1 });
+      return;
+    }
+    const big = gem.getData('tier') === 'large';
     this.xp += (gem.getData('value') as number) * this.stats.xpMult;
     gem.destroy();
     this.fx.pickup(this.player.x, this.player.y);
-    playSfx(this, 'sfx-gem');
+    playSfx(this, big ? 'sfx-gem-big' : 'sfx-gem');
+    if (big) this.popText(this.player.x, this.player.y - 46, '큰 경험치!', '#ffd54f', 22);
     if (this.mode === 'clearing') return; // 클리어 중 회수한 경험치는 레벨업 카드를 띄우지 않는다
     const before = this.level;
     while (this.xp >= xpToNext(this.level)) {
@@ -1152,7 +1241,7 @@ export class GameScene extends Phaser.Scene {
       add(ktext(this, 360, 1184, '기본 공격: 드래곤의 기본 공격이 강해져요 (판이 끝나면 초기화)', 18, COLOR.textSub, true, true).setOrigin(0.5).setDepth(UI_DEPTH + 12));
     }
     choices.forEach((u, i) => {
-      const y = 500 + i * 196;
+      const y = 500 + i * 204;
       const next = (this.upgradeLevels.get(u.id) ?? 0) + 1;
       const tag =
         isBox ? `Lv.${next - 1} → Lv.${next}${next === u.maxLevel ? (u.kind === 'basic' ? ' 진화!' : ' (최대)') : ''}` :
@@ -1161,7 +1250,7 @@ export class GameScene extends Phaser.Scene {
         next === 1 ? (u.kind === 'active' ? '새 스킬!' : '새 패시브!') :
         `Lv.${next}${next === u.maxLevel ? ' (최대)' : ''}`;
       const kc = KIND_COLOR[u.kind];
-      const card = add(plate(this, 360, y, 640, 176, { r: 24, gold: isBox, fill: 0x2b2442 }).setDepth(UI_DEPTH + 11));
+      const card = add(plate(this, 360, y, 640, 182, { r: 24, gold: isBox, fill: 0x2b2442 }).setDepth(UI_DEPTH + 11));
       const side = this.add.graphics();
       side.fillStyle(kc, 0.35).fillRoundedRect(-315, -83, 150, 166, { tl: 20, bl: 20, tr: 0, br: 0 });
       card.add(side);
@@ -1170,8 +1259,19 @@ export class GameScene extends Phaser.Scene {
       else card.add(this.add.text(-240, 0, u.icon, { fontFamily: 'sans-serif', fontSize: '64px' }).setOrigin(0.5));
       card.add(badge(this, -100, -52, KIND_LABEL[u.kind], kc));
       if (tag) card.add(ktext(this, -20, -52, tag, TYPE.tiny, next === 1 || tag.includes('진화') ? COLOR.gold : COLOR.textSub, true, true).setOrigin(0, 0.5));
-      card.add(ktext(this, -140, -8, `${i + 1}. ${u.name}`, TYPE.heading, COLOR.text, true, true).setOrigin(0, 0.5));
-      card.add(ktext(this, -140, 42, u.describe(next), 20, COLOR.textSub, true).setOrigin(0, 0.5).setWordWrapWidth(440).setAlign('left'));
+      // 조합 태그(화염·빙결·연쇄·범위 …) — 카드 오른쪽 위
+      if (u.tags?.length) card.add(ktext(this, 300, -56, u.tags.map((t) => `#${t}`).join(' '), 17, 0xffd9a8, true, true).setOrigin(1, 0.5));
+      card.add(ktext(this, -140, -16, `${i + 1}. ${u.name}`, TYPE.heading, COLOR.text, true, true).setOrigin(0, 0.5));
+      card.add(ktext(this, -140, 22, u.describe(next), 19, COLOR.textSub, true).setOrigin(0, 0.5).setWordWrapWidth(450).setAlign('left'));
+      // 강화 전후 차이를 숫자로(예: 투사체 1개 → 2개 · 피해 90% → 120%)
+      const cmp = compareText(u, next);
+      if (cmp) card.add(ktext(this, -140, 64, `${next > 1 ? '▲ ' : '✦ '}${cmp}`, 16, COLOR.gold, true, true).setOrigin(0, 0.5).setWordWrapWidth(450).setAlign('left'));
+      // 지금 보유한 스킬과 어울리는 카드
+      const syn = synergyWith(u, this.upgradeLevels);
+      if (syn) {
+        const sb = badge(this, 196, -94, `🔗 보유 스킬과 연계 · ${syn}`, 0x2e9d6a);
+        card.add(sb);
+      }
       card.setInteractive({ useHandCursor: true });
       card.on('pointerover', () => card.setScale(1.02));
       card.on('pointerout', () => card.setScale(1));
@@ -1219,7 +1319,7 @@ export class GameScene extends Phaser.Scene {
     const v = new Phaser.Math.Vector2(x - this.arena.x, y - this.arena.y);
     const maxR = this.arena.r - 50;
     if (v.length() > maxR) v.setLength(maxR);
-    const it = this.physics.add.image(this.arena.x + v.x, this.arena.y + v.y, `item-${id}`).setDepth(6);
+    const it = this.physics.add.image(this.arena.x + v.x, this.arena.y + v.y, `item-${id}`).setDepth(2.5); // 공격 예고보다 아래
     this.items.add(it);
     it.setData({ id, expireAt: persistent ? Infinity : this.elapsed + ITEM_RULES.lifetimeMs });
     this.tweens.add({ targets: it, scale: 1.15, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
@@ -1268,6 +1368,11 @@ export class GameScene extends Phaser.Scene {
     } else if (id === 'magnet') {
       for (const g of this.gems.getChildren()) g.setData({ pulled: true, magnet: true });
       at('경험치 자석!');
+      playSfx(this, 'sfx-gem-big');
+      if (this.firstMagnetPending || !tipSeen('first-magnet')) {
+        markTip('first-magnet');
+        this.firstMagnetPending = false;
+      }
     } else if (id === 'shield') {
       this.shieldUntil = this.elapsed + ITEM_RULES.shieldMs; // 최대 1개, 다시 얻으면 60초로 갱신
       at('용의 수호막!');
@@ -1408,11 +1513,7 @@ export class GameScene extends Phaser.Scene {
     // 시안 형식: 판 + 리본 제목 + 두께 있는 버튼
     const button = (y: number, label: string, kind: 'cta' | 'danger' | 'secondary', onClick: () => void) => add(kitButton(this, 360, y, 440, 92, label, onClick, { kind, size: TYPE.heading }).root);
     if (!confirm) {
-      add(plate(this, 360, 680, 560, 420, { r: 28 }));
-      add(ribbon(this, 360, 470, 360, '일시정지', COLOR.violet, 74));
-      add(ktext(this, 360, 556, `${this.stage.id}단계 · Lv.${this.level} · 처치 ${this.kills}`, TYPE.caption, COLOR.textSub, true, true).setOrigin(0.5));
-      button(660, '계속하기', 'cta', () => this.closePause());
-      button(790, '포기하기', 'danger', () => this.drawPause(true));
+      this.drawPauseMain(add);
       return;
     }
     const g = computeRunGold(this.runSummary('quit'));
@@ -1428,6 +1529,63 @@ export class GameScene extends Phaser.Scene {
     button(830, '취소', 'secondary', () => this.drawPause(false));
   }
 
+  /**
+   * 일시정지 화면(제작자 요청 2026-11-20): 위 = 계속하기 / 포기하기, 가운데 = 이번 판에 얻은 스킬(크게),
+   * 맨 아래 = 효과음 켜기/끄기 · 배경 음악 켜기/끄기.
+   */
+  private drawPauseMain(add: <T extends Phaser.GameObjects.GameObject & { setScrollFactor: (n: number) => T; setDepth: (n: number) => T }>(o: T) => T): void {
+    add(plate(this, 360, 660, 668, 1060, { r: 28 }));
+    add(ribbon(this, 360, 150, 360, '일시정지', COLOR.violet, 74));
+    const sec = Math.floor(this.elapsed / 1000);
+    const clock = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+    add(ktext(this, 360, 222, `${this.stage.id}단계 · ${clock} · Lv.${this.level} · 처치 ${this.kills}`, TYPE.caption, COLOR.textSub, true, true).setOrigin(0.5));
+    add(kitButton(this, 210, 302, 290, 88, '계속하기', () => this.closePause(), { kind: 'cta', size: TYPE.heading }).root);
+    add(kitButton(this, 510, 302, 290, 88, '포기하기', () => this.drawPause(true), { kind: 'danger', size: TYPE.heading }).root);
+
+    // 얻은 스킬: 기본 공격·액티브 먼저, 그다음 패시브. 두 줄 배치, 그림 + 이름 + 레벨
+    add(ktext(this, 360, 392, '이번 판에 얻은 스킬', TYPE.body, COLOR.gold, true, true).setOrigin(0.5));
+    const owned = UPGRADES.filter((u) => u.kind !== 'filler' && (this.upgradeLevels.get(u.id) ?? 0) > 0)
+      .sort((a, b) => (a.kind === 'passive' ? 1 : 0) - (b.kind === 'passive' ? 1 : 0));
+    if (owned.length === 0) add(ktext(this, 360, 470, '아직 얻은 스킬이 없어요', TYPE.caption, COLOR.textSub, true).setOrigin(0.5));
+    owned.forEach((u, i) => {
+      const col = i % 2;
+      const row = Math.floor(i / 2);
+      const cx = col === 0 ? 205 : 515;
+      const cy = 464 + row * 80;
+      const lv = this.upgradeLevels.get(u.id) ?? 0;
+      const kc = KIND_COLOR[u.kind];
+      const g = add(this.add.graphics());
+      g.fillStyle(0x221d36, 1).fillRoundedRect(cx - 148, cy - 36, 296, 72, 16);
+      g.lineStyle(3, kc, 0.9).strokeRoundedRect(cx - 148, cy - 36, 296, 72, 16);
+      const key = upgradeIcon(u, this.dragon.id);
+      if (key && this.textures.exists(key)) add(this.add.image(cx - 110, cy, key).setDisplaySize(58, 58));
+      else add(this.add.text(cx - 110, cy, u.icon, { fontFamily: 'sans-serif', fontSize: '40px' }).setOrigin(0.5));
+      add(ktext(this, cx - 70, cy - 13, u.name, 21, COLOR.text, true, true).setOrigin(0, 0.5));
+      add(ktext(this, cx - 70, cy + 17, `${KIND_LABEL[u.kind]} · Lv.${lv}${lv >= u.maxLevel ? ' (최대)' : `/${u.maxLevel}`}`, 16, COLOR.textSub, true).setOrigin(0, 0.5));
+    });
+
+    // 맨 아래: 효과음·배경 음악 따로 켜기/끄기(설정 저장은 진행 저장과 따로)
+    const st = loadSettings();
+    const toggleRow = (y: number, label: string, on: boolean, flip: () => void) => {
+      add(ktext(this, 90, y, label, TYPE.body, COLOR.text, true, true).setOrigin(0, 0.5));
+      add(kitButton(this, 540, y, 200, 72, on ? '켜짐' : '꺼짐', flip, { kind: on ? 'growth' : 'secondary', size: TYPE.body }).root);
+    };
+    const line = add(this.add.graphics());
+    line.fillStyle(COLOR.line, 1).fillRect(80, 950, 560, 3);
+    toggleRow(1010, '🔊 효과음', st.sound, () => {
+      saveSettings({ ...loadSettings(), sound: !st.sound });
+      applySound(this.game);
+      if (!st.sound) playSfx(this, 'sfx-ui-tap');
+      this.drawPause(false);
+    });
+    toggleRow(1100, '🎵 배경 음악', st.music, () => {
+      saveSettings({ ...loadSettings(), music: !st.music });
+      applySound(this.game);
+      refreshMusic(this);
+      this.drawPause(false);
+    });
+  }
+
   private runSummary(outcome: RunOutcome) {
     return {
       stageId: this.stage.id,
@@ -1438,6 +1596,7 @@ export class GameScene extends Phaser.Scene {
       eliteKills: this.eliteKills,
       bossKilled: this.director.record.bossKillMs != null,
       treasureGold: this.treasureGold,
+      coinGold: this.coinGold,
     };
   }
 
@@ -1502,7 +1661,7 @@ export class GameScene extends Phaser.Scene {
     const timeTxt = this.timeText.text.split(' /')[0];
     const headline =
       clear ? `클리어 시간 ${timeTxt}` :
-      reason === 'timeout' ? '시간 초과 — 8분 안에 보스를 쓰러뜨리지 못했다' :
+      reason === 'timeout' ? `시간 초과 — ${Math.round(this.stage.durationMs / 60_000 * 10) / 10}분 안에 보스를 쓰러뜨리지 못했다` :
       reason === 'quit' ? `포기 — ${timeTxt}` : `버틴 시간 ${timeTxt}`;
     const lines = [
       `${this.stage.id}단계 ${this.stage.name} · ${this.dragon.name}`,
@@ -1643,4 +1802,33 @@ function sourceName(tag: string): string {
     'basic-poison-burst': '독 폭발',
   };
   return map[tag] ?? tag;
+}
+
+/** 경험치 보석 3등급 + 골드 그림(도형). 소량 파랑 · 중량 보라 · 대량 금빛(약한 빛 테두리를 그림에 넣어 개체를 늘리지 않음) */
+function makeGemTextures(scene: Phaser.Scene): void {
+  const g = scene.make.graphics({}, false);
+  const diamond = (cx: number, cy: number, w: number, h: number, body: number, hi: number) => {
+    g.fillStyle(0x0b0d17, 0.9).fillTriangle(cx, cy - h / 2 - 2, cx + w / 2 + 2, cy - h / 2 + h * 0.45, cx - w / 2 - 2, cy - h / 2 + h * 0.45)
+      .fillTriangle(cx - w / 2 - 2, cy - h / 2 + h * 0.45, cx + w / 2 + 2, cy - h / 2 + h * 0.45, cx, cy + h / 2 + 2);
+    g.fillStyle(body).fillTriangle(cx, cy - h / 2, cx + w / 2, cy - h / 2 + h * 0.45, cx - w / 2, cy - h / 2 + h * 0.45)
+      .fillTriangle(cx - w / 2, cy - h / 2 + h * 0.45, cx + w / 2, cy - h / 2 + h * 0.45, cx, cy + h / 2);
+    g.fillStyle(hi).fillTriangle(cx, cy - h / 2 + 3, cx + w / 4, cy - h / 2 + h * 0.45, cx - w / 4, cy - h / 2 + h * 0.45);
+  };
+  diamond(10, 12, 16, 20, 0x4fc3f7, 0xb3e5fc);
+  g.generateTexture('gem-small', 20, 24);
+  g.clear();
+  diamond(14, 17, 22, 28, 0xa855f7, 0xe9d5ff);
+  g.generateTexture('gem-medium', 28, 34);
+  g.clear();
+  g.fillStyle(0xffd54f, 0.16).fillCircle(26, 26, 26);
+  g.fillStyle(0xffd54f, 0.28).fillCircle(26, 26, 19);
+  diamond(26, 26, 26, 34, 0xffc107, 0xfff3c4);
+  g.generateTexture('gem-large', 52, 52);
+  g.clear();
+  g.fillStyle(0x0b0d17, 1).fillCircle(11, 11, 11);
+  g.fillStyle(0xf9a825, 1).fillCircle(11, 11, 9);
+  g.fillStyle(0xffe082, 1).fillCircle(11, 11, 6);
+  g.fillStyle(0xfff8e1, 1).fillRect(9, 6, 2, 10);
+  g.generateTexture('coin', 22, 22);
+  g.destroy();
 }

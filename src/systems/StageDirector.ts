@@ -2,10 +2,10 @@ import Phaser from 'phaser';
 import type { Enemy } from '../objects/Enemy';
 import type { EnemyKind } from '../data/enemies';
 import { PATTERN } from '../data/enemies';
-import { baseSpawn, difficulty, rankHpMult, TIMELINE, type StageData } from '../data/stages';
+import { baseSpawn, difficulty, pace, rankHpMult, TIMELINE, type StageData } from '../data/stages';
 
 export type EliteSlotState = 'pending' | 'warning' | 'alive' | 'killed' | 'absorbed';
-export type StagePhase = 'WAVE_1' | 'ELITE_1' | 'WAVE_2' | 'ELITE_2' | 'BOSS_WARNING' | 'BOSS' | 'CLEAR' | 'FAIL';
+export type StagePhase = 'WAVE_1' | 'ELITE_1' | 'WAVE_2' | 'ELITE_2' | 'WAVE_3' | 'BOSS_WARNING' | 'BOSS' | 'CLEAR' | 'FAIL';
 
 /** 스테이지 진행이 게임 장면에서 빌려 쓰는 것들 */
 export interface DirectorHost {
@@ -22,9 +22,12 @@ export interface DirectorHost {
 }
 
 /**
- * 스테이지 시간표 진행 (4단계 기획서 3·17장):
- * WAVE_1 → ELITE_1(1:40) → WAVE_2 → ELITE_2(3:40) → BOSS_WARNING(5:40) → BOSS(5:50) → CLEAR 또는 FAIL(8:00)
- * 타이머는 엘리트가 나와도 멈추지 않는다. 상태 이름은 연출·UI용이다.
+ * 스테이지 진행(2026-11-20 전투 속도 개선 — 웨이브 진행 + 시간 조건 병행):
+ * WAVE_1 → ELITE_1 → WAVE_2 → ELITE_2 → WAVE_3 → BOSS_WARNING → BOSS → CLEAR, 제한시간이 지나면 FAIL.
+ * - 웨이브는 처치 목표(stage.waveKills)를 채우면 바로 끝난다 → 강할수록 빨리 진행.
+ * - 목표를 못 채워도 늦은 시각(eliteSpawns.timeMs · bossSpawnMs)이 되면 진행한다 → 약한 이용자도 끝까지 간다.
+ * - 엘리트를 잡으면 다음 웨이브가 즉시 시작, 못 잡아도 40초 뒤에는 다음 웨이브(엘리트는 남아 보스에게 흡수).
+ * - 시간은 카드 선택·일시정지 동안 멈춘다(장면이 elapsed를 멈춤).
  */
 export class StageDirector {
   phase: StagePhase = 'WAVE_1';
@@ -33,11 +36,16 @@ export class StageDirector {
   boss: Enemy | null = null;
   bossBuffs: string[] = [];
   enraged = false;
-  /** 전투 기록: 엘리트·보스가 나온 시각과 처치에 걸린 시간(ms) */
-  record = { eliteSpawnAt: [] as number[], eliteKillMs: [] as (number | null)[], bossSpawnAt: 0, bossKillMs: null as number | null };
+  /** 전투 기록: 엘리트·보스가 나온 시각과 처치에 걸린 시간(ms), 웨이브가 끝난 시각 */
+  record = { eliteSpawnAt: [] as number[], eliteKillMs: [] as (number | null)[], bossSpawnAt: 0, bossKillMs: null as number | null, waveEndAt: [] as number[] };
+  /** 지금 웨이브(0·1·2)와 그 웨이브에서 잡은 일반 몬스터 수. 웨이브가 아니면 wave = -1 */
+  wave = 0;
+  waveKills = 0;
   private spawnCd = 0;
   private eliteSpawnPoint: (Phaser.Math.Vector2 | null)[];
+  private eliteWarnAt: (number | null)[];
   private bossSpawnPoint: Phaser.Math.Vector2 | null = null;
+  private bossWarnAt: number | null = null;
   private diff;
 
   /** 이 판의 일반 적 체력 배율(스테이지 × 난이도). 소환수가 같은 배율을 쓴다 */
@@ -45,41 +53,86 @@ export class StageDirector {
     return this.diff.hp;
   }
 
+  /** 격노 시각(제한시간 30초 전) */
+  get enrageAtMs(): number {
+    return this.stage.durationMs - TIMELINE.enrageBeforeEndMs;
+  }
+
+  /** HUD용: 웨이브 진행(웨이브가 아니면 null) */
+  get waveInfo(): { index: number; kills: number; goal: number } | null {
+    if (this.wave < 0) return null;
+    return { index: this.wave, kills: this.waveKills, goal: this.stage.waveKills[this.wave] };
+  }
+
   /** mult: 난이도(쉬움·어려움·매우 어려움) 체력·피해 배율(v1.2). 쉬움은 1 → 기존과 같다. */
   constructor(private h: DirectorHost, readonly stage: StageData, mult: { hp: number; damage: number } = { hp: 1, damage: 1 }) {
     this.eliteSlots = stage.eliteSpawns.map(() => 'pending');
     this.elites = stage.eliteSpawns.map(() => null);
     this.eliteSpawnPoint = stage.eliteSpawns.map(() => null);
+    this.eliteWarnAt = stage.eliteSpawns.map(() => null);
     this.record.eliteKillMs = stage.eliteSpawns.map(() => null);
     const base = difficulty(stage.id);
     this.diff = { ...base, hp: base.hp * mult.hp, damage: base.damage * mult.damage };
     h.emit('stage:start', { stage: stage.id });
   }
 
+  /** 일반 몬스터(보상 있는 것)를 잡을 때마다 장면이 부른다 */
+  onNormalKill(): void {
+    if (this.wave >= 0) this.waveKills++;
+  }
+
   update(elapsed: number, delta: number): void {
     if (this.phase === 'CLEAR' || this.phase === 'FAIL') return;
+    this.updateWaves(elapsed);
     this.updateElites(elapsed);
     this.updateBoss(elapsed);
     this.updateSpawns(elapsed, delta);
   }
 
+  // ───────── 웨이브 ─────────
+  private endWave(elapsed: number, why: 'goal' | 'time'): void {
+    const i = this.wave;
+    this.record.waveEndAt[i] = elapsed;
+    this.wave = -1;
+    this.h.emit('wave:end', { wave: i + 1, at: elapsed, why });
+    if (why === 'goal') this.h.banner(`웨이브 ${i + 1} 돌파!`, '#ffd34d');
+    if (i < this.stage.eliteSpawns.length) {
+      // 엘리트 경고 시작: 위치를 정하고 바닥·화면 가장자리에 경고
+      this.eliteSlots[i] = 'warning';
+      this.eliteWarnAt[i] = elapsed;
+      this.eliteSpawnPoint[i] = this.edgePoint();
+      const p = this.eliteSpawnPoint[i]!;
+      this.h.warnSpawn(p.x, p.y, TIMELINE.eliteWarnMs, 0xffb74d);
+      this.h.emit('elite:warning', { slot: i + 1 });
+    } else {
+      this.startBossWarning(elapsed);
+    }
+  }
+
+  private startWave(i: number, elapsed: number): void {
+    if (this.wave >= 0 || this.bossWarnAt != null || this.record.waveEndAt[i] !== undefined) return;
+    this.wave = i;
+    this.waveKills = 0;
+    this.phase = i === 1 ? 'WAVE_2' : 'WAVE_3';
+    this.h.emit('wave:start', { wave: i + 1, at: elapsed });
+  }
+
+  private updateWaves(elapsed: number): void {
+    if (this.wave < 0) return;
+    const i = this.wave;
+    const late = i < this.stage.eliteSpawns.length ? this.stage.eliteSpawns[i].timeMs - TIMELINE.eliteWarnMs : this.stage.bossSpawnMs - TIMELINE.bossWarnMs;
+    if (this.waveKills >= this.stage.waveKills[i]) this.endWave(elapsed, 'goal');
+    else if (elapsed >= late) this.endWave(elapsed, 'time');
+  }
+
   // ───────── 엘리트 ─────────
   private updateElites(elapsed: number): void {
     this.stage.eliteSpawns.forEach((e, i) => {
-      const slot = this.eliteSlots[i];
-      if (slot === 'pending' && elapsed >= e.timeMs - TIMELINE.eliteWarnMs) {
-        // 등장 5초 전: 위치를 정하고 바닥·화면 가장자리에 경고
-        this.eliteSlots[i] = 'warning';
-        this.eliteSpawnPoint[i] = this.edgePoint();
-        const p = this.eliteSpawnPoint[i]!;
-        this.h.warnSpawn(p.x, p.y, TIMELINE.eliteWarnMs, 0xffb74d);
-        this.h.emit('elite:warning', { slot: i + 1 });
-      }
-      if (this.eliteSlots[i] === 'warning' && elapsed >= e.timeMs) {
+      if (this.eliteSlots[i] === 'warning' && elapsed >= this.eliteWarnAt[i]! + TIMELINE.eliteWarnMs) {
         const alive = this.elites.filter((x) => x?.active).length;
-        if (alive >= TIMELINE.maxElites) return; // 최대 2마리(1단계는 2마리뿐이라 걸릴 일 없음)
+        if (alive >= TIMELINE.maxElites) return;
         const p = this.eliteSpawnPoint[i]!;
-        const hpMult = this.diff.hp * rankHpMult(this.stage, i === 0 ? 'elite1' : 'elite2');
+        const hpMult = this.diff.hp * rankHpMult(this.stage, i === 0 ? 'elite1' : 'elite2') * pace(this.stage.id).eliteHp;
         const en = this.h.spawn(e.eliteId, p.x, p.y, hpMult);
         en.eliteSlot = i + 1;
         en.damageMult = this.diff.damage;
@@ -91,36 +144,50 @@ export class StageDirector {
         this.h.banner(`엘리트 등장 — ${en.def.name}`, '#ffb74d');
         this.h.emit('elite:spawn', { slot: i + 1, at: elapsed });
       }
+      // 엘리트를 오래 못 잡으면 다음 웨이브는 그냥 시작(약한 이용자도 진행, 엘리트는 남아 있다가 보스에게 흡수)
+      if (this.eliteSlots[i] === 'alive' && elapsed - this.record.eliteSpawnAt[i] >= TIMELINE.eliteMaxMs) this.startWave(i + 1, elapsed);
     });
   }
 
-  /** 엘리트가 죽었을 때 장면이 부른다. 보상은 한 번만(true를 돌려준 경우에만 지급). */
+  /** 엘리트가 죽었을 때 장면이 부른다. 보상은 한 번만(true를 돌려준 경우에만 지급). 다음 웨이브를 바로 시작한다. */
   onEliteKilled(en: Enemy, elapsed: number): boolean {
     const i = en.eliteSlot - 1;
     if (i < 0 || this.eliteSlots[i] !== 'alive') return false;
     this.eliteSlots[i] = 'killed';
     this.record.eliteKillMs[i] = elapsed - en.spawnedAtMs;
-    if (this.phase === 'ELITE_1' || this.phase === 'ELITE_2') this.phase = 'WAVE_2';
     this.h.emit('elite:defeated', { slot: i + 1, ms: this.record.eliteKillMs[i] });
+    this.startWave(i + 1, elapsed);
     return true;
   }
 
   // ───────── 보스 ─────────
+  private startBossWarning(elapsed: number): void {
+    if (this.bossWarnAt != null) return;
+    this.bossWarnAt = elapsed;
+    this.phase = 'BOSS_WARNING';
+    this.bossSpawnPoint = new Phaser.Math.Vector2(this.h.arena.x, this.h.arena.y - this.h.arena.r * 0.55);
+    this.h.warnSpawn(this.bossSpawnPoint.x, this.bossSpawnPoint.y, TIMELINE.bossWarnMs, 0xff1744);
+    this.h.darken(TIMELINE.bossWarnMs);
+    this.h.banner('경고 — 우두머리가 다가온다', '#ff5252');
+    this.h.emit('boss:warning', { at: elapsed });
+  }
+
   private updateBoss(elapsed: number): void {
     const s = this.stage;
-    if (!this.bossSpawnPoint && elapsed >= s.bossSpawnMs - TIMELINE.bossWarnMs) {
-      this.phase = 'BOSS_WARNING';
-      this.bossSpawnPoint = new Phaser.Math.Vector2(this.h.arena.x, this.h.arena.y - this.h.arena.r * 0.55);
-      this.h.warnSpawn(this.bossSpawnPoint.x, this.bossSpawnPoint.y, TIMELINE.bossWarnMs, 0xff1744);
-      this.h.darken(TIMELINE.bossWarnMs);
-      this.h.banner('경고 — 우두머리가 다가온다', '#ff5252');
-      this.h.emit('boss:warning');
+    // 늦어도 이 시각에는 보스 경고(웨이브가 남아 있어도 — 약한 이용자 보장)
+    if (this.bossWarnAt == null && elapsed >= s.bossSpawnMs - TIMELINE.bossWarnMs) {
+      if (this.wave >= 0) {
+        this.record.waveEndAt[this.wave] = elapsed;
+        this.wave = -1;
+      }
+      this.startBossWarning(elapsed);
     }
-    if (!this.boss && elapsed >= s.bossSpawnMs) {
-      // 살아 있는 엘리트는 사라지고 보스에게 흡수된다(보상 없음)
+    if (!this.boss && this.bossWarnAt != null && elapsed >= this.bossWarnAt + TIMELINE.bossWarnMs) {
+      // 아직 안 나온 엘리트는 나오지 않고, 살아 있는 엘리트는 사라지고 보스에게 흡수된다(보상 없음)
       let hpBuff = 1;
       let dmgBuff = 1;
       this.elites.forEach((en, i) => {
+        if (this.eliteSlots[i] === 'warning' || this.eliteSlots[i] === 'pending') this.eliteSlots[i] = 'absorbed';
         if (en?.active) {
           en.destroy();
           this.eliteSlots[i] = 'absorbed';
@@ -130,7 +197,7 @@ export class StageDirector {
       });
       if (this.bossBuffs.length) this.h.emit('boss:absorb-elites', { buffs: this.bossBuffs });
       const p = this.bossSpawnPoint!;
-      const boss = this.h.spawn(s.bossId, p.x, p.y, this.diff.hp * rankHpMult(s, 'boss') * hpBuff);
+      const boss = this.h.spawn(s.bossId, p.x, p.y, this.diff.hp * rankHpMult(s, 'boss') * pace(s.id).bossHp * hpBuff);
       boss.damageMult = this.diff.damage * dmgBuff;
       boss.spawnedAtMs = elapsed;
       this.boss = boss;
@@ -141,7 +208,6 @@ export class StageDirector {
     }
     const boss = this.boss;
     if (boss?.active) {
-      // 60% 체력에서 패턴 변화(한 번만)
       // 강화: 1단계 회색갈기는 60%(기존), 2~20단계 보스는 50%(7단계 기획서)
       if (boss.phase === 1 && boss.hp <= boss.maxHp * (boss.def.phaseAt ?? PATTERN.graymane.phaseAt)) {
         boss.phase = 2;
@@ -149,8 +215,8 @@ export class StageDirector {
         this.h.banner(`${boss.def.name} — ${boss.def.behavior === 'graymane' ? '분노한 울부짖음' : '강화 패턴!'}`, '#ff8a65');
         this.h.emit('boss:phase-change', { phase: 2, at: elapsed });
       }
-      // 7:30 격노, 8:00 시간 초과 실패
-      if (!this.enraged && elapsed >= TIMELINE.enrageAtMs) {
+      // 제한시간 30초 전 격노, 제한시간이 되면 시간 초과 실패
+      if (!this.enraged && elapsed >= this.enrageAtMs) {
         this.enraged = true;
         boss.damageMult *= TIMELINE.enrage.damage;
         boss.speedMult = TIMELINE.enrage.speed;
@@ -175,13 +241,16 @@ export class StageDirector {
   spawnRate(): number {
     if (this.phase === 'BOSS' || this.boss) return 0;
     if (this.phase === 'BOSS_WARNING') return TIMELINE.bossWarnSpawnRate;
+    if (this.eliteSlots.includes('warning')) return TIMELINE.eliteSpawnRate;
     if (this.elites.some((e) => e?.active)) return TIMELINE.eliteSpawnRate;
     return 1;
   }
 
   private updateSpawns(elapsed: number, delta: number): void {
-    const rate = this.spawnRate() * this.diff.spawnRate;
+    let rate = this.spawnRate() * this.diff.spawnRate;
     if (rate <= 0) return;
+    // 적을 빨리 비우면 다음 무리를 바로(강한 이용자가 웨이브 목표를 빨리 채움). 전체 수는 여전히 기존보다 적다
+    if (this.wave >= 0 && this.h.enemyCount() < TIMELINE.refillBelow) rate *= TIMELINE.refillRate;
     this.spawnCd -= delta;
     if (this.spawnCd > 0 || this.h.enemyCount() >= 220) return;
     const b = baseSpawn(elapsed);

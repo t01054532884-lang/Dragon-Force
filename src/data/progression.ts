@@ -97,9 +97,10 @@ export function buildRunStats(
 export const GOLD = {
   base: 30, // 기본 보상
   survivalPer30s: 10, // 생존 30초마다
-  killsPerStep: 100, // 일반 적 100마리마다(v1.3: 20 → 100, 상한 도달 320 → 1,600마리)
-  goldPerKillStep: 5,
+  // 2026-11-20: "일반 적 100마리당 5G(최대 80)"를 전투 중 줍는 골드(coin)로 바꿈. 상한 80G는 그대로라 판당 최대 수급량이 같다.
   killGoldCap: 80,
+  /** 클리어 생존 보상은 판 길이와 상관없이 기존 8분 전체(160G) — 빨리 깨도 기본 클리어 보상이 줄지 않게 */
+  clearSurvivalMs: 480_000,
   elite: 20, // 엘리트 1마리당
   boss: 50,
   clear: 100,
@@ -117,13 +118,15 @@ export type RunOutcome = 'clear' | 'dead' | 'timeout' | 'quit';
 
 export interface RunSummary {
   stageId: number;
-  durationMs: number; // 스테이지 길이(8분)
+  durationMs: number; // 스테이지 제한시간
   outcome: RunOutcome;
   elapsedMs: number; // 실제 버틴 시간(카드 고르는 시간 제외)
   normalKills: number;
   eliteKills: number;
   bossKilled: boolean;
   treasureGold: number; // 보물 더미 카드로 모은 골드(전투 중 임시 기록)
+  /** 전투 중 주운 골드(단계 배율 전, 상한 killGoldCap) */
+  coinGold?: number;
 }
 
 export interface GoldBreakdown {
@@ -138,14 +141,14 @@ export interface GoldBreakdown {
 /** goldBonus: 용의 보물(장착형 특수 스킬) +10% 같은 전투 골드 보너스. 기본 0 → 5단계 정산과 같다. */
 export function computeRunGold(r: RunSummary, goldBonus = 0): GoldBreakdown {
   const clear = r.outcome === 'clear';
-  // 클리어는 보스를 언제 잡든 8분 전체 생존 보상(v1.1 1번)
-  const survivedMs = clear ? r.durationMs : r.elapsedMs;
+  // 클리어는 보스를 언제 잡든 8분 전체 생존 보상(v1.1 1번, 2026-11-20: 판 길이가 짧아져도 8분 기준 유지)
+  const survivedMs = clear ? GOLD.clearSurvivalMs : r.elapsedMs;
   const survival = Math.floor(survivedMs / 30_000) * GOLD.survivalPer30s;
-  const killGold = Math.min(GOLD.killGoldCap, Math.floor(r.normalKills / GOLD.killsPerStep) * GOLD.goldPerKillStep);
+  const killGold = Math.min(GOLD.killGoldCap, Math.floor(r.coinGold ?? 0));
   const lines = [
     { label: '기본 보상', gold: GOLD.base },
-    { label: clear ? '생존 보상(클리어: 8분 전체)' : `생존 보상(${Math.floor(r.elapsedMs / 1000)}초)`, gold: survival },
-    { label: `일반 적 ${r.normalKills}마리`, gold: killGold },
+    { label: clear ? '생존 보상(클리어: 전체)' : `생존 보상(${Math.floor(r.elapsedMs / 1000)}초)`, gold: survival },
+    { label: `주운 골드(일반 적 ${r.normalKills}마리)`, gold: killGold },
     { label: `엘리트 ${r.eliteKills}마리`, gold: r.eliteKills * GOLD.elite },
     { label: '보스 처치', gold: r.bossKilled ? GOLD.boss : 0 },
     { label: '스테이지 클리어', gold: clear ? GOLD.clear : 0 },

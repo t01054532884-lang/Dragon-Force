@@ -65,6 +65,10 @@ const RECIPES: Record<string, Recipe> = {
   'sfx-heal': { ch: 'reward', gap: 300, f0: 660, f1: 1320, ms: 300, wave: 'sine', gain: 0.04 },
   'sfx-coin-pickup': { ch: 'reward', gap: 120, f0: 1500, f1: 2200, ms: 120, wave: 'square', gain: 0.02 },
   'sfx-shield': { ch: 'battle', gap: 300, f0: 500, f1: 900, ms: 260, wave: 'triangle', gain: 0.04 },
+  // 2026-11-20 개선: 큰 경험치 보석(금빛) — 밝게 올라가는 짧은 차임. 적 공격 예고(소리 없음·붉은 바닥)와 헷갈리지 않게 높은 음만
+  'sfx-gem-big': { ch: 'reward', gap: 120, f0: 1320, f1: 2640, ms: 220, wave: 'sine', gain: 0.05 },
+  // 전용 스킬 준비 완료: 짧고 부드러운 딩
+  'sfx-sig-ready': { ch: 'ui', gap: 1000, f0: 880, f1: 1175, ms: 180, wave: 'triangle', gain: 0.045 },
 };
 
 /** 드래곤별 기본 공격 발사음(묶음당 1번, 짧고 작게). 없는 드래곤은 소리 없음 */

@@ -31,7 +31,12 @@ export const BASE_STATS: RunStats = {
   xpMult: 1,
 };
 
-/** 다음 레벨까지 필요한 경험치. 초반엔 빨리, 갈수록 천천히 오른다. */
+/**
+ * 다음 레벨까지 필요한 경험치. 초반엔 빨리, 갈수록 천천히 오른다.
+ * 2026-11-20: 첫 1분 성장 체감 — Lv.1→2 9 → 8, Lv.2→3 14 → 11, Lv.3→4 20 → 17(첫 성장 20~30초, 다음 성장 1분 안). 그 뒤는 같은 공식.
+ */
+export const EARLY_XP = [8, 11, 17];
 export function xpToNext(level: number): number {
+  if (level >= 1 && level <= EARLY_XP.length) return EARLY_XP[level - 1];
   return 5 + level * 4 + Math.floor(level * level * 0.4);
 }

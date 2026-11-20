@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import type { Enemy } from '../objects/Enemy';
 import { RED_BASIC } from '../data/basicAttack';
-import { aoePerTarget, SIGNATURE_RULES as R, SIGNATURES, type SignatureDef } from '../data/signature';
+import { aoePerTarget, signatureCap, SIGNATURE_RULES as R, SIGNATURES, type SignatureDef } from '../data/signature';
 import type { DragonId } from '../data/dragons';
 import type { CombatHost } from './CombatHost';
 
@@ -22,6 +22,8 @@ export class Signature {
   private tickDamage = 0; // 지속형 한 번에 넣는 피해(시전 순간 DPS로 고정)
   private zone: { x: number; y: number; g: Phaser.GameObjects.Arc } | null = null;
   uses = 0;
+  /** 이번 사용에서 엘리트·보스에게 넣은 피해(한 번 사용 상한용) */
+  private dealt = new Map<Enemy, number>();
   /** 전투 장면이 읽는 지속 효과 */
   reduce = 0; // 받는 피해 감소
   moveBoost = 0;
@@ -56,6 +58,7 @@ export class Signature {
     const dps = this.dps();
     this.cd = this.cooldownMs;
     this.uses++;
+    this.dealt.clear();
     const { x, y } = this.h.player;
     switch (d.kind) {
       case 'aoe': {
@@ -65,9 +68,8 @@ export class Signature {
         break;
       }
       case 'beam': {
-        const f = this.h.facing;
-        const near = this.nearest(x, y, d.length!);
-        const ang = near ? Math.atan2(near.y - y, near.x - x) : Math.atan2(f.y, f.x);
+        // 명중 편의: 24방향 중 적이 가장 많이 맞는 방향(엘리트·보스는 5마리 몫)으로 자동 조준
+        const ang = this.bestAngle(x, y, d.length!, d.width!);
         const t = this.inBeam(x, y, ang, d.length!, d.width!);
         this.strike(t, aoePerTarget(dps, t.length), ang);
         const g = this.h.scene.add.rectangle(x + (Math.cos(ang) * d.length!) / 2, y + (Math.sin(ang) * d.length!) / 2, d.length!, d.width! * 2, d.color, 0.45)
@@ -88,13 +90,20 @@ export class Signature {
         break;
       case 'heal':
         this.healPct(R.heal);
-        this.ring(x, y, 2.5 * 50, d.color);
+        this.reduce = R.healGuardReduce;
+        this.active = R.healGuardMs;
+        this.running = true;
+        for (const e of this.inCircle(x, y, d.radius!)) e.knock(e.x - x || 1, e.y - y, d.knock!, 200);
+        this.ring(x, y, d.radius!, d.color);
         break;
       case 'guard':
         this.reduce = R.guardReduce;
         this.active = R.guardMs;
         this.running = true;
-        for (const e of this.inCircle(x, y, d.radius!)) e.knock(e.x - x || 1, e.y - y, d.knock!, 200);
+        {
+          const t = this.inCircle(x, y, d.radius!);
+          this.strike(t, dps * R.guardHitSec); // strike가 밀쳐내기(knock)도 함께
+        }
         this.ring(x, y, d.radius!, d.color);
         break;
     }
@@ -126,6 +135,12 @@ export class Signature {
 
   private tick(): void {
     const d = this.def;
+    if (d.kind === 'dot' && this.zone) {
+      // 독구름은 드래곤을 따라다닌다(맞히기 쉽게)
+      this.zone.x = this.h.player.x;
+      this.zone.y = this.h.player.y;
+      this.zone.g.setPosition(this.zone.x, this.zone.y);
+    }
     if (d.kind === 'dot' && this.zone) this.strike(this.inCircle(this.zone.x, this.zone.y, d.radius!), this.tickDamage);
     if (d.kind === 'move') {
       const { x, y } = this.h.player;
@@ -134,7 +149,7 @@ export class Signature {
     }
     if (d.kind === 'single') {
       const { x, y } = this.h.player;
-      const t = this.nearest(x, y, d.radius!);
+      const t = this.priorityTarget(x, y, d.radius!);
       if (!t) return;
       const g = this.h.scene.add.graphics().setDepth(9);
       g.lineStyle(4, d.color, 0.9).lineBetween(x, y, t.x, t.y);
@@ -167,7 +182,15 @@ export class Signature {
         const a = ang ?? Math.atan2(e.y - this.h.player.y, e.x - this.h.player.x);
         e.knock(Math.cos(a), Math.sin(a), d.knock, 200);
       }
-      this.h.hit(e, { source: 'active', coef: 0, flat: each, tag: 'signature' });
+      // 엘리트·보스는 한 번 사용 피해 상한(보스가 한 번에 사라지지 않게)
+      let amount = each;
+      if (e.rank !== 'normal') {
+        const used = this.dealt.get(e) ?? 0;
+        amount = Math.max(0, Math.min(each, signatureCap(e.rank, e.maxHp) - used));
+        this.dealt.set(e, used + amount);
+        if (amount <= 0) continue;
+      }
+      this.h.hit(e, { source: 'active', coef: 0, flat: amount, tag: 'signature' });
     }
   }
 
@@ -189,6 +212,28 @@ export class Signature {
       const side = Math.abs(-dx * s + dy * c);
       return along > -e.def.radius && along < len + e.def.radius && side < half + e.def.radius;
     });
+  }
+
+  /** 전방형 조준: 24방향 중 맞는 적이 가장 많은 방향(엘리트·보스 가중 5). 아무도 없으면 바라보는 방향 */
+  private bestAngle(x: number, y: number, len: number, half: number): number {
+    const f = this.h.facing;
+    let best = Math.atan2(f.y, f.x);
+    let bestScore = 0;
+    for (let i = 0; i < 24; i++) {
+      const a = (i / 24) * Math.PI * 2;
+      const score = this.inBeam(x, y, a, len, half).reduce((acc, e) => acc + (e.rank === 'normal' ? 1 : 5), 0);
+      if (score > bestScore) {
+        bestScore = score;
+        best = a;
+      }
+    }
+    return best;
+  }
+
+  /** 단일형 대상: 사거리 안 보스 → 엘리트 → 가장 가까운 적 */
+  private priorityTarget(x: number, y: number, maxD: number): Enemy | null {
+    const inRange = this.live().filter((e) => Phaser.Math.Distance.Between(x, y, e.x, e.y) < maxD);
+    return inRange.find((e) => e.rank === 'boss') ?? inRange.find((e) => e.rank === 'elite') ?? this.nearest(x, y, maxD);
   }
 
   private nearest(x: number, y: number, maxD: number): Enemy | null {

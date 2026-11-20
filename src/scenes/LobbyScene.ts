@@ -14,7 +14,7 @@ import { drawLobbyBackdrop, makeArtPlaceholders, preloadArt } from '../ui/art';
 import { button, modal, navBar, text, type KitButton } from '../ui/kit';
 import { applySound, loadSettings, saveSettings } from '../systems/Settings';
 import { playSfx } from '../systems/Sfx';
-import { playMusic, preloadMusic } from '../systems/Music';
+import { playMusic, preloadMusic, refreshMusic } from '../systems/Music';
 import { altar, dragonCarousel, iconTile, plate, tabs, topBar, torch, wingBanner } from '../ui/kit2';
 import { COLOR, css, TYPE } from '../ui/theme';
 import { giftAlert } from '../ui/giftFx';
@@ -234,14 +234,17 @@ export class LobbyScene extends Phaser.Scene {
     const st = loadSettings();
     const m = modal(this, 600, 700, '설정', { closeOnBackdrop: true, ribbonColor: COLOR.violet });
     m.body(text(this, -240, -230, '소리', TYPE.heading, COLOR.text, true, true).setOrigin(0, 0.5));
-    m.body(text(this, -240, -186, `효과음·배경 음악 ${st.sound ? '켜짐' : '꺼짐'}`, TYPE.tiny, COLOR.textSub, true).setOrigin(0, 0.5));
+    // 로비 설정은 효과음·배경 음악을 함께 켜고 끈다(따로는 전투 일시정지 화면에서)
+    const on = st.sound || st.music;
+    m.body(text(this, -240, -186, `효과음 ${st.sound ? '켜짐' : '꺼짐'} · 배경 음악 ${st.music ? '켜짐' : '꺼짐'}`, TYPE.tiny, COLOR.textSub, true).setOrigin(0, 0.5));
     m.body(
-      button(this, 170, -214, 170, 76, st.sound ? '켜짐' : '꺼짐', () => {
-        saveSettings({ ...st, sound: !st.sound });
+      button(this, 170, -214, 170, 76, on ? '켜짐' : '꺼짐', () => {
+        saveSettings({ ...st, sound: !on, music: !on });
         applySound(this.game);
-        if (!st.sound) playSfx(this, 'sfx-ui-tap'); // 켰을 때 확인 소리
+        refreshMusic(this);
+        if (!on) playSfx(this, 'sfx-ui-tap'); // 켰을 때 확인 소리
         this.openSettings();
-      }, { kind: st.sound ? 'growth' : 'secondary', size: TYPE.body }).root,
+      }, { kind: on ? 'growth' : 'secondary', size: TYPE.body }).root,
     );
     // 계정(첫 출시: 게스트 자동 + Apple 연결, 앱 안 계정 삭제 — 애플 심사 5.1.1(v))
     const acc = account.current();
