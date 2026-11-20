@@ -7,8 +7,9 @@ import Phaser from 'phaser';
 
 /** public/sfx/에 실제로 있는 파일(키 = 파일 이름). 출처 확인 후 여기에 적으면 미리 읽고 그 파일을 쓴다 */
 export const SFX_FILES: string[] = [
-  // 상자 개봉 8종(2026-11-20 제작자 전달)은 출처·상업 이용 확인 뒤 여기에 적는다:
-  // 'sfx-chest-shake', 'sfx-chest-open', 'sfx-chest-burst-common', 'sfx-chest-burst-rare', 'sfx-chest-burst-epic', 'sfx-chest-burst-legendary', 'sfx-card-flip', 'sfx-card-rare',
+  // 상자 개봉 8종 — 제작자 직접 생성(2026-11-20), 출처 기록은 docs/SOUND.md
+  'sfx-chest-shake', 'sfx-chest-open', 'sfx-chest-burst-common', 'sfx-chest-burst-rare', 'sfx-chest-burst-epic', 'sfx-chest-burst-legendary',
+  'sfx-card-flip', 'sfx-card-rare',
 ];
 
 type Channel = 'ui' | 'battle' | 'reward';
