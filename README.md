@@ -31,6 +31,7 @@ AI(Claude Code)와 협업해 만들고 있으며, 단계별로 무엇을 AI에�
 
 ## 플레이·출시
 - 웹: https://t01054532884-lang.github.io/Dragon-Force/ (GitHub Pages, main에 push하면 자동 배포)
+- 기획자 확인용 현재 상태·화면 캡처: [docs/PLANNER_REVIEW.md](docs/PLANNER_REVIEW.md)
 - 개인정보처리방침: https://t01054532884-lang.github.io/Dragon-Force/privacy.html
 - App Store(iOS)·앱인토스(토스 앱) 출시 준비 중 — `npm run build:ios` / `npm run build:toss`
 
