@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { playSfx } from '../systems/Sfx';
+import { soundOn } from '../systems/Settings';
 import type { BoxId, Rarity } from '../data/economy';
 import { CHEST_FX, CHEST_INNER, CHEST_MOUTH_Y, CHEST_SFX, INNER_BASE_Y, openingTier, type ChestTierFx } from '../data/chestFx';
 import type { BoxResult } from '../systems/Progress';
@@ -175,6 +176,7 @@ export class ChestOpening {
   /** 소리: public/sfx/<키>.mp3를 미리 읽어 두었으면 그것을, 없으면 짧은 합성음 */
   private sfx(key: string, freq: number): void {
     const s = this.scene;
+    if (!soundOn()) return; // 설정에서 소리 끔
     try {
       if (s.cache.audio.exists(key)) {
         playSfx(s, key, { channel: 'reward' }); // 보상 채널 음량 0.6(기획 10.2)

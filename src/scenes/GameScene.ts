@@ -8,7 +8,7 @@ import { Enemy, type EnemyAction } from '../objects/Enemy';
 import { Skills } from '../systems/Skills';
 import { BasicAttack, NO_TRAITS } from '../systems/BasicAttack';
 import { BattleFx, FX, PALETTE } from '../fx/BattleFx';
-import { playSfx } from '../systems/Sfx';
+import { BATTLE_SFX_FILES, playSfx, preloadSfx } from '../systems/Sfx';
 import { preloadArt } from '../ui/art';
 import { badge, button as kitButton, ribbon, text as ktext } from '../ui/kit';
 import { plate } from '../ui/kit2';
@@ -180,6 +180,7 @@ export class GameScene extends Phaser.Scene {
 
   preload(): void {
     preloadArt(this); // 탑다운 드래곤 그림(로비에서 이미 읽었으면 건너뜀)
+    preloadSfx(this, BATTLE_SFX_FILES); // 전투 효과음(실제 실행 경로에서만 읽음 — 기획 13.2)
   }
 
   init(data: { stageId?: number; seed?: number; dragonId?: DragonId; difficulty?: Difficulty }): void {

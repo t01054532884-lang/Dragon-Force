@@ -5,6 +5,7 @@ import { NO_TRAITS, type BasicLevel, type BasicSpec, type BasicTraits } from '..
 export { NO_TRAITS, type BasicTraits };
 import type { CombatHost } from './CombatHost';
 import { applyPerm, PERM_RULES, ZERO_PERM, type PermState } from '../data/permGrowth';
+import { playSfx } from './Sfx';
 
 interface Volley {
   hitUids: Set<number>; // 이 묶음이 이미 맞힌 적(두 번째부터 50%, 화상·중독도 1중첩만)
@@ -276,6 +277,7 @@ export class BasicAttack {
       }
     }
     this.h.fx?.explode(x, y, r, color); // 연출: 실제 반지름 r까지만
+    playSfx(this.h.scene, 'sfx-explode');
     const boom = this.h.scene.add.circle(x, y, r, color, 0.55).setDepth(8);
     this.h.scene.tweens.add({ targets: boom, alpha: 0, scale: 1.2, duration: 300, onComplete: () => boom.destroy() });
   }

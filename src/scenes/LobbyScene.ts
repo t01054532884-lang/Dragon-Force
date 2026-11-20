@@ -11,7 +11,9 @@ import { STAMINA, formatLeft, nextRegenIn } from '../systems/Stamina';
 import { devMode, gameNow } from '../ui/widgets';
 import { enterBattle } from '../ui/entry';
 import { drawLobbyBackdrop, makeArtPlaceholders, preloadArt } from '../ui/art';
-import { button, navBar, text, type KitButton } from '../ui/kit';
+import { button, modal, navBar, text, type KitButton } from '../ui/kit';
+import { applySound, loadSettings, saveSettings } from '../systems/Settings';
+import { playSfx } from '../systems/Sfx';
 import { altar, dragonCarousel, iconTile, plate, tabs, topBar, torch, wingBanner } from '../ui/kit2';
 import { COLOR, css, TYPE } from '../ui/theme';
 import { giftAlert } from '../ui/giftFx';
@@ -29,6 +31,7 @@ export class LobbyScene extends Phaser.Scene {
   /** 개발용(?dev=1)으로 잠긴 난이도를 고른 경우(저장하지 않는 시험 플레이) */
   private devDiff: Difficulty | null = null;
   private exitLayer: Phaser.GameObjects.GameObject[] = [];
+  private settingsUi: { close: () => void } | null = null;
 
   constructor() {
     super('lobby');
@@ -44,6 +47,10 @@ export class LobbyScene extends Phaser.Scene {
    * 창이 떠 있을 때 한 번 더 누르면 창을 닫는다. 종료할 수 없는 플랫폼(iOS·웹)은 아무것도 안 함.
    */
   onPlatformBack(): boolean {
+    if (this.settingsUi) {
+      this.closeSettings();
+      return true;
+    }
     if (!platform.canExit) return true;
     if (this.exitLayer.length) {
       this.closeExit();
@@ -66,6 +73,7 @@ export class LobbyScene extends Phaser.Scene {
 
   create(): void {
     this.exitLayer = [];
+    this.settingsUi = null;
     if (!this.textures.exists('dragon-red')) makeTextures(this);
     makeArtPlaceholders(this);
     const dev = devMode();
@@ -115,6 +123,7 @@ export class LobbyScene extends Phaser.Scene {
     iconTile(this, 62, 452, 'ic-cal-star', { size: 86, label: live ? '겨울 축제' : '축제 12/1', alert: evAlert, onClick: () => this.scene.start('event') });
     iconTile(this, 658, 340, 'ui-mailbox', { size: 86, label: '선물함', onClick: () => this.scene.start('gifts') });
     giftAlert(this, 658, 338, 86, pendingGifts(p.mailbox, now).map((g) => g.id));
+    iconTile(this, 658, 452, 'ic-gear', { size: 86, label: '설정', onClick: () => this.openSettings() });
 
     // ── 횃불 · 제단 · 출격 드래곤(숨쉬기 + 터치하면 살짝 뛰어오름)
     torch(this, 172, 580);
@@ -209,6 +218,30 @@ export class LobbyScene extends Phaser.Scene {
 
     this.input.keyboard?.on('keydown-ENTER', go);
     if (dev) this.devTools();
+  }
+
+  /** 설정 창(첫 제출: 효과음 켜기/끄기만 — 제작자 결정 2026-11-20). 저장은 진행 저장과 따로 */
+  private openSettings(): void {
+    this.closeSettings();
+    const st = loadSettings();
+    const m = modal(this, 560, 380, '설정', { closeOnBackdrop: true, ribbonColor: COLOR.violet });
+    m.body(text(this, -220, -40, '효과음', TYPE.heading, COLOR.text, true, true).setOrigin(0, 0.5));
+    m.body(text(this, -220, 4, st.sound ? '켜져 있어요' : '꺼져 있어요', TYPE.tiny, COLOR.textSub, true).setOrigin(0, 0.5));
+    m.body(
+      button(this, 150, -24, 170, 76, st.sound ? '켜짐' : '꺼짐', () => {
+        saveSettings({ ...st, sound: !st.sound });
+        applySound(this.game);
+        if (!st.sound) playSfx(this, 'sfx-ui-tap'); // 켰을 때 확인 소리
+        this.openSettings();
+      }, { kind: st.sound ? 'growth' : 'secondary', size: TYPE.body }).root,
+    );
+    m.body(button(this, 0, 110, 220, 70, '닫기', () => this.closeSettings(), { kind: 'secondary', size: TYPE.caption }).root);
+    this.settingsUi = m;
+  }
+
+  private closeSettings(): void {
+    this.settingsUi?.close();
+    this.settingsUi = null;
   }
 
   /** 짧은 안내(화면 가운데 1.6초) */

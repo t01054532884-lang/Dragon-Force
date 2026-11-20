@@ -3,6 +3,7 @@ import { getUpgradeCost, PERMANENT_UPGRADES, UPGRADE_TYPES, type UpgradeType } f
 import { Progress } from '../systems/Progress';
 import { STAGES } from '../data/stages';
 import { enterBattle } from '../ui/entry';
+import { soundOn } from '../systems/Settings';
 import { preloadArt } from '../ui/art';
 import { button, text, type KitButton } from '../ui/kit';
 import { plate } from '../ui/kit2';
@@ -113,6 +114,7 @@ export class LabScene extends Phaser.Scene {
 
   /** 효과음 파일 없이 짧은 소리(6단계에서 진짜 효과음으로 교체) */
   private beep(): void {
+    if (!soundOn()) return; // 설정에서 소리 끔
     try {
       const ctx = (this.sound as Phaser.Sound.WebAudioSoundManager).context;
       if (!ctx) return;

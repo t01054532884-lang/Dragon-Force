@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { soundOn } from './Settings';
 
 // 효과음(8단계 v2.0 10장): public/sfx/<키>.mp3가 있으면 그 파일, 없으면 짧은 합성음.
 // - 채널별 기본 음량(10.2): UI 0.45 · 전투 0.35 · 보상 0.6
@@ -10,7 +11,13 @@ export const SFX_FILES: string[] = [
   // 상자 개봉 8종 — 제작자 직접 생성(2026-11-20), 출처 기록은 docs/SOUND.md
   'sfx-chest-shake', 'sfx-chest-open', 'sfx-chest-burst-common', 'sfx-chest-burst-rare', 'sfx-chest-burst-epic', 'sfx-chest-burst-legendary',
   'sfx-card-flip', 'sfx-card-rare',
+  // 전투 10종 — 제작자 직접 생성(2026-11-20, 원본 합성음), 출처 기록은 docs/SOUND.md
+  'sfx-red-fire', 'sfx-hit', 'sfx-player-hit', 'sfx-enemy-die', 'sfx-levelup', 'sfx-crit', 'sfx-explode', 'sfx-boss-die', 'sfx-gem', 'sfx-ui-tap',
 ];
+/** 상자 개봉 화면에서 미리 읽는 것 */
+export const CHEST_SFX_FILES = SFX_FILES.filter((k) => k.startsWith('sfx-chest') || k.startsWith('sfx-card'));
+/** 전투에서 미리 읽는 것 */
+export const BATTLE_SFX_FILES = SFX_FILES.filter((k) => !CHEST_SFX_FILES.includes(k));
 
 type Channel = 'ui' | 'battle' | 'reward';
 const CHANNEL_VOL: Record<Channel, number> = { ui: 0.45, battle: 0.35, reward: 0.6 };
@@ -57,6 +64,7 @@ export function preloadSfx(scene: Phaser.Scene, keys: readonly string[] = SFX_FI
  * freq: 합성음일 때 음높이를 바꿔 같은 소리가 단조롭지 않게(선택)
  */
 export function playSfx(scene: Phaser.Scene, key: string, opts: { pitch?: number; channel?: Channel } = {}): void {
+  if (!soundOn()) return; // 설정에서 소리 끔
   const r = RECIPES[key];
   const now = performance.now();
   if (r && now - (lastAt.get(key) ?? -1e9) < r.gap) return;

@@ -15,5 +15,21 @@
 
 형식: 모노 44.1kHz 128kbps mp3(8개 모두 확인).
 
-## 아직 합성음인 것(파일이 오면 같은 이름으로 넣고 `SFX_FILES`에 추가)
-`sfx-red-fire`(화염탄 발사, 묶음당 1번) · `sfx-hit`(적중) · `sfx-player-hit`(드래곤 피격) · `sfx-enemy-die`(적 처치) · `sfx-levelup`(레벨업) — 선택: `sfx-crit`(치명타) · `sfx-explode`(폭발) · `sfx-boss-die`(보스 처치) · `sfx-gem`(경험치 획득) · `sfx-ui-tap`(버튼)
+## 전투 10종 (2026-11-20)
+| 파일 | 길이 | 용도 | 출처 |
+|---|---|---|---|
+| `sfx-red-fire.mp3` | 0.72초 | 레드 화염탄 발사(묶음당 1번) | 제작자 직접 생성(원본 합성음) |
+| `sfx-hit.mp3` | 0.25초 | 적중(최소 간격 60ms) | 제작자 직접 생성(원본 합성음) |
+| `sfx-player-hit.mp3` | 0.38초 | 드래곤 피격 | 제작자 직접 생성(원본 합성음) |
+| `sfx-enemy-die.mp3` | 0.65초 | 적 처치 | 제작자 직접 생성(원본 합성음) |
+| `sfx-levelup.mp3` | 1.25초 | 레벨업 | 제작자 직접 생성(원본 합성음) |
+| `sfx-crit.mp3` | 0.47초 | 치명타 | 제작자 직접 생성(원본 합성음) |
+| `sfx-explode.mp3` | 0.92초 | Lv.7·최종 고유 공격 폭발 | 제작자 직접 생성(원본 합성음) |
+| `sfx-boss-die.mp3` | 1.65초 | 보스 처치 | 제작자 직접 생성(원본 합성음) |
+| `sfx-gem.mp3` | 0.6초 | 경험치 획득 | 제작자 직접 생성(원본 합성음) |
+| `sfx-ui-tap.mp3` | 0.13초 | 설정 켤 때 확인음 | 제작자 직접 생성(원본 합성음) |
+
+묶음 안내문(`README.txt`): "original procedural synthesis outputs, not sampled from existing games". 모노 44.1kHz 128kbps.
+
+## 소리 설정
+로비 오른쪽 "설정" → 효과음 켜기/끄기(제작자 결정 2026-11-20, 첫 제출은 이것만). 저장 키 `dragon-force:settings`(진행 저장과 따로), 앱을 다시 켜도 유지. 끄면 파일·합성음 모두 안 남.
