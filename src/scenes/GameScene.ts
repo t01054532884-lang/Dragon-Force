@@ -10,6 +10,9 @@ import { BasicAttack, NO_TRAITS } from '../systems/BasicAttack';
 import { BattleFx, FX, PALETTE } from '../fx/BattleFx';
 import { playSfx } from '../systems/Sfx';
 import { preloadArt } from '../ui/art';
+import { badge, button as kitButton, ribbon, text as ktext } from '../ui/kit';
+import { plate } from '../ui/kit2';
+import { COLOR, TYPE } from '../ui/theme';
 import { resolveDamage, type HitSpec } from '../systems/Damage';
 import type { CombatHost } from '../systems/CombatHost';
 import { StageDirector } from '../systems/StageDirector';
@@ -43,6 +46,18 @@ interface EnemyShot {
 const WORLD_SIZE = 2800; // 투기장을 담는 정사각형 세계
 const ARENA_R = 22 * M; // 원형 투기장 반지름 22m = 1100px (사용자 결정 2026-11-17)
 const UI_DEPTH = 200;
+
+/** 레벨업 카드·머리줄의 스킬 그림 키(기획자 그림 15장). 없는 것은 기존 이모지로 */
+function upgradeIcon(u: Upgrade, dragonId: string): string | null {
+  if (u.kind === 'basic') return dragonId === 'red' ? 'skill-basic' : null; // 기본공격 그림은 레드만 받음
+  if (u.kind === 'active') return `skill-${u.id}`;
+  if (u.kind === 'passive') return `passive-${u.id}`;
+  if (u.id === 'gold') return 'ui-gold';
+  return null;
+}
+/** 카드 종류 색(그림 요청서 3: 기본공격 주황 · 액티브 남보라 · 패시브 청록) */
+const KIND_COLOR = { basic: 0xff8a3d, active: 0x6d5bd0, passive: 0x22b8a8, filler: 0x8a8f9e } as const;
+const KIND_LABEL = { basic: '기본 공격', active: '액티브', passive: '패시브', filler: '보급' } as const;
 type Mode = 'play' | 'choose' | 'paused' | 'clearing' | 'result';
 
 interface Hazard {
@@ -115,6 +130,8 @@ export class GameScene extends Phaser.Scene {
   private facing = new Phaser.Math.Vector2(0, -1);
   private skills!: Skills;
   private basic!: BasicAttack;
+  private hudIcons: Phaser.GameObjects.GameObject[] = [];
+  private hudIconSig = '';
   /** 연출(보이기만): 드래곤 그림 층·발사·적중·처치·레벨업 */
   private fx!: BattleFx;
   /** 드래곤 그림 층: 물리 몸체(this.player)를 따라다니는 탑다운 그림. 반동·피격 색은 여기에만 → 판정·좌표는 그대로 */
@@ -352,17 +369,22 @@ export class GameScene extends Phaser.Scene {
   private createHud(): void {
     this.hud = this.add.graphics().setScrollFactor(0).setDepth(UI_DEPTH);
     const style = { fontFamily: 'sans-serif', fontSize: '34px', color: '#ffffff', stroke: '#000000', strokeThickness: 5 };
-    this.timeText = this.add.text(360, 96, '00:00', style).setOrigin(0.5, 0).setScrollFactor(0).setDepth(UI_DEPTH);
-    this.killText = this.add.text(690, 24, '처치 0', { ...style, fontSize: '26px' }).setOrigin(1, 0).setScrollFactor(0).setDepth(UI_DEPTH);
-    this.levelText = this.add.text(30, 62, 'Lv.1', { ...style, fontSize: '24px' }).setScrollFactor(0).setDepth(UI_DEPTH);
-    this.hpText = this.add.text(210, 40, '', { ...style, fontSize: '20px', strokeThickness: 4 }).setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 1);
-    this.skillText = this.add.text(110, 62, '', { ...style, fontSize: '22px', lineSpacing: 6 }).setScrollFactor(0).setDepth(UI_DEPTH);
-    this.bossText = this.add.text(360, 186, '', { ...style, fontSize: '24px', align: 'center' }).setOrigin(0.5, 1).setScrollFactor(0).setDepth(UI_DEPTH + 1);
-    this.eliteText = this.add.text(360, 232, '', { ...style, fontSize: '20px', align: 'center' }).setOrigin(0.5, 1).setScrollFactor(0).setDepth(UI_DEPTH + 1);
+    // 8단계 UI: 로비와 같은 글꼴·외곽선. 시간은 가운데 알약, HP는 하트 아이콘 + 굵은 테두리 막대
+    this.hudIcons = [];
+    this.hudIconSig = '';
+    this.timeText = ktext(this, 360, 104, '00:00', 30, COLOR.text, true, true).setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 1);
+    this.killText = ktext(this, 690, 40, '처치 0', TYPE.caption, COLOR.text, true, true).setOrigin(1, 0.5).setScrollFactor(0).setDepth(UI_DEPTH);
+    this.levelText = ktext(this, 34, 105, 'Lv.1', TYPE.caption, COLOR.gold, true, true).setOrigin(0, 0.5).setScrollFactor(0).setDepth(UI_DEPTH);
+    this.hpText = ktext(this, 222, 41, '', 18, COLOR.text, true, true).setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 1);
+    if (this.textures.exists('ic-heart')) this.add.image(40, 41, 'ic-heart').setDisplaySize(46, 46).setScrollFactor(0).setDepth(UI_DEPTH + 1);
+    this.skillText = this.add.text(110, 62, '', { ...style, fontSize: '22px', lineSpacing: 6 }).setScrollFactor(0).setDepth(UI_DEPTH).setVisible(false);
+    this.bossText = this.add.text(360, 234, '', { ...style, fontSize: '24px', align: 'center' }).setOrigin(0.5, 1).setScrollFactor(0).setDepth(UI_DEPTH + 1);
+    this.eliteText = this.add.text(360, 280, '', { ...style, fontSize: '20px', align: 'center' }).setOrigin(0.5, 1).setScrollFactor(0).setDepth(UI_DEPTH + 1);
     this.shieldText = this.add.text(360, 140, '', { ...style, fontSize: '22px', color: '#9be7ff' }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(UI_DEPTH);
     // 일시정지 버튼(휴대폰용). PC는 ESC·P 키.
-    const pause = this.add.circle(670, 140, 32, 0x000000, 0.55).setStrokeStyle(3, 0xffffff, 0.7).setScrollFactor(0).setDepth(UI_DEPTH + 2);
-    this.add.text(670, 140, 'II', { ...style, fontSize: '28px', fontStyle: 'bold' }).setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 3);
+    const pause = this.add.circle(670, 140, 32, 0x2b2442, 0.92).setStrokeStyle(5, COLOR.outline, 1).setScrollFactor(0).setDepth(UI_DEPTH + 2);
+    this.add.circle(670, 140, 27).setStrokeStyle(3, 0x4b4170, 1).setScrollFactor(0).setDepth(UI_DEPTH + 2);
+    ktext(this, 670, 140, 'II', 26, COLOR.text, true, true).setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 3);
     pause.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.openPause());
     // 드래곤 전용 액티브 버튼(화면 위쪽, 일반 액티브 6슬롯과 별개). PC는 스페이스·Q.
     const sx = 560;
@@ -376,7 +398,7 @@ export class GameScene extends Phaser.Scene {
     });
     this.input.keyboard?.on('keydown-SPACE', () => this.castSignature());
     this.input.keyboard?.on('keydown-Q', () => this.castSignature());
-    this.specialText = this.add.text(30, 128, '', { ...style, fontSize: '20px', color: '#e1bee7', strokeThickness: 4 }).setScrollFactor(0).setDepth(UI_DEPTH);
+    this.specialText = this.add.text(30, 222, '', { ...style, fontSize: '20px', color: '#e1bee7', strokeThickness: 4 }).setScrollFactor(0).setDepth(UI_DEPTH);
   }
 
   private castSignature(): void {
@@ -421,10 +443,17 @@ export class GameScene extends Phaser.Scene {
     const hpRatio = Phaser.Math.Clamp(this.hp / this.stats.maxHp, 0, 1);
     const xpRatio = Phaser.Math.Clamp(this.xp / xpToNext(this.level), 0, 1);
     const g = this.hud.clear();
-    g.fillStyle(0x000000, 0.6).fillRoundedRect(30, 26, 360, 28, 8);
-    g.fillStyle(hpRatio > 0.3 ? 0x3ddc84 : 0xff5252).fillRoundedRect(34, 30, 352 * hpRatio, 20, 6);
-    g.fillStyle(0x000000, 0.6).fillRect(0, 0, 720, 12);
-    g.fillStyle(0x4fc3f7).fillRect(0, 0, 720 * xpRatio, 12);
+    // HP 막대(굵은 외곽선 + 윗면 광택) · 경험치 막대(맨 위) · 시간 알약
+    g.fillStyle(COLOR.outline, 1).fillRoundedRect(54, 25, 340, 32, 16);
+    g.fillStyle(0x221d36, 1).fillRoundedRect(57, 28, 334, 26, 13);
+    if (hpRatio > 0) {
+      g.fillStyle(hpRatio > 0.3 ? 0x3ddc84 : 0xff5252, 1).fillRoundedRect(57, 28, Math.max(26, 334 * hpRatio), 26, 13);
+      g.fillStyle(0xffffff, 0.28).fillRoundedRect(63, 31, Math.max(14, 322 * hpRatio), 8, 4);
+    }
+    g.fillStyle(COLOR.outline, 0.85).fillRect(0, 0, 720, 14);
+    g.fillStyle(0x4fc3f7).fillRect(0, 2, 720 * xpRatio, 10);
+    g.fillStyle(COLOR.outline, 1).fillRoundedRect(262, 84, 196, 42, 21);
+    g.fillStyle(d.enraged ? 0x5a1020 : 0x221d36, 0.95).fillRoundedRect(265, 87, 190, 36, 18);
 
     // 엘리트 슬롯(마름모 2개): 회색 대기 · 주황 등장 · 녹색 처치 · 붉은색 흡수
     const slotColor = { pending: 0x555555, warning: 0xffb74d, alive: 0xffb74d, killed: 0x3ddc84, absorbed: 0xff1744 };
@@ -438,23 +467,23 @@ export class GameScene extends Phaser.Scene {
     if (boss) {
       // 보스: 화면 전체 너비 체력바 + 60% 패턴 변화 지점 표시
       const r = Phaser.Math.Clamp(boss.hp / boss.maxHp, 0, 1);
-      g.fillStyle(0x000000, 0.75).fillRect(20, 192, 680, 24);
-      g.fillStyle(d.enraged ? 0xff1744 : 0xc62828).fillRect(23, 195, 674 * r, 18);
-      g.fillStyle(0xffffff).fillRect(23 + 674 * 0.6 - 2, 190, 4, 28);
+      g.fillStyle(COLOR.outline, 0.9).fillRoundedRect(20, 240, 680, 26, 8);
+      g.fillStyle(d.enraged ? 0xff1744 : 0xc62828).fillRoundedRect(23, 243, Math.max(8, 674 * r), 20, 6);
+      g.fillStyle(0xffffff).fillRect(23 + 674 * 0.6 - 2, 238, 4, 30);
       this.bossText.setText(`${boss.def.name}${d.enraged ? ' — 격노!' : boss.phase === 2 ? ' — 분노' : ''}`);
       this.eliteText.setText(d.bossBuffs.length ? `잔존 엘리트: ${d.bossBuffs.join(' · ')}` : '');
-      this.eliteText.setY(244);
+      this.eliteText.setY(292);
     } else {
       this.bossText.setText('');
       // 엘리트: 보스바보다 작은 전용 체력바(살아 있는 엘리트마다)
       const alive = d.elites.filter((e): e is Enemy => !!e?.active);
       alive.forEach((e, i) => {
-        const y = 196 + i * 40;
+        const y = 244 + i * 40;
         const r = Phaser.Math.Clamp(e.hp / e.maxHp, 0, 1);
         g.fillStyle(0x000000, 0.7).fillRect(160, y, 400, 14);
         g.fillStyle(0xff9800).fillRect(162, y + 2, 396 * r, 10);
       });
-      this.eliteText.setY(192).setText(alive.map((e) => `엘리트 ${e.eliteSlot} · ${e.def.name}`).join('\n'));
+      this.eliteText.setY(240).setText(alive.map((e) => `엘리트 ${e.eliteSlot} · ${e.def.name}`).join('\n'));
       this.eliteText.setLineSpacing(18);
     }
 
@@ -479,7 +508,7 @@ export class GameScene extends Phaser.Scene {
     const sec = Math.floor(this.elapsed / 1000);
     const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
     this.timeText.setText(`${fmt(sec)} / ${fmt(this.stage.durationMs / 1000)}`);
-    this.timeText.setColor(d.enraged ? '#ff5252' : '#ffffff');
+    this.timeText.setColor(d.enraged ? '#ff8a8a' : '#ffffff');
     this.killText.setText(`처치 ${this.kills}`);
     this.levelText.setText(`Lv.${this.level}`);
     const sh = this.shieldUntil - this.elapsed;
@@ -490,6 +519,7 @@ export class GameScene extends Phaser.Scene {
         .map((u) => `${u.icon}${this.upgradeLevels.get(u.id)}`)
         .join(' ');
     this.skillText.setText(`${icons(['basic', 'active'])}\n${icons(['passive'])}`);
+    this.drawSkillIcons();
     // 전용 액티브 버튼: 준비되면 밝게, 쿨타임 중엔 남은 초와 테두리 진행
     const sg = this.signature;
     const ready = sg.ready;
@@ -501,6 +531,30 @@ export class GameScene extends Phaser.Scene {
     this.specialText.setText(
       sp === 'rage' && this.specialActive > 0 ? '⚔ 용의 분노' : sp === 'aegis' && this.specialActive > 0 ? '⬟ 보호막' : sg.reduce > 0 ? `🛡 ${sg.def.name}` : '',
     );
+  }
+
+  /** 머리줄 아래 보유 스킬 그림 줄: 기본·액티브 한 줄, 패시브 한 줄. 레벨이 바뀔 때만 다시 그린다 */
+  private drawSkillIcons(): void {
+    const owned = UPGRADES.filter((u) => u.kind !== 'filler' && (this.upgradeLevels.get(u.id) ?? 0) > 0);
+    const sig = owned.map((u) => `${u.id}${this.upgradeLevels.get(u.id)}`).join(',');
+    if (sig === this.hudIconSig) return;
+    this.hudIconSig = sig;
+    this.hudIcons.forEach((o) => o.destroy());
+    this.hudIcons = [];
+    const rows = [owned.filter((u) => u.kind !== 'passive'), owned.filter((u) => u.kind === 'passive')];
+    rows.forEach((row, r) => {
+      row.forEach((u, i) => {
+        const x = 50 + i * 42;
+        const y = 156 + r * 42;
+        const key = upgradeIcon(u, this.dragon.id);
+        const o: Phaser.GameObjects.GameObject[] = [];
+        if (key && this.textures.exists(key)) o.push(this.add.image(x, y, key).setDisplaySize(36, 36));
+        else o.push(this.add.text(x, y, u.icon, { fontFamily: 'sans-serif', fontSize: '26px' }).setOrigin(0.5));
+        o.push(ktext(this, x + 15, y + 13, `${this.upgradeLevels.get(u.id)}`, 14, COLOR.text, true, true).setOrigin(0.5));
+        for (const g of o) (g as Phaser.GameObjects.Image).setScrollFactor(0).setDepth(UI_DEPTH + 1);
+        this.hudIcons.push(...o);
+      });
+    });
   }
 
   private banner(text: string, color: string): void {
@@ -1033,35 +1087,43 @@ export class GameScene extends Phaser.Scene {
 
     const add = <T extends Phaser.GameObjects.GameObject>(o: T): T => {
       this.choiceLayer.push(o);
+      (o as unknown as { setScrollFactor: (n: number) => void }).setScrollFactor(0);
       return o;
     };
-    add(this.add.rectangle(360, 640, 720, 1280, 0x000000, 0.65).setScrollFactor(0).setDepth(UI_DEPTH + 10));
-    add(
-      this.add
-        .text(360, 300, title, { fontFamily: 'sans-serif', fontSize: '56px', color: isBox ? '#ffe082' : '#ffd34d', stroke: '#000', strokeThickness: 8 })
-        .setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 11),
-    );
-    if (subtitle)
-      add(this.add.text(360, 365, subtitle, { fontFamily: 'sans-serif', fontSize: '26px', color: '#ffffff' }).setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 11));
+    add(this.add.rectangle(360, 640, 720, 1280, 0x000000, 0.7).setDepth(UI_DEPTH + 10));
+    // 제목 리본(150~220ms 등장 — 기획 7.4)
+    const rb = add(ribbon(this, 360, 300, 420, title, isBox ? 0xe0a032 : COLOR.ember, 78).setDepth(UI_DEPTH + 11));
+    rb.setScale(0.6).setAlpha(0);
+    this.tweens.add({ targets: rb, scale: 1, alpha: 1, duration: 190, ease: 'Back.Out' });
+    if (subtitle) add(ktext(this, 360, 372, subtitle, TYPE.caption, COLOR.text, true, true).setOrigin(0.5).setDepth(UI_DEPTH + 11));
     choices.forEach((u, i) => {
-      const y = 470 + i * 200;
+      const y = 500 + i * 196;
       const next = (this.upgradeLevels.get(u.id) ?? 0) + 1;
       const tag =
         isBox ? `Lv.${next - 1} → Lv.${next}${next === u.maxLevel ? (u.kind === 'basic' ? ' 진화!' : ' (최대)') : ''}` :
         u.kind === 'filler' ? '' :
-        u.kind === 'basic' ? `기본공격 Lv.${next}${next === u.maxLevel ? ' 진화!' : ''}` :
+        u.kind === 'basic' ? `Lv.${next}${next === u.maxLevel ? ' 진화!' : ''}` :
         next === 1 ? (u.kind === 'active' ? '새 스킬!' : '새 패시브!') :
         `Lv.${next}${next === u.maxLevel ? ' (최대)' : ''}`;
-      const border = { basic: 0xff7043, active: 0x8fa3d9, passive: 0x7bd88f, filler: 0xb0b0b0 }[u.kind];
-      const card = add(this.add.rectangle(360, y, 600, 170, 0x22283a).setStrokeStyle(4, isBox ? 0xffd34d : border).setScrollFactor(0).setDepth(UI_DEPTH + 11));
+      const kc = KIND_COLOR[u.kind];
+      const card = add(plate(this, 360, y, 640, 176, { r: 24, gold: isBox, fill: 0x2b2442 }).setDepth(UI_DEPTH + 11));
+      const side = this.add.graphics();
+      side.fillStyle(kc, 0.35).fillRoundedRect(-315, -83, 150, 166, { tl: 20, bl: 20, tr: 0, br: 0 });
+      card.add(side);
+      const key = upgradeIcon(u, this.dragon.id);
+      if (key && this.textures.exists(key)) card.add(this.add.image(-240, 0, key).setDisplaySize(124, 124));
+      else card.add(this.add.text(-240, 0, u.icon, { fontFamily: 'sans-serif', fontSize: '64px' }).setOrigin(0.5));
+      card.add(badge(this, -100, -52, KIND_LABEL[u.kind], kc));
+      if (tag) card.add(ktext(this, -20, -52, tag, TYPE.tiny, next === 1 || tag.includes('진화') ? COLOR.gold : COLOR.textSub, true, true).setOrigin(0, 0.5));
+      card.add(ktext(this, -140, -8, `${i + 1}. ${u.name}`, TYPE.heading, COLOR.text, true, true).setOrigin(0, 0.5));
+      card.add(ktext(this, -140, 42, u.describe(next), 20, COLOR.textSub, true).setOrigin(0, 0.5).setWordWrapWidth(440).setAlign('left'));
       card.setInteractive({ useHandCursor: true });
-      card.on('pointerover', () => card.setFillStyle(0x2f3a57));
-      card.on('pointerout', () => card.setFillStyle(0x22283a));
+      card.on('pointerover', () => card.setScale(1.02));
+      card.on('pointerout', () => card.setScale(1));
       card.on('pointerdown', () => this.pickChoice(i));
-      const txt = { fontFamily: 'sans-serif', color: '#ffffff' };
-      add(this.add.text(100, y, u.icon, { ...txt, fontSize: '64px' }).setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 12));
-      add(this.add.text(160, y - 40, `${i + 1}. ${u.name}  ${tag}`, { ...txt, fontSize: '34px', fontStyle: 'bold' }).setScrollFactor(0).setDepth(UI_DEPTH + 12));
-      add(this.add.text(160, y + 10, u.describe(next), { ...txt, fontSize: '24px', color: '#c9d3ee', wordWrap: { width: 500 } }).setScrollFactor(0).setDepth(UI_DEPTH + 12));
+      // 카드가 차례로 들어오기(짧게)
+      card.setAlpha(0).setX(360 + 40);
+      this.tweens.add({ targets: card, alpha: 1, x: 360, duration: 160, delay: 60 + i * 60, ease: 'Quad.Out' });
     });
     this.currentChoices = choices;
   }
@@ -1278,32 +1340,27 @@ export class GameScene extends Phaser.Scene {
       return o.setScrollFactor(0).setDepth(UI_DEPTH + 50);
     };
     add(this.add.rectangle(360, 640, 720, 1280, 0x000000, 0.7));
-    const title = { fontFamily: 'sans-serif', fontSize: '56px', fontStyle: 'bold', color: '#ffffff', stroke: '#000', strokeThickness: 8 };
-    const button = (y: number, label: string, color: number, onClick: () => void) => {
-      const b = add(this.add.rectangle(360, y, 460, 96, color).setStrokeStyle(4, 0xffffff, 0.8));
-      b.setInteractive({ useHandCursor: true }).on('pointerdown', onClick);
-      add(this.add.text(360, y, label, { fontFamily: 'sans-serif', fontSize: '32px', color: '#ffffff' }).setOrigin(0.5));
-    };
+    // 시안 형식: 판 + 리본 제목 + 두께 있는 버튼
+    const button = (y: number, label: string, kind: 'cta' | 'danger' | 'secondary', onClick: () => void) => add(kitButton(this, 360, y, 440, 92, label, onClick, { kind, size: TYPE.heading }).root);
     if (!confirm) {
-      add(this.add.text(360, 440, '일시정지', title).setOrigin(0.5));
-      button(640, '계속하기 (ESC)', 0x2f6fd6, () => this.closePause());
-      button(770, '포기하기', 0x8a2b2b, () => this.drawPause(true));
+      add(plate(this, 360, 680, 560, 420, { r: 28 }));
+      add(ribbon(this, 360, 470, 360, '일시정지', COLOR.violet, 74));
+      add(ktext(this, 360, 556, `${this.stage.id}단계 · Lv.${this.level} · 처치 ${this.kills}`, TYPE.caption, COLOR.textSub, true, true).setOrigin(0.5));
+      button(660, '계속하기', 'cta', () => this.closePause());
+      button(790, '포기하기', 'danger', () => this.drawPause(true));
       return;
     }
     const g = computeRunGold(this.runSummary('quit'));
-    const note = this.elapsed < 30_000 ? '30초가 지나기 전에 포기하면 보상이 없습니다.' : '지금까지 모은 골드의 50%만 받습니다.';
-    add(this.add.text(360, 420, '정말 포기할까요?', { ...title, fontSize: '48px' }).setOrigin(0.5));
-    add(
-      this.add
-        .text(360, 520, `${note}\n받는 골드: ${g.total}G`, { fontFamily: 'sans-serif', fontSize: '28px', color: '#ffd34d', align: 'center', lineSpacing: 10 })
-        .setOrigin(0.5, 0),
-    );
-    button(720, '포기 확정', 0x8a2b2b, () => {
+    const note = this.elapsed < 30_000 ? '30초가 지나기 전에 포기하면 보상이 없어요' : '지금까지 모은 골드의 50%만 받아요';
+    add(plate(this, 360, 680, 600, 480, { r: 28 }));
+    add(ribbon(this, 360, 440, 400, '정말 포기할까요?', COLOR.danger, 74));
+    add(ktext(this, 360, 560, `${note}\n받는 골드 ${g.total}G`, TYPE.body, COLOR.gold, true, true).setOrigin(0.5).setAlign('center').setLineSpacing(10));
+    button(700, '포기 확정', 'danger', () => {
       this.pauseLayer.forEach((o) => o.destroy());
       this.pauseLayer = [];
       this.fail('quit');
     });
-    button(850, '취소', 0x3a3f4b, () => this.drawPause(false));
+    button(830, '취소', 'secondary', () => this.drawPause(false));
   }
 
   private runSummary(outcome: RunOutcome) {
@@ -1404,47 +1461,46 @@ export class GameScene extends Phaser.Scene {
     };
     add(this.add.rectangle(360, 640, 720, 1280, 0x000000, 0.8));
     const titleTxt = clear ? '성지 탈환!' : reason === 'timeout' ? '시간 초과' : reason === 'quit' ? '전투 포기' : '드래곤이 쓰러졌다';
+    add(plate(this, 360, 420, 680, 470, { r: 28, gold: clear }));
+    const rb = ribbon(this, 360, 160, 440, titleTxt, clear ? 0xe0a032 : COLOR.danger, 84);
+    add(rb);
+    rb.setScale(0.6).setAlpha(0);
+    this.tweens.add({ targets: rb, scale: 1, alpha: 1, duration: 220, ease: 'Back.Out' });
     add(
       this.add
-        .text(360, 150, titleTxt, {
-          fontFamily: 'sans-serif', fontSize: '60px', fontStyle: 'bold', color: clear ? '#ffd34d' : '#ff6b6b', stroke: '#000', strokeThickness: 8,
-        })
-        .setOrigin(0.5),
-    );
-    add(
-      this.add
-        .text(360, 220, lines.join('\n'), { fontFamily: 'sans-serif', fontSize: '24px', color: '#ffffff', align: 'center', lineSpacing: 6, wordWrap: { width: 660 } })
+        .text(360, 222, lines.join('\n'), { fontFamily: 'sans-serif', fontSize: '23px', color: '#ffffff', align: 'center', lineSpacing: 5, wordWrap: { width: 640 }, stroke: '#0b0d17', strokeThickness: 4 })
         .setOrigin(0.5, 0),
     );
     // 골드 정산표
-    add(this.add.rectangle(360, 795, 640, 330, 0x1a1f2b, 0.95).setStrokeStyle(3, 0xffd34d, 0.6));
-    add(this.add.text(360, 650, '골드 정산', { fontFamily: 'sans-serif', fontSize: '28px', fontStyle: 'bold', color: '#ffd34d' }).setOrigin(0.5, 0));
-    add(this.add.text(70, 695, goldLines(gold).join('\n'), { fontFamily: 'sans-serif', fontSize: '22px', color: '#dfe6f5', lineSpacing: 4 }));
-    add(this.add.text(650, 695, goldValues(gold).join('\n'), { fontFamily: 'sans-serif', fontSize: '22px', color: '#dfe6f5', lineSpacing: 4, align: 'right' }).setOrigin(1, 0));
+    add(plate(this, 360, 812, 660, 330, { r: 24, gold: true, fill: 0x221d36 }));
+    if (this.textures.exists('ui-gold')) add(this.add.image(268, 674, 'ui-gold').setDisplaySize(44, 44));
+    add(ktext(this, 376, 674, '골드 정산', TYPE.heading, COLOR.gold, true, true).setOrigin(0.5));
+    add(this.add.text(70, 708, goldLines(gold).join('\n'), { fontFamily: 'sans-serif', fontSize: '21px', color: '#dfe6f5', lineSpacing: 4 }));
+    add(this.add.text(650, 708, goldValues(gold).join('\n'), { fontFamily: 'sans-serif', fontSize: '21px', color: '#dfe6f5', lineSpacing: 4, align: 'right' }).setOrigin(1, 0));
     add(
       this.add
-        .text(360, 993, `${paid ? '+' : ''}${gold.total}G 획득${extra}  ·  보유 ${bank.toLocaleString()}G`, { fontFamily: 'sans-serif', fontSize: '26px', fontStyle: 'bold', color: '#ffd34d' })
+        .text(360, 1000, `${paid ? '+' : ''}${gold.total}G 획득${extra}  ·  보유 ${bank.toLocaleString()}G`, { fontFamily: 'sans-serif', fontSize: '25px', fontStyle: 'bold', color: '#ffd34d', stroke: '#0b0d17', strokeThickness: 5 })
         .setOrigin(0.5),
     );
 
     const next = STAGES.find((s) => s.id === this.stage.id + 1);
-    const button = (x: number, y: number, w: number, label: string, enabled: boolean, onClick: () => void, color = 0x2f6fd6) => {
-      const b = this.add.rectangle(x, y, w, 90, enabled ? color : 0x3a3f4b).setStrokeStyle(4, 0xffffff, enabled ? 0.8 : 0.2);
-      add(b);
-      add(this.add.text(x, y, label, { fontFamily: 'sans-serif', fontSize: w > 300 ? '30px' : '26px', color: enabled ? '#ffffff' : '#9aa0aa' }).setOrigin(0.5));
-      if (enabled) b.setInteractive({ useHandCursor: true }).on('pointerdown', onClick);
+    type K = 'cta' | 'primary' | 'secondary' | 'growth' | 'magic';
+    const button = (x: number, y: number, w: number, label: string, enabled: boolean, onClick: () => void, kind: K = 'cta') => {
+      const b = kitButton(this, x, y, w, 84, label, onClick, { kind, size: w > 300 ? TYPE.heading : TYPE.caption });
+      b.setEnabled(enabled);
+      add(b.root);
     };
     const toLab = () => this.scene.start('lab', { from: 'result' });
     const toLobby = () => this.scene.start('lobby');
     if (clear) {
       button(360, 1065, 600, next ? `다음 단계 — ${next.name}` : `${this.stage.id + 1}단계 해금 (준비 중)`, !!next, () => enterBattle(this, { stageId: next!.id, difficulty: this.difficulty }, { restart: true }));
-      button(160, 1180, 190, '재도전 (R)', true, () => this.retry());
-      button(360, 1180, 190, '성장 연구소', true, toLab, 0x7a5a12);
-      button(560, 1180, 190, '로비', true, toLobby, 0x3a4458);
+      button(160, 1180, 196, '재도전', true, () => this.retry(), 'primary');
+      button(360, 1180, 196, '성장 연구소', true, toLab, 'growth');
+      button(560, 1180, 196, '로비', true, toLobby, 'secondary');
     } else {
-      button(360, 1065, 600, '재도전 (R)', true, () => this.retry());
-      button(205, 1180, 290, '성장 연구소', true, toLab, 0x7a5a12);
-      button(515, 1180, 290, '로비', true, toLobby, 0x3a4458);
+      button(360, 1065, 600, '재도전', true, () => this.retry(), 'primary');
+      button(205, 1180, 290, '성장 연구소', true, toLab, 'growth');
+      button(515, 1180, 290, '로비', true, toLobby, 'secondary');
     }
   }
 
