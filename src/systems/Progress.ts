@@ -1,3 +1,4 @@
+import { hardStage } from '../data/hardStages';
 import { newStamina, type StaminaState } from './Stamina';
 import {
   newMailbox, sanitizeMailbox, sanitizeStamina, grantClearGift, claimOne, claimAll, spendStamina, syncCampaigns, pruneMailbox,
@@ -79,6 +80,8 @@ export interface DifficultyProgress {
   unlocked: number[]; // 이 난이도에서 해금된 단계
   cleared: number[]; // 클리어한 서로 다른 단계 ID(진행도)
   claimed: number[]; // 받은 진행도 상자(25·50·100)
+  /** 단계별 최고 기록(클리어 시간 ms, 짧을수록 좋음) — 어려움 기획서 9장, 2026-11-21. 예전 저장에는 없음 → 빈 값 */
+  best?: Record<string, number>;
 }
 
 /** 원문 EquipmentItem */
@@ -146,7 +149,7 @@ export interface Store {
 }
 
 const dragonState = (id: DragonId, unlocked = false): DragonProgress => ({ dragonId: id, unlocked, level: 1, stars: 1, cards: 0, fragments: 0 });
-const emptyDiff = (): DifficultyProgress => ({ unlocked: [1], cleared: [], claimed: [] });
+const emptyDiff = (): DifficultyProgress => ({ unlocked: [1], cleared: [], claimed: [], best: {} });
 
 export function defaultProgress(now = Date.now()): PlayerProgress {
   return {
@@ -165,7 +168,7 @@ export function defaultProgress(now = Date.now()): PlayerProgress {
     txIds: [],
     dragons: Object.fromEntries(DRAGON_ORDER.map((id) => [id, dragonState(id, id === 'red')])) as Record<DragonId, DragonProgress>,
     summon: { tenPity: 0, legendaryPity: 0, legacyTickets: 1, totalOpens: 0 }, // 튜토리얼 무료 개봉권 1장(기존 튜토리얼 소환권)
-    difficulty: { easy: emptyDiff(), hard: { unlocked: [], cleared: [], claimed: [] }, extreme: { unlocked: [], cleared: [], claimed: [] } },
+    difficulty: { easy: emptyDiff(), hard: { unlocked: [], cleared: [], claimed: [], best: {} }, extreme: { unlocked: [], cleared: [], claimed: [], best: {} } },
     equipment: { items: [], equipped: { weapon: null, armor: null, necklace: null, ring: null }, nextUid: 1 },
     specials: Object.fromEntries(SPECIAL_IDS.map((id) => [id, { fragments: 0, unlocked: false }])) as Record<SpecialId, SpecialState>,
     equippedSpecial: null,
@@ -214,6 +217,11 @@ export function sanitize(raw: Record<string, unknown>): PlayerProgress {
       unlocked: ints(o.unlocked, 1, STAGE_COUNT),
       cleared: ints(o.cleared, 1, STAGE_COUNT),
       claimed: ints(o.claimed, 0, 100).filter((n) => (PROGRESS_STEPS as readonly number[]).includes(n)),
+      best: Object.fromEntries(
+        Object.entries((o.best ?? {}) as Record<string, unknown>)
+          .filter(([s, v]) => Number(s) >= 1 && Number(s) <= STAGE_COUNT && typeof v === 'number' && v > 0 && v < 3_600_000)
+          .map(([s, v]) => [String(Number(s)), Math.round(v as number)]),
+      ),
     };
   }
   // 쉬움은 항상 1단계부터. 4·5단계 저장의 해금 목록도 합친다.
@@ -491,6 +499,16 @@ export function settleRun(
       const cur = next.difficulty[diff];
       const first = !cur.cleared.includes(run.stageId);
       if (first) next = setDiff(next, diff, { ...cur, cleared: [...cur.cleared, run.stageId].sort((a, b) => a - b) });
+      // 단계별 최고 기록(난이도마다 따로)
+      const bestNow = next.difficulty[diff].best ?? {};
+      const prevBest = bestNow[String(run.stageId)];
+      if (!prevBest || run.elapsedMs < prevBest) next = setDiff(next, diff, { ...next.difficulty[diff], best: { ...bestNow, [String(run.stageId)]: Math.round(run.elapsedMs) } });
+      // 어려움 최초 클리어 루비(기본 클리어 보상과 따로, 1회만 — 5·10·15·20단계는 특별 보상 포함)
+      if (first && diff === 'hard') {
+        const cr = hardStage(run.stageId).clearReward;
+        next = { ...next, rubies: next.rubies + cr.rubies };
+        rewards.push({ id: `hard-first:${run.stageId}`, text: `어려움 ${run.stageId}단계 최초 클리어${cr.milestone ? ' 특별 보상' : ''}`, rubies: cr.rubies });
+      }
       // 8단계: 스테이지·난이도별 최초 클리어 → 행동력 20을 선물함으로(바로 더하지 않음, 1회만)
       const gift = grantClearGift(next, diff, run.stageId, `${DIFFICULTY_LABEL[diff]} ${run.stageId}단계`, now);
       if (gift.added) {

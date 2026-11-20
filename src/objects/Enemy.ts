@@ -53,6 +53,21 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
   maxHp: number;
   damageMult = 1; // 스테이지 피해 배율 × 엘리트 흡수 강화 × 격노
   speedMult = 1; // 격노
+  // ── 어려움 모드 기믹(2026-11-21, src/data/hardStages.ts). 쉬움에서는 모두 기본값 → 기존과 같다 ──
+  /** 공격 주기 배율(1.1 = 공격 간격 약 −10%). 이동속도와 따로 */
+  patternSpeed = 1;
+  /** 보스 공격 범위 배율(장면이 예고·판정에 곱함) */
+  areaMult = 1;
+  /** 투사체 패턴 +n발 부채꼴 */
+  projBonus = 0;
+  /** 보스 2마리 역할 분리: 근거리 패턴만 / 원거리 패턴만 */
+  patternFilter: 'melee' | 'ranged' | null = null;
+  /** 원형·직선 공격 뒤 짧은 지연 2차 공격 */
+  echo = false;
+  /** 원형 공격 뒤 위험 지대가 남음 */
+  lingers = false;
+  /** 같은 그룹 공격 순서 조정(장면이 정함). false면 이번엔 기다림 */
+  static attackGate: ((e: Enemy) => boolean) | null = null;
   phase = 1; // 보스 페이즈(60%에서 2)
   /** 엘리트 1·2 구분(UI 슬롯·흡수 효과) */
   eliteSlot = 0;
@@ -268,8 +283,12 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
     this.setRotation(aim);
 
     // 3) 패턴 고르기
-    this.patternCd -= delta * this.speedMult;
-    if (this.patternCd <= 0) out.push(...this.choosePattern(target, dist, arena));
+    this.patternCd -= delta * this.speedMult * this.patternSpeed;
+    if (this.patternCd <= 0) {
+      // 어려움: 엘리트·보스 여러 마리가 동시에 큰 공격을 시작하지 않게(번갈아)
+      if (this.def.rank !== 'normal' && Enemy.attackGate && !Enemy.attackGate(this)) this.patternCd = 300;
+      else out.push(...this.choosePattern(target, dist, arena));
+    }
     return out;
   }
 
@@ -361,7 +380,12 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
 
   /** 패턴을 차례로 사용(시드 재현). HP 50% 이하면 강화 목록, 25% 이하면 대기시간 15% 단축. 근접 패턴은 가까워질 때까지 기다린다. */
   private runModule(toT: number, dist: number, arena: Arena): EnemyAction[] {
-    const list = this.phase === 2 && this.def.patterns2 ? this.def.patterns2 : this.def.patterns ?? [];
+    const full = this.phase === 2 && this.def.patterns2 ? this.def.patterns2 : this.def.patterns ?? [];
+    // 어려움 보스 역할 분리: 근거리(돌진·부채꼴·충격파·자기 주변) / 원거리(투사체·구체·직선·플레이어 위치). 해당 패턴이 없으면 전체
+    const f = this.patternFilter;
+    const melee = (s: PatternSpec) => s.t === 'charge' || s.t === 'cone' || s.t === 'shockwave' || s.t === 'ring' || s.t === 'teleport' || s.t === 'shield' || (s.t === 'area' && s.at === 'self');
+    const picked = f ? full.filter((s) => s.t === 'summon' || (f === 'melee' ? melee(s) : !melee(s))) : full;
+    const list = picked.length ? picked : full;
     if (list.length === 0) {
       this.patternCd = 99999;
       return [];
@@ -382,8 +406,11 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
   private runSpec(spec: PatternSpec, toT: number, arena: Arena): EnemyAction[] {
     const T = TELEGRAPH;
     switch (spec.t) {
-      case 'projectile':
-        return this.fire(toT, spec.count, spec.spread, spec.speed, spec.damage, spec.size ?? 1, !!spec.radial, spec.repeat ?? 1);
+      case 'projectile': {
+        // 어려움 11단계: 보스 원거리 공격이 부채꼴로 +n발(방사형은 그대로)
+        const extra = spec.radial ? 0 : this.projBonus;
+        return this.fire(toT, spec.count + extra, spec.spread + extra * 0.25, spec.speed, spec.damage, spec.size ?? 1, !!spec.radial, spec.repeat ?? 1);
+      }
       case 'charge': {
         for (let i = 0; i < spec.count; i++) {
           this.queue.push({ kind: 'hold', ms: i === 0 ? T.charge : 700 }, { kind: 'dash', ms: spec.ms, speed: spec.speed });

@@ -1,4 +1,5 @@
 import type { Difficulty } from './economy';
+import { hardStage } from './hardStages';
 
 // 개발 6단계 v1.2 10·11장 — 전투력(CP)과 권장 전투력. 진입 제한이 아닌 안내 수치.
 // CP = 1000 × (A÷10)^0.75 × (H÷100)^0.35 × (V÷260)^0.15 × (1 + S)   (원문)
@@ -21,8 +22,11 @@ export function combatPower(A: number, H: number, V: number, S: number): number 
 export const RECOMMENDED_EASY = [900, 960, 1020, 1080, 1150, 1220, 1300, 1380, 1460, 1550, 1640, 1730, 1820, 1920, 2020, 2120, 2220, 2320, 2410, 2500];
 const DIFF_MULT: Record<Difficulty, number> = { easy: 1, hard: 1.5, extreme: 2.2 };
 
+/** 어려움은 단계별 배율 ×1.50~×2.00(어려움 기획서 4장, 2026-11-21). 매우 어려움은 아직 일괄 ×2.2(미출시) */
 export function recommendedCp(stageId: number, d: Difficulty): number {
-  return Math.round(RECOMMENDED_EASY[Math.max(1, Math.min(20, stageId)) - 1] * DIFF_MULT[d]);
+  const s = Math.max(1, Math.min(20, stageId));
+  const m = d === 'hard' ? hardStage(s).recommendedPowerMultiplier : DIFF_MULT[d];
+  return Math.round(RECOMMENDED_EASY[s - 1] * m);
 }
 
 /** 입장 비교 문구(원문 계산기): 100% 이상 권장 이상 · 80% 이상 도전 가능 · 그 아래 성장 권장. 입장은 항상 허용. */

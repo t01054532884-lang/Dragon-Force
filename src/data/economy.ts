@@ -31,10 +31,11 @@ export type Difficulty = 'easy' | 'hard' | 'extreme';
 export const DIFFICULTIES: Difficulty[] = ['easy', 'hard', 'extreme'];
 export const DIFFICULTY_LABEL: Record<Difficulty, string> = { easy: '쉬움', hard: '어려움', extreme: '매우 어려움' };
 /** 첫 출시: 쉬움만 입장(제작자 결정 2026-11-18). 어려움·매우 어려움은 데이터·진행도 저장은 유지하고 "출시 예정"으로만 표시 */
-export const DIFFICULTY_RELEASED: Record<Difficulty, boolean> = { easy: true, hard: false, extreme: false };
+// 어려움 1~20단계 출시(제작자 기획서 2026-11-21). 매우 어려움은 아직 "출시 예정"
+export const DIFFICULTY_RELEASED: Record<Difficulty, boolean> = { easy: true, hard: true, extreme: false };
 export const DIFFICULTY_MULT: Record<Difficulty, { hp: number; damage: number }> = {
   easy: { hp: 1, damage: 1 },
-  hard: { hp: 1.5, damage: 1.25 }, // AI 1차안
+  hard: { hp: 1.5, damage: 1.25 }, // (쓰지 않음) 어려움은 단계별 표 src/data/hardStages.ts가 대신한다(2026-11-21)
   extreme: { hp: 2.2, damage: 1.5 }, // AI 1차안(한 방 35% 상한은 그대로)
 };
 export const STAGE_COUNT = 20; // 진행도 분모는 20 고정(미구현 단계도 분모에 포함)

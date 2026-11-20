@@ -127,6 +127,8 @@ export interface RunSummary {
   treasureGold: number; // 보물 더미 카드로 모은 골드(전투 중 임시 기록)
   /** 전투 중 주운 골드(단계 배율 전, 상한 killGoldCap) */
   coinGold?: number;
+  /** 난이도 골드 배율(어려움 1.5 — 2026-11-21, 쉬움 1) */
+  goldMult?: number;
 }
 
 export interface GoldBreakdown {
@@ -162,6 +164,6 @@ export function computeRunGold(r: RunSummary, goldBonus = 0): GoldBreakdown {
   const stageMult = stageGoldMult(r.stageId);
   const resultMult = clear ? 1 : r.outcome === 'quit' && r.elapsedMs < GOLD.quitGraceMs ? 0 : GOLD.failRate;
   // 배율을 모두 곱한 뒤 최종 금액만 버림(v1.1 4번)
-  const total = Math.floor(subtotal * stageMult * resultMult + 1e-9);
+  const total = Math.floor(subtotal * stageMult * resultMult * (r.goldMult ?? 1) + 1e-9);
   return { lines, subtotal, stageMult, resultMult, total };
 }

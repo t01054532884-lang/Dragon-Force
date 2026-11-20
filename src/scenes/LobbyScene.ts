@@ -4,6 +4,7 @@ import { STAGES } from '../data/stages';
 import { DRAGON_ORDER, DRAGONS, ELEMENT_LABEL, RARITY_COLOR, RARITY_LABEL } from '../data/dragons';
 import { DIFFICULTIES, DIFFICULTY_LABEL, DIFFICULTY_RELEASED, STAGE_COUNT, type Difficulty } from '../data/economy';
 import { cpVerdict, recommendedCp } from '../data/power';
+import { hardStage } from '../data/hardStages';
 import { attendedToday, claimableMissions, eventActive, eventState, progressPct, Progress, spinsAvailable } from '../systems/Progress';
 import { loadout } from '../systems/Loadout';
 import { pendingGifts, staminaNow } from '../systems/Mailbox';
@@ -201,7 +202,17 @@ export class LobbyScene extends Phaser.Scene {
     const isOpen = unlocked.includes(this.stageId);
     const cleared = p.difficulty[curDiff].cleared.includes(this.stageId);
     stageText.setText(`${this.stageId}단계 — ${s ? s.name : '준비 중'}`);
-    sub.setText(!s ? '아직 만들지 않은 단계예요' : !isOpen ? `${this.stageId - 1}단계를 클리어하면 열려요` : cleared ? '클리어함 · 반복 클리어 시 카드 1장' : '첫 클리어: 드래곤 카드 2장 + 행동력 20(선물함)');
+    // 어려움: 단계 이름·특수 기믹·최초 클리어 루비·최고 기록(기획서 9장)
+    const hs = curDiff === 'hard' ? hardStage(this.stageId) : null;
+    const bestMs = p.difficulty[curDiff].best?.[String(this.stageId)];
+    const bestTxt = bestMs ? ` · 최고 ${Math.floor(bestMs / 60000)}:${String(Math.floor(bestMs / 1000) % 60).padStart(2, '0')}` : '';
+    if (hs) stageText.setText(`어려움 ${this.stageId} — ${hs.title}`);
+    sub.setText(
+      !s ? '아직 만들지 않은 단계예요' :
+      !isOpen ? `${this.stageId === 1 ? '쉬움 20단계' : `어려움 ${this.stageId - 1}단계`}를 클리어하면 열려요` :
+      hs ? `${hs.mechanicText}${cleared ? `${bestTxt} · 반복 골드 ×1.5` : ` · 최초 💎${hs.clearReward.rubies}`}` :
+      cleared ? `클리어함 · 반복 클리어 시 카드 1장${bestTxt}` : '첫 클리어: 드래곤 카드 2장 + 행동력 20(선물함)',
+    );
     const rec = recommendedCp(this.stageId, curDiff);
     const v = cpVerdict(lo.cp, rec);
     cpLine.setText(`권장 전투력 ${rec.toLocaleString()} · 현재 ${lo.cp.toLocaleString()} — ${v.text}`).setColor(v.color);

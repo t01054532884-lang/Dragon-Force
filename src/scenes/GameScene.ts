@@ -35,6 +35,7 @@ import { decideDrop, ITEM_RULES, ITEMS, newDropState, type DropState, type ItemI
 import { GEM_MERGE, gemTier, mergeGroups } from '../systems/GemMerge';
 import { chapterOf, SEASON1_FINALE } from '../data/season1';
 import { enterBattle } from '../ui/entry';
+import { HARD_GOLD_MULT, hardStage, type HardStageDef } from '../data/hardStages';
 
 /** 적 투사체(직선탄·추적 구체) */
 interface EnemyShot {
@@ -92,7 +93,12 @@ export class GameScene extends Phaser.Scene {
   private xp = 0;
   private pendingLevelUps = 0;
   /** 선택창 대기열: 레벨업 카드와 스킬 강화 상자가 겹치지 않게 들어온 순서대로 연다(v1.2) */
-  private choiceQueue: ('level' | 'box')[] = [];
+  private choiceQueue: ('level' | 'box' | 'start')[] = [];
+  /** 어려움 단계 설정(쉬움이면 null) */
+  private hard: HardStageDef | null = null;
+  /** 어려움 8단계: 보스 공격 뒤 남는 위험 지대 */
+  private dangerZones: { x: number; y: number; r: number; left: number; dmg: number; src: Enemy; g: Phaser.GameObjects.Arc }[] = [];
+  private bossTexts: Phaser.GameObjects.Text[] = [];
   private items!: Phaser.Physics.Arcade.Group;
   /** 아이템 전용 난수: 적 생성 난수와 분리해 기존 시드의 적 등장이 그대로 재현되게 함 */
   private itemRng!: Phaser.Math.RandomDataGenerator;
@@ -235,6 +241,11 @@ export class GameScene extends Phaser.Scene {
     this.xp = 0;
     this.pendingLevelUps = 0;
     this.choiceQueue = [];
+    // 어려움: 단계별 설정(전장 크기·적 배율·엘리트/보스 수·기믹). 쉬움은 기존 그대로
+    this.hard = this.difficulty === 'hard' ? hardStage(this.stage.id) : null;
+    this.arena = { x: WORLD_SIZE / 2, y: WORLD_SIZE / 2, r: ARENA_R * (this.hard?.arenaSizeMultiplier ?? 1) };
+    this.dangerZones = [];
+    this.bossTexts = [];
     this.itemRng = new Phaser.Math.RandomDataGenerator([`${this.seed}:items`]);
     this.shieldUntil = 0;
     this.itemLog = { drop: {}, pick: {}, shieldBlocks: 0 };
@@ -362,14 +373,27 @@ export class GameScene extends Phaser.Scene {
           if (name === 'boss:warning') playMusic(this, 'bgm-boss'); // 보스 경고부터 보스전 곡
         },
         fail: (reason) => this.fail(reason),
+        enemyAction: (e, act) => this.doEnemyAction(e, act),
+        aura: (e, color) => {
+          // 강화·광폭화 오라: 적을 따라다니며 숨 쉬는 붉은 고리(공격 예고와 다른 모양 — 채움 없이 테두리만)
+          const ring = this.add.circle(e.x, e.y, e.def.radius + 18).setStrokeStyle(6, color, 0.85).setDepth(7);
+          this.tweens.add({ targets: ring, scale: 1.15, alpha: 0.4, duration: 450, yoyo: true, repeat: -1 });
+          this.followFx.push({ obj: ring, target: e, left: Infinity });
+        },
       },
       this.stage,
-      DIFFICULTY_MULT[this.difficulty],
+      this.hard ? { hp: this.hard.enemyHpMultiplier, damage: this.hard.enemyDamageMultiplier } : DIFFICULTY_MULT[this.difficulty],
+      this.hard,
     );
     playMusic(this, 'bgm-battle');
     this.moveTip = [];
     if (!tipSeen('battle-move')) this.showMoveTip();
-    this.banner(`${this.stage.id}단계 — ${this.stage.name}${this.difficulty === 'easy' ? '' : ` (${DIFFICULTY_LABEL[this.difficulty]})`}`, '#e0e0e0');
+    this.banner(this.hard ? `어려움 ${this.stage.id}단계 — ${this.hard.title}\n${this.hard.mechanicText}` : `${this.stage.id}단계 — ${this.stage.name}${this.difficulty === 'easy' ? '' : ` (${DIFFICULTY_LABEL[this.difficulty]})`}`, this.hard ? '#ff8a80' : '#e0e0e0');
+    // 어려움: 전투 시작 직후 스킬 카드 3번 고르기(시간 정지, 경험치 추가 없음)
+    if (this.hard) {
+      for (let k = 0; k < this.hard.startingSkillChoices; k++) this.choiceQueue.push('start');
+      this.openNext();
+    }
   }
 
   /** 원형 투기장: 안쪽은 잿빛 돌바닥, 가장자리는 돌벽, 바깥은 어둠 */
@@ -506,14 +530,25 @@ export class GameScene extends Phaser.Scene {
       g.fillStyle(slotColor[st]).fillTriangle(cx, cy - 14, cx + 12, cy, cx - 12, cy).fillTriangle(cx, cy + 14, cx + 12, cy, cx - 12, cy);
     });
 
-    const boss = d.boss?.active ? d.boss : null;
+    const bossList = d.bosses.filter((b) => b.active);
+    const boss = bossList[0] ?? null;
+    this.bossTexts.forEach((t) => t.setText(''));
     if (boss) {
-      // 보스: 화면 전체 너비 체력바 + 60% 패턴 변화 지점 표시
-      const r = Phaser.Math.Clamp(boss.hp / boss.maxHp, 0, 1);
-      g.fillStyle(COLOR.outline, 0.9).fillRoundedRect(20, 240, 680, 26, 8);
-      g.fillStyle(d.enraged ? 0xff1744 : 0xc62828).fillRoundedRect(23, 243, Math.max(8, 674 * r), 20, 6);
-      g.fillStyle(0xffffff).fillRect(23 + 674 * 0.6 - 2, 238, 4, 30);
-      this.bossText.setText(`${boss.def.name}${d.enraged ? ' — 격노!' : boss.phase === 2 ? ' — 분노' : ''}`);
+      // 보스: 화면 전체 너비 체력바 + 패턴 변화 지점 표시. 어려움 2마리면 반폭 막대 두 개(보스별 구분)
+      const two = d.bosses.length > 1;
+      d.bosses.forEach((b, k) => {
+        const w = two ? 330 : 680;
+        const x0 = two ? 20 + k * 350 : 20;
+        const r = b.active ? Phaser.Math.Clamp(b.hp / b.maxHp, 0, 1) : 0;
+        g.fillStyle(COLOR.outline, 0.9).fillRoundedRect(x0, 240, w, 26, 8);
+        if (r > 0) g.fillStyle(d.enraged || b.patternSpeed > 1.05 ? 0xff1744 : 0xc62828).fillRoundedRect(x0 + 3, 243, Math.max(8, (w - 6) * r), 20, 6);
+        g.fillStyle(0xffffff).fillRect(x0 + 3 + (w - 6) * (b.def.phaseAt ?? 0.6) - 2, 238, 4, 30);
+        if (two) {
+          if (!this.bossTexts[k]) this.bossTexts[k] = this.add.text(0, 0, '', { fontFamily: 'sans-serif', fontSize: '20px', color: '#ffffff', stroke: '#000000', strokeThickness: 5 }).setOrigin(0.5, 1).setScrollFactor(0).setDepth(UI_DEPTH + 1);
+          this.bossTexts[k].setPosition(x0 + w / 2, 236).setText(b.active ? `${k === 0 ? '◀' : ''}${b.def.name}${b.phase === 2 ? ' 분노' : ''}${k === 1 ? '▶' : ''}` : '처치!');
+        }
+      });
+      this.bossText.setText(two ? '' : `${boss.def.name}${d.enraged ? ' — 격노!' : boss.phase === 2 ? ' — 분노' : ''}`);
       this.eliteText.setText(d.bossBuffs.length ? `잔존 엘리트: ${d.bossBuffs.join(' · ')}` : '');
       this.eliteText.setY(292);
     } else {
@@ -526,7 +561,8 @@ export class GameScene extends Phaser.Scene {
         g.fillStyle(0x000000, 0.7).fillRect(160, y, 400, 14);
         g.fillStyle(0xff9800).fillRect(162, y + 2, 396 * r, 10);
       });
-      this.eliteText.setY(240).setText(alive.map((e) => `엘리트 ${e.eliteSlot} · ${e.def.name}`).join('\n'));
+      // 엘리트 여러 마리: 막대는 마리마다, 이름 줄은 너무 길어지지 않게 3줄까지
+      this.eliteText.setY(240).setText(alive.slice(0, 3).map((e) => `엘리트 ${e.eliteSlot} · ${e.def.name}`).join('\n'));
       this.eliteText.setLineSpacing(18);
     }
 
@@ -815,6 +851,17 @@ export class GameScene extends Phaser.Scene {
       z.g.setAlpha(Math.min(1, z.left / 500));
       return true;
     });
+    // 어려움 8단계 위험 지대: 안에 있으면 피해(일반 무적 시간 적용), 시간이 지나면 사라짐
+    this.dangerZones = this.dangerZones.filter((z) => {
+      z.left -= delta;
+      if (Phaser.Math.Distance.Between(z.x, z.y, px, py) < z.r + 12) this.damagePlayer(z.dmg, z.src);
+      if (z.left <= 0) {
+        z.g.destroy();
+        return false;
+      }
+      z.g.setAlpha(Math.min(1, z.left / 400));
+      return true;
+    });
     this.followFx = this.followFx.filter((f) => {
       f.left -= delta;
       if (f.left <= 0 || !f.target.active) {
@@ -833,6 +880,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private clearEnemyShots(): void {
+    this.dangerZones.forEach((z) => z.g.destroy());
+    this.dangerZones = [];
     this.enemyShots.forEach((s) => s.img.destroy());
     this.slowZones.forEach((z) => z.g.destroy());
     this.followFx.forEach((f) => f.obj.destroy());
@@ -842,7 +891,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** 적의 행동을 그림과 판정으로 바꾼다. 위험 공격은 붉은 바닥 예고 → 시간이 지나면 판정. */
-  private doEnemyAction(e: Enemy, act: EnemyAction): void {
+  private doEnemyAction(e: Enemy, act0: EnemyAction): void {
+    // 어려움 3단계: 보스 공격 범위 배율(예고와 판정이 같은 값을 쓴다, 예고 시간은 그대로)
+    const act = e.areaMult !== 1 ? scaleAction(act0, e.areaMult) : act0;
+    // 어려움 16·18단계: 원형·직선·부채꼴 공격 뒤 짧은 지연 2차 공격(새 예고와 함께 — 피할 수 있게)
+    const echoed = (act0 as { echoed?: boolean }).echoed;
+    if (e.echo && !echoed && (act.kind === 'circleHit' || act.kind === 'lineHit' || act.kind === 'coneHit')) {
+      this.hazards.push({ left: act.ms + 450, objs: [], run: () => e.active && this.doEnemyAction(e, { ...act0, echoed: true } as unknown as EnemyAction) });
+    }
     switch (act.kind) {
       case 'lineWarn': {
         const g = this.add.graphics().setDepth(4);
@@ -886,6 +942,13 @@ export class GameScene extends Phaser.Scene {
             if (Phaser.Math.Distance.Between(act.x, act.y, this.player.x, this.player.y) < act.r + 18) {
               this.damagePlayer(dmg, e, true);
               if (act.slowPlayer) this.slowPlayerFor(1500, 0.35);
+            }
+            // 어려움 8단계: 보스 원형 공격 자리에 위험 지대가 잠시 남음(최대 3개 — 맵 전체를 덮지 않게)
+            if (e.lingers && e.active) {
+              if (this.dangerZones.length >= 3) this.dangerZones.shift()!.g.destroy();
+              const zr = act.r * 0.7;
+              const g = this.add.circle(act.x, act.y, zr, 0xff6d00, 0.22).setStrokeStyle(3, 0xff9100, 0.8).setDepth(3);
+              this.dangerZones.push({ x: act.x, y: act.y, r: zr, left: 2500, dmg: dmg * 0.25, src: e, g });
             }
           },
         });
@@ -1068,15 +1131,18 @@ export class GameScene extends Phaser.Scene {
       this.director.onNormalKill();
     }
     const d = this.director;
-    if (enemy === d.boss) {
+    if (d.isBoss(enemy)) {
       this.fx.bossDie(enemy.x, enemy.y, enemy.def.radius);
       playSfx(this, 'sfx-boss-die');
-      d.onBossKilled(this.elapsed);
+      const all = d.onBossKilled(enemy, this.elapsed); // 어려움 보스 2마리: 모두 잡아야 클리어
       enemy.destroy();
-      this.clearSequence();
+      if (all) this.clearSequence();
       return;
     }
-    if (enemy.rank === 'elite' && d.onEliteKilled(enemy, this.elapsed)) {
+    const eliteRes = enemy.rank === 'elite' ? d.onEliteKilled(enemy, this.elapsed) : false;
+    if (eliteRes === 'member') {
+      this.dropGem(enemy.x, enemy.y, enemy.def.xp); // 무리 중 한 마리: 경험치만(상자·회복은 무리를 다 잡았을 때 한 번)
+    } else if (eliteRes === 'slot') {
       this.eliteKills++; // onEliteKilled가 슬롯마다 한 번만 true → 엘리트 보상도 한 번만
       this.spawnItem('box', enemy.x, enemy.y, true); // 엘리트: 스킬 강화 상자 확정(획득 전까지 유지)
       // 엘리트 처치 보상(한 번만): 대형 경험치 결정 + 최대 HP 12% 회복
@@ -1187,7 +1253,8 @@ export class GameScene extends Phaser.Scene {
   /** 대기열 맨 앞의 선택창을 연다(전투 중일 때만). 레벨업이 여러 번이면 하나씩 차례로. */
   private openNext(): void {
     if (this.mode !== 'play' || this.choiceQueue.length === 0) return;
-    if (this.choiceQueue[0] === 'level') this.openChoice();
+    if (this.choiceQueue[0] === 'start') this.openStartChoice();
+    else if (this.choiceQueue[0] === 'level') this.openChoice();
     else this.openBox();
   }
 
@@ -1196,6 +1263,24 @@ export class GameScene extends Phaser.Scene {
     const choices = rollOffer({ levels: this.upgradeLevels, playerLevel: reached, basicEverOffered: this.basicEverOffered }, () => this.rng.frac());
     if (choices.some((u) => u.kind === 'basic')) this.basicEverOffered = true;
     this.showCards(`레벨 업! Lv.${reached}`, '', choices, false);
+  }
+
+  /**
+   * 어려움 시작 스킬 3장(기획서 3장): 첫 장은 공격 스킬을 반드시 포함, 둘째 장은 공격·범위 강화 포함(초반 새 액티브 보장 규칙과 같음),
+   * 셋째 장은 자유. 레벨·경험치는 그대로(무료 제공), 카드에는 전후 수치·조합 태그가 그대로 보인다.
+   */
+  private openStartChoice(): void {
+    const total = this.hard?.startingSkillChoices ?? 3;
+    const k = total - this.choiceQueue.filter((c) => c === 'start').length + 1;
+    const choices = rollOffer({ levels: this.upgradeLevels, playerLevel: k + 1, basicEverOffered: this.basicEverOffered }, () => this.rng.frac());
+    if (k === 2 && !choices.some((u) => u.kind === 'active' || u.id === 'reach' || u.id === 'amp')) {
+      // 둘째 장 보장: 공격 또는 범위 강화가 없으면 마지막 장을 액티브 강화(또는 마력 확장)로
+      const alt = UPGRADES.find((u) => u.kind === 'active' && (this.upgradeLevels.get(u.id) ?? 0) > 0 && (this.upgradeLevels.get(u.id) ?? 0) < u.maxLevel)
+        ?? UPGRADES.find((u) => u.id === 'reach' && (this.upgradeLevels.get(u.id) ?? 0) < u.maxLevel);
+      if (alt && !choices.includes(alt)) choices[choices.length - 1] = alt;
+    }
+    if (choices.some((u) => u.kind === 'basic')) this.basicEverOffered = true;
+    this.showCards(`시작 스킬 ${k}/${total}`, '어려움: 전투 전에 스킬을 하나씩 골라요', choices, false);
   }
 
   /** 스킬 강화 상자: 이미 가진 기본공격·액티브 중 더 올릴 수 있는 것 최대 3개 (새 스킬 없음) */
@@ -1451,7 +1536,8 @@ export class GameScene extends Phaser.Scene {
     this.invulnerable = true;
     // 5) 남은 경험치 자동 회수는 update의 pullGems(true)
     // 7) 2.5초 클리어 연출 + 8) 황금 탈출 포털
-    this.banner(`${this.director.boss?.def.name ?? '보스'} 처치!`, '#ffd34d');
+    this.banner(`${this.director.boss?.def.name ?? '보스'}${this.director.bosses.length > 1 ? ' 둘 다' : ''} 처치!`, '#ffd34d');
+    if (this.hard?.specialMechanic.finale) this.finaleFx(); // 어려움 20단계 전용 클리어 연출
     this.cameras.main.flash(500, 255, 220, 120);
     const px = this.player.x;
     const py = this.player.y - 200;
@@ -1460,6 +1546,20 @@ export class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: portal, radius: 70, duration: 1200, ease: 'Back.Out' });
     this.tweens.add({ targets: ring, radius: 95, alpha: 0.4, duration: 900, yoyo: true, repeat: -1 });
     this.time.delayedCall(2500, () => this.showResult(true));
+  }
+
+  /** 어려움 20단계 전용 클리어 연출: 금빛 폭죽 고리 여러 번 + 큰 문구 */
+  private finaleFx(): void {
+    const colors = [0xffd34d, 0xff8a65, 0x9be7ff, 0xb693ff];
+    for (let i = 0; i < 6; i++) {
+      this.time.delayedCall(250 + i * 260, () => {
+        const x = this.player.x + (Math.random() - 0.5) * 420;
+        const y = this.player.y - 120 + (Math.random() - 0.5) * 300;
+        const c = this.add.circle(x, y, 10).setStrokeStyle(8, colors[i % colors.length], 1).setDepth(UI_DEPTH - 2);
+        this.tweens.add({ targets: c, radius: 120, alpha: 0, duration: 700, onComplete: () => c.destroy() });
+      });
+    }
+    this.time.delayedCall(600, () => this.banner('드래곤의 최종 시련 정복!', '#ffd34d'));
   }
 
   private fail(reason: 'dead' | 'timeout' | 'quit'): void {
@@ -1598,6 +1698,7 @@ export class GameScene extends Phaser.Scene {
       eliteKills: this.eliteKills,
       bossKilled: this.director.record.bossKillMs != null,
       treasureGold: this.treasureGold,
+      goldMult: this.hard ? HARD_GOLD_MULT : 1,
       coinGold: this.coinGold,
     };
   }
@@ -1833,4 +1934,15 @@ function makeGemTextures(scene: Phaser.Scene): void {
   g.fillStyle(0xfff8e1, 1).fillRect(9, 6, 2, 10);
   g.generateTexture('coin', 22, 22);
   g.destroy();
+}
+
+/** 어려움 공격 범위 배율: 원형 반지름·부채꼴 길이·충격파 안팎·직선 폭에 같은 배율(예고·판정 모두 이 값을 씀) */
+function scaleAction(a: EnemyAction, m: number): EnemyAction {
+  switch (a.kind) {
+    case 'circleHit': return { ...a, r: a.r * m };
+    case 'coneHit': return { ...a, r: a.r * m };
+    case 'ringHit': return { ...a, inner: a.inner, outer: a.outer * m };
+    case 'lineHit': return { ...a, width: a.width * m };
+    default: return a;
+  }
 }

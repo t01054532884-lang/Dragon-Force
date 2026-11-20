@@ -16,6 +16,7 @@ export interface BotOpt {
   hp?: number;
   sig?: boolean;
   maxSec?: number;
+  difficulty?: 'easy' | 'hard';
 }
 
 export function installBot(game: Phaser.Game): void {
@@ -27,12 +28,16 @@ function run(game: Phaser.Game, opt: BotOpt): Promise<unknown> {
   g.loop.wake();
   for (const s of game.scene.getScenes(true)) if (s.scene.key !== 'game') game.scene.stop(s.scene.key);
   if (game.scene.isActive('game')) game.scene.stop('game');
-  game.scene.start('game', { stageId: opt.stage, dragonId: opt.dragon ?? 'red', seed: opt.seed ?? 1, difficulty: 'easy' });
+  game.scene.start('game', { stageId: opt.stage, dragonId: opt.dragon ?? 'red', seed: opt.seed ?? 1, difficulty: opt.difficulty ?? 'easy' });
   return new Promise((resolve) => {
     const wait = () => {
       const s = game.scene.getScene('game') as Any;
-      if (s?.player && s.director && s.mode === 'play') play(g, s, opt, resolve);
-      else setTimeout(wait, 30);
+      // 어려움은 시작 스킬 고르기('choose')로 시작한다. 창이 숨겨져 화면 갱신이 멈춰 있어도 불러오기가 진행되게 직접 한 프레임씩
+      if (s?.sys.settings.status === 5 && s.player && s.director) play(g, s, opt, resolve);
+      else {
+        if (g.loop.frame === 0 || document.hidden) g.headlessStep(performance.now(), 16.667);
+        setTimeout(wait, 20);
+      }
     };
     setTimeout(wait, 30);
   });
@@ -64,6 +69,7 @@ function play(g: Any, s: Any, opt: BotOpt, resolve: (v: unknown) => void): void 
         });
         s.pickChoice(bi);
       }
+      if (s.mode === 'paused') s.closePause(); // 창이 숨겨지면 게임이 스스로 일시정지함
       if (s.mode === 'result') break;
       if (s.mode === 'play') steer(s, opt);
       if (s.level > lastLevel) {
