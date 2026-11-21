@@ -93,9 +93,9 @@ export function activityRewardIcon(r: ActivityReward): { image: string; emoji: s
   if (r.rubies) return { image: 'ui-ruby', emoji: '💎', amount: `${r.rubies}${r.tickets ? '+' : ''}` };
   if (r.gold) return { image: 'ui-gold', emoji: '🪙', amount: r.gold.toLocaleString() };
   if (r.pickCards) return { image: 'ui-card', emoji: '🃏', amount: `${r.pickCards}장` };
-  if (r.runeFragments) return { image: 'ui-fragment', emoji: '🔷', amount: `${r.runeFragments}개` };
+  if (r.runeFragments) return { image: 'ui-rune-fragment', emoji: '🔷', amount: `${r.runeFragments}개` }; // 룬 조각 전용 아이콘(드래곤 조각 ui-fragment와 구분)
   const t = r.tickets ?? {};
-  if (t.rune) return { image: 'chest-gold', emoji: '🎟', amount: `룬 ${t.rune}` };
+  if (t.rune) return { image: 'chest-rune', emoji: '🎟', amount: `룬 ${t.rune}` }; // 룬 상자 그림(예전 임시: 금 상자)
   if (t.equipment) return { image: 'chest-equipment', emoji: '🎟', amount: `장비 ${t.equipment}` };
   return { image: 'chest-dragon', emoji: '🎟', amount: `드래곤 ${t.dragon ?? 0}` };
 }
