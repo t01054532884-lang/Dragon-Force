@@ -67,5 +67,5 @@ export const CHEST_INNER: Record<Rarity, string | null> = { common: null, rare: 
  * 상자별 입구 높이(본체 그림 600×600 캔버스 기준 y). 빛 그림의 밑동(y≈485)을 이 높이에 맞춘다.
  * 기획자 상자 그림에서 잰 값(2026-11-19, 본체 윗면 가운데).
  */
-export const CHEST_MOUTH_Y: Record<'dragon' | 'equipment' | 'rune', number> = { dragon: 268, equipment: 205, rune: 255 };
+export const CHEST_MOUTH_Y: Record<'dragon' | 'equipment' | 'rune', number> = { dragon: 268, equipment: 205, rune: 360 }; // rune: 4차 묶음 그림(본체 윗면 347)
 export const INNER_BASE_Y = 485;

@@ -81,6 +81,10 @@ export const ART_FILES: Record<string, string> = {
   // v1.2 3차 묶음(scripts/process_art_batch10.py): 룬 조각·룬 상자(닫힌 상자만 — 여는 연출 body·lid는 아직)·골드 구매 3종
   'ui-rune-fragment': 'ui/ui-rune-fragment.webp',
   'chest-rune': 'chest-rune.webp',
+  // v1.2 4차 묶음(scripts/process_art_batch11.py): 룬 상자 여는 연출 본체·뚜껑 600×600, 새 드래곤 해금 마법진 8장(water·arcane 없음 → 도형)
+  'chest-rune-body': 'chest/chest-rune-body.webp',
+  'chest-rune-lid': 'chest/chest-rune-lid.webp',
+  ...Object.fromEntries(['fire', 'ice', 'lightning', 'poison', 'light', 'dark', 'earth', 'wind'].map((el) => [`sigil-${el}`, `sigil/sigil-${el}.webp`])),
   ...Object.fromEntries(['s', 'm', 'l'].map((k) => [`gold-pack-${k}`, `shop/gold-pack-${k}.webp`])),
 };
 
@@ -94,7 +98,7 @@ export function preloadKeys(scene: Phaser.Scene, keys: readonly string[]): void 
 
 /** 상자 개봉 연출 그림(본체·뚜껑 3종) */
 export const CHEST_LAYER_KEYS = [
-  ...(['dragon', 'equipment', 'gold'] as const).flatMap((b) => [`chest-${b}-body`, `chest-${b}-lid`]),
+  ...(['dragon', 'equipment', 'gold', 'rune'] as const).flatMap((b) => [`chest-${b}-body`, `chest-${b}-lid`]),
   'chest-inner-blue', 'chest-inner-purple', 'chest-inner-gold',
 ];
 
