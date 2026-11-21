@@ -28,6 +28,7 @@ export class ShopScene extends Phaser.Scene {
   private goldButtons: { btn: KitButton; rubies: number }[] = [];
   private pityRoot: Phaser.GameObjects.Container | null = null;
   private ticketText!: Phaser.GameObjects.Text;
+  private boxTicketButtons: { btn: KitButton; box: BoxId; desc: Phaser.GameObjects.Text }[] = [];
   private layer: Phaser.GameObjects.GameObject[] = [];
   private busy = false;
   private tx = 0;
@@ -55,6 +56,7 @@ export class ShopScene extends Phaser.Scene {
     if (!this.textures.exists('dragon-red')) makeTextures(this);
     this.layer = [];
     this.buttons = [];
+    this.boxTicketButtons = [];
     this.goldButtons = [];
     this.busy = false;
     this.opening = null;
@@ -94,8 +96,14 @@ export class ShopScene extends Phaser.Scene {
       if (box === 'rune' && !runeArt) img.setTint(0x9db4ff);
       card.add(img);
       card.add(text(this, 46, -58, def.name, TYPE.body, COLOR.text, true, true).setOrigin(0.5));
-      card.add(text(this, 46, -22, def.desc, 16, COLOR.textSub, true).setOrigin(0.5).setWordWrapWidth(170).setAlign('center'));
+      const desc = text(this, 46, -22, def.desc, 16, COLOR.textSub, true).setOrigin(0.5).setWordWrapWidth(170).setAlign('center');
+      card.add(desc);
       this.boxButtons(box, 905 + 56, 142, 58, TYPE.caption, x);
+      // 무료 개봉권(출석·활동 보상, 2026-11-21): 가진 만큼 1회씩
+      // 개봉권이 있으면 설명 자리에 버튼(설명은 숨김)
+      const tb = button(this, x + 46, 905 - 16, 196, 50, '무료 1회', () => this.open(box, 1, 'ticket'), { kind: 'growth', size: TYPE.tiny });
+      this.buttons.push({ btn: tb, box, count: 1, pay: 'ticket' });
+      this.boxTicketButtons.push({ btn: tb, box, desc });
     });
 
     // ── 골드 구매(v1.2: 골드 상자 대신 루비로 바로)
@@ -145,10 +153,17 @@ export class ShopScene extends Phaser.Scene {
     pity.add(progressBar(this, 10, 0, 250, 22, r10, COLOR.violet, `${p.summon.tenPity}/${DRAGON_BOX.rareGuarantee}`).root);
     pity.add(text(this, 306, 0, `전설 정수 ${p.summon.legendaryPity}/${DRAGON_BOX.legendaryGuarantee}`, TYPE.tiny, RARITY_COLOR.legendary, true, true).setOrigin(1, 0.5));
     this.pityRoot = pity;
+    const tickets = (box: BoxId) => (box === 'dragon' ? p.summon.legacyTickets : box === 'equipment' ? p.summon.equipTickets ?? 0 : p.summon.runeTickets ?? 0);
     for (const b of this.buttons) {
       const price = b.count === 10 ? BOXES[b.box].price10 : BOXES[b.box].price1;
-      const can = b.pay === 'ticket' ? p.summon.legacyTickets >= b.count : p.rubies >= price;
+      const can = b.pay === 'ticket' ? tickets(b.box) >= b.count : p.rubies >= price;
       b.btn.setEnabled(!this.busy && can);
+    }
+    for (const t of this.boxTicketButtons) {
+      const n = tickets(t.box);
+      t.btn.root.setVisible(n > 0);
+      t.desc.setVisible(n === 0);
+      t.btn.setLabel(`무료 개봉권 1회 · ${n}장`);
     }
     for (const g of this.goldButtons) g.btn.setEnabled(!this.busy && p.rubies >= g.rubies);
   }

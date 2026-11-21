@@ -30,7 +30,7 @@ npm install
 npm run dev
 ```
 http://localhost:5173 (첫 화면은 로비). `?seed=123`을 붙이면 같은 적 생성이 재현된다. `?dev=1`이면 상점에 루비·골드·카드 지급, 로비에 진행 초기화·잠긴 난이도 시험 플레이. `?dev=1&now=2026-12-05`로 게임 안 날짜를 바꿔 이벤트·미션 시험. 개발 중에는 브라우저 콘솔에서 `window.__game.scene.getScene('game')`으로 상태를 볼 수 있다(배포본엔 없음).
-타입 검사 `npx tsc --noEmit`, 규칙 테스트 `npm test`(vitest 175개: 비용·골드·저장·이어받기·상자·천장·장비·미션·전투력·이벤트·드롭 천장·보석 합치기·카드 연계·클라우드 저장 판단). 자동 전투 측정: 개발 서버 콘솔에서 `await botRun({ stage: 1, dragon: 'red', seed: 1, atk: 1, hp: 4 })`(`src/dev/bot.ts`, 배포본 제외).
+타입 검사 `npx tsc --noEmit`, 규칙 테스트 `npm test`(vitest 182개: 비용·골드·저장·이어받기·상자·천장·장비·미션·전투력·이벤트·드롭 천장·보석 합치기·카드 연계·클라우드 저장 판단·활동 점수·출석). 자동 전투 측정: 개발 서버 콘솔에서 `await botRun({ stage: 1, dragon: 'red', seed: 1, atk: 1, hp: 4 })`(`src/dev/bot.ts`, 배포본 제외).
 빌드: `npm run build`(웹 → `dist/`, main에 push하면 GitHub Pages 자동 배포) · `npm run build:ios`(iOS용 빌드 + `cap sync ios`, 실제 앱은 Codemagic이 `codemagic.yaml`로 빌드·TestFlight 업로드) · `npm run build:toss`(토스용 빌드 → `dragon-force.ait`).
 Claude 미리보기는 `.claude/launch.json`의 `dragon-force` 설정으로 연다.
 

@@ -103,7 +103,7 @@ export const ACHIEVEMENTS = [
 
 // ───────── 주기 보상 (원문 5장 예시 + AI 1차안 수량, 초기화는 제작자 임시: KST 자정·월요일·매월 1일) ─────────
 export type Period = 'daily' | 'weekly' | 'monthly' | 'event';
-export type MissionMetric = 'clears' | 'normalKills' | 'eliteKills' | 'dailyDays';
+export type MissionMetric = 'clears' | 'normalKills' | 'eliteKills' | 'dailyDays' | 'sorties' | 'growth';
 export type MissionReward = { gold?: number; rubies?: number; pickCards?: number; pickFragments?: number };
 export interface MissionDef {
   id: string;
@@ -117,9 +117,13 @@ export interface MissionDef {
   to?: string;
 }
 export const MISSIONS: MissionDef[] = [
+  // 2026-11-21 상시 활동 점수(src/data/activity.ts): 일일 미션 5개, 하나 받을 때마다 활동 점수 20(하루 100)
+  { id: 'd-sortie', period: 'daily', text: '전투 1회 출격(30초 이상)', metric: 'sorties', goal: 1, reward: {} },
   { id: 'd-clear', period: 'daily', text: '스테이지 1회 클리어', metric: 'clears', goal: 1, reward: { pickCards: 1 } },
   // 2026-11-20: 몬스터 수 −30%·판 길이 단축(1단계 클리어 판 처치 약 340~530마리) → 일일 처치 목표 1,000 → 300(약 한 판)
   { id: 'd-kills', period: 'daily', text: '몬스터 300마리 처치', metric: 'normalKills', goal: 300, reward: { gold: 300 } },
+  { id: 'd-elite', period: 'daily', text: '엘리트 3마리 처치', metric: 'eliteKills', goal: 3, reward: {} },
+  { id: 'd-growth', period: 'daily', text: '강화 1회(연구소·드래곤·룬·장비)', metric: 'growth', goal: 1, reward: {} },
   { id: 'w-clear', period: 'weekly', text: '스테이지 10회 클리어', metric: 'clears', goal: 10, reward: { pickCards: 5 } },
   { id: 'w-elite', period: 'weekly', text: '엘리트 15마리 처치', metric: 'eliteKills', goal: 15, reward: { pickFragments: 10 } },
   { id: 'm-daily', period: 'monthly', text: '일일 미션 20일 완료', metric: 'dailyDays', goal: 20, reward: { rubies: 300, pickCards: 5 } },

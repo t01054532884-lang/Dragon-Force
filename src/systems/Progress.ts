@@ -45,6 +45,7 @@ import { SPECIAL_IDS, SPECIAL_RULES, type SpecialId } from '../data/specials';
 import { RUNE_BOX, RUNE_RULES, runeUpgradeCost } from '../data/runes';
 import { WINTER_2026, type RouletteReward } from '../data/events';
 import { store as platformStore } from '../platform';
+import { claimActivity, claimDailyAttendance } from './Activity';
 
 // 계정 진행 저장. JSON 한 덩어리로 저장한다.
 // 실제 저장 위치는 플랫폼마다 다르다(src/platform): 웹 localStorage · iOS Preferences · 토스 SDK Storage.
@@ -75,7 +76,16 @@ export interface SummonState {
   tenPity: number; // 희귀 이상 정수 없이 연 드래곤·스킬 상자 수(9면 다음은 희귀 이상 정수)
   legendaryPity: number; // 전설 정수 없이 연 수(89면 다음은 전설 정수)
   legacyTickets: number; // 기존 소환권 → 드래곤·스킬 상자 무료 개봉권(삭제하지 않음)
+  /** 장비·룬 상자 무료 개봉권(상시 출석·활동 보상, 2026-11-21) */
+  equipTickets?: number;
+  runeTickets?: number;
   totalOpens: number;
+}
+
+/** 상시 28일 출석(연속 아님): 받은 날 수와 마지막으로 받은 날(KST) — src/data/activity.ts */
+export interface DailyAttendance {
+  count: number;
+  last: string;
 }
 
 /** 원문 DifficultyProgress */
@@ -138,6 +148,7 @@ export interface PlayerProgress {
   equippedSpecial: SpecialId | null;
   missions: MissionState;
   events: Record<string, EventState>;
+  attendance: DailyAttendance;
   claimed: string[]; // 일회성 보상: 'tutorial', 'first-clear-1'(v2 기록), 업적 id
   lifetime: { runs: number; normalKills: number; eliteKills: number; clears: number };
   // ── 8단계(v4) ──
@@ -172,13 +183,14 @@ export function defaultProgress(now = Date.now()): PlayerProgress {
     rewardedRunIds: [],
     txIds: [],
     dragons: Object.fromEntries(DRAGON_ORDER.map((id) => [id, dragonState(id, id === 'red')])) as Record<DragonId, DragonProgress>,
-    summon: { tenPity: 0, legendaryPity: 0, legacyTickets: 1, totalOpens: 0, runePity: 0 }, // 튜토리얼 무료 개봉권 1장(기존 튜토리얼 소환권)
+    summon: { tenPity: 0, legendaryPity: 0, legacyTickets: 1, totalOpens: 0, runePity: 0, equipTickets: 0, runeTickets: 0 }, // 튜토리얼 무료 개봉권 1장(기존 튜토리얼 소환권)
     difficulty: { easy: emptyDiff(), hard: { unlocked: [], cleared: [], claimed: [], best: {} }, extreme: { unlocked: [], cleared: [], claimed: [], best: {} } },
     equipment: { items: [], equipped: { weapon: null, armor: null, necklace: null, ring: null }, nextUid: 1 },
     specials: Object.fromEntries(SPECIAL_IDS.map((id) => [id, { fragments: 0, unlocked: false, level: 0 }])) as Record<SpecialId, SpecialState>,
     equippedSpecial: null,
     missions: { progress: {}, claimed: [], dailyDone: [] },
     events: {},
+    attendance: { count: 0, last: '' },
     claimed: ['tutorial'],
     lifetime: { runs: 0, normalKills: 0, eliteKills: 0, clears: 0 },
   };
@@ -301,6 +313,8 @@ export function sanitize(raw: Record<string, unknown>): PlayerProgress {
       legacyTickets: int(rs.legacyTickets, 0, 99_999, 0),
       totalOpens: int(rs.totalOpens, 0, 1e9, 0),
       runePity: int(rs.runePity, 0, RUNE_BOX.guaranteeEvery - 1, 0),
+      equipTickets: int(rs.equipTickets, 0, 99_999, 0),
+      runeTickets: int(rs.runeTickets, 0, 99_999, 0),
     },
     difficulty,
     equipment: { items, equipped, nextUid: Math.max(int(re.nextUid, 1, 1e12, 1), items.length + 1) },
@@ -308,6 +322,10 @@ export function sanitize(raw: Record<string, unknown>): PlayerProgress {
     equippedSpecial: SPECIAL_IDS.includes(eqSp) && specials[eqSp].unlocked ? eqSp : null,
     missions: { progress, claimed: strs(rm.claimed, 400), dailyDone: strs(rm.dailyDone, 62) },
     events,
+    attendance: {
+      count: int((raw.attendance as Partial<DailyAttendance> | undefined)?.count, 0, 1e6, 0),
+      last: typeof (raw.attendance as Partial<DailyAttendance> | undefined)?.last === 'string' ? String((raw.attendance as DailyAttendance).last).slice(0, 10) : '',
+    },
     claimed: strs(raw.claimed),
     lifetime: {
       runs: int(lt.runs, 0, 1e9, 0),
@@ -538,7 +556,7 @@ export function settleRun(
       }
       next = openNextDifficulty(next); // 앞 난이도 20개를 모두 깨면 다음 난이도 1단계 해금
     }
-    next = addMissionProgress(next, { clears: run.cleared ? 1 : 0, normalKills: run.normalKills, eliteKills: run.eliteKills }, now);
+    next = addMissionProgress(next, { clears: run.cleared ? 1 : 0, normalKills: run.normalKills, eliteKills: run.eliteKills, sorties: run.elapsedMs >= 30_000 ? 1 : 0 }, now);
     next = addEventBattle(next, run, now);
   }
   const a = claimAchievements(next);
@@ -776,9 +794,11 @@ export function openBox(
   const price = count === 10 ? BOXES[box].price10 : BOXES[box].price1;
   let cur: PlayerProgress;
   if (pay === 'ticket') {
-    if (box !== 'dragon') return fail('ticket-box');
-    if (p.summon.legacyTickets < count) return fail('tickets', count);
-    cur = { ...p, summon: { ...p.summon, legacyTickets: p.summon.legacyTickets - count } };
+    // 상자마다 따로인 무료 개봉권(드래곤 = 기존 legacyTickets, 장비·룬 = 출석·활동 보상)
+    const field = box === 'dragon' ? 'legacyTickets' : box === 'equipment' ? 'equipTickets' : 'runeTickets';
+    const have = p.summon[field] ?? 0;
+    if (have < count) return fail('tickets', count);
+    cur = { ...p, summon: { ...p.summon, [field]: have - count } };
   } else {
     if (p.rubies < price) return fail('rubies', price);
     cur = { ...p, rubies: p.rubies - price };
@@ -859,18 +879,17 @@ export function fuseItem(p: PlayerProgress, uid: string): Result<{ item: Equipme
 }
 
 // ───────────────────────── 장착형 특수 스킬 ─────────────────────────
-/** 룬 강화(v1.2): Lv.n → n+1, 조각 + 골드. 최대 RUNE_RULES.maxLevel */
+/** 룬 강화(v1.2): Lv.n → n+1, 룬 조각만(골드 안 씀 — 제작자 확정 2026-11-21). 최대 RUNE_RULES.maxLevel */
 export function upgradeRune(p: PlayerProgress, id: SpecialId): Result {
   const s = p.specials[id];
   if (!s.unlocked || s.level < 1) return fail('locked');
   if (s.level >= RUNE_RULES.maxLevel) return fail('max');
   const c = runeUpgradeCost(s.level);
   if (s.fragments < c.fragments) return fail('fragments', c.fragments);
-  if (p.gold < c.gold) return fail('gold', c.gold);
   return {
     ok: true,
-    cost: c.gold,
-    progress: { ...p, gold: p.gold - c.gold, specials: { ...p.specials, [id]: { ...s, fragments: s.fragments - c.fragments, level: s.level + 1 } } },
+    cost: 0,
+    progress: { ...p, specials: { ...p.specials, [id]: { ...s, fragments: s.fragments - c.fragments, level: s.level + 1 } } },
   };
 }
 
@@ -918,14 +937,14 @@ export function missionProgress(p: PlayerProgress, m: MissionDef, now: number): 
 export const missionClaimed = (p: PlayerProgress, m: MissionDef, now: number) => p.missions.claimed.includes(mKey(m, now));
 
 /** 전투 결과를 이번 기간 미션에 더한다. 지난 기간 진행 기록은 지운다(받은 기록은 남겨 중복 지급을 막는다). */
-export function addMissionProgress(p: PlayerProgress, add: { clears: number; normalKills: number; eliteKills: number }, now: number): PlayerProgress {
+export function addMissionProgress(p: PlayerProgress, add: Partial<Record<Exclude<MissionDef['metric'], 'dailyDays'>, number>>, now: number): PlayerProgress {
   const keep = new Set(activeMissions(now).map((m) => mKey(m, now)));
   const progress: Record<string, number> = {};
   for (const [k, v] of Object.entries(p.missions.progress)) if (keep.has(k)) progress[k] = v;
   for (const m of activeMissions(now)) {
     if (m.metric === 'dailyDays') continue;
     const k = mKey(m, now);
-    progress[k] = (progress[k] ?? 0) + add[m.metric];
+    progress[k] = (progress[k] ?? 0) + (add[m.metric] ?? 0);
   }
   return { ...p, missions: { ...p.missions, progress } };
 }
@@ -1110,6 +1129,15 @@ const browserStore = (): Store => platformStore;
 export const STORAGE_KEYS = [SAVE_KEY, BACKUP_KEY, LEGACY_UNLOCK_KEY];
 
 /** 항상 저장소의 최신 상태를 읽어 처리하고, 성공했을 때만 바로 저장한다(연속 클릭에도 재화가 음수가 되지 않음) */
+/** 성장 행동(연구소·드래곤·장비·룬 강화)이 성공하면 일일 미션 "성장 1회"에 더한다 */
+function grow<T extends { ok: boolean }>(f: (p: PlayerProgress) => T): (p: PlayerProgress) => T {
+  return (p) => {
+    const r = f(p);
+    const pr = (r as { progress?: PlayerProgress }).progress;
+    return r.ok && pr ? { ...r, progress: addMissionProgress(pr, { growth: 1 }, Date.now()) } : r;
+  };
+}
+
 function act<T extends { ok: boolean }>(f: (p: PlayerProgress) => T): T {
   const r = f(Progress.load());
   const pr = (r as { progress?: PlayerProgress }).progress;
@@ -1157,15 +1185,15 @@ export const Progress = {
   /** 스테이지 입장: 행동력 차감(부족하면 ok:false, 아무것도 바뀌지 않음) */
   spendEntry: (now: number, cost: number = STAMINA.entryCost) => act((p) => spendStamina(p, cost, now)),
   save: (p: PlayerProgress) => saveProgress(browserStore(), p),
-  buy: (type: UpgradeType) => act((p) => purchase(p, type)),
+  buy: (type: UpgradeType) => act(grow((p) => purchase(p, type))),
   settle(runId: string, gold: number, unlockStage?: number, run?: RunRecord, now = Date.now()) {
     const r = settleRun(this.load(), runId, gold, unlockStage, run, now);
     if (r.paid) this.save(r.progress);
     return r;
   },
   openBox: (box: BoxId, count: 1 | 10, pay: 'ruby' | 'ticket', txId?: string) => act((p) => withTx(p, txId, () => openBox(p, box, count, pay))),
-  levelUp: (id: DragonId) => act((p) => levelUpDragon(p, id)),
-  starUp: (id: DragonId, useUniversal = false) => act((p) => starUpDragon(p, id, useUniversal)),
+  levelUp: (id: DragonId) => act(grow((p) => levelUpDragon(p, id))),
+  starUp: (id: DragonId, useUniversal = false) => act(grow((p) => starUpDragon(p, id, useUniversal))),
   exchangeEssence: (id: DragonId) => act((p) => exchangeEssence(p, id)),
   toUniversal: (id: DragonId) => act((p) => convertToUniversal(p, id)),
   select(id: DragonId): void {
@@ -1180,13 +1208,16 @@ export const Progress = {
   equip: (uid: string) => act((p) => equipItem(p, uid)),
   unequip: (slot: Slot) => act((p) => unequipSlot(p, slot)),
   lock: (uid: string) => act((p) => toggleLock(p, uid)),
-  upgradeItem: (uid: string) => act((p) => upgradeItem(p, uid)),
+  upgradeItem: (uid: string) => act(grow((p) => upgradeItem(p, uid))),
   fuse: (uid: string) => act((p) => fuseItem(p, uid)),
-  unlockSpecial: (id: SpecialId) => act((p) => unlockSpecial(p, id)),
-  upgradeRune: (id: SpecialId) => act((p) => upgradeRune(p, id)),
+  unlockSpecial: (id: SpecialId) => act(grow((p) => unlockSpecial(p, id))),
+  upgradeRune: (id: SpecialId) => act(grow((p) => upgradeRune(p, id))),
   buyGold: (offerId: string, txId?: string) => act((p) => withTx(p, txId, () => buyGold(p, offerId))),
   spin: (now: number) => act((p) => spinRoulette(p, now)),
   attend: (now: number) => act((p) => claimAttendance(p, now)),
+  // ── 상시 활동 점수·28일 출석(2026-11-21, src/systems/Activity.ts) ──
+  claimActivity: (kind: 'daily' | 'weekly', at: number, now: number, choice?: DragonId) => act((p) => claimActivity(p, kind, at, now, Math.random, choice)),
+  claimDailyAttendance: (now: number, choice?: DragonId) => act((p) => claimDailyAttendance(p, now, Math.random, choice)),
   /** 개발용(?dev=1): 루비·골드·카드 추가 */
   /**
    * 데모 저장 처음 만들기(?demo=1, 웹 전용 · 진짜 저장과 따로): 루비 30,000 · 골드 300,000 · 개봉권 30,

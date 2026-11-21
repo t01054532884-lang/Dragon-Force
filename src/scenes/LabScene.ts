@@ -160,7 +160,7 @@ export class LabScene extends Phaser.Scene {
       } else c.add(text(this, 0, -8, r.icon, 34, r.color).setOrigin(0.5).setAlpha(on ? 1 : 0.4));
       c.add(text(this, 0, art ? 40 : 34, on ? `Lv.${st.level}` : `${Math.min(st.fragments, RUNE_RULES.unlockFragments)}/${RUNE_RULES.unlockFragments}`, 15, on ? COLOR.gold : COLOR.textSub, true, true).setOrigin(0.5));
       // 해금·강화 가능하면 초록 화살표(자원이 부족하면 표시하지 않음)
-      const can = on ? st.level < RUNE_RULES.maxLevel && st.fragments >= runeUpgradeCost(st.level).fragments && p.gold >= runeUpgradeCost(st.level).gold : st.fragments >= RUNE_RULES.unlockFragments;
+      const can = on ? st.level < RUNE_RULES.maxLevel && st.fragments >= runeUpgradeCost(st.level).fragments : st.fragments >= RUNE_RULES.unlockFragments;
       if (can) c.add(text(this, 40, -40, '▲', 22, COLOR.ok, true, true).setOrigin(0.5));
       c.setSize(120, 120).setInteractive({ useHandCursor: true }).on('pointerdown', () => {
         this.selected = r.id;
@@ -190,9 +190,9 @@ export class LabScene extends Phaser.Scene {
       b.setEnabled(st.fragments >= need);
     } else if (!max) {
       const c = runeUpgradeCost(st.level);
-      this.A(text(this, this.fragIcon(y + 52), y + 52, `룬 조각 ${st.fragments} / ${c.fragments} · 골드 ${c.gold.toLocaleString()}G`, TYPE.caption, COLOR.text, true, true).setOrigin(0, 0.5));
+      this.A(text(this, this.fragIcon(y + 52), y + 52, `룬 조각 ${st.fragments} / ${c.fragments}`, TYPE.caption, COLOR.text, true, true).setOrigin(0, 0.5));
       const b = this.B(button(this, 580, y + 52, 160, 70, '강화', () => this.runeAct('up'), { kind: 'growth', size: TYPE.body }));
-      b.setEnabled(st.fragments >= c.fragments && p.gold >= c.gold);
+      b.setEnabled(st.fragments >= c.fragments);
     } else {
       this.A(text(this, 52, y + 52, '최대 레벨이에요', TYPE.caption, COLOR.gold, true, true).setOrigin(0, 0.5));
     }

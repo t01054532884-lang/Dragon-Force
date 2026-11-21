@@ -10,7 +10,7 @@ import { SPECIALS } from '../src/data/specials';
 import { loadout } from '../src/systems/Loadout';
 import {
   claimMission, claimProgressBox, convertToUniversal, defaultProgress, exchangeEssence, fuseItem, openBox, openDragonBoxOnce,
-  periodKey, progressPct, settleRun, starUpDragon, toggleLock, upgradeItem, withTx, equipItem, unlockSpecial, upgradeRune, buyGold, sanitize,
+  addMissionProgress, periodKey, progressPct, settleRun, starUpDragon, toggleLock, upgradeItem, withTx, equipItem, unlockSpecial, upgradeRune, buyGold, sanitize,
   type EquipmentItem, type PlayerProgress,
 } from '../src/systems/Progress';
 
@@ -271,11 +271,11 @@ describe('6-6 장비', () => {
 });
 
 describe('6-7 → v1.2 룬(옛 장착형 특수 스킬)', () => {
-  it('15종, 조각 50개로 해금 → 룬 Lv.1, 조각 + 골드로 강화, 최대 Lv.10', () => {
+  it('15종, 조각 50개로 해금 → 룬 Lv.1, 조각만으로 강화(골드 안 씀), 최대 Lv.10', () => {
     expect(SPECIALS).toHaveLength(15);
     const p = defaultProgress();
     expect(upgradeRune(p, 'rage')).toMatchObject({ ok: false, reason: 'locked' });
-    const q = { ...p, gold: 1e6, specials: { ...p.specials, rage: { fragments: 50 + 500, unlocked: false, level: 0 } } };
+    const q = { ...p, gold: 0, specials: { ...p.specials, rage: { fragments: 50 + 500, unlocked: false, level: 0 } } };
     const r = unlockSpecial(q, 'rage');
     expect(r.ok && r.progress.specials.rage).toEqual({ fragments: 500, unlocked: true, level: 1 });
     if (!r.ok) return;
@@ -289,6 +289,7 @@ describe('6-7 → v1.2 룬(옛 장착형 특수 스킬)', () => {
     expect(upgradeRune(cur, 'rage')).toMatchObject({ ok: false, reason: 'max' });
     const spent = Array.from({ length: 9 }, (_, i) => runeUpgradeCost(i + 1).fragments).reduce((a, b) => a + b, 0);
     expect(cur.specials.rage.fragments).toBe(500 - spent);
+    expect(cur.gold).toBe(0);
   });
   it('예전 저장 이전: 해금한 특수 스킬 = 룬 Lv.1, 조각 그대로, 장착 여부와 상관없이 모두 적용', () => {
     const old = { ...defaultProgress(), specials: { ...defaultProgress().specials, rage: { fragments: 12, unlocked: true }, ancientEye: { fragments: 30, unlocked: false } }, equippedSpecial: 'rage' };
@@ -371,6 +372,13 @@ describe('6-9 주기 보상(KST)', () => {
     const b = claimMission(a.progress, 'd-clear', now, 'red');
     if (!b.ok) throw new Error();
     p = b.progress;
+    expect(p.missions.dailyDone).toEqual([]); // 2026-11-21: 일일 미션 5개를 모두 받아야
+    p = addMissionProgress(p, { sorties: 1, eliteKills: 3, growth: 1 }, now);
+    for (const id of ['d-sortie', 'd-elite', 'd-growth']) {
+      const c = claimMission(p, id, now);
+      if (!c.ok) throw new Error(id);
+      p = c.progress;
+    }
     expect(p.missions.dailyDone).toEqual(['2026-11-18']);
   });
 });

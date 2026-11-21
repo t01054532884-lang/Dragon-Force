@@ -146,7 +146,7 @@ describe('저장 이어받기', () => {
     expect(p.dragons.red).toMatchObject({ unlocked: true, level: 12, stars: 2, fragments: 5 });
     expect(p.dragons.blue).toMatchObject({ unlocked: true, level: 3, fragments: 30 });
     expect(p.dragons.arcane.unlocked).toBe(false);
-    expect(p.summon).toEqual({ tenPity: 7, legendaryPity: 40, legacyTickets: 23, totalOpens: 40, runePity: 0 });
+    expect(p.summon).toEqual({ tenPity: 7, legendaryPity: 40, legacyTickets: 23, totalOpens: 40, runePity: 0, equipTickets: 0, runeTickets: 0 });
     expect(p.selectedDragonId).toBe('blue');
     expect(p.lifetime.normalKills).toBe(900);
   });

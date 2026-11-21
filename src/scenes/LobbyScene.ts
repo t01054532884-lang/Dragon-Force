@@ -23,6 +23,7 @@ import { openRubyShop } from '../ui/rubyShop';
 import { account, shortId } from '../systems/Account';
 import { cloud, cloudLine } from '../systems/Cloud';
 import { summaryLine } from '../systems/cloudSync';
+import { attendanceState, claimableActivity } from '../systems/Activity';
 import { DEMO, platform } from '../platform';
 import { goTab, NAV_TABS } from '../ui/screen';
 
@@ -357,7 +358,7 @@ export class LobbyScene extends Phaser.Scene {
   private hasClaimable(): boolean {
     const p = Progress.load();
     // 진행도 상자 + 받을 수 있는 미션(2026-11-21: 미션 완료도 알림에 포함)
-    return DIFFICULTIES.some((k) => [25, 50, 100].some((s) => progressPct(p, k) >= s && !p.difficulty[k].claimed.includes(s))) || claimableMissions(p, gameNow()).length > 0;
+    return DIFFICULTIES.some((k) => [25, 50, 100].some((s) => progressPct(p, k) >= s && !p.difficulty[k].claimed.includes(s))) || claimableMissions(p, gameNow()).length > 0 || claimableActivity(p, gameNow()) > 0 || !attendanceState(p, gameNow()).claimedToday;
   }
 
   /** 개발·심사용: 진행 초기화(두 번 확인) */

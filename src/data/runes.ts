@@ -13,10 +13,9 @@ export const RUNE_RULES = {
   cpPerLevel: 0.001,
 };
 
-/** Lv.n → n+1 강화 비용(n = 1~9): 조각과 골드 */
-export function runeUpgradeCost(level: number): { fragments: number; gold: number } {
-  const frag = [10, 15, 20, 25, 30, 40, 50, 60, 80][Math.max(0, Math.min(8, level - 1))];
-  return { fragments: frag, gold: Math.ceil(300 * Math.pow(1.4, Math.max(0, level - 1))) };
+/** Lv.n → n+1 강화 비용(n = 1~9): 룬 조각만(제작자 확정 2026-11-21 — 골드는 쓰지 않음, 골드 수요가 너무 커지지 않게) */
+export function runeUpgradeCost(level: number): { fragments: number } {
+  return { fragments: [10, 15, 20, 25, 30, 40, 50, 60, 80][Math.max(0, Math.min(8, level - 1))] };
 }
 
 /** 룬 한 레벨당 효과(능력치 증가형). label·unit은 화면 표시용 */

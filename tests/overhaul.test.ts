@@ -31,11 +31,11 @@ describe('미션 모두 받기·업적 진행(2026-11-21 기획서 9·11장)', (
   it('골드 미션만 한 번에 받고, 선택 보상 미션은 남긴다', () => {
     let p = defaultProgress(NOW);
     p = addMissionProgress(p, { clears: 10, normalKills: 300, eliteKills: 15 }, NOW);
-    expect(claimableMissions(p, NOW).map((m) => m.id).sort()).toEqual(['d-clear', 'd-kills', 'w-clear', 'w-elite'].sort());
+    expect(claimableMissions(p, NOW).map((m) => m.id).sort()).toEqual(['d-clear', 'd-elite', 'd-kills', 'w-clear', 'w-elite'].sort()); // 2026-11-21 일일 미션 5개(엘리트 3마리 포함)
     const r = claimAllMissions(p, NOW);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(r.got.map((m) => m.id)).toEqual(['d-kills']);
+    expect(r.got.map((m) => m.id).sort()).toEqual(['d-elite', 'd-kills']); // 골드·루비·활동 점수만 주는 미션
     expect(r.left).toBe(3);
     expect(r.progress.gold).toBe(p.gold + 300);
     // 두 번 받으면 실패(중복 지급 없음)
