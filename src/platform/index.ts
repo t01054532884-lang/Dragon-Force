@@ -22,8 +22,13 @@ export const store: SyncStore = {
   setItem: (k, v) => {
     cache.set(mapKey(k), v);
     impl.writeStore(mapKey(k), v);
+    for (const cb of writeListeners) cb(k);
   },
 };
+
+const writeListeners: ((key: string) => void)[] = [];
+/** 저장 키가 바뀔 때마다 알림(클라우드 저장이 "이 기기 변경됨"을 표시하는 데 씀) */
+export const onStoreWrite = (cb: (key: string) => void) => writeListeners.push(cb);
 
 /**
  * 게임 시작 전에 한 번 부른다: 플랫폼 구현을 고르고(다른 플랫폼 SDK는 번들에 안 들어감),

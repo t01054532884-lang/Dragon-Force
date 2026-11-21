@@ -14,6 +14,8 @@ import { Progress } from './systems/Progress';
 import { STORAGE_KEYS } from './systems/Progress';
 import { applySound, SETTINGS_KEY } from './systems/Settings';
 import { ACCOUNT_KEY, account } from './systems/Account';
+import { cloud } from './systems/Cloud';
+import { CLOUD_KEY } from './systems/cloudSync';
 
 /** 장면이 플랫폼 이벤트를 받고 싶으면 이 함수들을 가진다 */
 export interface PlatformAware {
@@ -25,8 +27,9 @@ export interface PlatformAware {
 
 async function boot(): Promise<void> {
   // 저장소·안전 영역·세로 고정을 먼저 맞춘 뒤 게임을 만든다(저장된 진행을 동기로 읽기 위해)
-  await initPlatform([...STORAGE_KEYS, SETTINGS_KEY, ACCOUNT_KEY]);
+  await initPlatform([...STORAGE_KEYS, SETTINGS_KEY, ACCOUNT_KEY, CLOUD_KEY]);
   account.current(); // 첫 실행이면 게스트 계정 만들기
+  await cloud.start(); // 클라우드 저장(설정 값이 있을 때만, 최대 4초 기다리고 시작 — docs/CLOUD.md)
   if (DEMO) Progress.seedDemo(); // 시험용 저장(진짜 진행과 따로)
 
   // 게임 전체 설정. 화면 크기는 세로형 휴대폰(9:16)을 기준으로 잡고,

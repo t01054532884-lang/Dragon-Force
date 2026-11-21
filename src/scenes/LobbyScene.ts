@@ -21,6 +21,8 @@ import { COLOR, css, TYPE } from '../ui/theme';
 import { giftAlert } from '../ui/giftFx';
 import { openRubyShop } from '../ui/rubyShop';
 import { account, shortId } from '../systems/Account';
+import { cloud, cloudLine } from '../systems/Cloud';
+import { summaryLine } from '../systems/cloudSync';
 import { DEMO, platform } from '../platform';
 import { goTab, NAV_TABS } from '../ui/screen';
 
@@ -238,6 +240,40 @@ export class LobbyScene extends Phaser.Scene {
 
     this.input.keyboard?.on('keydown-ENTER', go);
     if (dev) this.devTools();
+    // 클라우드 저장: 이 기기와 서버 기록이 둘 다 바뀌었으면 고르기(자동 덮어쓰기 금지)
+    if (cloud.conflict) this.openCloudChoice();
+    else {
+      const watch = () => {
+        if (cloud.conflict && this.scene.isActive()) this.openCloudChoice();
+      };
+      cloud.onChange(watch);
+      this.events.once('shutdown', () => cloud.listeners.splice(cloud.listeners.indexOf(watch) >>> 0, 1));
+    }
+  }
+
+  /** 저장 기록 선택: 이 기기 / 서버. 고르지 않은 쪽은 덮어써진다는 것을 알린다 */
+  private openCloudChoice(): void {
+    const c = cloud.conflict;
+    if (!c) return;
+    this.closeSettings();
+    const m = modal(this, 640, 640, '저장 기록 선택', { ribbonColor: COLOR.violet, depth: 950 });
+    m.body(text(this, 0, -200, '이 기기와 서버의 저장 기록이 달라요.\n이어서 할 기록을 골라 주세요.', TYPE.caption, COLOR.text, true, true).setOrigin(0.5).setAlign('center').setLineSpacing(8));
+    const row = (y: number, title: string, line: string) => {
+      m.body(text(this, -270, y - 22, title, TYPE.body, COLOR.gold, true, true).setOrigin(0, 0.5));
+      m.body(text(this, -270, y + 18, line, 16, COLOR.textSub, true).setOrigin(0, 0.5).setWordWrapWidth(540));
+    };
+    row(-90, '이 기기 기록', summaryLine(c.local));
+    row(10, '서버 기록', summaryLine(c.remote));
+    m.body(text(this, 0, 92, '고르지 않은 기록은 지워지고 되돌릴 수 없어요', TYPE.tiny, COLOR.danger, true).setOrigin(0.5));
+    const pick = (choice: 'local' | 'remote') =>
+      cloud.resolve(choice).then((ok) => {
+        m.close();
+        if (!ok) this.toast('지금은 고를 수 없어요. 잠시 뒤 다시 시도해 주세요');
+        this.scene.restart();
+      });
+    m.body(button(this, -140, 200, 250, 84, '이 기기 기록', () => void pick('local'), { kind: 'secondary', size: TYPE.caption }).root);
+    m.body(button(this, 140, 200, 250, 84, '서버 기록', () => void pick('remote'), { kind: 'primary', size: TYPE.caption }).root);
+    this.settingsUi = m;
   }
 
   /** 설정 창(첫 제출: 효과음 켜기/끄기만 — 제작자 결정 2026-11-20). 저장은 진행 저장과 따로 */
@@ -273,6 +309,7 @@ export class LobbyScene extends Phaser.Scene {
     link.setEnabled(acc.provider !== 'apple');
     m.body(link.root);
     m.body(text(this, -240, 50, '연결하면 기기를 바꾸거나 앱을 다시 설치해도 이어서 할 수 있어요', 15, COLOR.textDim, true).setOrigin(0, 0.5));
+    m.body(text(this, -240, 82, `☁ ${cloudLine()}`, 15, cloud.status === 'error' || cloud.status === 'conflict' ? COLOR.danger : COLOR.textSub, true).setOrigin(0, 0.5));
     m.body(button(this, 0, 140, 300, 66, '계정 삭제', () => this.confirmDelete(), { kind: 'danger', size: TYPE.caption }).root);
     m.body(button(this, 0, 260, 220, 70, '닫기', () => this.closeSettings(), { kind: 'secondary', size: TYPE.caption }).root);
     this.settingsUi = m;

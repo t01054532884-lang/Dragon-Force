@@ -22,3 +22,6 @@ store/
 
 # Firebase 설정(공개 저장소에 올리지 않음 — Codemagic 비밀 값으로)
 ios/App/App/GoogleService-Info.plist
+
+# 개인 환경 값(Firebase 웹 설정 등)
+*.local
