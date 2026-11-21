@@ -131,7 +131,11 @@ export function dragonUnlock(scene: Phaser.Scene, ids: DragonId[], onDone?: () =
   const rarityLabel = { starter: '기본', common: '일반', rare: '희귀', epic: '영웅', legendary: '전설' }[d.rarity];
   const meta = add(text(scene, 360, 815, `${rarityLabel} · ${ELEMENT_LABEL[d.element]} · ${d.role}`, TYPE.caption, RARITY_COLOR[d.rarity], true, true).setOrigin(0.5).setAlpha(0));
   const box = add(plate(scene, 360, 935, 600, 150, { r: 22 }).setAlpha(0));
-  box.add(text(scene, 0, -40, `${sig.icon} 전용 스킬 · ${sig.name}`, TYPE.body, COLOR.gold, true, true).setOrigin(0.5));
+  const sigKey = `sig-${id}`;
+  const hasSigArt = scene.textures.exists(sigKey);
+  const sigTitle = text(scene, hasSigArt ? 24 : 0, -40, `${hasSigArt ? '' : `${sig.icon} `}전용 스킬 · ${sig.name}`, TYPE.body, COLOR.gold, true, true).setOrigin(0.5);
+  box.add(sigTitle);
+  if (hasSigArt) box.add(scene.add.image(24 - sigTitle.width / 2 - 30, -40, sigKey).setDisplaySize(48, 48));
   box.add(text(scene, 0, 16, sig.detail, 17, COLOR.textSub, true).setOrigin(0.5).setWordWrapWidth(560).setAlign('center'));
   [newTag, name, meta, box].forEach((o, i) => tw({ targets: o, alpha: 1, duration: 260, delay: 1100 + i * 180 }));
   let closed = false;

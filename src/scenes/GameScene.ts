@@ -140,7 +140,7 @@ export class GameScene extends Phaser.Scene {
   /** 드래곤 전용 액티브(v1.2 3장) */
   private signature!: Signature;
   private sigBtn!: Phaser.GameObjects.Arc;
-  private sigIcon!: Phaser.GameObjects.Text;
+  private sigIcon!: Phaser.GameObjects.Image | Phaser.GameObjects.Text;
   private sigText!: Phaser.GameObjects.Text;
   /** 장착형 특수 스킬(v1.2 9장) — 시간형 효과 상태 */
   /** 룬 효과(v1.2: 옛 장착형 특수 스킬 → 항상 적용되는 능력치형). 전투 중 조건형만 여기서 씀 */
@@ -453,7 +453,12 @@ export class GameScene extends Phaser.Scene {
     this.sigGlow = this.add.circle(sx, sy, 46).setStrokeStyle(8, this.signature.def.color, 0.85).setScrollFactor(0).setDepth(UI_DEPTH + 1);
     this.tweens.add({ targets: this.sigGlow, scale: 1.22, alpha: 0.25, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
     this.sigBtn = this.add.circle(sx, sy, 40, 0x000000, 0.6).setStrokeStyle(4, this.signature.def.color, 1).setScrollFactor(0).setDepth(UI_DEPTH + 2);
-    this.sigIcon = this.add.text(sx, sy - 4, this.signature.def.icon, { fontFamily: 'sans-serif', fontSize: '34px' }).setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 3);
+    // 전용 스킬 아이콘 그림(요청서 6 ①)이 있으면 그림, 없으면 이모지
+    const sigKey = `sig-${this.dragon.id}`;
+    this.sigIcon = (this.textures.exists(sigKey)
+      ? this.add.image(sx, sy, sigKey).setDisplaySize(66, 66)
+      : this.add.text(sx, sy - 4, this.signature.def.icon, { fontFamily: 'sans-serif', fontSize: '34px' }).setOrigin(0.5)
+    ).setScrollFactor(0).setDepth(UI_DEPTH + 3);
     this.sigText = this.add.text(sx, sy + 52, '', { ...style, fontSize: '18px', strokeThickness: 4 }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(UI_DEPTH + 3);
     this.sigBtn.setInteractive({ useHandCursor: true }).on('pointerdown', (_p: Phaser.Input.Pointer, _x: number, _y: number, ev: Phaser.Types.Input.EventData) => {
       ev.stopPropagation();
@@ -589,7 +594,8 @@ export class GameScene extends Phaser.Scene {
     this.sigGlow.setVisible(ready);
     if (ready && !this.sigWasReady) {
       playSfx(this, 'sfx-sig-ready');
-      this.tweens.add({ targets: [this.sigBtn, this.sigIcon], scale: 1.25, duration: 140, yoyo: true, ease: 'Quad.Out' });
+      this.tweens.add({ targets: this.sigBtn, scale: 1.25, duration: 140, yoyo: true, ease: 'Quad.Out' });
+      this.tweens.add({ targets: this.sigIcon, scale: this.sigIcon.scale * 1.25, duration: 140, yoyo: true, ease: 'Quad.Out' });
     }
     this.sigWasReady = ready;
     this.sigIcon.setAlpha(ready ? 1 : 0.45);

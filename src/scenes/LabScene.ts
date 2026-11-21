@@ -144,15 +144,21 @@ export class LabScene extends Phaser.Scene {
       const c = this.A(this.add.container(x, y));
       const g = this.add.graphics();
       const hex = (rad: number) => Array.from({ length: 6 }, (_, k) => new Phaser.Math.Vector2(Math.cos((k / 6) * Math.PI * 2 + Math.PI / 6) * rad, Math.sin((k / 6) * Math.PI * 2 + Math.PI / 6) * rad));
-      g.fillStyle(COLOR.outline, 1).fillPoints(hex(60), true);
-      g.fillStyle(on ? 0x2b3f8a : 0x1a1d2e, 1).fillPoints(hex(55), true);
-      g.fillStyle(r.color, on ? 0.35 : 0.12).fillPoints(hex(44), true);
-      if (sel) g.lineStyle(5, COLOR.cta, 1).strokePoints(hex(58), true);
-      c.add(g);
       const key = `sp-${r.id}`;
-      if (this.textures.exists(key)) c.add(this.add.image(0, -6, key).setDisplaySize(62, 62).setAlpha(on ? 1 : 0.45));
-      else c.add(text(this, 0, -8, r.icon, 34, r.color).setOrigin(0.5).setAlpha(on ? 1 : 0.4));
-      c.add(text(this, 0, 34, on ? `Lv.${st.level}` : `${Math.min(st.fragments, RUNE_RULES.unlockFragments)}/${RUNE_RULES.unlockFragments}`, 15, on ? COLOR.gold : COLOR.textSub, true, true).setOrigin(0.5));
+      const art = this.textures.exists(key); // 룬 그림(요청서 6 ③)은 그 자체가 육각 배지 → 그림이 있으면 도형 육각을 그리지 않는다
+      if (!art) {
+        g.fillStyle(COLOR.outline, 1).fillPoints(hex(60), true);
+        g.fillStyle(on ? 0x2b3f8a : 0x1a1d2e, 1).fillPoints(hex(55), true);
+        g.fillStyle(r.color, on ? 0.35 : 0.12).fillPoints(hex(44), true);
+      }
+      if (sel) g.lineStyle(5, COLOR.cta, 1).strokePoints(hex(art ? 64 : 58), true);
+      c.add(g);
+      if (art) {
+        const im = this.add.image(0, -2, key).setDisplaySize(112, 112);
+        if (!on) im.setTint(0x777788).setAlpha(0.75); // 잠김: 어둡게
+        c.add(im);
+      } else c.add(text(this, 0, -8, r.icon, 34, r.color).setOrigin(0.5).setAlpha(on ? 1 : 0.4));
+      c.add(text(this, 0, art ? 40 : 34, on ? `Lv.${st.level}` : `${Math.min(st.fragments, RUNE_RULES.unlockFragments)}/${RUNE_RULES.unlockFragments}`, 15, on ? COLOR.gold : COLOR.textSub, true, true).setOrigin(0.5));
       // 해금·강화 가능하면 초록 화살표(자원이 부족하면 표시하지 않음)
       const can = on ? st.level < RUNE_RULES.maxLevel && st.fragments >= runeUpgradeCost(st.level).fragments && p.gold >= runeUpgradeCost(st.level).gold : st.fragments >= RUNE_RULES.unlockFragments;
       if (can) c.add(text(this, 40, -40, '▲', 22, COLOR.ok, true, true).setOrigin(0.5));
@@ -179,18 +185,25 @@ export class LabScene extends Phaser.Scene {
     this.A(text(this, 52, y + 2, `예전 이름: 특수 스킬 "${r.name}"(${r.text}) — 능력치 증가형으로 바뀜`, 14, COLOR.textDim, true).setOrigin(0, 0.5).setWordWrapWidth(600).setAlign('left'));
     if (!on) {
       const need = RUNE_RULES.unlockFragments;
-      this.A(text(this, 52, y + 52, `룬 조각 ${st.fragments} / ${need}`, TYPE.caption, COLOR.text, true, true).setOrigin(0, 0.5));
+      this.A(text(this, this.fragIcon(y + 52), y + 52, `룬 조각 ${st.fragments} / ${need}`, TYPE.caption, COLOR.text, true, true).setOrigin(0, 0.5));
       const b = this.B(button(this, 560, y + 52, 190, 70, '해금', () => this.runeAct('unlock'), { kind: 'magic', size: TYPE.body }));
       b.setEnabled(st.fragments >= need);
     } else if (!max) {
       const c = runeUpgradeCost(st.level);
-      this.A(text(this, 52, y + 52, `룬 조각 ${st.fragments} / ${c.fragments} · 골드 ${c.gold.toLocaleString()}G`, TYPE.caption, COLOR.text, true, true).setOrigin(0, 0.5));
+      this.A(text(this, this.fragIcon(y + 52), y + 52, `룬 조각 ${st.fragments} / ${c.fragments} · 골드 ${c.gold.toLocaleString()}G`, TYPE.caption, COLOR.text, true, true).setOrigin(0, 0.5));
       const b = this.B(button(this, 580, y + 52, 160, 70, '강화', () => this.runeAct('up'), { kind: 'growth', size: TYPE.body }));
       b.setEnabled(st.fragments >= c.fragments && p.gold >= c.gold);
     } else {
       this.A(text(this, 52, y + 52, '최대 레벨이에요', TYPE.caption, COLOR.gold, true, true).setOrigin(0, 0.5));
     }
     this.B(button(this, 360, 1100, 420, 64, '룬 조각 얻기 — 상점 룬 상자', () => this.scene.start('shop'), { kind: 'secondary', size: TYPE.caption }));
+  }
+
+  /** 룬 조각 아이콘(ui-rune-fragment)을 왼쪽에 놓고, 글자가 시작할 x를 돌려준다(그림이 없으면 52) */
+  private fragIcon(y: number): number {
+    if (!this.textures.exists('ui-rune-fragment')) return 52;
+    this.A(this.add.image(52 + 20, y, 'ui-rune-fragment').setDisplaySize(44, 44));
+    return 52 + 48;
   }
 
   private runeAct(kind: 'unlock' | 'up'): void {

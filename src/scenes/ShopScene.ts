@@ -88,9 +88,10 @@ export class ShopScene extends Phaser.Scene {
       const def = BOXES[box];
       const x = 196 + i * 328;
       const card = plate(this, x, 905, 316, 200, { r: 22, fill: box === 'equipment' ? 0x1d3a52 : 0x22306a });
-      // 룬 상자 그림은 요청 중 → 금 상자 그림을 푸른빛으로 물들여 임시 사용
-      const img = this.add.image(-92, -34, box === 'rune' ? 'chest-gold' : `chest-${box}`).setDisplaySize(120, 120);
-      if (box === 'rune') img.setTint(0x9db4ff);
+      // 룬 상자 그림(v1.2 3차 묶음 chest-rune)이 없으면 금 상자 그림을 푸른빛으로 물들여 임시 사용
+      const runeArt = box === 'rune' && this.textures.exists('chest-rune');
+      const img = this.add.image(-92, -34, box === 'rune' ? (runeArt ? 'chest-rune' : 'chest-gold') : `chest-${box}`).setDisplaySize(120, 120);
+      if (box === 'rune' && !runeArt) img.setTint(0x9db4ff);
       card.add(img);
       card.add(text(this, 46, -58, def.name, TYPE.body, COLOR.text, true, true).setOrigin(0.5));
       card.add(text(this, 46, -22, def.desc, 16, COLOR.textSub, true).setOrigin(0.5).setWordWrapWidth(170).setAlign('center'));
@@ -100,7 +101,12 @@ export class ShopScene extends Phaser.Scene {
     // ── 골드 구매(v1.2: 골드 상자 대신 루비로 바로)
     text(this, 40, 1040, '골드', TYPE.caption, COLOR.gold, true, true).setOrigin(0, 0.5);
     GOLD_OFFERS.forEach((o, i) => {
-      const b = button(this, 196 + i * 192, 1040, 176, 64, `${o.gold.toLocaleString()}G`, () => this.buyGold(o.id), { kind: 'secondary', icon: 'ui-ruby', sub: o.rubies.toLocaleString(), size: TYPE.caption });
+      // 골드 묶음 그림(gold-pack-s/m/l)이 있으면 그림 + "루비 N", 없으면 루비 아이콘 + 숫자
+      const pack = `gold-pack-${o.id.replace('gold-', '')}`;
+      const art = this.textures.exists(pack);
+      const b = button(this, 196 + i * 192, 1040, 176, 64, `${o.gold.toLocaleString()}G`, () => this.buyGold(o.id), {
+        kind: 'secondary', icon: art ? pack : 'ui-ruby', sub: art ? `루비 ${o.rubies.toLocaleString()}` : o.rubies.toLocaleString(), size: TYPE.caption,
+      });
       this.goldButtons.push({ btn: b, rubies: o.rubies });
     });
 

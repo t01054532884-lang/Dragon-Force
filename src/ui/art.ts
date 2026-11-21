@@ -71,6 +71,17 @@ export const ART_FILES: Record<string, string> = {
   ...Object.fromEntries(
     ['fx-wind-blade', 'fx-fire-ground', 'fx-ice-crystal', 'fx-lightning-arc', 'fx-poison-cloud', 'fx-rock-wave', 'fx-light-shield', 'fx-shadow-orb', 'fx-wave', 'fx-arcane-bolt'].map((k) => [k, `fx/${k}.webp`]),
   ),
+  // 9차분(2026-11-21, 그림 요청서 6 ①, scripts/process_art_batch6.py): 드래곤 전용 스킬 아이콘 10장 256×256(금테 둥근 배지)
+  ...Object.fromEntries(['red', 'blue', 'yellow', 'green', 'white', 'black', 'stone', 'wind', 'water', 'arcane'].map((id) => [`sig-${id}`, `sig/sig-${id}.webp`])),
+  // 룬(특수 스킬) 아이콘 15장(2026-11-21): 10장은 요청서 6 ③(공유 링크), 5장(holyLight·ancientEye·starMana·treasure·resonance)은 v1.2 3차 묶음
+  ...Object.fromEntries(
+    ['rage', 'aegis', 'burst', 'flameSeal', 'iceHeart', 'thunderCrest', 'venomMark', 'darkPact', 'stormBless', 'earthWill', 'holyLight', 'ancientEye', 'starMana', 'treasure', 'resonance']
+      .map((id) => [`sp-${id}`, `special/sp-${id}.webp`]),
+  ),
+  // v1.2 3차 묶음(scripts/process_art_batch10.py): 룬 조각·룬 상자(닫힌 상자만 — 여는 연출 body·lid는 아직)·골드 구매 3종
+  'ui-rune-fragment': 'ui/ui-rune-fragment.webp',
+  'chest-rune': 'chest-rune.webp',
+  ...Object.fromEntries(['s', 'm', 'l'].map((k) => [`gold-pack-${k}`, `shop/gold-pack-${k}.webp`])),
 };
 
 /** 필요한 그림만 읽는다(키가 ART_FILES에 없거나 이미 읽었으면 건너뜀). 화면별 preload()에서 쓴다 */
