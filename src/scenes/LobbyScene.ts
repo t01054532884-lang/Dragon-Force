@@ -25,7 +25,11 @@ import { cloud, cloudLine } from '../systems/Cloud';
 import { summaryLine } from '../systems/cloudSync';
 import { attendanceState, claimableActivity } from '../systems/Activity';
 import { DEMO, platform } from '../platform';
-import { goTab, NAV_TABS } from '../ui/screen';
+import { goTab, navTabsWithAlerts } from '../ui/screen';
+import { ATTENDANCE_28, activityRewardIcon, activityRewardText } from '../data/activity';
+
+/** 접속 출석 팝업을 이번 실행에서 이미 띄운 날(같은 날 로비에 다시 와도 또 뜨지 않게) */
+let attendancePopupShown = '';
 
 /**
  * 메인 로비(8단계 v2.0 필수 B, 기획자 UI 시안 형식): 머리줄(출격 드래곤·행동력·골드·루비·전투력) · 날개 배너(단계·난이도·진행도)
@@ -239,7 +243,7 @@ export class LobbyScene extends Phaser.Scene {
     if (canGo) this.tweens.add({ targets: startBtn.root, scale: 1.03, yoyo: true, repeat: -1, duration: 900, ease: 'Sine.InOut' });
 
     // ── 하단 탭
-    navBar(this, NAV_TABS, 'lobby', (k) => {
+    navBar(this, navTabsWithAlerts('lobby'), 'lobby', (k) => {
       if (k !== 'lobby') goTab(this, k);
     });
 
@@ -248,12 +252,51 @@ export class LobbyScene extends Phaser.Scene {
     // 클라우드 저장: 이 기기와 서버 기록이 둘 다 바뀌었으면 고르기(자동 덮어쓰기 금지)
     if (cloud.conflict) this.openCloudChoice();
     else {
+      this.maybeAttendancePopup();
       const watch = () => {
         if (cloud.conflict && this.scene.isActive()) this.openCloudChoice();
       };
       cloud.onChange(watch);
       this.events.once('shutdown', () => cloud.listeners.splice(cloud.listeners.indexOf(watch) >>> 0, 1));
     }
+  }
+
+  /**
+   * 접속 출석 팝업(참고 UI 비교 2026-11-22): 오늘 출석을 아직 안 받았으면 로비에 처음 들어올 때 한 번(앱을 켤 때마다).
+   * 이번 주 7칸(오늘 강조)만 보여 주고, "받기"는 보상 화면 출석 탭으로 가서 같은 흐름으로 받는다(카드 고르기 날 포함).
+   */
+  private maybeAttendancePopup(): void {
+    const now = gameNow();
+    const p = Progress.load();
+    const st = attendanceState(p, now);
+    const day = new Date(now).toDateString();
+    if (st.claimedToday || attendancePopupShown === day || DEMO) return;
+    attendancePopupShown = day;
+    const m = modal(this, 640, 520, `출석 ${st.index + 1}일차`, { closeOnBackdrop: true, ribbonColor: COLOR.ok, depth: 900 });
+    const start = Math.floor(st.index / 7) * 7;
+    for (let i = 0; i < 7; i++) {
+      const idx = start + i;
+      if (idx >= ATTENDANCE_28.length) break;
+      const r = ATTENDANCE_28[idx];
+      const ic = activityRewardIcon(r);
+      const x = -246 + i * 82;
+      const today = idx === st.index;
+      const g = this.add.graphics();
+      g.fillStyle(today ? 0x3a2a6b : 0x221d36, 1).fillRoundedRect(x - 38, -150, 76, 132, 12);
+      g.lineStyle(today ? 4 : 2, today ? COLOR.gold : COLOR.line, 1).strokeRoundedRect(x - 38, -150, 76, 132, 12);
+      m.body(g);
+      m.body(text(this, x, -134, `${idx + 1}일`, 14, today ? COLOR.gold : COLOR.textSub, true, true).setOrigin(0.5));
+      if (this.textures.exists(ic.image)) m.body(this.add.image(x, -88, ic.image).setDisplaySize(46, 46).setAlpha(idx < st.index ? 0.35 : 1));
+      else m.body(text(this, x, -88, ic.emoji, 28).setOrigin(0.5));
+      m.body(text(this, x, -42, idx < st.index ? '✔' : ic.amount, 13, idx < st.index ? COLOR.ok : COLOR.text, true, true).setOrigin(0.5));
+    }
+    m.body(text(this, 0, 30, `오늘 보상: ${activityRewardText(ATTENDANCE_28[st.index])}`, TYPE.caption, COLOR.text, true, true).setOrigin(0.5));
+    m.body(text(this, 0, 70, '하루 빠져도 이어서 받아요', TYPE.tiny, COLOR.textSub, true).setOrigin(0.5));
+    m.body(button(this, -130, 160, 220, 72, '나중에', () => m.close(), { kind: 'secondary', size: TYPE.caption }).root);
+    m.body(button(this, 130, 160, 220, 72, '받기', () => {
+      m.close();
+      this.scene.start('missions', { tab: 'attendance', claim: true });
+    }, { kind: 'growth', size: TYPE.caption }).root);
   }
 
   /** 저장 기록 선택: 이 기기 / 서버. 고르지 않은 쪽은 덮어써진다는 것을 알린다 */

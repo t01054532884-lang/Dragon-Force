@@ -44,8 +44,12 @@ export class MissionScene extends Phaser.Scene {
     return true;
   }
 
-  init(data: { tab?: Tab }): void {
+  /** 로비 출석 팝업에서 "받기"로 들어오면 출석 탭을 열고 바로 받기(카드 고르기가 필요한 날은 여기서 고름) */
+  private autoClaim = false;
+
+  init(data: { tab?: Tab; claim?: boolean }): void {
     if (data?.tab) this.tab = data.tab;
+    this.autoClaim = !!data?.claim;
   }
 
   preload(): void {
@@ -57,6 +61,7 @@ export class MissionScene extends Phaser.Scene {
     this.frame = screenFrame(this, { title: '보상', nav: '' });
     this.input.keyboard?.on('keydown-ESC', () => this.scene.start('lobby'));
     this.refresh();
+    if (this.autoClaim && this.tab === 'attendance' && !attendanceState(Progress.load(), gameNow()).claimedToday) this.time.delayedCall(250, () => this.claimAttendance());
   }
 
   private keep(b: KitButton): KitButton {

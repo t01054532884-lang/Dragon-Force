@@ -12,6 +12,7 @@ import { gameNow } from './widgets';
 import { playMusic } from '../systems/Music';
 import { openRubyShop } from './rubyShop';
 import { playSfx } from '../systems/Sfx';
+import { navAlerts } from './alerts';
 
 // 로비 밖 화면 공통 틀(8단계 v2.0 C): 로비와 같은 머리줄(출격 드래곤·행동력·골드·루비·전투력) + 금색 리본 제목 + 하단 탭.
 // 화면마다 따로 그리던 제목·재화 줄·"로비로" 버튼을 이 틀 하나로 바꾼다 → 색·위치·동작이 모든 화면에서 같다.
@@ -21,9 +22,15 @@ export const NAV_TABS = [
   { key: 'shop', label: '상점', icon: 'ic-shop' },
   { key: 'dragons', label: '드래곤', icon: 'ic-dragon' },
   { key: 'lobby', label: '전투', icon: 'ic-swords' },
-  { key: 'equip', label: '장비', icon: 'ic-gear' },
+  { key: 'equip', label: '장비', icon: 'ic-shield' }, // 톱니(ic-gear)는 설정과 헷갈려 날개 방패로(2026-11-22)
   { key: 'lab', label: '연구소', icon: 'ic-upgrade' },
 ];
+
+/** 하단 탭 + 빨간 알림 점(지금 있는 탭은 빼고) — 로비와 다른 화면이 같이 쓴다 */
+export function navTabsWithAlerts(selected: string) {
+  const a = navAlerts(Progress.load(), gameNow());
+  return NAV_TABS.map((t) => ({ ...t, alert: t.key !== selected && !!a[t.key] }));
+}
 
 /** 하단 탭으로 화면 이동(연구소는 돌아갈 곳을 로비로) */
 export function goTab(scene: Phaser.Scene, key: string): void {
@@ -81,7 +88,7 @@ export function screenFrame(scene: Phaser.Scene, opts: { title: string; nav: str
   } else {
     ribbon(scene, 360, 182, 340, opts.title, opts.ribbonColor ?? 0xe0a032, 70).setDepth(40);
   }
-  navBar(scene, NAV_TABS, opts.nav, (k) => {
+  navBar(scene, navTabsWithAlerts(opts.nav), opts.nav, (k) => {
     if (k !== opts.nav) goTab(scene, k);
   }).setDepth(40);
   return { refresh: draw };

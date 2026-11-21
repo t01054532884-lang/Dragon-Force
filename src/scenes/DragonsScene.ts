@@ -10,6 +10,7 @@ import { econRarity, ESSENCE, UNIVERSAL } from '../data/economy';
 import { Progress, universalLimit } from '../systems/Progress';
 import { loadout } from '../systems/Loadout';
 import { preloadArt } from '../ui/art';
+import { dragonCanGrow } from '../ui/alerts';
 import { badge, button, modal, text, type KitButton } from '../ui/kit';
 import { plate } from '../ui/kit2';
 import { popWord, screenFrame, toast, type ScreenFrame } from '../ui/screen';
@@ -91,7 +92,18 @@ export class DragonsScene extends Phaser.Scene {
       if (!o.unlocked) img.setTint(0x0b0e14).setTintMode(Phaser.TintModes.FILL); // 미보유: 실루엣
       tile.add(img);
       tile.add(this.add.circle(-46, -54, 11, rc).setStrokeStyle(3, COLOR.outline));
-      tile.add(text(this, 0, 52, o.unlocked ? `${DRAGONS[id].short} Lv.${o.level}` : o.fragments > 0 ? `조각 ${o.fragments}` : '???', 15, o.unlocked ? COLOR.text : COLOR.textDim, true, true).setOrigin(0.5));
+      if (o.unlocked) tile.add(text(this, 0, 52, `${DRAGONS[id].short} Lv.${o.level}`, 15, COLOR.text, true, true).setOrigin(0.5));
+      else {
+        // 미보유: "???" 대신 해금까지 조각 진행(참고 UI처럼 모으는 목표가 보이게, 2026-11-22)
+        const need = ESSENCE.fragmentsToEssence[econRarity(DRAGONS[id].rarity)];
+        const r = Math.min(1, o.fragments / need);
+        const bar = this.add.graphics();
+        bar.fillStyle(0x0b0e14, 1).fillRoundedRect(-48, 40, 96, 10, 5);
+        if (r > 0) bar.fillStyle(r >= 1 ? COLOR.ok : rc, 1).fillRoundedRect(-48, 40, Math.max(8, 96 * r), 10, 5);
+        tile.add(bar);
+        tile.add(text(this, 0, 60, `${o.fragments}/${need}`, 13, r >= 1 ? COLOR.ok : COLOR.textDim, true, true).setOrigin(0.5));
+      }
+      if (dragonCanGrow(p, id)) tile.add(text(this, 48, 16, '▲', 22, COLOR.ok, true, true).setOrigin(0.5)); // 레벨업·승급·해금 가능(연구소 룬과 같은 표시)
       if (p.selectedDragonId === id) tile.add(badge(this, 30, -56, '출격', COLOR.ember));
       tile.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
         if (this.viewing === id) return;
