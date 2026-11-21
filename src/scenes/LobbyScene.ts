@@ -123,7 +123,8 @@ export class LobbyScene extends Phaser.Scene {
     const s0 = STAGES.find((st) => st.id === this.stageId);
     wingBanner(this, 360, 222, 430, `${this.stageId}단계 · ${s0 ? s0.name : '준비 중'}`, {
       sub: `${DIFFICULTY_LABEL[curDiff]} · 왕국 정복 ${p.difficulty[curDiff].cleared.length}/${STAGE_COUNT} (${progressPct(p, curDiff)}%)`,
-      emblem: 'ic-banner',
+      // 어려움이면 배너 문장을 어려움 배지로(badge-hard, 요청서 6 ⑤)
+      emblem: curDiff === 'hard' && this.textures.exists('badge-hard') ? 'badge-hard' : 'ic-banner',
     });
 
     // ── 양옆 바로가기
@@ -210,7 +211,10 @@ export class LobbyScene extends Phaser.Scene {
     const hs = curDiff === 'hard' ? hardStage(this.stageId) : null;
     const bestMs = p.difficulty[curDiff].best?.[String(this.stageId)];
     const bestTxt = bestMs ? ` · 최고 ${Math.floor(bestMs / 60000)}:${String(Math.floor(bestMs / 1000) % 60).padStart(2, '0')}` : '';
-    if (hs) stageText.setText(`어려움 ${this.stageId} — ${hs.title}`);
+    if (hs) {
+      stageText.setText(`어려움 ${this.stageId} — ${hs.title}`);
+      if (this.textures.exists('badge-hard')) this.add.image(360 - stageText.width / 2 - 24, 961, 'badge-hard').setDisplaySize(38, 38);
+    }
     sub.setText(
       !s ? '아직 만들지 않은 단계예요' :
       !isOpen ? `${this.stageId === 1 ? '쉬움 20단계' : `어려움 ${this.stageId - 1}단계`}를 클리어하면 열려요` :

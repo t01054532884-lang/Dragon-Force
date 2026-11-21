@@ -99,6 +99,8 @@ export class GameScene extends Phaser.Scene {
   /** 어려움 8단계: 보스 공격 뒤 남는 위험 지대 */
   private dangerZones: { x: number; y: number; r: number; left: number; dmg: number; src: Enemy; g: Phaser.GameObjects.Arc | Phaser.GameObjects.Image }[] = [];
   private bossTexts: Phaser.GameObjects.Text[] = [];
+  /** 보스 2마리 체력 막대 틀 그림(ui-boss-bar, 어려움 요청서 6 ⑤) — 그림이 있을 때만 */
+  private bossFrames: Phaser.GameObjects.Image[] = [];
   private items!: Phaser.Physics.Arcade.Group;
   /** 아이템 전용 난수: 적 생성 난수와 분리해 기존 시드의 적 등장이 그대로 재현되게 함 */
   private itemRng!: Phaser.Math.RandomDataGenerator;
@@ -243,6 +245,7 @@ export class GameScene extends Phaser.Scene {
     this.arena = { x: WORLD_SIZE / 2, y: WORLD_SIZE / 2, r: ARENA_R * (this.hard?.arenaSizeMultiplier ?? 1) };
     this.dangerZones = [];
     this.bossTexts = [];
+    this.bossFrames = [];
     this.itemRng = new Phaser.Math.RandomDataGenerator([`${this.seed}:items`]);
     this.shieldUntil = 0;
     this.itemLog = { drop: {}, pick: {}, shieldBlocks: 0 };
@@ -518,19 +521,30 @@ export class GameScene extends Phaser.Scene {
     const bossList = d.bosses.filter((b) => b.active);
     const boss = bossList[0] ?? null;
     this.bossTexts.forEach((t) => t.setText(''));
+    this.bossFrames.forEach((f) => f.setVisible(false));
     if (boss) {
       // 보스: 화면 전체 너비 체력바 + 패턴 변화 지점 표시. 어려움 2마리면 반폭 막대 두 개(보스별 구분)
       const two = d.bosses.length > 1;
+      // 틀 그림(768×167, 빈 자리 x 118~674 · y 77~129 — scripts/process_art_batch13.py 출력)을 폭 340으로 두 개, 막대는 빈 자리 안에
+      const framed = two && this.textures.exists('ui-boss-bar');
+      const fk = 340 / 768;
       d.bosses.forEach((b, k) => {
-        const w = two ? 330 : 680;
-        const x0 = two ? 20 + k * 350 : 20;
+        const fcx = 182 + k * 356;
+        const w = framed ? 556 * fk : two ? 330 : 680;
+        const x0 = framed ? fcx - 384 * fk + (k === 1 ? 768 - 674 : 118) * fk : two ? 20 + k * 350 : 20; // 오른쪽 틀은 좌우 반전 → 빈 자리도 반전
+        const by = framed ? 253 - 83.5 * fk + 77 * fk : 240; // 막대 윗변
+        const bh = framed ? 52 * fk : 26;
         const r = b.active ? Phaser.Math.Clamp(b.hp / b.maxHp, 0, 1) : 0;
-        g.fillStyle(COLOR.outline, 0.9).fillRoundedRect(x0, 240, w, 26, 8);
-        if (r > 0) g.fillStyle(d.enraged || b.patternSpeed > 1.05 ? 0xff1744 : 0xc62828).fillRoundedRect(x0 + 3, 243, Math.max(8, (w - 6) * r), 20, 6);
-        g.fillStyle(0xffffff).fillRect(x0 + 3 + (w - 6) * (b.def.phaseAt ?? 0.6) - 2, 238, 4, 30);
+        g.fillStyle(COLOR.outline, 0.9).fillRoundedRect(x0, by, w, bh, framed ? 4 : 8);
+        if (r > 0) g.fillStyle(d.enraged || b.patternSpeed > 1.05 ? 0xff1744 : 0xc62828).fillRoundedRect(x0 + 3, by + 3, Math.max(8, (w - 6) * r), bh - 6, framed ? 3 : 6);
+        g.fillStyle(0xffffff).fillRect(x0 + 3 + (w - 6) * (b.def.phaseAt ?? 0.6) - 2, by - 2, 4, bh + 4);
+        if (framed) {
+          if (!this.bossFrames[k]) this.bossFrames[k] = this.add.image(fcx, 253, 'ui-boss-bar').setScale(fk).setScrollFactor(0).setDepth(UI_DEPTH + 0.5);
+          this.bossFrames[k].setVisible(true).setFlipX(k === 1); // 오른쪽 틀은 뿔 장식이 바깥(오른쪽)으로
+        }
         if (two) {
           if (!this.bossTexts[k]) this.bossTexts[k] = this.add.text(0, 0, '', { fontFamily: 'sans-serif', fontSize: '20px', color: '#ffffff', stroke: '#000000', strokeThickness: 5 }).setOrigin(0.5, 1).setScrollFactor(0).setDepth(UI_DEPTH + 1);
-          this.bossTexts[k].setPosition(x0 + w / 2, 236).setText(b.active ? `${k === 0 ? '◀' : ''}${b.def.name}${b.phase === 2 ? ' 분노' : ''}${k === 1 ? '▶' : ''}` : '처치!');
+          this.bossTexts[k].setPosition(x0 + w / 2, framed ? 253 - 83.5 * fk - 2 : 236).setText(b.active ? `${k === 0 ? '◀' : ''}${b.def.name}${b.phase === 2 ? ' 분노' : ''}${k === 1 ? '▶' : ''}` : '처치!');
         }
       });
       this.bossText.setText(two ? '' : `${boss.def.name}${d.enraged ? ' — 격노!' : boss.phase === 2 ? ' — 분노' : ''}`);
@@ -1548,6 +1562,22 @@ export class GameScene extends Phaser.Scene {
         this.tweens.add({ targets: c, radius: 120, alpha: 0, duration: 700, onComplete: () => c.destroy() });
       });
     }
+    // 그림(요청서 6 ⑤): 화면 가운데 날개 왕관이 튀어나오고, 폭죽 조각이 위에서 흩날린다(없으면 고리만)
+    if (this.textures.exists('hard-clear-crown')) {
+      const crown = this.add.image(360, 470, 'hard-clear-crown').setScrollFactor(0).setDepth(UI_DEPTH - 1).setDisplaySize(300, 300).setAlpha(0);
+      const s0 = crown.scale;
+      crown.setScale(s0 * 0.3);
+      this.tweens.add({ targets: crown, alpha: 1, scale: s0, duration: 520, delay: 300, ease: 'Back.Out' });
+      this.tweens.add({ targets: crown, alpha: 0, duration: 500, delay: 2600, onComplete: () => crown.destroy() });
+    }
+    if (this.textures.exists('fx-confetti')) {
+      for (let i = 0; i < 4; i++) {
+        const piece = this.add.image(150 + i * 140, 120, 'fx-confetti').setScrollFactor(0).setDepth(UI_DEPTH - 2).setDisplaySize(260, 260).setAlpha(0).setAngle(i * 70);
+        this.tweens.add({ targets: piece, alpha: 1, duration: 200, delay: 400 + i * 120 });
+        this.tweens.add({ targets: piece, y: 760 + i * 30, angle: piece.angle + 120, duration: 2600, delay: 400 + i * 120, ease: 'Sine.In' });
+        this.tweens.add({ targets: piece, alpha: 0, duration: 500, delay: 2500 + i * 120, onComplete: () => piece.destroy() });
+      }
+    }
     this.time.delayedCall(600, () => this.banner('드래곤의 최종 시련 정복!', '#ffd34d'));
     playSfx(this, 'sfx-hard-clear');
   }
@@ -1730,7 +1760,7 @@ export class GameScene extends Phaser.Scene {
     const bank = Progress.load().gold;
 
     const rewardText = (r: Reward) =>
-      r.id === 'event' ? `❄ ${r.text}` : r.cards ? `🃏 ${r.text} +${r.cards.count}장` : r.rubies ? `💎 ${r.text} — 루비 +${r.rubies}` : `🪙 ${r.text} +${r.gold}G`;
+      r.id === 'event' ? `❄ ${r.text}` : r.cards ? `🃏 ${r.text} +${r.cards.count}장` : r.rubies ? `💎 ${r.text} — 루비 +${r.rubies}` : r.gold ? `🪙 ${r.text} +${r.gold}G` : `🎁 ${r.text}`; // 행동력 선물처럼 골드·루비·카드가 없는 보상은 글자만(예전엔 "+undefinedG")
     if (this.runRewards.length) {
       // 카드·업적 보상 내역은 결과 화면 위에 잠깐 띄운다
       const t = this.add
@@ -1765,6 +1795,17 @@ export class GameScene extends Phaser.Scene {
     add(plate(this, 360, 268, 660, 104, { r: 22, gold: clear }));
     T(360, 246, `${stageLabel} · ${this.dragon.name}`, 22);
     T(360, 284, `${head} · Lv.${this.level} · 처치 ${this.kills}`, 20, COLOR.textSub);
+
+    // 어려움 최초 클리어 루비: 오른쪽 위에 어려움 전용 테두리 카드(frame-hard, 요청서 6 ⑤ — 그림이 있을 때만)
+    const hardFirst = this.runRewards.find((r) => r.id.startsWith('hard-first:') && r.rubies);
+    if (hardFirst && this.textures.exists('frame-hard')) {
+      const card = add(this.add.container(640, 214).setScrollFactor(0).setDepth(UI_DEPTH + 112));
+      card.add(this.add.image(0, 0, 'frame-hard').setDisplaySize(102, 136));
+      if (this.textures.exists('ui-ruby')) card.add(this.add.image(0, -14, 'ui-ruby').setDisplaySize(52, 52));
+      card.add(ktext(this, 0, 32, `+${hardFirst.rubies}`, 20, COLOR.gold, true, true).setOrigin(0.5));
+      card.setScale(0.3).setAlpha(0);
+      this.tweens.add({ targets: card, scale: 1, alpha: 1, duration: 320, delay: 250, ease: 'Back.Out' });
+    }
 
     // 2) 다음 성장 목표(실패) — 한 줄 / 전투 기록(클리어) — 한 줄
     add(plate(this, 360, 384, 660, 104, { r: 22 }));
@@ -1838,7 +1879,10 @@ export class GameScene extends Phaser.Scene {
     const toLab = () => this.scene.start('lab', { from: 'result' });
     const toLobby = () => this.scene.start('lobby');
     if (clear) {
-      button(360, 1065, 600, next ? `다음 단계 — ${next.name}` : `${this.stage.id + 1}단계 해금 (준비 중)`, !!next, () => enterBattle(this, { stageId: next!.id, difficulty: this.difficulty }, { restart: true }));
+      // 마지막 단계(20)를 깨면 "21단계 해금(준비 중)" 대신 로비로(예전엔 없는 단계를 비활성 버튼으로 보여 줌)
+      const last = this.stage.id === STAGES[STAGES.length - 1].id;
+      if (!next && last) button(360, 1065, 600, '모든 단계 클리어! 로비로', true, toLobby);
+      else button(360, 1065, 600, next ? `다음 단계 — ${next.name}` : `${this.stage.id + 1}단계 해금 (준비 중)`, !!next, () => enterBattle(this, { stageId: next!.id, difficulty: this.difficulty }, { restart: true }));
       button(160, 1180, 196, '재도전', true, () => this.retry(), 'primary');
       button(360, 1180, 196, '성장 연구소', true, toLab, 'growth');
       button(560, 1180, 196, '로비', true, toLobby, 'secondary');
