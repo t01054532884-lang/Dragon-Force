@@ -136,15 +136,16 @@ export class MissionScene extends Phaser.Scene {
     const all = this.keep(button(this, 572, 330, 240, 62, `모두 받기${ready ? ` (${ready})` : ''}`, () => this.claimAll(), { kind: 'cta', size: TYPE.caption }));
     // 골드·루비만 주는 완료 미션이 있을 때만(선택 보상은 하나씩 고름)
     all.setEnabled(list.some((x) => x.done && !x.claimed && !x.m.reward.pickCards && !x.m.reward.pickFragments));
+    // 줄 구성(v1.2 UI 참고 반영): 왼쪽 보상 칸(그림 + 수량) · 가운데 미션 이름 + 진행 막대 · 오른쪽 이동/받기
     list.forEach(({ m, prog, claimed, done }, i) => {
       const y = 426 + i * 112;
-      this.A(plate(this, 360, y, 664, 100, { r: 20, gold: done && !claimed, fill: claimed ? 0x1a1626 : undefined }));
-      this.A(text(this, 44, y - 26, `[${PERIOD_LABEL[m.period]}] ${m.text}`, 20, claimed ? COLOR.textDim : COLOR.text, true, true).setOrigin(0, 0.5));
-      this.A(text(this, 44, y + 30, missionReward(m), 16, claimed ? COLOR.textDim : COLOR.gold, true).setOrigin(0, 0.5));
-      this.A(progressBar(this, 250, y + 4, 400, 18, prog / m.goal, claimed ? 0x4a5577 : done ? COLOR.ok : COLOR.violet, `${prog.toLocaleString()} / ${m.goal.toLocaleString()}`).root);
-      const label = claimed ? '받음 ✔' : done ? '받기' : '이동';
-      const b = this.keep(button(this, 604, y, 140, 64, label, () => (done ? this.claimMission(m) : this.scene.start('lobby')), {
-        kind: done && !claimed ? 'growth' : 'secondary', size: TYPE.caption,
+      this.A(plate(this, 360, y, 664, 102, { r: 20, gold: done && !claimed, fill: claimed ? 0x1a1626 : undefined }));
+      this.rewardBox(84, y, missionIcon(m), claimed);
+      this.A(text(this, 140, y - 24, `[${PERIOD_LABEL[m.period]}] ${m.text}`, 19, claimed ? COLOR.textDim : COLOR.text, true, true).setOrigin(0, 0.5));
+      this.A(progressBar(this, 330, y + 18, 380, 18, prog / m.goal, claimed ? 0x4a5577 : done ? COLOR.ok : COLOR.violet, `${prog.toLocaleString()} / ${m.goal.toLocaleString()}`).root);
+      const label = claimed ? '✔' : done ? '받기' : '이동';
+      const b = this.keep(button(this, 616, y, 116, 64, label, () => (done ? this.claimMission(m) : this.scene.start('lobby')), {
+        kind: claimed ? 'secondary' : done ? 'growth' : 'cta', size: TYPE.caption,
       }));
       b.setEnabled(!claimed);
     });
@@ -197,11 +198,14 @@ export class MissionScene extends Phaser.Scene {
       const rows = c.ids.map((id) => ({ a: ACHIEVEMENTS.find((x) => x.id === id)!, pr: prog.find((x) => x.id === id)! }));
       rows.sort((r1, r2) => Number(r1.pr.done) - Number(r2.pr.done) || r2.pr.cur / r2.pr.goal - r1.pr.cur / r1.pr.goal);
       for (const { a, pr } of rows) {
-        this.A(plate(this, 360, y, 664, 92, { r: 20, fill: pr.done ? 0x1a1626 : undefined }));
-        this.A(text(this, 44, y - 22, `${pr.done ? '✔ ' : ''}${a.text}`, 19, pr.done ? COLOR.ok : COLOR.text, true, true).setOrigin(0, 0.5));
-        this.A(progressBar(this, 230, y + 20, 360, 16, pr.cur / pr.goal, pr.done ? COLOR.ok : COLOR.violet, `${pr.cur.toLocaleString()} / ${pr.goal.toLocaleString()}`).root);
-        this.A(text(this, 676, y, `💎 ${a.rubies}`, TYPE.caption, pr.done ? COLOR.textDim : COLOR.gold, true, true).setOrigin(1, 0.5));
-        y += 104;
+        this.A(plate(this, 360, y, 664, 96, { r: 20, fill: pr.done ? 0x1a1626 : undefined }));
+        this.rewardBox(84, y, { image: 'ui-ruby', emoji: '💎', amount: `${a.rubies}` }, pr.done);
+        this.A(text(this, 140, y - 22, a.text, 19, pr.done ? COLOR.ok : COLOR.text, true, true).setOrigin(0, 0.5));
+        this.A(progressBar(this, 330, y + 18, 380, 16, pr.cur / pr.goal, pr.done ? COLOR.ok : COLOR.violet, `${pr.cur.toLocaleString()} / ${pr.goal.toLocaleString()}`).root);
+        // 업적 루비는 달성한 판이 끝날 때 자동 지급(기존 규칙) → 달성하면 체크, 아직이면 이동
+        const b = this.keep(button(this, 616, y, 116, 60, pr.done ? '✔' : '이동', () => this.scene.start('lobby'), { kind: pr.done ? 'secondary' : 'cta', size: TYPE.caption }));
+        b.setEnabled(!pr.done);
+        y += 106;
       }
       y += 10;
     }
@@ -237,6 +241,17 @@ export class MissionScene extends Phaser.Scene {
     layer.push(c.root);
   }
 
+  /** 왼쪽 보상 칸: 둥근 사각 + 보상 그림 + 수량(받았으면 흐리게) */
+  private rewardBox(x: number, y: number, r: { image: string; emoji: string; amount: string }, dim: boolean): void {
+    const g = this.A(this.add.graphics());
+    g.fillStyle(COLOR.outline, 1).fillRoundedRect(x - 40, y - 40, 80, 80, 14);
+    g.fillStyle(0x3a2a6b, 1).fillRoundedRect(x - 37, y - 37, 74, 74, 12);
+    g.lineStyle(2, COLOR.gold, dim ? 0.3 : 0.9).strokeRoundedRect(x - 37, y - 37, 74, 74, 12);
+    if (this.textures.exists(r.image)) this.A(this.add.image(x, y - 8, r.image).setDisplaySize(46, 46).setAlpha(dim ? 0.4 : 1));
+    else this.A(text(this, x, y - 8, r.emoji, 32).setOrigin(0.5).setAlpha(dim ? 0.4 : 1));
+    this.A(text(this, x, y + 24, r.amount, 16, dim ? COLOR.textDim : COLOR.text, true, true).setOrigin(0.5));
+  }
+
   private pop(word: string): void {
     popWord(this, word, 640);
     playSfx(this, 'sfx-claim');
@@ -258,4 +273,14 @@ function missionItems(m: MissionDef): RewardItem[] {
   if (m.reward.gold) out.push({ image: 'ui-gold', emoji: '🪙', label: '골드', amount: `+${m.reward.gold.toLocaleString()}` });
   if (m.reward.rubies) out.push({ image: 'ui-ruby', emoji: '💎', label: '루비', amount: `+${m.reward.rubies}`, grade: 'rare' });
   return out;
+}
+
+/** 미션 보상의 대표 그림·수량(보상이 여러 개면 첫 번째 + "외") */
+function missionIcon(m: MissionDef): { image: string; emoji: string; amount: string } {
+  const r = m.reward;
+  const many = [r.gold, r.rubies, r.pickCards, r.pickFragments].filter(Boolean).length > 1 ? '+' : '';
+  if (r.rubies) return { image: 'ui-ruby', emoji: '💎', amount: `${r.rubies}${many}` };
+  if (r.gold) return { image: 'ui-gold', emoji: '🪙', amount: `${r.gold}${many}` };
+  if (r.pickCards) return { image: 'ui-card', emoji: '🃏', amount: `${r.pickCards}장${many}` };
+  return { image: 'ui-fragment', emoji: '🧩', amount: `${r.pickFragments ?? 0}개${many}` };
 }
