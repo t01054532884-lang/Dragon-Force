@@ -66,7 +66,8 @@ export function rewardPopup(scene: Phaser.Scene, title: string, items: RewardIte
     const card = add(scene.add.container(x, y));
     const color = GRADE_COLOR[it.grade ?? 'common'];
     const frameKey = `frame-${it.grade ?? 'common'}`;
-    if (scene.textures.exists(frameKey)) card.add(scene.add.image(0, 0, frameKey).setDisplaySize(132, 176));
+    // 테두리 그림(요청서 6 ④, 3:4): 테두리가 두꺼워 아래 수량 글자가 걸리지 않게 도형보다 조금 크게
+    if (scene.textures.exists(frameKey)) card.add(scene.add.image(0, 2, frameKey).setDisplaySize(142, 190));
     else {
       const g = scene.add.graphics();
       g.fillStyle(0x221a33, 1).fillRoundedRect(-64, -86, 128, 172, 16);

@@ -84,7 +84,11 @@ export const ART_FILES: Record<string, string> = {
   // v1.2 4차 묶음(scripts/process_art_batch11.py): 룬 상자 여는 연출 본체·뚜껑 600×600, 새 드래곤 해금 마법진 8장(water·arcane 없음 → 도형)
   'chest-rune-body': 'chest/chest-rune-body.webp',
   'chest-rune-lid': 'chest/chest-rune-lid.webp',
-  ...Object.fromEntries(['fire', 'ice', 'lightning', 'poison', 'light', 'dark', 'earth', 'wind'].map((el) => [`sigil-${el}`, `sigil/sigil-${el}.webp`])),
+  ...Object.fromEntries(['fire', 'ice', 'lightning', 'poison', 'light', 'dark', 'earth', 'wind', 'water', 'arcane'].map((el) => [`sigil-${el}`, `sigil/sigil-${el}.webp`])),
+  // 12차분(공유 링크, scripts/process_art_batch12.py): water·arcane 마법진(위 목록), 빛줄기, 보상 테두리 4등급, 어려움 오라 2·위험 지대
+  'fx-unlock-rays': 'fx/fx-unlock-rays.webp',
+  ...Object.fromEntries(['common', 'rare', 'epic', 'legendary'].map((g) => [`frame-${g}`, `frame/frame-${g}.webp`])),
+  ...Object.fromEntries(['aura-enrage', 'aura-elite', 'zone-danger'].map((k) => [k, `hard/${k}.webp`])),
   ...Object.fromEntries(['s', 'm', 'l'].map((k) => [`gold-pack-${k}`, `shop/gold-pack-${k}.webp`])),
 };
 

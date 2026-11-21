@@ -97,7 +97,7 @@ export class GameScene extends Phaser.Scene {
   /** 어려움 단계 설정(쉬움이면 null) */
   private hard: HardStageDef | null = null;
   /** 어려움 8단계: 보스 공격 뒤 남는 위험 지대 */
-  private dangerZones: { x: number; y: number; r: number; left: number; dmg: number; src: Enemy; g: Phaser.GameObjects.Arc }[] = [];
+  private dangerZones: { x: number; y: number; r: number; left: number; dmg: number; src: Enemy; g: Phaser.GameObjects.Arc | Phaser.GameObjects.Image }[] = [];
   private bossTexts: Phaser.GameObjects.Text[] = [];
   private items!: Phaser.Physics.Arcade.Group;
   /** 아이템 전용 난수: 적 생성 난수와 분리해 기존 시드의 적 등장이 그대로 재현되게 함 */
@@ -166,7 +166,7 @@ export class GameScene extends Phaser.Scene {
   // ── 7단계 공통 패턴 ──
   private enemyShots: EnemyShot[] = [];
   private slowZones: { x: number; y: number; r: number; left: number; slow: number; g: Phaser.GameObjects.Arc }[] = [];
-  private followFx: { obj: Phaser.GameObjects.Arc; target: Enemy; left: number }[] = [];
+  private followFx: { obj: Phaser.GameObjects.Arc | Phaser.GameObjects.Image; target: Enemy; left: number }[] = [];
   private playerSlow = { until: 0, ratio: 0 };
   /** 패턴 위치 전용 난수(적 생성 난수와 분리 — 1단계 시드 재현 보존) */
   private patternRng!: Phaser.Math.RandomDataGenerator;
@@ -374,8 +374,12 @@ export class GameScene extends Phaser.Scene {
         sfx: (key) => playSfx(this, key),
         aura: (e, color) => {
           // 강화·광폭화 오라: 적을 따라다니며 숨 쉬는 붉은 고리(공격 예고와 다른 모양 — 채움 없이 테두리만)
-          const ring = this.add.circle(e.x, e.y, e.def.radius + 18).setStrokeStyle(6, color, 0.85).setDepth(7);
-          this.tweens.add({ targets: ring, scale: 1.15, alpha: 0.4, duration: 450, yoyo: true, repeat: -1 });
+          // 그림(요청서 6 ⑤): 보스 광폭화 = aura-enrage(불꽃 고리), 엘리트 강화 = aura-elite(얇은 붉은 고리). 없으면 도형
+          const key = color === 0xff1744 ? 'aura-enrage' : 'aura-elite';
+          const ring = this.textures.exists(key)
+            ? this.add.image(e.x, e.y, key).setDisplaySize((e.def.radius + 18) * 2.5, (e.def.radius + 18) * 2.5).setDepth(7)
+            : this.add.circle(e.x, e.y, e.def.radius + 18).setStrokeStyle(6, color, 0.85).setDepth(7);
+          this.tweens.add({ targets: ring, scale: ring.scale * 1.15, alpha: 0.4, duration: 450, yoyo: true, repeat: -1 });
           this.followFx.push({ obj: ring, target: e, left: Infinity });
         },
       },
@@ -927,7 +931,10 @@ export class GameScene extends Phaser.Scene {
             if (e.lingers && e.active) {
               if (this.dangerZones.length >= 3) this.dangerZones.shift()!.g.destroy();
               const zr = act.r * 0.7;
-              const g = this.add.circle(act.x, act.y, zr, 0xff6d00, 0.22).setStrokeStyle(3, 0xff9100, 0.8).setDepth(3);
+              // 그림(zone-danger, 용암 균열)이 있으면 그림 — 가장자리가 부드러워 판정 반지름보다 조금 크게
+              const g = this.textures.exists('zone-danger')
+                ? this.add.image(act.x, act.y, 'zone-danger').setDisplaySize(zr * 2.3, zr * 2.3).setDepth(3)
+                : this.add.circle(act.x, act.y, zr, 0xff6d00, 0.22).setStrokeStyle(3, 0xff9100, 0.8).setDepth(3);
               this.dangerZones.push({ x: act.x, y: act.y, r: zr, left: 2500, dmg: dmg * 0.25, src: e, g });
               playSfx(this, 'sfx-danger-zone');
             }
