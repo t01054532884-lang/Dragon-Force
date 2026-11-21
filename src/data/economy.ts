@@ -49,7 +49,8 @@ export const PROGRESS_REWARDS: Record<Difficulty, Record<25 | 50 | 100, RewardBu
 export const PROGRESS_STEPS = [25, 50, 100] as const;
 
 // ───────── 루비 상자 (원문 6장 + 제작자 임시) ─────────
-export type BoxId = 'dragon' | 'equipment' | 'gold';
+// v1.2 시스템 개편(2026-11-21): 골드 상자 → 룬 상자(골드는 루비로 직접 구매 — GOLD_OFFERS)
+export type BoxId = 'dragon' | 'equipment' | 'rune';
 export interface BoxDef {
   name: string;
   desc: string;
@@ -59,14 +60,15 @@ export interface BoxDef {
 }
 export const BOXES: Record<BoxId, BoxDef> = {
   // 종합 개선 기획서 v1.1(2026-11-21): 150/1,350 → 250/2,200(10회 12% 할인). 제작자 확정 — 이벤트 루비가 많아 초반 영향은 괜찮음
-  dragon: { name: '드래곤·스킬 상자', desc: '정수·조각·카드·특수 스킬 조각', price1: 250, price10: 2200, color: 0x6a3fb5 },
+  dragon: { name: '드래곤·스킬 상자', desc: '정수·조각·카드', price1: 250, price10: 2200, color: 0x6a3fb5 },
   equipment: { name: '장비 상자', desc: '발톱 장식·비늘 갑주·목걸이·반지', price1: 100, price10: 900, color: 0x2e7d6a },
-  gold: { name: '골드 상자', desc: '골드', price1: 50, price10: 450, color: 0x9a7a12 },
+  rune: { name: '룬 상자', desc: '룬 조각(15종)', price1: 100, price10: 900, color: 0x3b5bd6 }, // v1.2 제안가
 };
 
 /** 드래곤·스킬 상자 1차 추첨(원문): 카드 40 · 조각 25 · 정수 15 · 특수 스킬 조각 20 */
 export const DRAGON_BOX = {
-  kind: { card: 40, fragment: 25, essence: 15, special: 20 },
+  // v1.2: 룬(옛 특수 스킬) 조각은 룬 상자로 분리 → 그 20%를 카드 +10 · 조각 +10으로(정수 15%·보장 규칙은 그대로)
+  kind: { card: 50, fragment: 35, essence: 15 },
   essenceRarity: { common: 70, rare: 22, epic: 7, legendary: 1 } as Record<Rarity, number>, // 원문
   rareGuarantee: 10, // 매 10회째 희귀 이상 정수(원문)
   legendaryGuarantee: 90, // 90회째 전설 정수(원문, 10회 보장보다 우선)
@@ -79,7 +81,15 @@ export const DRAGON_BOX = {
 };
 
 export const EQUIPMENT_BOX = { rarity: { common: 70, rare: 22, epic: 7, legendary: 1 } as Record<Rarity, number> }; // 제작자 임시
-export const GOLD_BOX = { table: [[500, 60], [1000, 30], [2000, 9], [5000, 1]] as [number, number][] }; // 제작자 임시
+/**
+ * 골드 직접 구매(v1.2: 골드 상자 대신). 예전 골드 상자 기대값(50루비 → 평균 830G, 1루비 ≈ 16.6G)에 맞춘 AI 1차안,
+ * 큰 묶음일수록 조금 더(10%·20%).
+ */
+export const GOLD_OFFERS: { id: string; rubies: number; gold: number }[] = [
+  { id: 'gold-s', rubies: 50, gold: 800 },
+  { id: 'gold-m', rubies: 450, gold: 8_000 },
+  { id: 'gold-l', rubies: 1_000, gold: 20_000 },
+];
 
 // ───────── 업적(일회성) — 기존 소환권 보상을 루비로 (AI 1차안: 소환권 1장 = 150루비) ─────────
 // 이미 받은 업적·소환권은 그대로 둔다(기존권은 무료 개봉권으로 보존).

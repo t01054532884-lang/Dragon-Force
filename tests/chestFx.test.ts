@@ -11,11 +11,8 @@ describe('상자 개봉 연출 등급', () => {
     ];
     expect(openingTier(rs)).toBe('epic');
   });
-  it('골드는 금액 순위로: 500 일반 · 1000 희귀 · 2000 영웅 · 5000 전설', () => {
-    expect([500, 1000, 2000, 5000].map((gold) => resultTier({ kind: 'gold', gold }))).toEqual(['common', 'rare', 'epic', 'legendary']);
-  });
-  it('특수 스킬 조각은 희귀 연출', () => {
-    expect(resultTier({ kind: 'special', specialId: 'x' as never, count: 1 })).toBe('rare');
+  it('(v1.2) 룬 조각 묶음 크기로: 5 일반 · 10 희귀 · 20 영웅 · 50 전설', () => {
+    expect([5, 10, 20, 50].map((count) => resultTier({ kind: 'special', specialId: 'rage', count }))).toEqual(['common', 'rare', 'epic', 'legendary']);
   });
   it('등급이 높을수록 흔들림·파티클이 늘어남(공통 시스템, 수치만 다름)', () => {
     const order = ['common', 'rare', 'epic', 'legendary'] as const;

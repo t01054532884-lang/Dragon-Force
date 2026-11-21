@@ -25,7 +25,7 @@ import {
   econRarity,
   EQUIPMENT_BOX,
   ESSENCE,
-  GOLD_BOX,
+  GOLD_OFFERS,
   KST_OFFSET_MS,
   MISSIONS,
   PROGRESS_REWARDS,
@@ -42,6 +42,7 @@ import {
 } from '../data/economy';
 import { EQUIP_RULES, EQUIPS, equipDef, NEXT_RARITY, SLOTS, type Slot } from '../data/equipment';
 import { SPECIAL_IDS, SPECIAL_RULES, type SpecialId } from '../data/specials';
+import { RUNE_BOX, RUNE_RULES, runeUpgradeCost } from '../data/runes';
 import { WINTER_2026, type RouletteReward } from '../data/events';
 import { store as platformStore } from '../platform';
 
@@ -69,6 +70,8 @@ export interface DragonProgress {
 
 /** 원문 SummonState */
 export interface SummonState {
+  /** 룬 상자 보장 진행(9면 다음은 10개 이상 묶음) — v1.2 */
+  runePity?: number;
   tenPity: number; // 희귀 이상 정수 없이 연 드래곤·스킬 상자 수(9면 다음은 희귀 이상 정수)
   legendaryPity: number; // 전설 정수 없이 연 수(89면 다음은 전설 정수)
   legacyTickets: number; // 기존 소환권 → 드래곤·스킬 상자 무료 개봉권(삭제하지 않음)
@@ -93,9 +96,11 @@ export interface EquipmentItem {
   locked: boolean;
 }
 
+/** 룬(v1.2, 옛 장착형 특수 스킬): 조각 · 해금 여부 · 레벨(0 = 미해금, 해금하면 1부터) */
 export interface SpecialState {
   fragments: number;
   unlocked: boolean;
+  level: number;
 }
 
 export interface MissionState {
@@ -167,10 +172,10 @@ export function defaultProgress(now = Date.now()): PlayerProgress {
     rewardedRunIds: [],
     txIds: [],
     dragons: Object.fromEntries(DRAGON_ORDER.map((id) => [id, dragonState(id, id === 'red')])) as Record<DragonId, DragonProgress>,
-    summon: { tenPity: 0, legendaryPity: 0, legacyTickets: 1, totalOpens: 0 }, // 튜토리얼 무료 개봉권 1장(기존 튜토리얼 소환권)
+    summon: { tenPity: 0, legendaryPity: 0, legacyTickets: 1, totalOpens: 0, runePity: 0 }, // 튜토리얼 무료 개봉권 1장(기존 튜토리얼 소환권)
     difficulty: { easy: emptyDiff(), hard: { unlocked: [], cleared: [], claimed: [], best: {} }, extreme: { unlocked: [], cleared: [], claimed: [], best: {} } },
     equipment: { items: [], equipped: { weapon: null, armor: null, necklace: null, ring: null }, nextUid: 1 },
-    specials: Object.fromEntries(SPECIAL_IDS.map((id) => [id, { fragments: 0, unlocked: false }])) as Record<SpecialId, SpecialState>,
+    specials: Object.fromEntries(SPECIAL_IDS.map((id) => [id, { fragments: 0, unlocked: false, level: 0 }])) as Record<SpecialId, SpecialState>,
     equippedSpecial: null,
     missions: { progress: {}, claimed: [], dailyDone: [] },
     events: {},
@@ -249,7 +254,12 @@ export function sanitize(raw: Record<string, unknown>): PlayerProgress {
   }
   const rsp = (raw.specials ?? {}) as Record<string, Partial<SpecialState>>;
   const specials = { ...d.specials };
-  for (const id of SPECIAL_IDS) specials[id] = { fragments: int(rsp[id]?.fragments, 0, 1e9, 0), unlocked: rsp[id]?.unlocked === true };
+  // v1.2 룬 이전: 예전 특수 스킬 해금 = 룬 Lv.1(조각은 그대로). 장착 칸은 없어져 모든 해금 룬이 적용된다
+  for (const id of SPECIAL_IDS) {
+    const unlocked = rsp[id]?.unlocked === true || int(rsp[id]?.level, 0, RUNE_RULES.maxLevel, 0) > 0;
+    const level = unlocked ? int(rsp[id]?.level, 1, RUNE_RULES.maxLevel, 1) : 0;
+    specials[id] = { fragments: int(rsp[id]?.fragments, 0, 1e9, 0), unlocked, level };
+  }
   const eqSp = raw.equippedSpecial as SpecialId;
   const rm = (raw.missions ?? {}) as Partial<MissionState>;
   const progress: Record<string, number> = {};
@@ -290,6 +300,7 @@ export function sanitize(raw: Record<string, unknown>): PlayerProgress {
       legendaryPity: int(rs.legendaryPity, 0, DRAGON_BOX.legendaryGuarantee - 1, 0),
       legacyTickets: int(rs.legacyTickets, 0, 99_999, 0),
       totalOpens: int(rs.totalOpens, 0, 1e9, 0),
+      runePity: int(rs.runePity, 0, RUNE_BOX.guaranteeEvery - 1, 0),
     },
     difficulty,
     equipment: { items, equipped, nextUid: Math.max(int(re.nextUid, 1, 1e12, 1), items.length + 1) },
@@ -704,9 +715,8 @@ export function openDragonBoxOnce(p: PlayerProgress, rnd: () => number): { progr
     next = addFragments(next, id, B.fragmentCount[r]);
     result = { kind: 'fragment', dragonId: id, rarity: r, count: B.fragmentCount[r] };
   } else {
-    const sid = pickIn(SPECIAL_IDS, rnd());
-    next = { ...next, specials: { ...next.specials, [sid]: { ...next.specials[sid], fragments: next.specials[sid].fragments + B.specialFragments } } };
-    result = { kind: 'special', specialId: sid, count: B.specialFragments };
+    // (v1.2부터 드래곤 상자에서 룬 조각은 나오지 않음 — 1차 추첨표에 없음)
+    result = { kind: 'card', dragonId: 'red', rarity: 'common', count: 1 };
   }
   const gotRare = kind === 'essence' && essRarity !== 'common';
   const gotLeg = kind === 'essence' && essRarity === 'legendary';
@@ -727,9 +737,29 @@ function openEquipmentOnce(p: PlayerProgress, rnd: () => number): { progress: Pl
   };
 }
 
-function openGoldOnce(p: PlayerProgress, rnd: () => number): { progress: PlayerProgress; result: BoxResult } {
-  const gold = pickWeighted<number>(GOLD_BOX.table, rnd());
-  return { result: { kind: 'gold', gold }, progress: { ...p, gold: p.gold + gold } };
+/** 룬 상자 1회(v1.2): 룬 조각 묶음 하나(15종 균등). 매 10회째는 10개 이상 */
+function openRuneOnce(p: PlayerProgress, rnd: () => number): { progress: PlayerProgress; result: BoxResult } {
+  const pity = p.summon.runePity ?? 0;
+  const guaranteed = pity >= RUNE_BOX.guaranteeEvery - 1;
+  const count = pickWeighted<number>(guaranteed ? RUNE_BOX.guaranteeBundles : RUNE_BOX.bundles, rnd());
+  const sid = pickIn(SPECIAL_IDS, rnd());
+  const s = p.specials[sid];
+  return {
+    result: { kind: 'special', specialId: sid, count },
+    progress: {
+      ...p,
+      specials: { ...p.specials, [sid]: { ...s, fragments: s.fragments + count } },
+      summon: { ...p.summon, runePity: count >= 10 ? 0 : pity + 1 },
+    },
+  };
+}
+
+/** 골드 직접 구매(v1.2 상점 개편) */
+export function buyGold(p: PlayerProgress, offerId: string): Result<{ gold: number }> {
+  const o = GOLD_OFFERS.find((x) => x.id === offerId);
+  if (!o) return fail('missing');
+  if (p.rubies < o.rubies) return fail('rubies', o.rubies);
+  return { ok: true, cost: o.rubies, progress: { ...p, rubies: p.rubies - o.rubies, gold: p.gold + o.gold }, gold: o.gold };
 }
 
 /**
@@ -755,7 +785,7 @@ export function openBox(
   }
   const results: BoxResult[] = [];
   for (let i = 0; i < count; i++) {
-    const r = box === 'dragon' ? openDragonBoxOnce(cur, rnd) : box === 'equipment' ? openEquipmentOnce(cur, rnd) : openGoldOnce(cur, rnd);
+    const r = box === 'dragon' ? openDragonBoxOnce(cur, rnd) : box === 'equipment' ? openEquipmentOnce(cur, rnd) : openRuneOnce(cur, rnd);
     cur = r.progress;
     results.push(r.result);
   }
@@ -829,17 +859,30 @@ export function fuseItem(p: PlayerProgress, uid: string): Result<{ item: Equipme
 }
 
 // ───────────────────────── 장착형 특수 스킬 ─────────────────────────
+/** 룬 강화(v1.2): Lv.n → n+1, 조각 + 골드. 최대 RUNE_RULES.maxLevel */
+export function upgradeRune(p: PlayerProgress, id: SpecialId): Result {
+  const s = p.specials[id];
+  if (!s.unlocked || s.level < 1) return fail('locked');
+  if (s.level >= RUNE_RULES.maxLevel) return fail('max');
+  const c = runeUpgradeCost(s.level);
+  if (s.fragments < c.fragments) return fail('fragments', c.fragments);
+  if (p.gold < c.gold) return fail('gold', c.gold);
+  return {
+    ok: true,
+    cost: c.gold,
+    progress: { ...p, gold: p.gold - c.gold, specials: { ...p.specials, [id]: { ...s, fragments: s.fragments - c.fragments, level: s.level + 1 } } },
+  };
+}
+
+/** 룬 해금(옛 특수 스킬 해금): 조각 50개 → 룬 Lv.1 */
 export function unlockSpecial(p: PlayerProgress, id: SpecialId): Result {
   const s = p.specials[id];
   if (s.unlocked) return fail('owned');
   if (s.fragments < SPECIAL_RULES.unlockFragments) return fail('fragments', SPECIAL_RULES.unlockFragments);
-  return { ok: true, progress: { ...p, specials: { ...p.specials, [id]: { fragments: s.fragments - SPECIAL_RULES.unlockFragments, unlocked: true } } } };
+  return { ok: true, progress: { ...p, specials: { ...p.specials, [id]: { fragments: s.fragments - SPECIAL_RULES.unlockFragments, unlocked: true, level: Math.max(1, s.level) } } } };
 }
 
-export function equipSpecial(p: PlayerProgress, id: SpecialId | null): Result {
-  if (id && !p.specials[id].unlocked) return fail('locked');
-  return { ok: true, progress: { ...p, equippedSpecial: id } };
-}
+/** (v1.2부터 쓰지 않음) 옛 특수 스킬 장착 — 룬은 장착 없이 모두 적용. 저장 필드 equippedSpecial은 예전 저장 호환용으로만 남김 */
 
 // ───────────────────────── 주기 보상(일일·주간·월간·이벤트, KST) ─────────────────────────
 const kstDate = (now: number) => new Date(now + KST_OFFSET_MS);
@@ -1140,7 +1183,8 @@ export const Progress = {
   upgradeItem: (uid: string) => act((p) => upgradeItem(p, uid)),
   fuse: (uid: string) => act((p) => fuseItem(p, uid)),
   unlockSpecial: (id: SpecialId) => act((p) => unlockSpecial(p, id)),
-  equipSpecial: (id: SpecialId | null) => act((p) => equipSpecial(p, id)),
+  upgradeRune: (id: SpecialId) => act((p) => upgradeRune(p, id)),
+  buyGold: (offerId: string, txId?: string) => act((p) => withTx(p, txId, () => buyGold(p, offerId))),
   spin: (now: number) => act((p) => spinRoulette(p, now)),
   attend: (now: number) => act((p) => claimAttendance(p, now)),
   /** 개발용(?dev=1): 루비·골드·카드 추가 */

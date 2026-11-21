@@ -1,4 +1,4 @@
-import { GOLD_BOX, RARITIES, type Rarity } from './economy';
+import { RARITIES, type Rarity } from './economy';
 import type { BoxResult } from '../systems/Progress';
 
 // 상자 개봉 연출(8단계 준비). 등급마다 다른 것은 아래 수치뿐이고, 연출 코드(src/ui/ChestOpening.ts)는 하나를 같이 쓴다.
@@ -34,11 +34,10 @@ export function resultTier(r: BoxResult): Rarity {
     case 'equipment':
       return r.item.rarity as Rarity;
     case 'special':
-      return 'rare';
-    case 'gold': {
-      const idx = GOLD_BOX.table.findIndex(([g]) => g === r.gold);
-      return RARITIES[Math.max(0, Math.min(RARITIES.length - 1, idx))];
-    }
+      // 룬 조각 묶음: 5개 일반 · 10개 희귀 · 20개 영웅 · 50개 전설
+      return r.count >= 50 ? 'legendary' : r.count >= 20 ? 'epic' : r.count >= 10 ? 'rare' : 'common';
+    case 'gold':
+      return 'common';
   }
 }
 
@@ -68,5 +67,5 @@ export const CHEST_INNER: Record<Rarity, string | null> = { common: null, rare: 
  * 상자별 입구 높이(본체 그림 600×600 캔버스 기준 y). 빛 그림의 밑동(y≈485)을 이 높이에 맞춘다.
  * 기획자 상자 그림에서 잰 값(2026-11-19, 본체 윗면 가운데).
  */
-export const CHEST_MOUTH_Y: Record<'dragon' | 'equipment' | 'gold', number> = { dragon: 268, equipment: 205, gold: 255 };
+export const CHEST_MOUTH_Y: Record<'dragon' | 'equipment' | 'rune', number> = { dragon: 268, equipment: 205, rune: 255 };
 export const INNER_BASE_Y = 485;

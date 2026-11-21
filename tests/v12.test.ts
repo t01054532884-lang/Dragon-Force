@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { DRAGON_ORDER, DRAGONS } from '../src/data/dragons';
 import { applyPerm, permState, PERM_TIERS, ZERO_PERM } from '../src/data/permGrowth';
-import { BOXES, DRAGON_BOX, GOLD_BOX, EQUIPMENT_BOX, PROGRESS_REWARDS } from '../src/data/economy';
+import { BOXES, DRAGON_BOX, GOLD_OFFERS, EQUIPMENT_BOX, PROGRESS_REWARDS } from '../src/data/economy';
+import { RUNE_BOX, RUNE_RULES, runeEffects, runeUpgradeCost } from '../src/data/runes';
 import { equipValue, EQUIP_RULES } from '../src/data/equipment';
 import { combatPower, recommendedCp, cpVerdict } from '../src/data/power';
 import { aoePerTarget, signatureCap, SIGNATURE_RULES, SIGNATURES } from '../src/data/signature';
@@ -9,7 +10,7 @@ import { SPECIALS } from '../src/data/specials';
 import { loadout } from '../src/systems/Loadout';
 import {
   claimMission, claimProgressBox, convertToUniversal, defaultProgress, exchangeEssence, fuseItem, openBox, openDragonBoxOnce,
-  periodKey, progressPct, settleRun, starUpDragon, toggleLock, upgradeItem, withTx, equipItem, unlockSpecial, equipSpecial,
+  periodKey, progressPct, settleRun, starUpDragon, toggleLock, upgradeItem, withTx, equipItem, unlockSpecial, upgradeRune, buyGold, sanitize,
   type EquipmentItem, type PlayerProgress,
 } from '../src/systems/Progress';
 
@@ -150,17 +151,18 @@ describe('6-4 난이도·진행도', () => {
 });
 
 describe('6-5 루비 상자·천장', () => {
-  it('가격: 드래곤 250/2,200(v1.1, 12% 할인) · 장비 100/900 · 골드 50/450(10% 할인)', () => {
+  it('가격: 드래곤 250/2,200(v1.1, 12% 할인) · 장비 100/900 · 룬 100/900(v1.2, 10% 할인)', () => {
     expect([BOXES.dragon.price1, BOXES.dragon.price10]).toEqual([250, 2200]);
-    for (const b of [BOXES.equipment, BOXES.gold]) expect(b.price10).toBe(b.price1 * 9);
-    expect([BOXES.dragon.price1, BOXES.equipment.price1, BOXES.gold.price1]).toEqual([250, 100, 50]);
+    for (const b of [BOXES.equipment, BOXES.rune]) expect(b.price10).toBe(b.price1 * 9);
+    expect([BOXES.dragon.price1, BOXES.equipment.price1, BOXES.rune.price1]).toEqual([250, 100, 100]);
   });
-  it('확률 합 100%: 1차 추첨·정수 희귀도·장비·골드', () => {
+  it('확률 합 100%: 1차 추첨·정수 희귀도·장비·룬', () => {
     const sum = (o: Record<string, number>) => Object.values(o).reduce((a, b) => a + b, 0);
     expect(sum(DRAGON_BOX.kind)).toBe(100);
     expect(sum(DRAGON_BOX.essenceRarity)).toBe(100);
     expect(sum(EQUIPMENT_BOX.rarity)).toBe(100);
-    expect(GOLD_BOX.table.reduce((a, [, w]) => a + w, 0)).toBe(100);
+    expect(RUNE_BOX.bundles.reduce((a, [, w]) => a + w, 0)).toBe(100);
+    expect(DRAGON_BOX.kind).toEqual({ card: 50, fragment: 35, essence: 15 }); // v1.2: 룬 조각 분리
   });
   it('루비 부족이면 아무것도 안 바뀜, 10회는 10회 가격 차감·결과 10개', () => {
     expect(openBox({ ...defaultProgress(), rubies: BOXES.dragon.price1 - 1 }, 'dragon', 1)).toMatchObject({ ok: false, reason: 'rubies' });
@@ -173,9 +175,9 @@ describe('6-5 루비 상자·천장', () => {
     const p = { ...defaultProgress(), summon: { ...defaultProgress().summon, legacyTickets: 23 } };
     const r = openBox(p, 'dragon', 10, 'ticket', seeded(4));
     expect(r.ok && r.progress.summon.legacyTickets).toBe(13);
-    expect(openBox(p, 'gold', 1, 'ticket')).toMatchObject({ ok: false });
+    expect(openBox(p, 'rune', 1, 'ticket')).toMatchObject({ ok: false });
   });
-  it('10만 회: 1차 추첨 40/25/15/20 수렴, 레드 정수·조각 없음, 전설 정수 간격 ≤ 90, 희귀 이상 정수 간격 ≤ 10', () => {
+  it('10만 회: 1차 추첨 50/35/15 수렴(룬 조각 없음), 레드 정수·조각 없음, 전설 정수 간격 ≤ 90, 희귀 이상 정수 간격 ≤ 10', () => {
     let p = defaultProgress();
     const rnd = seeded(7);
     const kinds: Record<string, number> = {};
@@ -205,9 +207,10 @@ describe('6-5 루비 상자·천장', () => {
     }
     expect(maxLeg).toBeLessThanOrEqual(90);
     expect(maxRare).toBeLessThanOrEqual(10);
-    // 보장이 정수 비율을 끌어올리므로 카드·조각·특수는 원래 비율보다 조금 낮다
-    expect(kinds.card / N).toBeGreaterThan(0.3);
-    expect(kinds.special / N).toBeGreaterThan(0.15);
+    // 보장이 정수 비율을 끌어올리므로 카드·조각은 원래 비율보다 조금 낮다. 룬 조각은 드래곤 상자에서 안 나옴
+    expect(kinds.card / N).toBeGreaterThan(0.4);
+    expect(kinds.fragment / N).toBeGreaterThan(0.28);
+    expect(kinds.special ?? 0).toBe(0);
     expect(legEss).toBeGreaterThan(N / 90);
   });
   it('10회 보장과 90회 천장이 겹치면 전설 하나만(추가 지급 없음)', () => {
@@ -218,10 +221,10 @@ describe('6-5 루비 상자·천장', () => {
   });
   it('같은 거래 ID는 한 번만(중복 요청·재시도 방지)', () => {
     const p = { ...defaultProgress(), rubies: 1000 };
-    const a = withTx(p, 'tx-1', () => openBox(p, 'gold', 1, 'ruby', seeded(1)));
+    const a = withTx(p, 'tx-1', () => openBox(p, 'rune', 1, 'ruby', seeded(1)));
     expect(a.ok).toBe(true);
     if (!a.ok) return;
-    const b = withTx(a.progress, 'tx-1', () => openBox(a.progress, 'gold', 1, 'ruby', seeded(1)));
+    const b = withTx(a.progress, 'tx-1', () => openBox(a.progress, 'rune', 1, 'ruby', seeded(1)));
     expect(b).toMatchObject({ ok: false, reason: 'duplicate' });
   });
 });
@@ -267,15 +270,54 @@ describe('6-6 장비', () => {
   });
 });
 
-describe('6-7 장착형 특수 스킬', () => {
-  it('15종, 조각 50개로 해금, 해금 전 장착 불가', () => {
+describe('6-7 → v1.2 룬(옛 장착형 특수 스킬)', () => {
+  it('15종, 조각 50개로 해금 → 룬 Lv.1, 조각 + 골드로 강화, 최대 Lv.10', () => {
     expect(SPECIALS).toHaveLength(15);
     const p = defaultProgress();
-    expect(equipSpecial(p, 'rage')).toMatchObject({ ok: false });
-    const q = { ...p, specials: { ...p.specials, rage: { fragments: 50, unlocked: false } } };
+    expect(upgradeRune(p, 'rage')).toMatchObject({ ok: false, reason: 'locked' });
+    const q = { ...p, gold: 1e6, specials: { ...p.specials, rage: { fragments: 50 + 500, unlocked: false, level: 0 } } };
     const r = unlockSpecial(q, 'rage');
-    expect(r.ok && r.progress.specials.rage).toEqual({ fragments: 0, unlocked: true });
-    if (r.ok) expect(equipSpecial(r.progress, 'rage').ok).toBe(true);
+    expect(r.ok && r.progress.specials.rage).toEqual({ fragments: 500, unlocked: true, level: 1 });
+    if (!r.ok) return;
+    let cur = r.progress;
+    for (let lv = 1; lv < RUNE_RULES.maxLevel; lv++) {
+      const u = upgradeRune(cur, 'rage');
+      expect(u.ok, `Lv.${lv}`).toBe(true);
+      if (u.ok) cur = u.progress;
+    }
+    expect(cur.specials.rage.level).toBe(10);
+    expect(upgradeRune(cur, 'rage')).toMatchObject({ ok: false, reason: 'max' });
+    const spent = Array.from({ length: 9 }, (_, i) => runeUpgradeCost(i + 1).fragments).reduce((a, b) => a + b, 0);
+    expect(cur.specials.rage.fragments).toBe(500 - spent);
+  });
+  it('예전 저장 이전: 해금한 특수 스킬 = 룬 Lv.1, 조각 그대로, 장착 여부와 상관없이 모두 적용', () => {
+    const old = { ...defaultProgress(), specials: { ...defaultProgress().specials, rage: { fragments: 12, unlocked: true }, ancientEye: { fragments: 30, unlocked: false } }, equippedSpecial: 'rage' };
+    const p = sanitize(JSON.parse(JSON.stringify(old)));
+    expect(p.specials.rage).toEqual({ fragments: 12, unlocked: true, level: 1 });
+    expect(p.specials.ancientEye).toEqual({ fragments: 30, unlocked: false, level: 0 });
+    const lo = loadout(p, 'red');
+    expect(lo.runes.attack).toBeCloseTo(0.02);
+    expect(lo.stats.attack).toBeCloseTo(loadout(defaultProgress(), 'red').stats.attack + 10 * 0.02);
+  });
+  it('룬 효과 묶음: 레벨 × 레벨당 값, 전투력 S에 레벨 합계 반영', () => {
+    const e = runeEffects({ rage: 10, ancientEye: 5, treasure: 3 });
+    expect([e.attack, e.crit, e.gold, e.totalLevels]).toEqual([0.2, 0.05, 0.06, 18]);
+  });
+  it('룬 상자: 매 10회째 10개 이상, 드래곤 상자와 풀 분리, 골드 직접 구매', () => {
+    let p = { ...defaultProgress(), rubies: 100_000 };
+    const rnd = seeded(5);
+    for (let k = 0; k < 20; k++) {
+      const r = openBox(p, 'rune', 10, 'ruby', rnd);
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      p = r.progress;
+      expect(r.results.every((x) => x.kind === 'special')).toBe(true);
+      // 10회 묶음 안에 10개 이상이 적어도 하나(보장)
+      expect(r.results.some((x) => x.kind === 'special' && x.count >= 10)).toBe(true);
+    }
+    const g = buyGold({ ...defaultProgress(), rubies: 450 }, GOLD_OFFERS[1].id);
+    expect(g.ok && [g.progress.rubies, g.progress.gold]).toEqual([0, GOLD_OFFERS[1].gold]);
+    expect(buyGold({ ...defaultProgress(), rubies: 10 }, GOLD_OFFERS[0].id)).toMatchObject({ ok: false, reason: 'rubies' });
   });
 });
 

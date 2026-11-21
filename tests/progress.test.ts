@@ -16,11 +16,13 @@ describe('비용 곡선 C(n) = ceil(50 × 1.2^(n−1))', () => {
     const at = (n: number) => getUpgradeCost(n - 1);
     expect([1, 2, 3, 5, 10, 15, 20].map(at)).toEqual([50, 60, 72, 104, 258, 642, 1598]);
   });
-  it('누적: 0→10 1,301G · 0→20 9,342G · 4종 만렙 21,286G', () => {
+  it('누적: 0→10 1,301G · 0→20 9,342G · (v1.2) 0→40 · 4종 만렙', () => {
     const sum = (max: number) => Array.from({ length: max }, (_, i) => getUpgradeCost(i)).reduce((a, b) => a + b, 0);
     expect(sum(10)).toBe(1301);
     expect(sum(20)).toBe(9342);
-    expect(sum(20) * 2 + sum(10) * 2).toBe(21286);
+    // v1.2: 4종 모두 최대 40. Lv.20 뒤는 레벨마다 ×1.08(Lv.39→40 = 7,446G)
+    expect(getUpgradeCost(39)).toBe(Math.ceil(50 * Math.pow(1.2, 19) * Math.pow(1.08, 20)));
+    expect(sum(40)).toBe(sum(20) + Array.from({ length: 20 }, (_, i) => getUpgradeCost(20 + i)).reduce((a, b) => a + b, 0));
   });
 });
 
@@ -34,7 +36,7 @@ describe('구매', () => {
     expect(r.ok && r.progress.upgrades.attack).toBe(1);
   });
   it('최대 레벨이면 구매 불가', () => {
-    const p = { ...withGold(1e6), upgrades: { attack: 20, hp: 20, speed: 10, pickup: 10 } };
+    const p = { ...withGold(1e6), upgrades: { attack: 40, hp: 40, speed: 40, pickup: 40 } }; // v1.2: 최대 40
     for (const t of ['attack', 'hp', 'speed', 'pickup'] as const) expect(purchase(p, t)).toMatchObject({ ok: false, reason: 'max' });
   });
   it('연속 구매: 최신 상태로 검사하므로 골드가 음수가 되지 않음', () => {
@@ -152,7 +154,7 @@ describe('저장·복원', () => {
     const s = mem({ [SAVE_KEY]: JSON.stringify({ saveVersion: 1, gold: -500, upgrades: { attack: 99, hp: -3 } }) });
     const p = loadProgress(s);
     expect(p.gold).toBe(0);
-    expect(p.upgrades).toEqual({ attack: 20, hp: 0, speed: 0, pickup: 0 });
+    expect(p.upgrades).toEqual({ attack: 40, hp: 0, speed: 0, pickup: 0 }); // v1.2: 최대 40
   });
   it('손상된 데이터: 원본 백업 후 기본값', () => {
     const s = mem({ [SAVE_KEY]: '{깨진 데이터' });

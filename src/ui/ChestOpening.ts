@@ -208,7 +208,7 @@ export function ensureChestTextures(scene: Phaser.Scene, box: BoxId): void {
   const bodyKey = `chest-${box}-body`;
   const lidKey = `chest-${box}-lid`;
   if (scene.textures.exists(bodyKey) && scene.textures.exists(lidKey)) return;
-  const main = { dragon: 0x6a3fb5, equipment: 0x2e7d6a, gold: 0x9a7a12 }[box];
+  const main = { dragon: 0x6a3fb5, equipment: 0x2e7d6a, rune: 0x3b5bd6 }[box];
   const trim = 0xffd34d;
   const g = scene.add.graphics();
   // 260×260 같은 캔버스: 본체는 아래(y 110~240), 뚜껑은 위(y 50~140)

@@ -1,13 +1,14 @@
 import { buildRunStats } from '../data/progression';
 import { DRAGONS, type DragonId } from '../data/dragons';
 import { equipDef, equipValue, SLOTS } from '../data/equipment';
-import { SPECIAL_RULES, SPECIAL_VALUES, type SpecialId } from '../data/specials';
+import { SPECIAL_IDS } from '../data/specials';
+import { RUNE_RULES, runeEffects } from '../data/runes';
 import { combatPower, CP_RULES } from '../data/power';
 import { permTiersReached } from '../data/permGrowth';
 import type { PlayerProgress } from './Progress';
 
 /**
- * 판 시작 능력치 한 벌: 드래곤(종·영구 레벨·승급) + 연구소 + 장비 4종 + 장착형 특수 스킬.
+ * 판 시작 능력치 한 벌: 드래곤(종·영구 레벨·승급) + 연구소 + 장비 4종 + 룬 15종(v1.2, 해금한 룬은 모두 적용).
  * 로비·드래곤·장비 화면의 전투력과 실제 전투가 같은 함수를 쓴다(화면과 전투 값이 어긋나지 않게).
  * 장비 없음·특수 스킬 없음이면 buildRunStats 결과와 똑같다(기존 전투 결과 보존).
  */
@@ -41,25 +42,22 @@ export function loadout(p: PlayerProgress, dragonId: DragonId = p.selectedDragon
     }
   }
 
-  // 장착형 특수 스킬 중 능력치·특성에 바로 붙는 것(시간형·확률형은 전투 장면이 처리)
-  const sp: SpecialId | null = p.equippedSpecial && p.specials[p.equippedSpecial]?.unlocked ? p.equippedSpecial : null;
-  const V = SPECIAL_VALUES;
-  if (sp === 'earthWill') stats.maxHp += def.baseHp * V.earthWill.hp;
-  if (sp === 'ancientEye') stats.critChance += V.ancientEye.crit;
-  if (sp === 'stormBless') {
-    stats.speed += def.baseMoveSpeed * V.stormBless.move;
-    traits.intervalMult *= 1 - V.stormBless.haste;
-  }
-  if (sp === 'starMana') {
-    stats.cooldownMult *= 1 - V.starMana.cooldown;
-    signatureCdMult *= 1 - V.starMana.cooldown;
-  }
-  if (sp === 'venomMark') traits.poisonDurMult *= 1 + V.venomMark.poisonMs;
-  if (sp === 'thunderCrest') traits.extraChain += V.thunderCrest.chain;
+  // 룬(v1.2): 능력치 증가형. 기본값 기준 % 는 연구소·장비처럼 더한다. 전투 중 조건형(화상·둔화·저체력·처치 회복·골드·추가 발동)은 전투 장면이 runes로 처리
+  const runes = runeEffects(Object.fromEntries(SPECIAL_IDS.map((id) => [id, p.specials[id]?.level ?? 0])));
+  stats.attack += def.baseAttack * runes.attack;
+  stats.maxHp += def.baseHp * runes.hp;
+  stats.speed += def.baseMoveSpeed * runes.move;
+  stats.critChance += runes.crit;
+  stats.skillDamageMult += runes.skillDamage;
+  stats.damageTaken -= runes.damageReduce;
+  stats.cooldownMult *= 1 - runes.cooldown;
+  signatureCdMult *= 1 - runes.cooldown;
+  traits.poisonDurMult *= 1 + runes.poisonDur;
+  traits.chainRelief += runes.chainRelief;
   stats.damageTaken = Math.max(0.5, stats.damageTaken);
 
   const tiers = permTiersReached(own.level);
-  const S = tiers * CP_RULES.perTier + (sp ? SPECIAL_RULES.cpBonus : 0);
+  const S = tiers * CP_RULES.perTier + runes.totalLevels * RUNE_RULES.cpPerLevel;
   const cp = combatPower(stats.attack, stats.maxHp, stats.speed, S);
   return {
     def,
@@ -70,7 +68,7 @@ export function loadout(p: PlayerProgress, dragonId: DragonId = p.selectedDragon
     traitMult: built.traitMult,
     // 35% 한 방 상한 기준 = 종별 기본 HP. 연구소·영구 레벨·승급·장비·대지의 의지로 오른 HP는 모두 뺀다.
     permHpBonus: stats.maxHp - def.baseHp,
-    special: sp,
+    runes,
     signatureCdMult,
     cp,
     cpS: S,

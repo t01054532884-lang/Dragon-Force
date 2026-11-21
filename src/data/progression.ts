@@ -13,28 +13,44 @@ export interface PermanentUpgradeDef {
   name: string;
   icon: string;
   maxLevel: number;
-  bonusPerLevel: number; // 레벨당 증가율(0.02 = +2%)
+  bonusPerLevel: number; // 레벨당 증가율(0.02 = +2%) — breakAt 레벨까지
+  /** v1.2(2026-11-21) 최대 레벨 40 확장: breakAt 레벨 다음부터는 레벨당 bonusAfter(기존 구간은 그대로 → 기존 강화 내역 효과 불변) */
+  breakAt: number;
+  bonusAfter: number;
   effect: string; // 화면에 보일 효과 이름
 }
 
+/**
+ * 연구소 4종(5단계 + v1.2 시스템 개편 3장: 최대 레벨 각각 40).
+ * 기존 구간(공격·생명 1~20, 비행·흡수 1~10)의 효과·비용은 그대로 두고 그 뒤만 이어 붙였다 → 저장된 레벨의 효과가 바뀌지 않는다.
+ * 최대치: 공격 +70% · 생명 +100% · 비행 +25% · 흡수 반경 +125% (AI 1차안, 밸런스 검토 후 조정)
+ */
 export const PERMANENT_UPGRADES: Record<UpgradeType, PermanentUpgradeDef> = {
-  attack: { name: '공격력 강화', icon: '⚔️', maxLevel: 20, bonusPerLevel: 0.02, effect: '모든 공격 피해' },
-  hp: { name: '생명력 강화', icon: '❤️', maxLevel: 20, bonusPerLevel: 0.03, effect: '최대 HP' },
-  speed: { name: '비행속도 강화', icon: '🪽', maxLevel: 10, bonusPerLevel: 0.01, effect: '이동속도' },
-  pickup: { name: '경험치 흡수 강화', icon: '💎', maxLevel: 10, bonusPerLevel: 0.05, effect: '보석 획득 반경' },
+  attack: { name: '공격력 강화', icon: '⚔️', maxLevel: 40, bonusPerLevel: 0.02, breakAt: 20, bonusAfter: 0.015, effect: '모든 공격 피해' },
+  hp: { name: '생명력 강화', icon: '❤️', maxLevel: 40, bonusPerLevel: 0.03, breakAt: 20, bonusAfter: 0.02, effect: '최대 HP' },
+  speed: { name: '비행속도 강화', icon: '🪽', maxLevel: 40, bonusPerLevel: 0.01, breakAt: 10, bonusAfter: 0.005, effect: '이동속도' },
+  pickup: { name: '경험치 흡수 강화', icon: '💎', maxLevel: 40, bonusPerLevel: 0.05, breakAt: 10, bonusAfter: 0.025, effect: '보석 획득 반경' },
 };
 
-// 비용: C(n) = ceil(50 × 1.20^(n−1)), n = 구매 후 도달 레벨
-export const COST = { base: 50, growth: 1.2 };
-
-/** currentLevel에서 한 레벨 올리는 비용. currentLevel=0 → 50G, 9 → 258G, 19 → 1598G */
-export function getUpgradeCost(currentLevel: number): number {
-  return Math.ceil(COST.base * Math.pow(COST.growth, currentLevel));
+/** 연구소 레벨의 누적 증가율(0.4 = +40%) */
+export function labBonus(type: UpgradeType, level: number): number {
+  const d = PERMANENT_UPGRADES[type];
+  const lv = Math.max(0, Math.min(d.maxLevel, level));
+  return Math.min(lv, d.breakAt) * d.bonusPerLevel + Math.max(0, lv - d.breakAt) * d.bonusAfter;
 }
 
-/** 강화 레벨에 따른 보정치: 1 + 레벨 × 증가율 */
+// 비용: Lv.20까지 C(n) = ceil(50 × 1.20^(n−1)) 그대로, 그 뒤는 Lv.20 비용(1,598G)에서 레벨마다 ×1.08(급등 방지 — v1.2)
+export const COST = { base: 50, growth: 1.2, lateFrom: 19, lateGrowth: 1.08 };
+
+/** currentLevel에서 한 레벨 올리는 비용. currentLevel=0 → 50G, 9 → 258G, 19 → 1598G, 39 → 7,446G */
+export function getUpgradeCost(currentLevel: number): number {
+  if (currentLevel <= COST.lateFrom) return Math.ceil(COST.base * Math.pow(COST.growth, currentLevel));
+  return Math.ceil(COST.base * Math.pow(COST.growth, COST.lateFrom) * Math.pow(COST.lateGrowth, currentLevel - COST.lateFrom));
+}
+
+/** 강화 레벨에 따른 보정치: 1 + 누적 증가율 */
 export function upgradeMult(type: UpgradeType, level: number): number {
-  return 1 + level * PERMANENT_UPGRADES[type].bonusPerLevel;
+  return 1 + labBonus(type, level);
 }
 
 export type PermanentUpgrades = Record<UpgradeType, number>;
@@ -72,10 +88,10 @@ export function buildRunStats(
   const baseHp = def.baseHp;
   const stats: RunStats = {
     ...BASE_STATS,
-    attack: def.baseAttack * (1 + up.attack * PERMANENT_UPGRADES.attack.bonusPerLevel + lb.attack + sb.attack),
-    maxHp: baseHp * (1 + up.hp * PERMANENT_UPGRADES.hp.bonusPerLevel + lb.hp + sb.hp),
-    speed: def.baseMoveSpeed * (1 + up.speed * PERMANENT_UPGRADES.speed.bonusPerLevel + (def.trait.id === 'swift' ? t : 0) + perm.move),
-    magnet: BASE_STATS.magnet * (1 + up.pickup * PERMANENT_UPGRADES.pickup.bonusPerLevel),
+    attack: def.baseAttack * (1 + labBonus('attack', up.attack) + lb.attack + sb.attack),
+    maxHp: baseHp * (1 + labBonus('hp', up.hp) + lb.hp + sb.hp),
+    speed: def.baseMoveSpeed * (1 + labBonus('speed', up.speed) + (def.trait.id === 'swift' ? t : 0) + perm.move),
+    magnet: BASE_STATS.magnet * (1 + labBonus('pickup', up.pickup)),
     damageTaken: 1 - (def.trait.id === 'guard' ? t : 0) - perm.guard,
   };
   const traits: BasicTraits = {

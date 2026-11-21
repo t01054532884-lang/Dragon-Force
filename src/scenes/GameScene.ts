@@ -29,7 +29,7 @@ import { gameNow } from '../ui/widgets';
 import { loadout } from '../systems/Loadout';
 import { Signature } from '../systems/Signature';
 import { sigTier } from '../data/signature';
-import { SPECIAL_VALUES, type SpecialId } from '../data/specials';
+import type { RuneEffects } from '../data/runes';
 import { DIFFICULTY_LABEL, DIFFICULTY_MULT, type Difficulty } from '../data/economy';
 import { decideDrop, ITEM_RULES, ITEMS, newDropState, type DropState, type ItemId } from '../data/items';
 import { GEM_MERGE, gemTier, mergeGroups } from '../systems/GemMerge';
@@ -143,9 +143,8 @@ export class GameScene extends Phaser.Scene {
   private sigIcon!: Phaser.GameObjects.Text;
   private sigText!: Phaser.GameObjects.Text;
   /** 장착형 특수 스킬(v1.2 9장) — 시간형 효과 상태 */
-  private special: SpecialId | null = null;
-  private specialTimer = 0;
-  private specialActive = 0;
+  /** 룬 효과(v1.2: 옛 장착형 특수 스킬 → 항상 적용되는 능력치형). 전투 중 조건형만 여기서 씀 */
+  private runes!: RuneEffects;
   private specialText!: Phaser.GameObjects.Text;
   private pauseLayer: Phaser.GameObjects.GameObject[] = [];
   private mode: Mode = 'play';
@@ -230,10 +229,8 @@ export class GameScene extends Phaser.Scene {
     this.permHpBonus = built.permHpBonus;
     this.traitMult = built.traitMult;
     this.basicTraits = built.traits;
-    this.special = built.special;
-    this.specialTimer = 0;
-    this.specialActive = 0;
-    Enemy.slowBoost = this.special === 'iceHeart' ? 1 + SPECIAL_VALUES.iceHeart.slow : 1;
+    this.runes = built.runes;
+    Enemy.slowBoost = 1 + this.runes.slow;
     this.runRewards = [];
     setBasicCard(this.dragon.basic, BASIC_TAGS[this.dragon.id]);
     this.hp = this.stats.maxHp;
@@ -351,7 +348,7 @@ export class GameScene extends Phaser.Scene {
     };
     this.basic = new BasicAttack(host, this.dragon.basic, this.basicTraits, built.perm);
     this.skills = new Skills(host);
-    if (this.special === 'resonance') this.skills.echo = SPECIAL_VALUES.resonance.chance;
+    if (this.runes.echo > 0) this.skills.echo = this.runes.echo;
     // 전용 스킬 성장 단계: 드래곤 영구 레벨 10·20·30(2026-11-21)
     this.signature = new Signature(host, this.dragon.id, built.signatureCdMult, () => this.basic.singleTargetDps(), (pct) => host.heal?.(pct), sigTier(built.own.level));
 
@@ -477,32 +474,10 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  /** 장착형 특수 스킬 중 시간형(용의 분노·고대의 보호막·마력 폭발) */
-  private updateSpecial(delta: number): void {
-    const sp = this.special;
-    if (sp !== 'rage' && sp !== 'aegis' && sp !== 'burst') return;
-    const V = SPECIAL_VALUES[sp];
-    this.specialTimer += delta;
-    if (this.specialActive > 0) this.specialActive -= delta;
-    if (this.specialTimer < V.every) return;
-    this.specialTimer -= V.every;
-    if (sp === 'burst') {
-      const r = SPECIAL_VALUES.burst.radius * M * this.stats.areaMult;
-      for (const e of this.enemies.getChildren() as Enemy[]) {
-        if (e.active && Phaser.Math.Distance.Between(this.player.x, this.player.y, e.x, e.y) < r + e.def.radius) this.hitEnemy(e, { source: 'active', coef: SPECIAL_VALUES.burst.coef, tag: 'special' });
-      }
-      const c = this.add.circle(this.player.x, this.player.y, r, 0xb693ff, 0.35).setDepth(8);
-      this.tweens.add({ targets: c, alpha: 0, scale: 1.15, duration: 300, onComplete: () => c.destroy() });
-    } else {
-      this.specialActive = (V as { ms: number }).ms;
-    }
-  }
-
-  /** 전투 중 공격력 배율: 용의 분노(시간형) · 암흑의 계약(HP 50% 이하) */
+  /** 전투 중 공격력 배율: 암흑의 계약 룬(HP 50% 이하) */
   private attackMult(): number {
     let m = 1;
-    if (this.special === 'rage' && this.specialActive > 0) m += SPECIAL_VALUES.rage.attack;
-    if (this.special === 'darkPact' && this.hp <= this.stats.maxHp * SPECIAL_VALUES.darkPact.hpBelow) m += SPECIAL_VALUES.darkPact.attack;
+    if (this.runes.lowHpDamage > 0 && this.hp <= this.stats.maxHp * 0.5) m += this.runes.lowHpDamage; // 암흑의 계약 룬
     return m;
   }
 
@@ -620,10 +595,7 @@ export class GameScene extends Phaser.Scene {
     this.sigIcon.setAlpha(ready ? 1 : 0.45);
     this.sigText.setText(ready ? sg.def.name : `${Math.ceil(sg.cooldownLeft / 1000)}초`);
     if (!ready) g.lineStyle(6, sg.def.color, 1).beginPath().arc(560, 140, 44, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * sg.charge).strokePath();
-    const sp = this.special;
-    this.specialText.setText(
-      sp === 'rage' && this.specialActive > 0 ? '⚔ 용의 분노' : sp === 'aegis' && this.specialActive > 0 ? '⬟ 보호막' : sg.reduce > 0 ? `🛡 ${sg.def.name}` : '',
-    );
+    this.specialText.setText(sg.reduce > 0 ? `🛡 ${sg.def.name}` : '');
   }
 
   /** 첫 전투 안내: 화면 아래 손가락 + "드래그해서 이동 · 공격은 자동" (기획자 요청 6) */
@@ -752,7 +724,6 @@ export class GameScene extends Phaser.Scene {
     this.signature.update(delta);
     this.basic.update(delta);
     this.skills.update(delta);
-    this.updateSpecial(delta);
     this.pullGems(false);
     this.mergeGems();
     this.updateItems();
@@ -1101,7 +1072,7 @@ export class GameScene extends Phaser.Scene {
       if (spec.source === 'basic' && e.hp <= e.maxHp * 0.3) add += this.basicTraits.executeBonus; // 블랙: HP 30% 이하(특성 + 영구 성장)
     }
     let m = (1 + add) * e.vulnMult * this.attackMult();
-    if (spec.tag === 'burn' && this.special === 'flameSeal') m *= 1 + SPECIAL_VALUES.flameSeal.burn; // 화염의 인장
+    if (spec.tag === 'burn' && this.runes.burn > 0) m *= 1 + this.runes.burn; // 화염의 인장 룬
     return m;
   }
 
@@ -1126,8 +1097,8 @@ export class GameScene extends Phaser.Scene {
   private killEnemy(enemy: Enemy, tag = ''): void {
     this.kills++;
     this.basic.onKill(enemy, tag.startsWith('basic'));
-    if (this.special === 'holyLight' && Math.random() < SPECIAL_VALUES.holyLight.chance) {
-      const amount = Math.min(this.stats.maxHp - this.hp, this.stats.maxHp * SPECIAL_VALUES.holyLight.heal);
+    if (this.runes.killHealChance > 0 && Math.random() < this.runes.killHealChance) {
+      const amount = Math.min(this.stats.maxHp - this.hp, this.stats.maxHp * 0.02); // 신성한 빛 룬
       if (amount > 0) this.hp += amount;
     }
     if (enemy.rank === 'normal' && !enemy.def.noReward) {
@@ -1496,7 +1467,7 @@ export class GameScene extends Phaser.Scene {
     // 상한 기준 = 연구소 강화 전 최대 HP(기본 + 전투 중 패시브). 연구소 Lv.0이면 4단계와 똑같다.
     const cap = src ? HIT_CAP[src.rank] * (this.stats.maxHp - this.permHpBonus) : Infinity;
     // 받는 피해 감소: 드래곤 특성·장비(damageTaken) × 전용 액티브(신성한 가호·대지의 수호) × 고대의 보호막
-    const aegis = this.special === 'aegis' && this.specialActive > 0 ? 1 - SPECIAL_VALUES.aegis.reduce : 1;
+    const aegis = 1; // 고대의 보호막은 룬(받는 피해 감소)으로 바뀌어 능력치에 이미 들어감
     const dmg = Math.min(amount * this.stats.damageTaken * (1 - this.signature.reduce) * aegis, cap);
     this.hp -= dmg;
     this.invincibleUntil = this.time.now + 500;
@@ -1718,7 +1689,7 @@ export class GameScene extends Phaser.Scene {
     this.physics.pause();
     const d = this.director;
     const outcome: RunOutcome = clear ? 'clear' : (reason ?? 'dead');
-    const gold = computeRunGold(this.runSummary(outcome), this.special === 'treasure' ? SPECIAL_VALUES.treasure.gold : 0);
+    const gold = computeRunGold(this.runSummary(outcome), this.runes.gold); // 용의 보물 룬
     // 정산은 판마다 한 번만(같은 runId는 저장소에서도 다시 지급하지 않음)
     let paid = false;
     if (!this.settled) {
