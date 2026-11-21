@@ -1,0 +1,139 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>드래곤 포스 v1.2 이미지 제작 요청서(개정)</title><style>
+:root{color-scheme:dark;--bg:#0c1220;--panel:#151f31;--line:#2b3b55;--text:#edf3ff;--muted:#aab8cd;--cyan:#71e0d2;--amber:#ffd071;--red:#ff7474}*{box-sizing:border-box}body{margin:0;background:linear-gradient(160deg,#111c30,var(--bg) 55%);color:var(--text);font:16px/1.7 system-ui,sans-serif}main{max-width:1100px;margin:auto;padding:30px 20px 70px}header,.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:24px;margin:16px 0}h1{font-size:clamp(2rem,5vw,3rem);line-height:1.2}h2{color:var(--cyan)}h3{color:#d8e6ff}.muted,.eyebrow{color:var(--muted)}.pills,.grid{display:flex;gap:10px;flex-wrap:wrap}.pill{border:1px solid #52637c;border-radius:99px;padding:3px 11px}.tile{flex:1;min-width:200px;background:#1e2b40;border-radius:12px;padding:15px}.call{border-left:4px solid var(--amber);background:#28271f;padding:14px 16px;border-radius:8px}.red{color:var(--red)}.tablewrap{overflow:auto;border:1px solid var(--line);border-radius:12px;margin:10px 0}table{border-collapse:collapse;width:100%;min-width:760px}th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}th{background:#202e43;color:#b9d9ff}td code{white-space:nowrap}li{margin:.35em 0}.step{display:inline-grid;place-items:center;background:#24364d;color:var(--cyan);border-radius:50%;width:30px;height:30px;margin-right:8px;font-weight:bold}.new{color:#0c1220;background:var(--amber);border-radius:6px;padding:0 6px;font-size:.8em;font-weight:bold;margin-left:4px}.del{text-decoration:line-through;color:var(--muted)}footer{text-align:center;color:var(--muted);padding:18px}@media(max-width:600px){main{padding:14px}.card,header{padding:18px}}</style></head><body><main>
+<header><div class="eyebrow">DRAGON FORCE · 요청서 02 개정 · 2026.11.21</div><h1>이미지 제작 요청서 v1.2<br>(시스템 개편 반영본)</h1><p>게임에 바로 넣을 낱개 그림 요청서입니다. v1.2 시스템 개편(특수 스킬 → <b>룬</b>, 골드 상자 → <b>룬 상자</b>, 골드는 루비로 직접 구매)을 반영해 목록·위치·설명을 고쳤습니다. 표의 <b>“GPT에 붙일 설명”</b>은 그대로 복사해서 쓰면 됩니다.</p><div class="pills"><span class="pill">대상: 이미지 제작 GPT</span><span class="pill">낱개 PNG · 투명 배경</span><span class="pill">글자·숫자 없음</span><span class="pill">참고 시안은 적용 금지</span></div></header>
+
+<section class="card"><h2>0. 이전 요청서에서 바뀐 점</h2><div class="tablewrap"><table><thead><tr><th>이전</th><th>지금(게임에 이미 반영됨)</th><th>그림 요청에 미치는 영향</th></tr></thead><tbody>
+<tr><td class="del">특수 스킬 15종 — 장비 화면에서 1개 장착, 20초마다 자동 발동</td><td><b>룬 15종</b> — 연구소 “룬” 탭. 조각 50개로 해금, 조각 + 골드로 Lv.10까지 강화. <b>장착 없이 해금한 룬 전부 항상 적용</b>(능력치 증가형)</td><td>아이콘 15장은 그대로 필요. 단 <b>배지 대신 육각형 칸 안에 들어가는 룬 문양</b>, 설명을 능력치 기준으로 바꿈 → 3장</td></tr>
+<tr><td class="del">골드 상자(루비로 골드 무작위)</td><td><b>룬 상자</b> 1회 100 / 10회 900 루비 — 장비 상자처럼 따로 판매, 열면 <b>무작위 룬 1종의 조각</b> 5·10·20·50개(10회째 10개 이상 보장)</td><td>룬 상자 그림 3장(닫힘·몸통·뚜껑), 룬 조각 아이콘 1장 → 4장</td></tr>
+<tr><td class="del">골드 상자로 골드 획득</td><td><b>골드 직접 구매</b> 3종: 루비 50 → 800G · 450 → 8,000G · 1,000 → 20,000G</td><td>골드 묶음 아이콘 3장(작은·중간·큰) → 5장</td></tr>
+<tr><td>속성 문양 · 보상 테두리 · 어려움 UI</td><td>변경 없음</td><td>그대로(→ 6·7·8장)</td></tr>
+</tbody></table></div><p class="call">“룬”은 <b>속성 문양과 다른 것</b>입니다. 룬 = 능력치를 올리는 성장 아이템(아이콘). 속성 문양 = 새 드래곤 해금 연출 뒤에 도는 장식 마법진(능력치 없음).</p></section>
+
+<section class="card"><h2>1. 제작 순서</h2><div class="grid">
+<div class="tile"><span class="step">1</span><b>전용 액티브 아이콘 10</b><br>전투 버튼 — 가장 먼저</div>
+<div class="tile"><span class="step">2</span><b>룬 아이콘 15 + 룬 조각 1</b><span class="new">변경</span><br>연구소 룬 탭·상점 결과</div>
+<div class="tile"><span class="step">3</span><b>룬 상자 3 + 골드 묶음 3</b><span class="new">새로</span><br>상점</div>
+<div class="tile"><span class="step">4</span><b>속성 문양 10 + 빛줄기 1</b><br>드래곤 해금 연출</div>
+<div class="tile"><span class="step">5</span><b>보상 테두리 4 · 어려움 UI 8</b><br>보상 팝업·어려움 모드</div>
+</div><p class="muted">총 56장. 일부만 와도 됩니다(안 온 것은 지금처럼 이모지·도형으로 대신 보입니다).</p></section>
+
+<section class="card"><h2>2. 공통 규격</h2><ul>
+<li><b>1024×1024 PNG, 투명 배경</b>(투명이 안 되면 순수 초록 #00FF00 배경). 그림은 캔버스 가운데, 여백은 사방 약 8% 고르게.</li>
+<li><b>글자·숫자·워터마크 없음.</b> 파일 이름은 표의 이름 그대로(영문 소문자·하이픈).</li>
+<li><b>화풍 맞추기 첨부(매번 같이)</b>: <code>portrait-red.webp</code>(레드 드래곤 초상), <code>skill-meteor.webp</code>(이미 받은 스킬 아이콘). 상자는 <code>chest-equipment.webp</code>도 같이.</li>
+<li>화풍: 귀여운 SD 판타지, 부드러운 3D 채색, 은은한 광택, 선명한 색, 위쪽 왼쪽 광원.</li>
+<li>80px로 줄였을 때도 형태가 보여야 함 — 상징 하나를 크게, 잔무늬 최소.</li>
+<li>폴더: <code>ACTIVE_ICONS</code> · <code>RUNES</code> · <code>SHOP</code> · <code>SIGILS</code> · <code>REWARD_FRAMES</code> · <code>HARD_MODE_UI</code>. 검수 시트(전체 모음)는 따로 1장 더 — 시트만 주면 안 됩니다.</li>
+</ul></section>
+
+<section class="card"><h2>3. 전용 액티브 아이콘 10장 <code>sig-&lt;드래곤&gt;.png</code> — 최우선</h2>
+<p>새 스킬이 아니라 이미 있는 <b>드래곤 전용 스킬</b>(60초마다 쓰는 필살기)입니다. 전투 화면 오른쪽 위, 일시정지 버튼 왼쪽 <b>약 80px 둥근 버튼</b>의 이모지를 대신합니다. 드래곤 화면 상세(40~60px), 새 드래곤 해금 축하(60px)에도 나옵니다.</p>
+<p><b>틀</b>: <code>skill-meteor</code>와 같은 <b>둥근 모서리 정사각 배지</b>, 배지 색은 <b>진한 용암 주황 바탕 + 금테</b>(일반 스킬과 구별). 그림이 배지의 85%. 드래곤 얼굴이 아니라 <b>효과 상징</b>. 해당 드래곤 초상 <code>portrait-&lt;이름&gt;.webp</code>을 같이 첨부하면 색이 맞습니다.</p>
+<div class="tablewrap"><table><thead><tr><th>파일</th><th>드래곤 · 스킬(게임 표기)</th><th>실제 전투 효과</th><th>GPT에 붙일 설명</th></tr></thead><tbody>
+<tr><td><code>sig-red.png</code></td><td>레드 드래곤 · 화염 폭풍</td><td>주변 5m 큰 폭발 + 화상, 바닥에 불길</td><td>첨부 그림과 같은 귀여운 SD 판타지 화풍의 게임 스킬 아이콘, 둥근 모서리 정사각 배지(진한 용암 주황 바탕·금테) 안에 가운데에서 둥글게 소용돌이치며 터지는 붉은 화염 폭풍과 아래 바닥의 불길, 배지 바깥 투명 배경, 글자·숫자 없음</td></tr>
+<tr><td><code>sig-blue.png</code></td><td>블루 드래곤 · 얼음 감옥</td><td>주변 얼음 폭발, 일반 적 빙결·둔화</td><td>같은 화풍·같은 주황 배지 안에 별 모양으로 솟은 하늘색 얼음 결정 감옥과 그 아래 둥근 냉기 장판, 투명 배경, 글자·숫자 없음</td></tr>
+<tr><td><code>sig-yellow.png</code></td><td>옐로 드래곤 · 천둥 폭발</td><td>주변 폭발 + 연쇄 번개·감전</td><td>같은 화풍·같은 주황 배지 안에 가운데 노란 번개 폭발에서 세 갈래로 지그재그로 뻗는 연쇄 번개, 투명 배경, 글자·숫자 없음</td></tr>
+<tr><td><code>sig-green.png</code></td><td>그린 드래곤 · 독의 영역</td><td>드래곤을 따라다니는 독구름 5초</td><td>같은 화풍·같은 주황 배지 안에 둥글게 감도는 초록 독구름과 보라 거품 방울, 투명 배경, 글자·숫자 없음</td></tr>
+<tr><td><code>sig-white.png</code></td><td>화이트 드래곤 · 신성한 가호</td><td>HP 회복 + 피해 감소 + 주변 밀쳐냄</td><td>같은 화풍·같은 주황 배지 안에 흰 깃털 날개가 감싼 금빛 둥근 보호막과 초록 회복 십자 빛, 투명 배경, 글자·숫자 없음</td></tr>
+<tr><td><code>sig-black.png</code></td><td>블랙 드래곤 · 암흑 폭발</td><td>앞으로 12m 관통 암흑 광선 + 그림자 분신</td><td>같은 화풍·같은 주황 배지 안에 앞으로 길게 뻗는 보라 암흑 광선과 그 뒤의 반투명 그림자 분신 실루엣, 투명 배경, 글자·숫자 없음</td></tr>
+<tr><td><code>sig-stone.png</code></td><td>스톤 드래곤 · 대지의 수호</td><td>피해 감소 + 바위 고리 파동으로 밀쳐냄</td><td>같은 화풍·같은 주황 배지 안에 둥근 흙빛 방패와 그 둘레로 솟는 바위 고리, 투명 배경, 글자·숫자 없음</td></tr>
+<tr><td><code>sig-wind.png</code></td><td>윈드 드래곤 · 폭풍의 질주</td><td>이동속도 증가 + 주위를 도는 바람 칼날</td><td>같은 화풍·같은 주황 배지 안에 둥글게 회전하는 민트색 초승달 바람 칼날 두 개와 앞으로 뻗은 속도선, 투명 배경, 글자·숫자 없음</td></tr>
+<tr><td><code>sig-water.png</code></td><td>워터 드래곤 · 해일</td><td>앞으로 밀려가는 큰 파도(밀쳐냄·둔화)</td><td>같은 화풍·같은 주황 배지 안에 앞으로 크게 밀려오는 청록 파도와 물방울, 투명 배경, 글자·숫자 없음</td></tr>
+<tr><td><code>sig-arcane.png</code></td><td>아케인 드래곤 · 마력 폭주</td><td>4초 동안 마력탄 10발(엘리트·보스 우선)</td><td>같은 화풍·같은 주황 배지 안에 가운데 연보라 수정에서 한 방향 과녁을 향해 연달아 날아가는 분홍 마력탄 세 발, 투명 배경, 글자·숫자 없음</td></tr>
+</tbody></table></div></section>
+
+<section class="card"><h2>4. 룬 아이콘 15장 <code>rune-&lt;id&gt;.png</code> + 룬 조각 1장 <span class="new">변경</span></h2>
+<p><b>룬</b>은 연구소 “룬” 탭에서 키우는 <b>능력치 성장 아이템</b>입니다(이전 “특수 스킬”을 바꾼 것, 이름은 그대로). 해금한 룬은 장착 없이 전부 항상 적용됩니다.</p>
+<div class="tablewrap"><table><thead><tr><th>화면</th><th>위치</th><th>크기</th></tr></thead><tbody>
+<tr><td>연구소 → “룬” 탭</td><td>5칸 × 3줄 <b>육각형 칸</b> 안(칸은 게임이 그림: 남색 육각 + 룬 색 빛). 잠긴 룬은 어둡게</td><td>약 80px</td></tr>
+<tr><td>같은 탭 아래 상세 판</td><td>고른 룬 큰 그림 + “공격력 +6%” 같은 효과 + 강화 버튼</td><td>약 120px</td></tr>
+<tr><td>상점 → 룬 상자 결과</td><td>“용의 분노 룬 · 룬 조각 +10” 카드</td><td>약 96px</td></tr>
+</tbody></table></div>
+<p><b>그림 방향</b>: 배지·사각 틀 <b>없음</b>. <b>작은 육각형 룬석(돌 판) 위에 빛나는 문양 하나</b>가 새겨진 모양, 육각형 안에 쏙 들어가게(꼭짓점이 위·아래). 룬석은 15장 모두 <b>같은 짙은 남색 돌 + 은은한 금 테</b>로 통일하고, <b>문양 모양과 빛 색만</b> 룬마다 다르게(아래 색 지정). 비슷한 효과는 모양으로 구별.</p>
+<div class="tablewrap"><table><thead><tr><th>파일</th><th>이름 · 게임 효과(레벨당)</th><th>빛 색</th><th>GPT에 붙일 설명</th></tr></thead><tbody>
+<tr><td><code>rune-rage.png</code></td><td>용의 분노 · 공격력 +2%</td><td>붉은 주황</td><td>첨부 그림과 같은 귀여운 SD 판타지 화풍의 게임 룬 아이콘, 꼭짓점이 위아래인 작은 육각형 룬석(짙은 남색 돌·은은한 금 테) 위에 붉은 주황빛으로 빛나며 새겨진 세 줄 용 발톱 문양, 룬석 바깥 투명 배경, 글자·숫자 없음</td></tr>
+<tr><td><code>rune-aegis.png</code></td><td>고대의 보호막 · 받는 피해 −1.5%</td><td>파랑</td><td>같은 화풍·같은 육각 룬석 위에 파랗게 빛나는 고대 방패 문양, 투명 배경, 글자·숫자 없음</td></tr>
+<tr><td><code>rune-burst.png</code></td><td>마력 폭발 · 액티브 스킬 피해 +3%</td><td>보라</td><td>같은 형식, 가운데에서 사방으로 터지는 보라빛 별 폭발 문양과 둥근 충격파 고리</td></tr>
+<tr><td><code>rune-flameSeal.png</code></td><td>화염의 인장 · 화상 피해 +5%</td><td>주황</td><td>같은 형식, 주황 불꽃 한 송이를 감싼 둥근 인장 문양</td></tr>
+<tr><td><code>rune-iceHeart.png</code></td><td>얼음의 심장 · 둔화 세기 +3%</td><td>하늘색</td><td>같은 형식, 하늘색으로 빛나는 하트 모양 얼음 결정 문양</td></tr>
+<tr><td><code>rune-thunderCrest.png</code></td><td>천둥의 문장 · 연쇄 피해 감소 완화 +3%</td><td>노랑</td><td>같은 형식, 두 갈래로 갈라지는 노란 번개 문장</td></tr>
+<tr><td><code>rune-venomMark.png</code></td><td>맹독의 낙인 · 중독 지속시간 +5%</td><td>초록</td><td>같은 형식, 초록 독방울 세 개가 아래로 떨어지는 낙인 문양</td></tr>
+<tr><td><code>rune-darkPact.png</code></td><td>암흑의 계약 · HP 50% 이하일 때 피해 +2.5%</td><td>자줏빛 보라</td><td>같은 형식, 반쪽이 검게 물든 하트를 감싼 보라빛 계약 고리 문양</td></tr>
+<tr><td><code>rune-stormBless.png</code></td><td>폭풍의 축복 · 이동 속도 +1%</td><td>청록</td><td>같은 형식, 청록 바람 줄기가 감싼 깃털 날개 한 쌍 문양</td></tr>
+<tr><td><code>rune-earthWill.png</code></td><td>대지의 의지 · 최대 HP +2%</td><td>흙갈색·이끼 초록</td><td>같은 형식, 산 모양 바위 결정과 작은 새싹 문양</td></tr>
+<tr><td><code>rune-holyLight.png</code></td><td>신성한 빛 · 처치 시 HP 회복 확률 +0.3%p</td><td>금빛</td><td>같은 형식, 위에서 내려오는 금빛 빛기둥과 작은 회복 십자 문양</td></tr>
+<tr><td><code>rune-ancientEye.png</code></td><td>고대의 눈 · 치명타 확률 +1%p</td><td>호박색</td><td>같은 형식, 세로 동공의 호박색 눈 하나와 그 둘레 고리 문양</td></tr>
+<tr><td><code>rune-starMana.png</code></td><td>별의 마력 · 스킬 재사용 대기시간 −1%</td><td>연보라</td><td>같은 형식, 작은 별 세 개가 시계 방향으로 도는 고리 문양</td></tr>
+<tr><td><code>rune-treasure.png</code></td><td>용의 보물 · 전투 골드 +2%</td><td>금색</td><td>같은 형식, 금화 한 개 위에 용 비늘 무늬 왕관 문양</td></tr>
+<tr><td><code>rune-resonance.png</code></td><td>영혼의 공명 · 액티브 추가 발동 확률 +1.5%p</td><td>분홍 보라</td><td>같은 형식, 겹쳐 퍼지는 동심원 물결과 가운데 작은 영혼 불꽃 문양</td></tr>
+<tr><td><code>ui-rune-fragment.png</code></td><td>룬 조각(공용 재화 아이콘) — 연구소 강화 비용, 상자 결과, 보상 팝업</td><td>은은한 보라</td><td>같은 화풍, 위 룬석과 같은 짙은 남색 돌의 깨진 육각형 조각 세 개가 살짝 떠 있고 깨진 면에서 보라 빛이 새어 나옴, 문양 없음, 투명 배경, 글자·숫자 없음</td></tr>
+</tbody></table></div>
+<p class="call">수치는 게임 표기(밸런스 1차안)이며 그림에는 넣지 않습니다. 이름은 기존 특수 스킬 이름을 그대로 쓰고 “○○ 룬”으로 표시합니다.</p></section>
+
+<section class="card"><h2>5. 상점 새 그림 6장 <span class="new">새로</span></h2>
+<h3>룬 상자 3장 — 장비 상자처럼 따로 판매</h3>
+<p>상점 “장비·룬 상자” 구역 카드(약 120px)와 <b>상자 여는 연출</b>(뚜껑이 튀어 오르고 안쪽 빛이 나옴)에 씁니다. 지금은 예전 골드 상자 그림을 파랗게 물들여 대신 쓰는 중입니다. 기존 <code>chest-equipment.webp</code>와 <b>같은 크기·각도(정면에서 살짝 위)</b>로 맞춰 주세요.</p>
+<div class="tablewrap"><table><thead><tr><th>파일</th><th>용도</th><th>GPT에 붙일 설명</th></tr></thead><tbody>
+<tr><td><code>chest-rune.png</code></td><td>상점 카드(닫힌 상자 전체)</td><td>첨부한 장비 상자와 같은 화풍·크기·각도의 닫힌 보물 상자, 짙은 남색 돌과 은색 금속 테, 뚜껑 가운데에 보라빛으로 빛나는 육각형 룬석 장식, 틈새로 새어 나오는 보라·하늘색 빛, 투명 배경, 글자 없음</td></tr>
+<tr><td><code>chest-rune-body.png</code></td><td>여는 연출: 몸통만</td><td>위 상자와 완전히 같은 위치·크기에서 <b>뚜껑을 뺀 몸통만</b>, 열린 윗면 안쪽은 어둡게, 투명 배경</td></tr>
+<tr><td><code>chest-rune-lid.png</code></td><td>여는 연출: 뚜껑만</td><td>위 상자와 완전히 같은 위치·크기에서 <b>뚜껑만</b>(룬석 장식 포함), 나머지 투명</td></tr>
+</tbody></table></div>
+<h3>골드 묶음 3장 — 루비로 골드 직접 구매 줄</h3>
+<p>상점 아래 “골드 구매” 줄의 세 칸(약 90px). 묶음이 클수록 커 보이게. <span class="muted">(예전 골드 상자 <code>chest-gold</code>는 더 이상 쓰지 않습니다.)</span></p>
+<div class="tablewrap"><table><thead><tr><th>파일</th><th>상품</th><th>GPT에 붙일 설명</th></tr></thead><tbody>
+<tr><td><code>gold-pack-s.png</code></td><td>루비 50 → 800G</td><td>첨부 그림과 같은 화풍, 끈으로 묶은 작은 가죽 주머니에서 금화 몇 개가 쏟아진 모습, 투명 배경, 글자·숫자 없음</td></tr>
+<tr><td><code>gold-pack-m.png</code></td><td>루비 450 → 8,000G</td><td>같은 화풍, 금화가 수북이 쌓인 작은 나무 궤짝(뚜껑 열림), 투명 배경, 글자·숫자 없음</td></tr>
+<tr><td><code>gold-pack-l.png</code></td><td>루비 1,000 → 20,000G</td><td>같은 화풍, 금화가 넘쳐흐르는 큰 금테 보물 궤짝과 주변의 금괴·반짝임, 투명 배경, 글자·숫자 없음</td></tr>
+</tbody></table></div></section>
+
+<section class="card"><h2>6. 속성 문양 10장 <code>sigil-&lt;속성&gt;.png</code> + 빛줄기 1장</h2>
+<p><b>룬이 아닙니다</b>(능력치 없음). 새 드래곤을 얻었을 때 나오는 <b>해금 축하 연출</b>에서 드래곤 초상 뒤에 크게(약 440px) 깔려 천천히 도는 마법진입니다. 위에서 본 둥근 대칭형, 바깥 금테 원 + 속성 상징, <b>가운데 1/3은 옅게 비움</b>(초상이 올라감).</p>
+<div class="tablewrap"><table><thead><tr><th>파일</th><th>속성(드래곤)</th><th>GPT에 붙일 설명</th></tr></thead><tbody>
+<tr><td><code>sigil-fire.png</code></td><td>화염(레드)</td><td>첨부 그림과 같은 판타지 화풍, 위에서 본 둥근 마법진 문양, 바깥 금테 원과 안쪽 붉은·주황 불꽃 무늬 고리, 둘레에 작은 불꽃 상징 6개가 고르게, 가운데 1/3은 옅게 비움, 대칭, 투명 배경, 글자·숫자 없음</td></tr>
+<tr><td><code>sigil-ice.png</code></td><td>얼음(블루)</td><td>같은 형식, 하늘색·흰색, 둘레에 눈송이 상징 6개, 얼음 결정 무늬 고리</td></tr>
+<tr><td><code>sigil-lightning.png</code></td><td>번개(옐로)</td><td>같은 형식, 노랑·보라, 둘레에 번개 상징 6개, 지그재그 무늬 고리</td></tr>
+<tr><td><code>sigil-poison.png</code></td><td>독(그린)</td><td>같은 형식, 초록·보라, 둘레에 독방울 상징 6개, 덩굴 무늬 고리</td></tr>
+<tr><td><code>sigil-light.png</code></td><td>빛(화이트)</td><td>같은 형식, 흰색·금색, 둘레에 태양 빛살 상징 8개, 깃털 무늬 고리</td></tr>
+<tr><td><code>sigil-dark.png</code></td><td>암흑(블랙)</td><td>같은 형식, 짙은 보라·검정·자홍, 둘레에 초승달 상징 6개, 가시 무늬 고리</td></tr>
+<tr><td><code>sigil-earth.png</code></td><td>대지(스톤)</td><td>같은 형식, 흙갈색·이끼 초록, 둘레에 바위 결정 상징 6개, 돌 벽돌 무늬 고리</td></tr>
+<tr><td><code>sigil-wind.png</code></td><td>바람(윈드)</td><td>같은 형식, 민트·흰색, 둘레에 회오리 상징 6개, 바람 줄기 무늬 고리</td></tr>
+<tr><td><code>sigil-water.png</code></td><td>물(워터)</td><td>같은 형식, 청록·파랑, 둘레에 물방울 상징 6개, 물결 무늬 고리</td></tr>
+<tr><td><code>sigil-arcane.png</code></td><td>신비(아케인)</td><td>같은 형식, 연보라·분홍, 둘레에 별 상징 6개, 별자리 선 무늬 고리</td></tr>
+<tr><td><code>fx-unlock-rays.png</code></td><td>(공통, 연출 맨 뒤 1000px)</td><td>가운데에서 사방으로 퍼지는 부드러운 금빛 빛줄기 16개, 가운데 밝은 빛 원, 바깥으로 갈수록 투명, 투명 배경, 글자 없음</td></tr>
+</tbody></table></div></section>
+
+<section class="card"><h2>7. 보상 테두리 4장 <code>frame-&lt;등급&gt;.png</code></h2>
+<p>미션·업적 “받기 / 모두 받기”, 진행도 상자, 상점 상자 결과에서 뜨는 <b>보상 카드 테두리</b>. 게임 등급 이름·색 그대로: 일반(연두) · 희귀(하늘) · 영웅(보라) · 전설(금). <b>세로 3:4, 가운데 완전히 투명</b>(보상 그림·글자가 들어감).</p>
+<div class="tablewrap"><table><thead><tr><th>파일</th><th>등급</th><th>GPT에 붙일 설명</th></tr></thead><tbody>
+<tr><td><code>frame-common.png</code></td><td>일반</td><td>판타지 게임 보상 카드 테두리, 세로 3:4, 은회색 금속 테두리와 연두색 작은 보석, 모서리 리벳, 가운데는 완전히 투명하게 비움, 투명 배경, 글자 없음</td></tr>
+<tr><td><code>frame-rare.png</code></td><td>희귀</td><td>같은 형식, 하늘색 보석이 박힌 은색 테두리, 위쪽 가운데 작은 하늘색 보석 장식</td></tr>
+<tr><td><code>frame-epic.png</code></td><td>영웅</td><td>같은 형식, 보라 수정 장식 테두리, 모서리에 작은 날개 장식, 은은한 보라 빛</td></tr>
+<tr><td><code>frame-legendary.png</code></td><td>전설</td><td>같은 형식, 화려한 금색 테두리와 위쪽 가운데 작은 용 머리 장식, 금빛 광채</td></tr>
+</tbody></table></div></section>
+
+<section class="card"><h2>8. 어려움 모드 UI 8장</h2>
+<p>어려움 1~20단계(확정 v1.0: 시작 스킬 3번 선택, 2단계부터 엘리트 2마리, 5·10·14·17·19·20단계 보스 2마리)에서 쓰는 그림입니다.</p>
+<div class="tablewrap"><table><thead><tr><th>파일</th><th>어디에 나오나요</th><th>GPT에 붙일 설명</th></tr></thead><tbody>
+<tr><td><code>aura-enrage.png</code></td><td>전투 중 보스 몸 둘레: 광폭화하거나 보스 2마리 중 한 마리가 쓰러져 남은 보스가 분노할 때</td><td>첨부 그림과 같은 화풍, 위에서 본 둥근 고리 모양의 진홍·검붉은 불꽃 오라, 가운데 완전히 비움(투명), 고리 바깥으로 불꽃 혀가 조금 튐, 투명 배경, 글자 없음</td></tr>
+<tr><td><code>aura-elite.png</code></td><td>전투 중 엘리트 몸 둘레: 체력 50% 이하로 강해졌을 때</td><td>같은 화풍, 위에서 본 둥근 고리 모양의 주황·붉은 전기 섞인 기운, 가운데 비움, 광폭화 오라보다 얇고 밝게, 투명 배경, 글자 없음</td></tr>
+<tr><td><code>zone-danger.png</code></td><td>전투 바닥: 보스 원형 공격이 끝난 자리에 잠시 남는 위험 지대</td><td>같은 화풍, 위에서 본 둥근 바닥 균열에서 주황 용암빛이 새어 나옴, 가장자리는 부드럽게 투명, 전체 반투명, 빨강 단색 채움은 피함, 투명 배경, 글자 없음</td></tr>
+<tr><td><code>badge-hard.png</code></td><td>로비 난이도 탭 “어려움” 옆, 단계 이름 줄 앞</td><td>같은 화풍, 둥근 방패 모양 배지(진한 보라 바탕·금테) 안에 뿔 달린 용 머리 문장과 그 뒤로 교차한 붉은 발톱 자국 두 줄, 투명 배경, 글자 없음</td></tr>
+<tr><td><code>frame-hard.png</code></td><td>결과 화면·보상 팝업: 어려움 최초 클리어 루비 보상 카드</td><td>세로 3:4 카드 테두리, 보라 바탕에 금색 장식 테두리와 위쪽 가운데 작은 뿔 장식, 가운데 비움(투명), 투명 배경, 글자 없음</td></tr>
+<tr><td><code>hard-clear-crown.png</code></td><td>어려움 20단계 클리어 순간 화면 가운데</td><td>같은 화풍, 금빛 용 날개가 양옆으로 펼쳐진 왕관 엠블럼, 위로 빛줄기, 투명 배경, 글자 없음</td></tr>
+<tr><td><code>fx-confetti.png</code></td><td>같은 클리어 연출의 폭죽 조각</td><td>금·보라·하늘색 작은 별·마름모 조각 여러 개가 서로 떨어져 흩어진 모양, 투명 배경</td></tr>
+<tr><td><code>ui-boss-bar.png</code></td><td>전투 화면 위쪽: 보스 2마리 단계의 보스별 체력 막대 틀(1024×192)</td><td>가로로 긴 어두운 금속 막대 틀, 왼쪽 끝에 작은 뿔 장식, 가운데 막대 자리는 비움(투명), 투명 배경</td></tr>
+</tbody></table></div></section>
+
+<section class="card"><h2>9. 이번에 요청하지 않는 것</h2><ul>
+<li><b>신규 드래곤 9종 초상·전용 스킬 아이콘</b> — 이름·속성·콘셉트가 정해진 뒤 따로 요청합니다.</li>
+<li><b>상시 출석·활동 점수 상자 그림</b> — 보상표가 정해진 뒤 요청합니다.</li>
+<li>골드 상자 <code>chest-gold</code> 새 그림 — 상품이 없어져 필요 없습니다.</li>
+</ul></section>
+
+<section class="card"><h2>10. 납품과 회신</h2><ul>
+<li>1차: 전용 액티브 아이콘 10장 낱개 PNG + 검수 시트 + “파일 이름 → 드래곤·스킬 이름” 목록.</li>
+<li>검은 배경·흰 배경 둘 다에서 가장자리 번짐·사각 배경이 없는지, 80px 축소본에서 형태가 보이는지 확인해 표시해 주세요.</li>
+<li>표에 없는 내용은 새로 만들지 말고 질문으로 묶어 주세요. 참고 시안(REFERENCE_ONLY)은 분위기 참고만, 그림·이름을 가져오지 않습니다.</li>
+<li>받으면 개발 쪽에서 투명 여백 정리 → 256/512 WebP 변환 → 게임 연결 → 화면 확인까지 합니다.</li>
+</ul><p class="call"><b>완료 정의:</b> 개발자가 각 파일을 따로 불러와 바로 연결할 수 있는 상태(합본을 다시 자를 필요 없음).</p></section>
+<footer>드래곤 포스 · 이미지 제작 요청서 v1.2 개정(시스템 개편 반영) · 2026-11-21</footer></main></body></html>
