@@ -17,6 +17,7 @@ import { button, text, type KitButton } from '../ui/kit';
 import { plate, tabs } from '../ui/kit2';
 import { popWord, screenFrame, toast, type ScreenFrame } from '../ui/screen';
 import { COLOR, TYPE } from '../ui/theme';
+import { fullH } from '../ui/layout';
 
 const PERIOD_LABEL = { daily: '일일', weekly: '주간', monthly: '월간', event: '이벤트' } as const;
 const bundleText = (b: RewardBundle) =>
@@ -238,7 +239,7 @@ export class MissionScene extends Phaser.Scene {
     const ids = DRAGON_ORDER.filter((id) => !cards || p.dragons[id].unlocked);
     const layer: Phaser.GameObjects.GameObject[] = [];
     const close = () => layer.forEach((o) => o.destroy());
-    layer.push(this.add.rectangle(360, 640, 720, 1280, 0x000000, 0.85).setInteractive().setDepth(100));
+    layer.push(this.add.rectangle(360, 640, 720, fullH(this), 0x000000, 0.85).setInteractive().setDepth(100));
     layer.push(this.add.text(360, 260, `${cards ? `카드 ${m.reward.pickCards}장` : `조각 ${m.reward.pickFragments}개`}을 받을 드래곤을 고르세요`, {
       fontFamily: FONT, fontSize: '26px', color: '#ffd34d',
     }).setOrigin(0.5).setDepth(101));
@@ -364,7 +365,7 @@ export class MissionScene extends Phaser.Scene {
     const ids = DRAGON_ORDER.filter((id) => !ownedOnly || p.dragons[id].unlocked);
     const layer: Phaser.GameObjects.GameObject[] = [];
     const close = () => layer.forEach((o) => o.destroy());
-    layer.push(this.add.rectangle(360, 640, 720, 1280, 0x000000, 0.85).setInteractive().setDepth(100));
+    layer.push(this.add.rectangle(360, 640, 720, fullH(this), 0x000000, 0.85).setInteractive().setDepth(100));
     layer.push(this.add.text(360, 260, title, { fontFamily: FONT, fontSize: '26px', color: '#ffd34d' }).setOrigin(0.5).setDepth(101));
     ids.forEach((id, i) => {
       const x = 76 + (i % 5) * 142;

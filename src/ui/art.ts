@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { COLOR } from './theme';
+import { fullH, offY } from './layout';
 
 // UI 그림 키와 임시 그림.
 // 기획자가 만든 그림이 public/art/에 들어오면 ART_FILES에 파일명을 적는다 → preloadArt가 실제 그림을 읽는다.
@@ -276,14 +277,15 @@ export function drawScreenBackdrop(scene: Phaser.Scene): Phaser.GameObjects.Grap
       steps,
       i,
     );
-    g.fillStyle(Phaser.Display.Color.GetColor(c.r, c.g, c.b)).fillRect(0, (1280 / steps) * i, 720, 1280 / steps + 1);
+    g.fillStyle(Phaser.Display.Color.GetColor(c.r, c.g, c.b)).fillRect(0, -offY(scene) + (fullH(scene) / steps) * i, 720, fullH(scene) / steps + 1); // 세로가 긴 화면은 위아래 끝까지
   }
   return g;
 }
 
 /** 로비 배경 임시 그림: 보랏빛→어두운 남색 그라데이션 + 용암 지평선 + 별 */
 export function drawLobbyBackdrop(scene: Phaser.Scene): Phaser.GameObjects.GameObject {
-  if (scene.textures.exists('lobby-bg')) return scene.add.image(360, 640, 'lobby-bg').setDisplaySize(720, 1280);
+  // 세로가 긴 화면: 비율을 지킨 채 높이에 맞춰 키움(양옆은 조금 잘림 — 빈 띠 대신)
+  if (scene.textures.exists('lobby-bg')) return scene.add.image(360, 640, 'lobby-bg').setDisplaySize((720 * fullH(scene)) / 1280, fullH(scene));
   const g = scene.add.graphics();
   const steps = 32;
   for (let i = 0; i < steps; i++) {
@@ -293,7 +295,7 @@ export function drawLobbyBackdrop(scene: Phaser.Scene): Phaser.GameObjects.GameO
       steps,
       i,
     );
-    g.fillStyle(Phaser.Display.Color.GetColor(c.r, c.g, c.b)).fillRect(0, (1280 / steps) * i, 720, 1280 / steps + 1);
+    g.fillStyle(Phaser.Display.Color.GetColor(c.r, c.g, c.b)).fillRect(0, -offY(scene) + (fullH(scene) / steps) * i, 720, fullH(scene) / steps + 1); // 세로가 긴 화면은 위아래 끝까지
   }
   const rnd = new Phaser.Math.RandomDataGenerator(['lobby']);
   for (let i = 0; i < 60; i++) g.fillStyle(0xffffff, rnd.realInRange(0.2, 0.7)).fillCircle(rnd.between(0, 720), rnd.between(0, 520), rnd.realInRange(1, 2.4));

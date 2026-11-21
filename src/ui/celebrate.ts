@@ -5,6 +5,7 @@ import { playSfx } from '../systems/Sfx';
 import { button, text } from './kit';
 import { plate } from './kit2';
 import { COLOR, TYPE } from './theme';
+import { fullH } from './layout';
 
 // 보상 획득 팝업 · 드래곤 해금 축하(2026-11-21 종합 개선 기획서 12·13장).
 // 그림이 오면(그림·소리 요청서 5) frame-<등급>·sigil-<속성>·fx-unlock-rays를 쓰고, 없으면 도형으로 그린다.
@@ -42,7 +43,7 @@ export function rewardPopup(scene: Phaser.Scene, title: string, items: RewardIte
     scene.tweens.add({ targets: layer, alpha: 0, duration: 140, onComplete: () => layer.forEach((o) => o.destroy()) });
     onClose?.();
   };
-  const bg = add(scene.add.rectangle(360, 640, 720, 1280, 0x05040a, 0.85).setInteractive());
+  const bg = add(scene.add.rectangle(360, 640, 720, fullH(scene), 0x05040a, 0.85).setInteractive());
   bg.on('pointerdown', () => scene.time.delayedCall(250, close));
   const rare = items.some((i) => i.grade && i.grade !== 'common');
   playSfx(scene, 'sfx-claim');
@@ -113,7 +114,7 @@ export function dragonUnlock(scene: Phaser.Scene, ids: DragonId[], onDone?: () =
   const tweens: Phaser.Tweens.Tween[] = [];
   const tw = (cfg: Phaser.Types.Tweens.TweenBuilderConfig) => tweens.push(scene.tweens.add(cfg));
   playSfx(scene, 'sfx-dragon-unlock');
-  const bg = add(scene.add.rectangle(360, 640, 720, 1280, 0x05040a, 0.92).setInteractive());
+  const bg = add(scene.add.rectangle(360, 640, 720, fullH(scene), 0x05040a, 0.92).setInteractive());
   ensureRays(scene);
   const rays = add(scene.add.image(360, 520, 'fx-unlock-rays').setDisplaySize(1000, 1000).setAlpha(0).setTint(d.color));
   tw({ targets: rays, alpha: 0.4, duration: 400 });

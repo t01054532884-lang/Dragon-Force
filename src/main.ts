@@ -16,6 +16,7 @@ import { applySound, SETTINGS_KEY } from './systems/Settings';
 import { ACCOUNT_KEY, account } from './systems/Account';
 import { cloud } from './systems/Cloud';
 import { CLOUD_KEY } from './systems/cloudSync';
+import { BASE_W, centerBase, gameHeightFor } from './ui/layout';
 
 /** 장면이 플랫폼 이벤트를 받고 싶으면 이 함수들을 가진다 */
 export interface PlatformAware {
@@ -32,17 +33,27 @@ async function boot(): Promise<void> {
   await cloud.start(); // 클라우드 저장(설정 값이 있을 때만, 최대 4초 기다리고 시작 — docs/CLOUD.md)
   if (DEMO) Progress.seedDemo(); // 시험용 저장(진짜 진행과 따로)
 
-  // 게임 전체 설정. 화면 크기는 세로형 휴대폰(9:16)을 기준으로 잡고,
-  // Scale.FIT으로 PC 브라우저·휴대폰 어디서든 비율을 지키며 꽉 차게 한다(안전 영역 안쪽에서).
+  // 게임 전체 설정. 설계 기준은 세로형 휴대폰(720×1280, 9:16)이고, Scale.FIT으로 비율을 지키며 꽉 차게 한다(안전 영역 안쪽에서).
+  // 세로가 더 긴 화면(요즘 아이폰 약 9:19.5)은 높이를 그만큼 늘려 위아래 빈 띠가 생기지 않게 한다(src/ui/layout.ts).
+  const host = document.getElementById('game');
+  const height = gameHeightFor(host?.clientWidth ?? window.innerWidth, host?.clientHeight ?? window.innerHeight);
   const game = new Phaser.Game({
     type: Phaser.AUTO,
     parent: 'game',
-    width: 720,
-    height: 1280,
+    width: BASE_W,
+    height,
     backgroundColor: '#1b2a1f',
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
     physics: { default: 'arcade', arcade: { debug: false } },
     scene: [TitleScene, LobbyScene, GameScene, LabScene, DragonsScene, ShopScene, EquipScene, MissionScene, EventScene, GiftScene], // 첫 화면은 시작 화면(로고) → 로비
+  });
+
+  // 메뉴 화면(전투 제외)은 시작할 때마다 기준 화면을 가운데로
+  // (장면 목록은 게임 준비가 끝난 뒤 만들어지므로 ready 뒤에 연결)
+  game.events.once('ready', () => {
+    for (const s of game.scene.scenes) {
+      if (s.scene.key !== 'game') s.sys.events.on('create', () => centerBase(s));
+    }
   });
 
   const active = (): (Phaser.Scene & PlatformAware) | undefined =>

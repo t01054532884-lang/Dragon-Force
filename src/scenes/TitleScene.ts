@@ -4,6 +4,7 @@ import { text } from '../ui/kit';
 import { COLOR, TYPE } from '../ui/theme';
 import { playMusic, preloadMusic } from '../systems/Music';
 import { DEMO } from '../platform';
+import { fullH } from '../ui/layout';
 
 /**
  * 시작 화면(8단계 HANDOFF 5번): 기획자 그림 한글 로고(logo-ko) + 타이틀 장식(title-deco).
@@ -35,7 +36,7 @@ export class TitleScene extends Phaser.Scene {
   create(): void {
     makeArtPlaceholders(this);
     drawLobbyBackdrop(this);
-    this.add.rectangle(360, 640, 720, 1280, 0x0b0d17, 0.35);
+    this.add.rectangle(360, 640, 720, fullH(this), 0x0b0d17, 0.35);
     if (this.textures.exists('title-deco')) {
       const deco = this.add.image(360, 700, 'title-deco');
       deco.setScale(720 / deco.width);

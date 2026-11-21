@@ -36,6 +36,7 @@ import { GEM_MERGE, gemTier, mergeGroups } from '../systems/GemMerge';
 import { chapterOf, SEASON1_FINALE } from '../data/season1';
 import { enterBattle } from '../ui/entry';
 import { HARD_GOLD_MULT, hardStage, type HardStageDef } from '../data/hardStages';
+import { fullH, offY } from '../ui/layout';
 
 /** 적 투사체(직선탄·추적 구체) */
 interface EnemyShot {
@@ -687,7 +688,7 @@ export class GameScene extends Phaser.Scene {
 
   /** 보스 경고: 화면이 어두워졌다가 돌아온다 */
   private darken(ms: number): void {
-    const o = this.add.rectangle(360, 640, 720, 1280, 0x000000, 0).setScrollFactor(0).setDepth(UI_DEPTH - 1);
+    const o = this.add.rectangle(360, fullH(this) / 2, 720, fullH(this), 0x000000, 0).setScrollFactor(0).setDepth(UI_DEPTH - 1);
     this.tweens.add({ targets: o, fillAlpha: 0.45, duration: 800, hold: ms - 1600, yoyo: true, onComplete: () => o.destroy() });
     this.cameras.main.shake(400, 0.004);
   }
@@ -1312,12 +1313,14 @@ export class GameScene extends Phaser.Scene {
     this.player.setVelocity(0, 0);
     this.drawHud();
 
+    const oy = offY(this); // 세로가 긴 화면: 창을 실제 화면 가운데로
     const add = <T extends Phaser.GameObjects.GameObject>(o: T): T => {
       this.choiceLayer.push(o);
       (o as unknown as { setScrollFactor: (n: number) => void }).setScrollFactor(0);
+      (o as unknown as { y: number }).y += oy;
       return o;
     };
-    add(this.add.rectangle(360, 640, 720, 1280, 0x000000, 0.7).setDepth(UI_DEPTH + 10));
+    add(this.add.rectangle(360, 640, 720, fullH(this), 0x000000, 0.7).setDepth(UI_DEPTH + 10));
     // 제목 리본(150~220ms 등장 — 기획 7.4)
     const rb = add(ribbon(this, 360, 300, 420, title, isBox ? 0xe0a032 : COLOR.ember, 78).setDepth(UI_DEPTH + 11));
     rb.setScale(0.6).setAlpha(0);
@@ -1564,7 +1567,7 @@ export class GameScene extends Phaser.Scene {
     }
     // 그림(요청서 6 ⑤): 화면 가운데 날개 왕관이 튀어나오고, 폭죽 조각이 위에서 흩날린다(없으면 고리만)
     if (this.textures.exists('hard-clear-crown')) {
-      const crown = this.add.image(360, 470, 'hard-clear-crown').setScrollFactor(0).setDepth(UI_DEPTH - 1).setDisplaySize(300, 300).setAlpha(0);
+      const crown = this.add.image(360, 470 + offY(this), 'hard-clear-crown').setScrollFactor(0).setDepth(UI_DEPTH - 1).setDisplaySize(300, 300).setAlpha(0);
       const s0 = crown.scale;
       crown.setScale(s0 * 0.3);
       this.tweens.add({ targets: crown, alpha: 1, scale: s0, duration: 520, delay: 300, ease: 'Back.Out' });
@@ -1572,9 +1575,9 @@ export class GameScene extends Phaser.Scene {
     }
     if (this.textures.exists('fx-confetti')) {
       for (let i = 0; i < 4; i++) {
-        const piece = this.add.image(150 + i * 140, 120, 'fx-confetti').setScrollFactor(0).setDepth(UI_DEPTH - 2).setDisplaySize(260, 260).setAlpha(0).setAngle(i * 70);
+        const piece = this.add.image(150 + i * 140, 120 + offY(this), 'fx-confetti').setScrollFactor(0).setDepth(UI_DEPTH - 2).setDisplaySize(260, 260).setAlpha(0).setAngle(i * 70);
         this.tweens.add({ targets: piece, alpha: 1, duration: 200, delay: 400 + i * 120 });
-        this.tweens.add({ targets: piece, y: 760 + i * 30, angle: piece.angle + 120, duration: 2600, delay: 400 + i * 120, ease: 'Sine.In' });
+        this.tweens.add({ targets: piece, y: 760 + i * 30 + offY(this), angle: piece.angle + 120, duration: 2600, delay: 400 + i * 120, ease: 'Sine.In' });
         this.tweens.add({ targets: piece, alpha: 0, duration: 500, delay: 2500 + i * 120, onComplete: () => piece.destroy() });
       }
     }
@@ -1627,11 +1630,13 @@ export class GameScene extends Phaser.Scene {
   private drawPause(confirm: boolean): void {
     this.pauseLayer.forEach((o) => o.destroy());
     this.pauseLayer = [];
+    const oy = offY(this); // 세로가 긴 화면: 창을 실제 화면 가운데로
     const add = <T extends Phaser.GameObjects.GameObject & { setScrollFactor: (n: number) => T; setDepth: (n: number) => T }>(o: T): T => {
       this.pauseLayer.push(o);
+      (o as unknown as { y: number }).y += oy;
       return o.setScrollFactor(0).setDepth(UI_DEPTH + 50);
     };
-    add(this.add.rectangle(360, 640, 720, 1280, 0x000000, 0.7));
+    add(this.add.rectangle(360, 640, 720, fullH(this), 0x000000, 0.7));
     // 시안 형식: 판 + 리본 제목 + 두께 있는 버튼
     const button = (y: number, label: string, kind: 'cta' | 'danger' | 'secondary', onClick: () => void) => add(kitButton(this, 360, y, 440, 92, label, onClick, { kind, size: TYPE.heading }).root);
     if (!confirm) {
@@ -1764,7 +1769,7 @@ export class GameScene extends Phaser.Scene {
     if (this.runRewards.length) {
       // 카드·업적 보상 내역은 결과 화면 위에 잠깐 띄운다
       const t = this.add
-        .text(360, 560, this.runRewards.map(rewardText).join('\n'), {
+        .text(360, 560 + offY(this), this.runRewards.map(rewardText).join('\n'), {
           fontFamily: 'sans-serif', fontSize: '28px', fontStyle: 'bold', color: '#e1bee7', align: 'center', stroke: '#000', strokeThickness: 6, lineSpacing: 8,
         })
         .setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 120);
@@ -1778,13 +1783,15 @@ export class GameScene extends Phaser.Scene {
     const cards = this.runRewards.reduce((a, r) => a + (r.cards?.count ?? 0), 0);
     const rubies = this.runRewards.reduce((a, r) => a + (r.rubies ?? 0), 0);
 
+    const oy = offY(this); // 세로가 긴 화면: 결과 화면을 실제 화면 가운데로
     const add = <T extends Phaser.GameObjects.GameObject & { setScrollFactor: (n: number) => unknown; setDepth: (n: number) => unknown }>(o: T): T => {
       o.setScrollFactor(0);
       o.setDepth(UI_DEPTH + 101);
+      (o as unknown as { y: number }).y += oy;
       return o;
     };
     const T = (x: number, y: number, str: string, size: number, color: number = COLOR.text, ox = 0.5) => add(ktext(this, x, y, str, size, color, true, true).setOrigin(ox, 0.5));
-    add(this.add.rectangle(360, 640, 720, 1280, 0x000000, 0.82));
+    add(this.add.rectangle(360, 640, 720, fullH(this), 0x000000, 0.82));
     const titleTxt = clear ? '성지 탈환!' : reason === 'timeout' ? '시간 초과' : reason === 'quit' ? '전투 포기' : '드래곤이 쓰러졌다';
     const rb = ribbon(this, 360, 160, 440, titleTxt, clear ? 0xe0a032 : COLOR.danger, 84);
     add(rb);
@@ -1886,12 +1893,12 @@ export class GameScene extends Phaser.Scene {
       button(160, 1180, 196, '재도전', true, () => this.retry(), 'primary');
       button(360, 1180, 196, '성장 연구소', true, toLab, 'growth');
       button(560, 1180, 196, '로비', true, toLobby, 'secondary');
-      this.labTip(360, 1180);
+      this.labTip(360, 1180 + oy);
     } else {
       button(360, 1065, 600, '재도전', true, () => this.retry(), 'primary');
       button(205, 1180, 290, '성장 연구소', true, toLab, 'growth');
       button(515, 1180, 290, '로비', true, toLobby, 'secondary');
-      this.labTip(205, 1180);
+      this.labTip(205, 1180 + oy);
     }
   }
 

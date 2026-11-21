@@ -5,6 +5,7 @@ import type { BoxId, Rarity } from '../data/economy';
 import { CHEST_FX, CHEST_INNER, CHEST_MOUTH_Y, CHEST_SFX, INNER_BASE_Y, openingTier, type ChestTierFx } from '../data/chestFx';
 import type { BoxResult } from '../systems/Progress';
 import { FONT } from './widgets';
+import { fullH } from './layout';
 
 /**
  * 상자 개봉 연출(공통): 흔들림 → 뚜껑 열림 → 빛·파티클 폭발 → (onReveal로) 보상 카드 등장 → 결과 확인.
@@ -48,7 +49,7 @@ export class ChestOpening {
     const cx = 360;
     const cy = 620;
     // 어두운 배경 + 건너뛰기(아무 곳이나 눌러도 건너뜀)
-    const dim = this.add(s.add.rectangle(360, 640, 720, 1280, 0x05030a, 0.82));
+    const dim = this.add(s.add.rectangle(360, 640, 720, fullH(s), 0x05030a, 0.82));
     dim.setInteractive().on('pointerdown', () => this.skip());
     const skip = this.add(s.add.text(690, 1240, '건너뛰기 ▶▶', { fontFamily: FONT, fontSize: '24px', color: '#c9bfe0' }).setOrigin(1, 1), 10);
     skip.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.skip());

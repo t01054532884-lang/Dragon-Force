@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { BUTTON, COLOR, css, FONT_FAMILY, RADIUS, STROKE, tint, TYPE, type ButtonKind } from './theme';
+import { fullH, offY } from './layout';
 
 // UI 부품(디자인 시스템). 기존 src/ui/widgets.ts는 그대로 두고, 화면을 새 디자인으로 바꿀 때 이 부품으로 옮긴다.
 // 모든 부품은 Container 하나로 돌려줘서 위치 이동·표시 끄기·지우기가 한 번에 된다.
@@ -288,8 +289,10 @@ export function badge(scene: Phaser.Scene, x: number, y: number, label: string, 
  */
 export function modal(scene: Phaser.Scene, w: number, h: number, title: string, opts: { closeOnBackdrop?: boolean; depth?: number; fill?: number; ribbonColor?: number } = {}) {
   const depth = opts.depth ?? 900;
-  const dim = scene.add.rectangle(360, 640, 720, 1280, 0x000000, 0.72).setInteractive().setDepth(depth).setScrollFactor(0);
-  const box = panel(scene, 360, 640, w, h, { radius: RADIUS.l, fill: opts.fill }).setDepth(depth + 1).setScrollFactor(0);
+  // 화면에 고정(전투 카메라가 움직여도 그대로) — 세로가 긴 화면이면 실제 화면 가운데(640 + 늘어난 높이 절반)
+  const cy = 640 + offY(scene);
+  const dim = scene.add.rectangle(360, cy, 720, fullH(scene), 0x000000, 0.72).setInteractive().setDepth(depth).setScrollFactor(0);
+  const box = panel(scene, 360, cy, w, h, { radius: RADIUS.l, fill: opts.fill }).setDepth(depth + 1).setScrollFactor(0);
   box.add(ribbon(scene, 0, -h / 2, Math.min(w - 80, 440), title, opts.ribbonColor ?? COLOR.ember, 70));
   box.setScale(0.9).setAlpha(0);
   scene.tweens.add({ targets: box, scale: 1, alpha: 1, duration: 160, ease: 'Back.Out' });

@@ -16,6 +16,7 @@ import { badge, button, progressBar, text, type KitButton } from '../ui/kit';
 import { plate } from '../ui/kit2';
 import { screenFrame, type ScreenFrame } from '../ui/screen';
 import { COLOR, css, TYPE } from '../ui/theme';
+import { fullH } from '../ui/layout';
 
 /**
  * 루비 상점(6단계 v1.2 6장): 드래곤·스킬 상자 / 장비 상자 / 골드 상자, 1회·10회(드래곤 상자 12% · 나머지 10% 할인 — v1.1).
@@ -204,7 +205,7 @@ export class ShopScene extends Phaser.Scene {
   private overlay(title: string, h = 980): <T extends Phaser.GameObjects.GameObject>(o: T) => T {
     this.clearLayer();
     const add = <T extends Phaser.GameObjects.GameObject>(o: T) => (this.layer.push(o), (o as unknown as { setDepth: (n: number) => T }).setDepth?.(100) ?? o);
-    add(this.add.rectangle(360, 640, 720, 1280, 0x000000, 0.82).setInteractive());
+    add(this.add.rectangle(360, 640, 720, fullH(this), 0x000000, 0.82).setInteractive());
     add(plate(this, 360, 660, 680, h, { r: 28 }));
     const rb = add(this.add.container(360, 660 - h / 2, []));
     rb.add(plate(this, 0, 0, 360, 70, { r: 35, gold: true, fill: 0x3a2a6b }));

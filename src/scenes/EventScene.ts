@@ -9,6 +9,7 @@ import { button, text, type KitButton } from '../ui/kit';
 import { tabs } from '../ui/kit2';
 import { screenFrame, type ScreenFrame } from '../ui/screen';
 import { COLOR, TYPE } from '../ui/theme';
+import { fullH } from '../ui/layout';
 
 const KST = 9 * 3600_000;
 const fmtKst = (t: number) => {
@@ -47,7 +48,7 @@ export class EventScene extends Phaser.Scene {
     this.last = null;
     this.busy = false;
     this.frame = screenFrame(this, { title: '겨울 축제', nav: '', ribbonColor: 0x3b82c4, banner: 'event-winter' });
-    this.add.rectangle(360, 640, 720, 1280, 0x0e2a4a, 0.45); // 겨울 빛(공통 배경 위에 푸른 막)
+    this.add.rectangle(360, 640, 720, fullH(this), 0x0e2a4a, 0.45); // 겨울 빛(공통 배경 위에 푸른 막)
     // 눈송이 배경
     for (let i = 0; i < 40; i++) {
       const s = this.add.circle(Phaser.Math.Between(0, 720), Phaser.Math.Between(0, 1280), Phaser.Math.Between(2, 5), 0xffffff, 0.35);

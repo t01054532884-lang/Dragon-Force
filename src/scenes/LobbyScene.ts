@@ -27,6 +27,8 @@ import { attendanceState, claimableActivity } from '../systems/Activity';
 import { DEMO, platform } from '../platform';
 import { goTab, navTabsWithAlerts } from '../ui/screen';
 import { ATTENDANCE_28, activityRewardIcon, activityRewardText } from '../data/activity';
+import { fullH } from '../ui/layout';
+import { offY } from '../ui/layout';
 
 /** 접속 출석 팝업을 이번 실행에서 이미 띄운 날(같은 날 로비에 다시 와도 또 뜨지 않게) */
 let attendancePopupShown = '';
@@ -70,7 +72,7 @@ export class LobbyScene extends Phaser.Scene {
       return true;
     }
     const add = <T extends Phaser.GameObjects.GameObject>(o: T): T => (this.exitLayer.push(o), o);
-    add(this.add.rectangle(360, 640, 720, 1280, 0x000000, 0.7).setInteractive().setDepth(500));
+    add(this.add.rectangle(360, 640, 720, fullH(this), 0x000000, 0.7).setInteractive().setDepth(500));
     add(plate(this, 360, 640, 560, 340, { r: 28 }).setDepth(501));
     add(text(this, 360, 570, '게임을 종료할까요?', TYPE.title, COLOR.text, true, true).setOrigin(0.5).setDepth(502));
     add(text(this, 360, 622, '진행 상황은 저장돼 있어요', TYPE.caption, COLOR.textSub).setOrigin(0.5).setDepth(502));
@@ -114,6 +116,7 @@ export class LobbyScene extends Phaser.Scene {
         { icon: 'ui-ruby', value: p.rubies, onPlus: () => (this.settingsUi = openRubyShop(this, () => this.scene.restart())) },
       ],
     });
+    bar.root.setY(-offY(this)); // 머리줄은 실제 화면 맨 위에(세로가 긴 화면)
     const tickStamina = () => {
       const t = gameNow();
       const st = staminaNow(Progress.load(), t);
@@ -245,7 +248,7 @@ export class LobbyScene extends Phaser.Scene {
     // ── 하단 탭
     navBar(this, navTabsWithAlerts('lobby'), 'lobby', (k) => {
       if (k !== 'lobby') goTab(this, k);
-    });
+    }).setY(offY(this)); // 하단 메뉴는 실제 화면 맨 아래에(세로가 긴 화면)
 
     this.input.keyboard?.on('keydown-ENTER', go);
     if (dev) this.devTools();
