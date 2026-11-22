@@ -39,6 +39,16 @@ export const PALETTE: Record<string, readonly number[]> = {
   wind: [0xd7fff4, 0xb2fff0, 0x63d9cd],
   water: [0xb3e5fc, 0x4fc3f7, 0x26c6da],
   arcane: [0xf3d1ff, 0xcf8eff, 0xb693ff],
+  // 신규 9종(2026-11-22): 맞힌 자리 불꽃 색
+  sand: [0xf1e0c0, 0xd8b27a, 0xc8643c],
+  steel: [0xffffff, 0xc9d0d6, 0xff8a2a],
+  bloom: [0xf8bbd0, 0xf48fb1, 0x9ccc65],
+  howl: [0xdde6ff, 0x8fa8ff, 0x2f4fd6],
+  crimson: [0xffcdd2, 0xff5c7a, 0x8e1b3a],
+  mirror: [0xffffff, 0x9be7ff, 0xff8de8],
+  chrono: [0xf3e5c8, 0xe0a14a, 0x9c5b2e],
+  void: [0xbfe9ff, 0x7c4dff, 0x3a3d45],
+  aurora: [0x7cf2c4, 0x7ab8ff, 0xff8de8],
 };
 const DEPTH_UNDER = 3.9; // 위험 예고(4)보다 아래
 const DEPTH_OVER = 6.5; // 적(6) 바로 위, 드래곤(10)·적 탄 아래

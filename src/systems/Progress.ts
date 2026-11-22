@@ -26,6 +26,7 @@ import {
   EQUIPMENT_BOX,
   ESSENCE,
   GOLD_OFFERS,
+  RANDOM_FRAGMENT_RARITY,
   KST_OFFSET_MS,
   MISSIONS,
   PROGRESS_REWARDS,
@@ -949,28 +950,37 @@ export function addMissionProgress(p: PlayerProgress, add: Partial<Record<Exclud
   return { ...p, missions: { ...p.missions, progress } };
 }
 
+/** 랜덤 조각: 등급 확률(RANDOM_FRAGMENT_RARITY)로 등급 → 그 등급의 출시 드래곤 중 균등(레드는 일반) */
+export function randomFragmentDragon(rng: () => number = Math.random): DragonId {
+  const r = rarityRoll(RANDOM_FRAGMENT_RARITY, rng());
+  const pool = poolOf(r, true);
+  const list = pool.length ? pool : poolOf('common', true);
+  return pickIn(list, rng());
+}
+
 /**
- * 미션 보상 받기. 선택 카드·조각은 받을 드래곤(choice)을 함께 넘긴다(카드는 보유 드래곤, 조각은 어느 드래곤이든).
+ * 미션 보상 받기. 선택 카드는 받을 보유 드래곤(choice)을 함께 넘긴다. 랜덤 조각은 등급 확률로 자동 지급(고르지 않음).
  * 같은 기간에 한 번만. 일일 미션을 모두 받으면 그날이 "일일 미션 완료한 날"로 기록된다(월간 미션).
  */
-export function claimMission(p: PlayerProgress, missionId: string, now: number, choice?: DragonId): Result<{ reward: MissionDef['reward'] }> {
+export function claimMission(p: PlayerProgress, missionId: string, now: number, choice?: DragonId, rng: () => number = Math.random): Result<{ reward: MissionDef['reward']; fragmentDragon?: DragonId }> {
   const m = activeMissions(now).find((x) => x.id === missionId);
   if (!m) return fail('missing');
   const key = mKey(m, now);
   if (p.missions.claimed.includes(key)) return fail('claimed');
   if (missionProgress(p, m, now) < m.goal) return fail('progress');
   const rw = m.reward;
-  if ((rw.pickCards || rw.pickFragments) && !choice) return fail('choice');
+  if (rw.pickCards && !choice) return fail('choice');
   if (rw.pickCards && choice && !p.dragons[choice].unlocked) return fail('choice');
   let next: PlayerProgress = { ...p, gold: p.gold + (rw.gold ?? 0), rubies: p.rubies + (rw.rubies ?? 0) };
   if (rw.pickCards && choice) next = addCards(next, choice, rw.pickCards);
-  if (rw.pickFragments && choice) next = addFragments(next, choice, rw.pickFragments);
+  const fragmentDragon = rw.randomFragments ? randomFragmentDragon(rng) : undefined;
+  if (rw.randomFragments && fragmentDragon) next = addFragments(next, fragmentDragon, rw.randomFragments);
   const claimed = [...next.missions.claimed, key].slice(-400);
   let dailyDone = next.missions.dailyDone;
   const today = ymd(kstDate(now));
   if (m.period === 'daily' && DAILY_IDS.every((id) => claimed.includes(`${id}@${today}`)) && !dailyDone.includes(today)) dailyDone = [...dailyDone, today].slice(-62);
   next = { ...next, missions: { ...next.missions, claimed, dailyDone } };
-  return { ok: true, progress: next, reward: rw };
+  return { ok: true, progress: next, reward: rw, fragmentDragon };
 }
 
 /** 받을 수 있는 미션(선택 보상 포함) */
@@ -979,26 +989,28 @@ export function claimableMissions(p: PlayerProgress, now: number): MissionDef[] 
 }
 
 /**
- * 미션 모두 받기(2026-11-21 기획서 9.3): 골드·루비만 주는 완료 미션을 한 번에. 선택 카드·조각 미션은 드래곤을 골라야 해서 남긴다.
+ * 미션 모두 받기(2026-11-21 기획서 9.3): 골드·루비·랜덤 조각 미션을 한 번에. 선택 카드 미션은 드래곤을 골라야 해서 남긴다.
  * 한 미션씩 claimMission을 그대로 거치므로 중복 지급 규칙(기간당 1회)도 같다.
  */
-export function claimAllMissions(p: PlayerProgress, now: number): Result<{ got: MissionDef[]; left: number }> {
+export function claimAllMissions(p: PlayerProgress, now: number, rng: () => number = Math.random): Result<{ got: MissionDef[]; left: number; fragments: { dragonId: DragonId; count: number }[] }> {
   let cur = p;
   const got: MissionDef[] = [];
+  const fragments: { dragonId: DragonId; count: number }[] = [];
   let left = 0;
   for (const m of claimableMissions(p, now)) {
-    if (m.reward.pickCards || m.reward.pickFragments) {
+    if (m.reward.pickCards) {
       left++;
       continue;
     }
-    const r = claimMission(cur, m.id, now);
+    const r = claimMission(cur, m.id, now, undefined, rng);
     if (r.ok) {
       cur = r.progress;
       got.push(m);
+      if (r.fragmentDragon) fragments.push({ dragonId: r.fragmentDragon, count: m.reward.randomFragments ?? 0 });
     }
   }
   if (!got.length) return fail('none');
-  return { ok: true, progress: cur, got, left };
+  return { ok: true, progress: cur, got, left, fragments };
 }
 
 /** 업적 진행(화면 표시용): 현재 값·목표·완료 여부 */

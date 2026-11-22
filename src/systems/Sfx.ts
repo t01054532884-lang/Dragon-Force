@@ -99,6 +99,9 @@ const RECIPES: Record<string, Recipe> = {
 export const BASIC_FIRE_SFX: Record<string, string | undefined> = {
   red: 'sfx-red-fire', blue: 'sfx-ice-shard', yellow: 'sfx-thunder-breath', wind: 'sfx-wing-wind', water: 'sfx-water-blast',
   black: 'sfx-shadow-magic', arcane: 'sfx-shadow-magic',
+  // 신규 9종: 있는 소리 중 가까운 것(전용 소리 파일이 오면 교체)
+  sand: 'sfx-wing-wind', steel: 'sfx-shield', howl: 'sfx-wing-wind', crimson: 'sfx-shadow-magic', mirror: 'sfx-ice-shard',
+  chrono: 'sfx-ice-shard', void: 'sfx-shadow-magic', aurora: 'sfx-shadow-magic',
 };
 /** 액티브 스킬 발동음 */
 export const SKILL_SFX: Record<string, string | undefined> = {
@@ -108,6 +111,7 @@ export const SKILL_SFX: Record<string, string | undefined> = {
 export const SIGNATURE_SFX: Record<string, string | undefined> = {
   red: 'sfx-explode', blue: 'sfx-ice-shard', yellow: 'sfx-thunder-breath', white: 'sfx-heal', black: 'sfx-shadow-magic',
   stone: 'sfx-shield', wind: 'sfx-wing-wind', water: 'sfx-water-blast', arcane: 'sfx-shadow-magic',
+  sand: 'sfx-wing-wind', steel: 'sfx-explode', bloom: 'sfx-heal', crimson: 'sfx-heal', mirror: 'sfx-ice-shard',
 };
 
 const lastAt = new Map<string, number>();

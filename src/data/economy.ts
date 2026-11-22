@@ -104,7 +104,13 @@ export const ACHIEVEMENTS = [
 // ───────── 주기 보상 (원문 5장 예시 + AI 1차안 수량, 초기화는 제작자 임시: KST 자정·월요일·매월 1일) ─────────
 export type Period = 'daily' | 'weekly' | 'monthly' | 'event';
 export type MissionMetric = 'clears' | 'normalKills' | 'eliteKills' | 'dailyDays' | 'sorties' | 'growth';
-export type MissionReward = { gold?: number; rubies?: number; pickCards?: number; pickFragments?: number };
+export type MissionReward = { gold?: number; rubies?: number; pickCards?: number; randomFragments?: number };
+
+/**
+ * 랜덤 조각 보상의 등급 확률(제작자 요청 2026-11-22: 아무 드래곤이나 고르게 하면 전설만 고르게 되므로 랜덤 지급).
+ * 등급을 먼저 뽑고 그 등급 안에서 출시된 드래곤 중 균등(레드는 일반에 포함). 수치는 AI 1차안.
+ */
+export const RANDOM_FRAGMENT_RARITY: Record<Rarity, number> = { common: 60, rare: 28, epic: 10, legendary: 2 };
 export interface MissionDef {
   id: string;
   period: Period;
@@ -125,7 +131,7 @@ export const MISSIONS: MissionDef[] = [
   { id: 'd-elite', period: 'daily', text: '엘리트 3마리 처치', metric: 'eliteKills', goal: 3, reward: {} },
   { id: 'd-growth', period: 'daily', text: '강화 1회(연구소·드래곤·룬·장비)', metric: 'growth', goal: 1, reward: {} },
   { id: 'w-clear', period: 'weekly', text: '스테이지 10회 클리어', metric: 'clears', goal: 10, reward: { pickCards: 5 } },
-  { id: 'w-elite', period: 'weekly', text: '엘리트 15마리 처치', metric: 'eliteKills', goal: 15, reward: { pickFragments: 10 } },
+  { id: 'w-elite', period: 'weekly', text: '엘리트 15마리 처치', metric: 'eliteKills', goal: 15, reward: { randomFragments: 10 } },
   { id: 'm-daily', period: 'monthly', text: '일일 미션 20일 완료', metric: 'dailyDays', goal: 20, reward: { rubies: 300, pickCards: 5 } },
   // 이벤트: 기간 목표 → 정수·조각·루비. 지금 진행 중인 이벤트 없음(기간을 넣으면 화면에 나온다).
 ];
