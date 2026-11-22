@@ -103,12 +103,82 @@ export class Skills {
       if (SKILL.breath.burn(lv)) e.burn(RED_BASIC.burn.perSec, RED_BASIC.burn.ms, RED_BASIC.burn.maxStacks);
       this.h.hit(e, { source: 'active', coef: SKILL.breath.coef(lv), tag: 'breath' });
     }
-    // 부채꼴 불길 그림: 잠깐 보였다가 사라진다
-    const g = this.h.scene.add.graphics({ x, y }).setDepth(8);
-    g.fillStyle(0xff8a1f, 0.45).slice(0, 0, range, dir - half, dir + half).fillPath();
-    g.fillStyle(0xffe066, 0.5).slice(0, 0, range * 0.55, dir - half * 0.7, dir + half * 0.7).fillPath();
-    this.h.scene.tweens.add({ targets: g, alpha: 0, duration: 260, onComplete: () => g.destroy() });
+    this.breathFx(x, y, dir, half, range);
     return true;
+  }
+
+  /**
+   * 화염 브레스 연출(2026-11-22 제작자: "원뿔 도형만 보여 초기 개발 같다"): 부채꼴 안으로 불덩이가 쏟아져
+   * 커지며 사라진다(가산 혼합으로 빛나게). 아래에 아주 옅은 부채꼴만 깔아 범위를 알려 준다. 판정은 위와 같음.
+   */
+  private breathFx(x: number, y: number, dir: number, half: number, range: number): void {
+    const sc = this.h.scene;
+    const base = sc.add.graphics({ x, y }).setDepth(7.5);
+    base.fillStyle(0xff6d00, 0.14).slice(0, 0, range, dir - half, dir + half).fillPath();
+    sc.tweens.add({ targets: base, alpha: 0, duration: 420, onComplete: () => base.destroy() });
+    const colors = [0xffe066, 0xffb347, 0xff7a1a, 0xff4500];
+    for (let i = 0; i < 26; i++) {
+      const a = dir + (Math.random() * 2 - 1) * half * 0.95;
+      const dist = range * (0.35 + Math.random() * 0.65);
+      const delay = Math.random() * 220;
+      const puff = sc.add.circle(x + Math.cos(dir) * 14, y + Math.sin(dir) * 14, 7 + Math.random() * 6, colors[i % colors.length], 0.9)
+        .setDepth(8).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0);
+      sc.tweens.add({
+        targets: puff, delay, duration: 300 + Math.random() * 140, ease: 'Quad.Out',
+        x: x + Math.cos(a) * dist, y: y + Math.sin(a) * dist, scale: 2.4 + Math.random() * 1.6,
+        alpha: { from: 0.95, to: 0 },
+        onComplete: () => puff.destroy(),
+      });
+    }
+  }
+
+  /** 드래곤 메테오 연출: 하늘에서 비스듬히 떨어지는 불타는 바위(경고 시간 동안) */
+  private meteorFall(mx: number, my: number, ms: number): () => void {
+    const sc = this.h.scene;
+    const sx = mx - 220;
+    const sy = my - 520;
+    const rock = sc.add.container(sx, sy).setDepth(9);
+    const glow = sc.add.circle(0, 0, 26, 0xff6d00, 0.55).setBlendMode(Phaser.BlendModes.ADD);
+    const body = sc.add.circle(0, 0, 16, 0x5d4037, 1).setStrokeStyle(4, 0xffb347, 1);
+    const core = sc.add.circle(-4, -4, 6, 0xffe066, 0.9);
+    rock.add([glow, body, core]);
+    const fall = ms * 0.85;
+    sc.tweens.add({ targets: rock, x: mx, y: my, duration: fall, ease: 'Quad.In' });
+    sc.tweens.add({ targets: rock, scale: { from: 0.6, to: 1.5 }, duration: fall, ease: 'Quad.In' });
+    // 꼬리 불똥
+    const trail = sc.time.addEvent({ delay: 40, loop: true, callback: () => {
+      const t = sc.add.circle(rock.x, rock.y, 10 * rock.scale, 0xff8a1f, 0.7).setDepth(8.8).setBlendMode(Phaser.BlendModes.ADD);
+      sc.tweens.add({ targets: t, scale: 0.2, alpha: 0, duration: 260, onComplete: () => t.destroy() });
+    } });
+    return () => {
+      trail.remove();
+      rock.destroy();
+    };
+  }
+
+  /** 메테오 착탄: 섬광 + 용암 바닥 그림이 퍼짐 + 파편 */
+  private meteorImpact(mx: number, my: number, radius: number): void {
+    const sc = this.h.scene;
+    const flash = sc.add.circle(mx, my, radius * 0.6, 0xfff3c4, 0.95).setDepth(9).setBlendMode(Phaser.BlendModes.ADD);
+    sc.tweens.add({ targets: flash, scale: 2, alpha: 0, duration: 200, onComplete: () => flash.destroy() });
+    if (sc.textures.exists('fx-fire-ground')) {
+      const ground = sc.add.image(mx, my, 'fx-fire-ground').setDepth(4.5).setDisplaySize(radius * 2.3, radius * 2.3).setAlpha(0.95);
+      const s0 = ground.scale;
+      ground.setScale(s0 * 0.4);
+      sc.tweens.add({ targets: ground, scale: s0, duration: 180, ease: 'Back.Out' });
+      sc.tweens.add({ targets: ground, alpha: 0, delay: 350, duration: 450, onComplete: () => ground.destroy() });
+    } else {
+      const boom = sc.add.circle(mx, my, radius, 0xffb300, 0.75).setDepth(8);
+      sc.tweens.add({ targets: boom, alpha: 0, scale: 1.25, duration: 350, onComplete: () => boom.destroy() });
+    }
+    const ring = sc.add.circle(mx, my, radius * 0.3).setStrokeStyle(8, 0xffb347, 0.9).setDepth(8.5);
+    sc.tweens.add({ targets: ring, radius: radius * 1.15, alpha: 0, duration: 320, onComplete: () => ring.destroy() });
+    for (let i = 0; i < 10; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const d = radius * (0.6 + Math.random() * 0.7);
+      const deb = sc.add.circle(mx, my, 4 + Math.random() * 4, i % 2 ? 0x6d4c41 : 0xff7a1a, 1).setDepth(8.6);
+      sc.tweens.add({ targets: deb, x: mx + Math.cos(a) * d, y: my + Math.sin(a) * d - 20, alpha: 0, duration: 420 + Math.random() * 200, ease: 'Quad.Out', onComplete: () => deb.destroy() });
+    }
   }
 
   // ───────── ❄️ 얼음 파편: 가까운 적에게 날아가 피해 + 둔화 ─────────
@@ -212,18 +282,20 @@ export class Skills {
       const mx = best.x;
       const my = best.y;
       const warn = this.h.scene.add.circle(mx, my, radius, 0xff3d00, 0.18).setStrokeStyle(4, 0xff6d00, 0.9).setDepth(4);
+      this.h.scene.tweens.add({ targets: warn, alpha: { from: 0.5, to: 1 }, duration: 160, yoyo: true, repeat: -1 });
+      const stopFall = this.meteorFall(mx, my, SKILL.meteor.warnMs()); // 실제로 하늘에서 떨어지는 바위
       this.pending.push({
         left: SKILL.meteor.warnMs(),
         run: () => {
           warn.destroy();
+          stopFall();
           for (const e of this.h.enemies()) {
             if (e.active && Phaser.Math.Distance.Between(mx, my, e.x, e.y) < radius + e.def.radius) {
               this.h.hit(e, { source: 'active', coef: SKILL.meteor.coef(lv), tag: 'meteor' });
             }
           }
-          const boom = this.h.scene.add.circle(mx, my, radius, 0xffb300, 0.75).setDepth(8);
-          this.h.scene.tweens.add({ targets: boom, alpha: 0, scale: 1.25, duration: 350, onComplete: () => boom.destroy() });
-          this.h.scene.cameras.main.shake(100, 0.004);
+          this.meteorImpact(mx, my, radius);
+          this.h.scene.cameras.main.shake(140, 0.006);
         },
       });
     }
