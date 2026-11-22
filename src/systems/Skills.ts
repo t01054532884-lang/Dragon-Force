@@ -312,9 +312,27 @@ export class Skills {
       this.h.hit(e, { source: 'active', coef: SKILL.wind.coef(lv), tag: 'wind' });
       if (e.active) e.knock(e.x - x, e.y - y, SKILL.wind.push(lv), SKILL.wind.pushMs());
     }
-    // 회오리 그림: 바깥으로 퍼지며 도는 고리 두 개
+    // 회오리 그림(2026-11-22 개선): 바람 칼날 그림 6개가 돌며 바깥으로 퍼짐 + 옅은 고리 두 개
+    const sc = this.h.scene;
+    if (sc.textures.exists('fx-wind-blade')) {
+      for (let i = 0; i < 6; i++) {
+        const a0 = (i / 6) * Math.PI * 2;
+        const blade = sc.add.image(x, y, 'fx-wind-blade').setDepth(8.2).setDisplaySize(r * 0.7, r * 0.7).setAlpha(0.95).setBlendMode(Phaser.BlendModes.ADD);
+        const s0 = blade.scale;
+        const st = { t: 0 };
+        sc.tweens.add({
+          targets: st, t: 1, duration: 420, ease: 'Quad.Out',
+          onUpdate: () => {
+            const a = a0 + st.t * Math.PI * 1.4;
+            const d = r * (0.25 + 0.7 * st.t);
+            blade.setPosition(x + Math.cos(a) * d, y + Math.sin(a) * d).setRotation(a + Math.PI / 2).setScale(s0 * (0.7 + 0.5 * st.t)).setAlpha(0.95 * (1 - st.t));
+          },
+          onComplete: () => blade.destroy(),
+        });
+      }
+    }
     for (const [delay, color] of [[0, 0xbfe9ff], [90, 0x7fd6ff]] as const) {
-      const ring = this.h.scene.add.circle(x, y, r * 0.4).setStrokeStyle(10, color, 0.8).setDepth(8);
+      const ring = this.h.scene.add.circle(x, y, r * 0.4).setStrokeStyle(6, color, 0.5).setDepth(8);
       this.h.scene.tweens.add({
         targets: ring, radius: r, alpha: 0, angle: 180, delay, duration: 320,
         onComplete: () => ring.destroy(),
