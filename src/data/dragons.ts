@@ -10,15 +10,17 @@ export type DragonId = 'red' | 'blue' | 'yellow' | 'green' | 'white' | 'black' |
   // 신규 1묶음(2026-11-22, docs/NEW_DRAGONS_DEV_PLAN.md) — DRAGON_RELEASED가 켜지기 전까지 상점·도감에 안 나옴
   | 'sand' | 'steel' | 'bloom'
   // 신규 2묶음(2026-11-22)
-  | 'howl' | 'crimson' | 'mirror';
+  | 'howl' | 'crimson' | 'mirror'
+  // 신규 3묶음(2026-11-22) — 전용 스킬 대신 "기본 공격 N회마다 자동 발동"(제작자 결정)
+  | 'chrono' | 'void' | 'aurora';
 export type DragonRarity = 'starter' | 'common' | 'rare' | 'epic' | 'legendary';
-export type DragonElement = 'fire' | 'ice' | 'lightning' | 'poison' | 'light' | 'dark' | 'earth' | 'wind' | 'water' | 'arcane' | 'sand' | 'steel' | 'bloom' | 'sound' | 'blood' | 'mirror';
+export type DragonElement = 'fire' | 'ice' | 'lightning' | 'poison' | 'light' | 'dark' | 'earth' | 'wind' | 'water' | 'arcane' | 'sand' | 'steel' | 'bloom' | 'sound' | 'blood' | 'mirror' | 'time' | 'gravity' | 'aurora';
 
 export const RARITY_LABEL: Record<DragonRarity, string> = { starter: '기본', common: '일반', rare: '희귀', epic: '영웅', legendary: '전설' };
 export const RARITY_COLOR: Record<DragonRarity, number> = { starter: 0xb0bec5, common: 0x9ccc65, rare: 0x4fc3f7, epic: 0xba68c8, legendary: 0xffb300 };
 export const ELEMENT_LABEL: Record<DragonElement, string> = {
   fire: '화염', ice: '얼음', lightning: '번개', poison: '독', light: '빛', dark: '암흑', earth: '대지', wind: '바람', water: '물', arcane: '신비',
-  sand: '모래', steel: '강철', bloom: '꽃', sound: '음파', blood: '혈기', mirror: '거울',
+  sand: '모래', steel: '강철', bloom: '꽃', sound: '음파', blood: '혈기', mirror: '거울', time: '시간', gravity: '중력', aurora: '극광',
 };
 
 /** 기본 공격 한 레벨의 상태(앞 레벨 효과를 모두 포함한 누적값) */
@@ -365,6 +367,50 @@ const MIRROR = common('반사 광탄', '💎', 'bolt-prism', build(
   ],
 ), { life: 1800 });
 
+// ───────── 신규 3묶음(2026-11-22, 제작자 결정): 시간 정지·끌어당김 상태·상태이상 섞기 대신 단순한 피해형 기본 공격 ─────────
+// 전설 3종은 60초 전용 스킬이 없고, 기본 공격 N회마다 자동으로 나가는 고유 공격이 있다(src/data/signature.ts kind 'counter').
+// 크로노: 시곗바늘 화살 — 빠른 직선 화살. Lv.1 92 · Lv.5 139 · Lv.6 156
+const CHRONO = common('시곗바늘 화살', '🕰️', 'bolt-clock', build(
+  { ...STRAIGHT, speed: 950, shots: 2, coef: 0.55, levelMod: 1, interval: 900 },
+  [
+    { text: '빠른 시곗바늘 화살 2발(각 55%)' },
+    { levelMod: 1.15, text: '피해 +15%' },
+    { pierce: 1, text: '관통 1회' },
+    { shots: 3, coef: 0.48, text: '화살 3발(각 48%)' },
+    { levelMod: 1.3, text: '피해 +30%' },
+    { interval: 800, text: '쏘는 간격 0.9 → 0.8초' },
+    { pierce: 3, text: '진화 — 관통 3회' },
+  ],
+), { life: 1300 });
+
+// 보이드: 중력 구슬 — 느리고 묵직한 관통 구슬. Lv.1 100 · Lv.5 150
+const VOID = common('중력 구슬', '🌀', 'bolt-void', build(
+  { ...STRAIGHT, speed: 380, shots: 1, coef: 1.3, levelMod: 1, interval: 1300, pierce: 1, scale: 1.4 },
+  [
+    { text: '느리고 묵직한 중력 구슬 1개(130%), 관통 1회' },
+    { levelMod: 1.15, text: '피해 +15%' },
+    { pierce: 2, scale: 1.6, text: '구슬 크기 +15% · 관통 2회' },
+    { shots: 2, coef: 1.0, text: '구슬 2개(각 100%)' },
+    { levelMod: 1.3, text: '피해 +30%' },
+    { splash: { radius: 1.2 * M, coef: 0.4 }, text: '맞힌 자리 1.2m 중력 파편(40%)' },
+    { explodeEvery: 3, explosion: { radius: 2.2 * M, coef: 1.4, color: 0x7c4dff }, text: '진화 — 3번째 공격마다 2.2m 중력 폭발(140%)' },
+  ],
+), { life: 2600 });
+
+// 오로라: 분광 빛살 — 적을 따라가는 빛살. Lv.1 105 · Lv.5 151 · Lv.7 163
+const AURORA = common('분광 빛살', '🌈', 'bolt-aurora', build(
+  { ...STRAIGHT, speed: 760, homing: Math.PI * 2, shots: 2, coef: 0.7, levelMod: 1, interval: 1000 },
+  [
+    { text: '적을 따라가는 빛살 2발(각 70%)' },
+    { levelMod: 1.15, text: '피해 +15%' },
+    { pierce: 1, text: '관통 1회' },
+    { shots: 3, coef: 0.58, text: '빛살 3발(각 58%)' },
+    { levelMod: 1.3, text: '피해 +30%' },
+    { split: { count: 2, coef: 0.3, homing: Math.PI * 2 }, text: '적중 시 작은 빛 2개로 갈라짐(각 30%)' },
+    { shots: 4, coef: 0.5, text: '진화 — 빛살 4발(각 50%)' },
+  ],
+), { life: 1800 });
+
 // ───────── 10종 정의 ─────────
 // 기본 능력치: 기획 수정안 v1.2 2장 표(Lv.1·1성·장비·연구소 미적용 기준). 레드는 기존과 같은 10 / 100 / 260.
 const B = (baseAttack: number, baseHp: number, baseMoveSpeed: number) => ({ baseAttack, baseHp, baseMoveSpeed });
@@ -385,10 +431,13 @@ export const DRAGONS: Record<DragonId, DragonDef> = {
   howl: { id: 'howl', name: '하울 드래곤', short: '하울', element: 'sound', rarity: 'rare', role: '관통 음파·광역', color: 0x2f4fd6, accent: 0xcfd8e6, belly: 0xdde6ff, ...B(9.5, 110, 280), trait: { id: 'resonance', text: '음파 고리가 맞힌 적 1마리당 그 고리 피해 +2%(최대 +20%)', value: 0.02 }, basic: HOWL },
   crimson: { id: 'crimson', name: '크림슨 드래곤', short: '크림슨', element: 'blood', rarity: 'epic', role: '근접 베기·흡수', color: 0x8e1b3a, accent: 0xe0b44a, belly: 0xd88a9a, ...B(13, 115, 270), trait: { id: 'drain', text: '흡수: 기본 공격 피해의 1%만큼 HP 회복(1초에 최대 HP 1%까지)', value: 0.01 }, basic: CRIMSON },
   mirror: { id: 'mirror', name: '미러 드래곤', short: '미러', element: 'mirror', rarity: 'epic', role: '튕기는 탄', color: 0xd8dde6, accent: 0x9be7ff, belly: 0xf4f6fa, ...B(12, 95, 285), trait: { id: 'bounceBonus', text: '튕긴 탄 피해 +15%', value: 0.15 }, basic: MIRROR },
+  chrono: { id: 'chrono', name: '크로노 드래곤', short: '크로노', element: 'time', rarity: 'legendary', role: '빠른 화살·시계 폭탄', color: 0x9c5b2e, accent: 0x1f2d5c, belly: 0xe7c9a0, ...B(14, 115, 270), trait: { id: 'eliteHunter', text: '엘리트·보스에게 피해 +15%', value: 0.15 }, basic: CHRONO },
+  void: { id: 'void', name: '보이드 드래곤', short: '보이드', element: 'gravity', rarity: 'legendary', role: '묵직한 구슬·블랙홀', color: 0x3a3d45, accent: 0xbfe9ff, belly: 0x6b6f7a, ...B(14.5, 125, 255), trait: { id: 'fullHp', text: 'HP 70% 이상인 적에게 피해 +20%', value: 0.2 }, basic: VOID },
+  aurora: { id: 'aurora', name: '오로라 드래곤', short: '오로라', element: 'aurora', rarity: 'legendary', role: '추적 빛살·극광 휩쓸기', color: 0x1e2a6e, accent: 0x7cf2c4, belly: 0xd9e6ff, ...B(14, 120, 275), trait: { id: 'allBonus', text: '모든 피해 +10%', value: 0.1 }, basic: AURORA },
   arcane: { id: 'arcane', name: '아케인 드래곤', short: '아케인', element: 'arcane', rarity: 'legendary', role: '분열·추가 발동', color: 0x9b6fe0, accent: 0xff8de8, belly: 0xe9d9ff, ...B(14, 120, 275), trait: { id: 'haste', text: '기본 공격 재사용 대기시간 −10%', value: 0.1 }, basic: ARCANE },
 };
 
-export const DRAGON_ORDER: DragonId[] = ['red', 'blue', 'yellow', 'green', 'white', 'black', 'stone', 'wind', 'water', 'arcane', 'sand', 'steel', 'bloom', 'howl', 'crimson', 'mirror'];
+export const DRAGON_ORDER: DragonId[] = ['red', 'blue', 'yellow', 'green', 'white', 'black', 'stone', 'wind', 'water', 'arcane', 'sand', 'steel', 'bloom', 'howl', 'crimson', 'mirror', 'chrono', 'void', 'aurora'];
 
 /**
  * 출시 스위치(2026-11-22): 켜진 드래곤만 상점 뽑기·도감·로비·미션 고르기에 나온다. 저장 데이터는 모든 드래곤 칸을 갖는다.
@@ -398,6 +447,7 @@ export const DRAGON_RELEASED: Record<DragonId, boolean> = {
   red: true, blue: true, yellow: true, green: true, white: true, black: true, stone: true, wind: true, water: true, arcane: true,
   sand: false, steel: false, bloom: false,
   howl: false, crimson: false, mirror: false,
+  chrono: false, void: false, aurora: false,
 };
 const PREVIEW_NEW = typeof location !== 'undefined' && new URLSearchParams(location.search).has('newdragons');
 /** 화면·뽑기에 쓰는 드래곤 목록(출시된 것 + 시험 주소면 전부) */

@@ -171,7 +171,7 @@ export class DragonsScene extends Phaser.Scene {
     const sigKey = `sig-${d.id}`;
     const hasSigArt = this.textures.exists(sigKey);
     if (hasSigArt) this.A(this.add.image(46 + 15, top + 251, sigKey).setDisplaySize(30, 30));
-    this.A(text(this, hasSigArt ? 84 : 46, top + 240, `전용 스킬${hasSigArt ? '' : ` ${sg.icon}`} ${sg.name} · 성장 ${tier}/3단계 · 재사용 60초`, 17, 0xffcc80, true, true).setOrigin(0, 0));
+    this.A(text(this, hasSigArt ? 84 : 46, top + 240, `전용 스킬${hasSigArt ? '' : ` ${sg.icon}`} ${sg.name} · 성장 ${tier}/3단계 · ${sg.kind === 'counter' ? `기본 공격 ${sg.every}회마다 자동` : '재사용 60초'}`, 17, 0xffcc80, true, true).setOrigin(0, 0));
     this.A(text(this, 46, top + 268, nxt ? `다음 Lv.${next}: ${diff}` : '최고 단계 — 모든 성장 효과 적용 중', 15, nxt ? COLOR.gold : COLOR.ok, true).setOrigin(0, 0).setWordWrapWidth(628).setAlign('left'));
 
     // 성장표·기본 공격·전용 스킬 팝업

@@ -10,7 +10,7 @@ import type { DragonId } from './dragons';
 // - 기본 공격 DPS = 공격력 × 한 발 계수 × 레벨 배율 × (1 + 추가 탄 × 같은 묶음 50%) ÷ 공격 주기(단일 대상, 화상·폭발 제외).
 // 범위·지속시간·틱 수·이동 강화형의 "약한" 범위 공격 크기는 AI 1차안. 재사용 60초(원문). 실제 보스 처치 시간으로 다시 맞춘다.
 
-export type SignatureKind = 'aoe' | 'beam' | 'single' | 'dot' | 'heal' | 'guard' | 'move';
+export type SignatureKind = 'aoe' | 'beam' | 'single' | 'dot' | 'heal' | 'guard' | 'move' | 'counter';
 
 export interface SignatureDef {
   name: string;
@@ -33,6 +33,8 @@ export interface SignatureDef {
   weaken?: { ratio: number; ms: number }; // 약화(신규: 샌드)
   root?: number; // 속박 ms(신규: 블룸)
   stunMs?: number; // 일반 적 기절 ms(신규: 하울, 엘리트·보스는 15% 둔화 1초)
+  every?: number; // kind 'counter': 기본 공격 몇 번마다 자동 발동(전설 3종)
+  perTargetSec?: number; // kind 'counter': 적마다 DPS × 이 초(총합은 aoeTotalCapSec 기준으로 나눔)
   color: number;
 }
 
@@ -82,6 +84,10 @@ export const SIGNATURES: Record<DragonId, SignatureDef> = {
   howl: { name: '용의 포효', icon: '🐉', text: '사방으로 퍼지는 포효 3겹', detail: `광역: 주변 5.2m 음파 3겹, 적마다 DPS×${R.aoePerTargetSec}초(3겹 합) + 일반 적 1.5초 기절·밀쳐냄, 엘리트·보스 30% 둔화 3초`, kind: 'aoe', cooldownMs: CD, radius: 5.2 * M, stunMs: 1500, knock: 480, slow: { ratio: 0.3, ms: 3000 }, color: 0x8fa8ff },
   crimson: { name: '진홍의 갈증', icon: '🩸', text: '주변 베기 + 준 피해만큼 회복', detail: `광역: 주변 4.5m, 적마다 DPS×${R.aoePerTargetSec}초 + 준 피해의 10% 회복(최대 HP 25%까지)`, kind: 'aoe', cooldownMs: CD, radius: 4.5 * M, color: 0xc2185b },
   mirror: { name: '만화경', icon: '🪞', text: '거울 분신 3개가 함께 쏨', detail: `단일: 6초 동안 거울 분신 3개가 0.5초마다 가까운 적을 쏨(엘리트·보스 우선), 합계 DPS×${R.singleSec}초`, kind: 'single', cooldownMs: CD, durationMs: 6000, radius: 10 * M, color: 0x9be7ff },
+  // 신규 3묶음(전설): 60초 전용 스킬 대신 기본 공격 N회마다 자동 발동하는 고유 공격(제작자 결정 2026-11-22)
+  chrono: { name: '시계 폭탄', icon: '⏰', text: '기본 공격 5회마다 시계를 던져 3초 뒤 폭발', detail: '자동: 기본 공격 5회마다 적이 많은 곳에 시계 폭탄 → 3초 뒤 2.6m 폭발, 적마다 DPS×2.5초', kind: 'counter', cooldownMs: 0, every: 5, radius: 2.6 * M, durationMs: 3000, perTargetSec: 2.5, color: 0xe0a14a },
+  void: { name: '중력 붕괴', icon: '🕳️', text: '기본 공격 10회마다 블랙홀로 끌어당김', detail: '자동: 기본 공격 10회마다 적이 많은 곳에 3m 블랙홀 2.5초 — 일반 적을 가운데로 끌어당기며 적마다 총 DPS×4초(엘리트·보스는 끌리지 않음)', kind: 'counter', cooldownMs: 0, every: 10, radius: 3 * M, durationMs: 2500, perTargetSec: 4, color: 0x7c4dff },
+  aurora: { name: '극광의 장막', icon: '🌌', text: '기본 공격 20회마다 바라보는 방향으로 극광이 휩쓺', detail: '자동: 기본 공격 20회마다 드래곤이 바라보는 방향 14m·폭 4.4m 극광 휩쓸기, 적마다 DPS×6초', kind: 'counter', cooldownMs: 0, every: 20, length: 14 * M, width: 2.2 * M, perTargetSec: 6, color: 0x7cf2c4 },
   arcane: { name: '마력 폭주', icon: '🔮', text: '짧은 시간 추가 마력탄', detail: `단일: 4초 동안 마력탄 10발, 엘리트·보스 우선, 합계 DPS×${R.singleSec}초`, kind: 'single', cooldownMs: CD, durationMs: 4000, ticks: 10, radius: 11 * M, color: 0xb693ff },
 };
 
@@ -132,6 +138,9 @@ export function sigGrowth(id: DragonId, tier: number): SigGrowth {
     case 'howl': return { dmg, radius: 1 + 0.08 * t, count: t >= 2 ? 4 : 3, lingerMs: 0 }; // 포효 겹 수
     case 'crimson': return { dmg, radius: 1 + 0.08 * t, count: 0, lingerMs: 0 };
     case 'mirror': return { dmg, radius: 1, count: t >= 2 ? 4 : 3, lingerMs: 6000 + 1000 * t }; // 분신 수·유지
+    case 'chrono': return { dmg, radius: 1 + 0.08 * t, count: 0, lingerMs: 0 }; // 시계 폭탄 범위
+    case 'void': return { dmg, radius: 1 + 0.08 * t, count: 0, lingerMs: 2500 + 500 * t }; // 블랙홀 범위·유지
+    case 'aurora': return { dmg, radius: 1 + 0.1 * t, count: 0, lingerMs: 0 }; // 극광 폭
   }
 }
 
@@ -143,10 +152,11 @@ export function sigGrowthLines(id: DragonId, tier: number): Record<string, strin
   const out: Record<string, string> = { 피해: `${Math.round(g.dmg * 100)}%` };
   if (d.radius) out['범위'] = m(d.radius);
   if (d.length) out['길이·폭'] = `${m(d.length)} · ${m(d.width! * 2)}`;
+  if (d.kind === 'counter') out['발동'] = `기본 공격 ${d.every}회마다`;
   const label: Partial<Record<DragonId, string>> = { yellow: '연쇄 번개', black: '암흑 빔', stone: '바위 파동', wind: '바람 칼날', water: '해일', arcane: '마력탄', steel: '강철 검', bloom: '가시 꽃', howl: '포효', mirror: '거울 분신' };
   const unit: Partial<Record<DragonId, string>> = { yellow: '갈래', arcane: '개', wind: '개', steel: '자루', bloom: '송이', howl: '겹', mirror: '개' };
   if (label[id]) out[label[id]!] = `${g.count}${unit[id] ?? '번'}`;
-  const linger: Partial<Record<DragonId, string>> = { red: '남는 불길', blue: '냉기 장판', green: '독구름', white: '보호막', wind: '질주 추가', sand: '모래 늪', bloom: '꽃 유지', mirror: '분신 유지' };
+  const linger: Partial<Record<DragonId, string>> = { red: '남는 불길', blue: '냉기 장판', green: '독구름', white: '보호막', wind: '질주 추가', sand: '모래 늪', bloom: '꽃 유지', mirror: '분신 유지', void: '블랙홀 유지' };
   if (linger[id] && g.lingerMs) out[linger[id]!] = `${(g.lingerMs / 1000).toFixed(1)}초`;
   return out;
 }

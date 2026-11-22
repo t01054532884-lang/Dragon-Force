@@ -61,7 +61,8 @@ describe('6-1 영구 성장 5레벨 고유 효과', () => {
 
 describe('6-2 전용 액티브 데이터', () => {
   it('10종, 60초 유지, v1.3 종류별 규칙(광역·단일·지속·회복·방어·이동)', () => {
-    for (const id of DRAGON_ORDER) expect(SIGNATURES[id].cooldownMs).toBe(60_000);
+    // 전설 신규 3종(크로노·보이드·오로라)은 60초 스킬 대신 기본 공격 횟수형(kind 'counter') — tests/newdragons.test.ts
+    for (const id of DRAGON_ORDER) if (SIGNATURES[id].kind !== 'counter') expect(SIGNATURES[id].cooldownMs).toBe(60_000);
     expect(SIGNATURES.red.kind).toBe('aoe');
     expect(SIGNATURES.arcane.kind).toBe('single');
     expect(SIGNATURES.green.kind).toBe('dot');

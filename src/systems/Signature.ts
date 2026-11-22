@@ -59,6 +59,10 @@ export class Signature {
   private clock = 0;
   private swordsPriority = 0; // 칼날비: 엘리트·보스를 먼저 노리는 남은 자루 수
   private clones: Phaser.GameObjects.Image[] = []; // 만화경 거울 분신
+  /** 기본 공격 횟수형(전설 3종): 지금까지 센 기본 공격 수(다 차면 자동 발동 후 0) */
+  count = 0;
+  private holes: { x: number; y: number; r: number; left: number; acc: number; perTick: number; g: Phaser.GameObjects.Arc; core: Phaser.GameObjects.Arc }[] = [];
+  private bombs: { x: number; y: number; r: number; left: number; each: number; img: Phaser.GameObjects.Image; ring: Phaser.GameObjects.Arc }[] = [];
   uses = 0;
   /** 이번 사용에서 엘리트·보스에게 넣은 피해(한 번 사용 상한용) */
   private dealt = new Map<Enemy, number>();
@@ -81,12 +85,133 @@ export class Signature {
   }
 
   get ready(): boolean {
-    return this.cd <= 0;
+    return !this.counter && this.cd <= 0;
   }
 
-  /** 0(방금 씀) ~ 1(준비) */
+  /** 기본 공격 횟수형(크로노·보이드·오로라) */
+  get counter(): boolean {
+    return this.def.kind === 'counter';
+  }
+
+  /** 0(방금 씀) ~ 1(준비). 횟수형은 센 기본 공격 비율 */
   get charge(): number {
+    if (this.counter) return this.count / this.def.every!;
     return this.cooldownMs > 0 ? 1 - Math.max(0, this.cd) / this.cooldownMs : 1;
+  }
+
+  /** 기본 공격 한 묶음마다 게임 장면이 부른다. 횟수형만 세고, 다 차면 자동 발동 후 처음부터 */
+  onVolley(): void {
+    if (!this.counter) return;
+    this.count++;
+    if (this.count < this.def.every!) return;
+    this.count = 0;
+    this.uses++;
+    this.dealt.clear();
+    this.fireCounter();
+  }
+
+  /** 전설 3종 고유 공격(피해 = 지금 기본 공격 DPS × 대상당 초, 많이 맞으면 총합 24초를 나눔 — 광역 규칙과 같음) */
+  private fireCounter(): void {
+    const d = this.def;
+    const g = this.growth;
+    const dps = this.dps() * g.dmg;
+    const per = (n: number) => (n <= 0 ? 0 : Math.min(dps * d.perTargetSec!, (dps * R.aoeTotalCapSec) / n));
+    const { x, y } = this.h.player;
+    if (this.dragonId === 'chrono') {
+      // 시계 폭탄: 적이 많은 곳(없으면 가장 가까운 적)에 던져 3초 뒤 폭발
+      const t = this.densest(x, y, 8 * 50) ?? this.nearest(x, y, 8 * 50);
+      if (!t) return;
+      const r = d.radius! * g.radius;
+      const img = this.scene.add.image(t.x, t.y, 'fx-clock').setDepth(DEPTH_GROUND + 0.2).setDisplaySize(56, 56);
+      const ring = this.scene.add.circle(t.x, t.y, r * this.h.stats.areaMult).setStrokeStyle(4, d.color, 0.8).setDepth(DEPTH_GROUND);
+      this.scene.tweens.add({ targets: img, angle: 360, duration: d.durationMs!, repeat: 0 });
+      this.bombs.push({ x: t.x, y: t.y, r, left: d.durationMs!, each: 0, img, ring });
+      return;
+    }
+    if (this.dragonId === 'void') {
+      // 블랙홀: 적이 많은 곳에 생겨 일반 적을 가운데로 끌어당기며 0.25초마다 피해
+      const t = this.densest(x, y, 8 * 50) ?? this.nearest(x, y, 8 * 50);
+      if (!t) return;
+      const r = d.radius! * g.radius;
+      const n = this.inCircle(t.x, t.y, r).length;
+      const ticks = Math.round(g.lingerMs / 250);
+      const g1 = this.scene.add.circle(t.x, t.y, r * this.h.stats.areaMult, 0x1a0f33, 0.45).setStrokeStyle(5, d.color, 0.9).setDepth(DEPTH_GROUND);
+      const core = this.scene.add.circle(t.x, t.y, 18, 0x000000, 1).setStrokeStyle(4, 0xbfe9ff, 1).setDepth(DEPTH_GROUND + 0.3);
+      this.scene.tweens.add({ targets: g1, angle: 360, duration: g.lingerMs });
+      this.holes.push({ x: t.x, y: t.y, r, left: g.lingerMs, acc: 0, perTick: per(Math.max(1, n)) / ticks, g: g1, core });
+      playSfx(this.scene, 'sfx-explode', { pitch: 0.6 });
+      return;
+    }
+    if (this.dragonId === 'aurora') {
+      // 극광의 장막: 드래곤이 바라보는 방향으로 길게 휩쓸기
+      const f = this.h.facing;
+      const ang = Math.atan2(f.y, f.x);
+      const len = d.length!;
+      const half = d.width! * g.radius;
+      this.auroraFx(x, y, ang, len, half);
+      const hit = this.inBeam(x, y, ang, len, half);
+      this.strike(hit, per(hit.length), ang);
+    }
+  }
+
+  private auroraFx(x: number, y: number, ang: number, len: number, half: number): void {
+    const colors = [0x7cf2c4, 0x7ab8ff, 0xff8de8];
+    colors.forEach((c, i) => {
+      const off = (i - 1) * half * 0.6;
+      const r = this.scene.add.rectangle(x + Math.cos(ang) * len / 2 - Math.sin(ang) * off, y + Math.sin(ang) * len / 2 + Math.cos(ang) * off, len, half * 0.9, c, 0.38).setRotation(ang).setDepth(DEPTH_FLASH).setScale(0.1, 1);
+      this.scene.tweens.add({ targets: r, scaleX: 1, duration: 260, delay: i * 60, ease: 'Quad.Out' });
+      this.scene.tweens.add({ targets: r, alpha: 0, duration: 420, delay: 380 + i * 60, onComplete: () => r.destroy() });
+    });
+  }
+
+  private updateCounterFx(delta: number): void {
+    if (this.bombs.length) {
+      this.bombs = this.bombs.filter((b) => {
+        b.left -= delta;
+        b.ring.setAlpha(0.4 + 0.6 * Math.abs(Math.sin(b.left / 150)));
+        if (b.left > 0) return true;
+        // 폭발 순간의 DPS로 피해(시계를 던진 뒤 강해졌으면 그만큼)
+        const t = this.inCircle(b.x, b.y, b.r);
+        const dps = this.dps() * this.growth.dmg;
+        const each = t.length ? Math.min(dps * this.def.perTargetSec!, (dps * R.aoeTotalCapSec) / t.length) : 0;
+        this.dealt.clear();
+        this.burst(b.x, b.y, b.r, this.def.color, null);
+        this.strike(t, each);
+        b.img.destroy();
+        b.ring.destroy();
+        playSfx(this.scene, 'sfx-explode');
+        return false;
+      });
+    }
+    if (this.holes.length) {
+      const dt = delta / 1000;
+      this.holes = this.holes.filter((h) => {
+        h.left -= delta;
+        h.acc += delta;
+        const rr = h.r * this.h.stats.areaMult;
+        // 일반 적만 가운데로(엘리트·보스는 끌리지 않음 — 밀치기 저항 규칙 그대로)
+        for (const e of this.inCircle(h.x, h.y, h.r)) {
+          if (e.rank !== 'normal') continue;
+          const dx = h.x - e.x;
+          const dy = h.y - e.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist < 14) continue;
+          const pull = Math.min(dist, 260 * dt);
+          e.setPosition(e.x + (dx / dist) * pull, e.y + (dy / dist) * pull);
+        }
+        while (h.acc >= 250) {
+          h.acc -= 250;
+          this.strike(this.inCircle(h.x, h.y, h.r), h.perTick);
+        }
+        h.core.setScale(1 + 0.15 * Math.sin(h.left / 80));
+        void rr;
+        if (h.left <= 0) {
+          this.scene.tweens.add({ targets: [h.g, h.core], alpha: 0, scale: 0.2, duration: 220, onComplete: () => (h.g.destroy(), h.core.destroy()) });
+          return false;
+        }
+        return true;
+      });
+    }
   }
 
   get cooldownLeft(): number {
@@ -98,7 +223,7 @@ export class Signature {
   }
 
   cast(): boolean {
-    if (!this.ready) return false;
+    if (this.counter || !this.ready) return false; // 횟수형은 버튼으로 쓰지 않음(기본 공격으로 자동)
     const d = this.def;
     const g = this.growth;
     const dps = this.dps() * g.dmg;
@@ -268,6 +393,7 @@ export class Signature {
     }
     this.updateBlades(delta);
     this.updateZones(delta);
+    this.updateCounterFx(delta);
     if (this.clones.length) this.placeClones();
     if (this.bubble) this.bubble.setPosition(this.h.player.x, this.h.player.y);
     if (this.active > 0) this.active -= delta;
@@ -668,7 +794,7 @@ export class Signature {
  * 없는 것만 여기서 도형으로 그린다(키 이름이 같아서 코드는 그대로).
  */
 export function makeSigTextures(scene: Phaser.Scene): void {
-  const need = ['fx-wind-blade', 'fx-fire-ground', 'fx-frost-ground', 'fx-ice-crystal', 'fx-poison-cloud', 'fx-rock-wave', 'fx-light-shield', 'fx-shadow-orb', 'fx-arcane-bolt', 'fx-wave', 'fx-sword', 'fx-thorn'];
+  const need = ['fx-wind-blade', 'fx-fire-ground', 'fx-frost-ground', 'fx-ice-crystal', 'fx-poison-cloud', 'fx-rock-wave', 'fx-light-shield', 'fx-shadow-orb', 'fx-arcane-bolt', 'fx-wave', 'fx-sword', 'fx-thorn', 'fx-clock'];
   if (need.every((k) => scene.textures.exists(k))) return;
   const g = scene.make.graphics({}, false);
   const make = (key: string, size: number, draw: () => void) => {
@@ -685,6 +811,12 @@ export function makeSigTextures(scene: Phaser.Scene): void {
     g.fillStyle(0xffffff, 0.8).fillRect(30, 6, 2, 40);
     g.fillStyle(0xff8a2a).fillRect(20, 46, 24, 5);
     g.fillStyle(0x6d4c41).fillRect(29, 51, 6, 10);
+  });
+  make('fx-clock', 64, () => {
+    g.fillStyle(0x9c5b2e).fillCircle(32, 32, 28);
+    g.fillStyle(0xf3e5c8).fillCircle(32, 32, 22);
+    g.lineStyle(3, 0x1f2d5c, 1).lineBetween(32, 32, 32, 16).lineBetween(32, 32, 44, 34);
+    g.fillStyle(0xe0a14a).fillCircle(32, 32, 3);
   });
   make('fx-thorn', 96, () => {
     g.fillStyle(0x558b2f);

@@ -19,8 +19,8 @@ const dps = (id: DragonId, lv: number): number => {
 };
 
 describe('출시 스위치', () => {
-  it('데이터는 16종, 화면·뽑기는 출시된 10종만', () => {
-    expect(DRAGON_ORDER).toHaveLength(16);
+  it('데이터는 19종, 화면·뽑기는 출시된 10종만', () => {
+    expect(DRAGON_ORDER).toHaveLength(19);
     for (const id of NEW) expect(DRAGON_RELEASED[id]).toBe(false);
     expect(releasedDragons()).toHaveLength(10);
     for (const id of NEW) {
@@ -30,6 +30,7 @@ describe('출시 스위치', () => {
     expect(poolOf('common', false)).not.toContain('sand');
     expect(poolOf('rare', false)).not.toContain('bloom');
     expect(poolOf('epic', false)).not.toContain('crimson');
+    expect(poolOf('legendary', false)).toEqual(['arcane']);
   });
   it('예전 저장(10종)을 열면 신규 드래곤은 잠긴 기본값으로 채워짐', () => {
     const old = defaultProgress() as unknown as { dragons: Record<string, unknown> };
@@ -89,5 +90,18 @@ describe('신규 드래곤 데이터', () => {
     expect(DRAGONS.crimson.basic.levels[6].melee!.spinEvery).toBe(5);
     expect(DRAGONS.mirror.basic.levels[0]).toMatchObject({ bounce: 2, bounceFalloff: 0.15 });
     expect(DRAGONS.mirror.basic.levels[6].bounceFalloff).toBe(0);
+  });
+  it('전설 3종: 60초 스킬 없이 기본 공격 5·10·20회마다 자동(횟수형), 단일 DPS는 레드의 85~110%', () => {
+    expect([SIGNATURES.chrono.every, SIGNATURES.void.every, SIGNATURES.aurora.every]).toEqual([5, 10, 20]);
+    for (const id of ['chrono', 'void', 'aurora'] as DragonId[]) {
+      expect(DRAGONS[id].rarity).toBe('legendary');
+      expect(SIGNATURES[id].kind).toBe('counter');
+      expect(PERM_TIERS[id]).toHaveLength(8);
+      const r = dps(id, 5) / dps('red', 5);
+      expect(r).toBeGreaterThan(0.85);
+      expect(r).toBeLessThan(1.1);
+      // 시간 정지·끌어당김 상태·상태이상 섞기는 기본 공격에 없음(제작자 결정)
+      for (const L of DRAGONS[id].basic.levels) expect(L.root ?? L.weaken ?? L.freeze ?? L.stun).toBeUndefined();
+    }
   });
 });

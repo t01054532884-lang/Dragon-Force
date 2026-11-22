@@ -483,6 +483,10 @@ export class GameScene extends Phaser.Scene {
 
   private castSignature(): void {
     if (this.mode !== 'play') return;
+    if (this.signature.counter) {
+      this.popText(this.player.x, this.player.y - 70, `기본 공격 ${this.signature.def.every}회마다 자동`, '#c9bfe0');
+      return;
+    }
     if (this.signature.cast()) {
       const ss = SIGNATURE_SFX[this.dragon.id];
       if (ss) playSfx(this, ss);
@@ -612,6 +616,16 @@ export class GameScene extends Phaser.Scene {
     );
     // 전용 액티브 버튼: 준비되면 밝게, 쿨타임 중엔 남은 초와 테두리 진행
     const sg = this.signature;
+    if (sg.counter) {
+      // 크로노·보이드·오로라: 버튼 자리에 기본 공격 횟수(예 3/5)와 테두리 진행 — 다 차면 자동으로 나가고 1부터 다시
+      this.sigBtn.setFillStyle(0x000000, 0.6);
+      this.sigGlow.setVisible(sg.count === sg.def.every! - 1);
+      this.sigIcon.setAlpha(0.6 + 0.4 * sg.charge);
+      this.sigText.setText(`${sg.count}/${sg.def.every}`);
+      g.lineStyle(6, sg.def.color, 1).beginPath().arc(560, 140, 44, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * sg.charge).strokePath();
+      this.specialText.setText('');
+      return;
+    }
     const ready = sg.ready;
     this.sigBtn.setFillStyle(ready ? sg.def.color : 0x000000, ready ? 0.85 : 0.6);
     this.sigGlow.setVisible(ready);
@@ -1104,6 +1118,9 @@ export class GameScene extends Phaser.Scene {
       if (t.id === 'rootBonus' && e.rooted) add += v; // 블룸: 속박된 적 +20%
       if (t.id === 'returnBonus' && spec.tag === 'basic-return') add += v; // 스틸: 되돌아오는 원반 +20%
       if (t.id === 'bounceBonus' && spec.tag === 'basic-bounce') add += v; // 미러: 튕긴 탄 +15%
+      if (t.id === 'eliteHunter' && e.rank !== 'normal') add += v; // 크로노: 엘리트·보스 +15%
+      if (t.id === 'fullHp' && e.hp >= e.maxHp * 0.7) add += v; // 보이드: HP 70% 이상 +20%
+      if (t.id === 'allBonus') add += v; // 오로라: 모든 피해 +10%
       if (spec.source === 'basic' && e.hp <= e.maxHp * 0.3) add += this.basicTraits.executeBonus; // 블랙: HP 30% 이하(특성 + 영구 성장)
     }
     let m = (1 + add) * e.vulnMult * this.attackMult();
@@ -1119,6 +1136,7 @@ export class GameScene extends Phaser.Scene {
 
   /** 기본 공격 한 묶음 발사: 발사점 섬광 + 그림 층 반동(좌표·충돌체는 그대로) + 발사음 1번 */
   private onFire(angle: number): void {
+    this.signature.onVolley(); // 크로노·보이드·오로라: 기본 공격 N회마다 자동 고유 공격
     this.fx.muzzle(this.player.x, this.player.y, angle);
     const s = this.skin;
     this.tweens.killTweensOf(s);
