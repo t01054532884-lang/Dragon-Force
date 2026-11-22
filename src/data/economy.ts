@@ -177,8 +177,9 @@ export const PACKAGES: PackageDef[] = [
 ];
 
 /**
- * 일일·주간·월간 특혜(제작자 요청 2026-11-23: 참고 시안처럼 상점에 일일/주간/월간 특혜 탭). ⚠ 구성·가격 AI 1차안(확정 전).
+ * 일일·주간·월간 특혜(제작자 요청 2026-11-23: 참고 시안처럼 상점에 일일/주간/월간 특혜 탭).
  * 기간마다 limit회(KST 자정·월요일·1일 초기화). 가치 기준은 PACKAGES와 같음. 무료 일일 선물은 결제 없이 하루 1번.
+ * 구성·가격 확정(제작자 2026-11-23: "이대로 확정").
  */
 export const DEALS: PackageDef[] = [
   { productId: 'deal_daily_ruby', name: '일일 루비 꾸러미', krw: 1_200, limit: 1, period: 'daily', rubies: 150, gold: 10_000 },
@@ -188,5 +189,5 @@ export const DEALS: PackageDef[] = [
   { productId: 'deal_monthly_res', name: '월간 자원 상자', krw: 22_000, limit: 1, period: 'monthly', rubies: 2_500, gold: 100_000, equipTickets: 10, runeTickets: 10 },
   { productId: 'deal_monthly_summon', name: '월간 소환 상자', krw: 33_000, limit: 1, period: 'monthly', rubies: 1_500, dragonTickets: 15 },
 ];
-/** 무료 일일 선물(결제 없음, 하루 1번) — AI 1차안 */
+/** 무료 일일 선물(결제 없음, 하루 1번) — 확정(2026-11-23) */
 export const FREE_DAILY_GIFT = { gold: 1_000, rubies: 10 };
