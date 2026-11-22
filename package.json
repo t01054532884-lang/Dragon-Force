@@ -13,9 +13,11 @@
   },
   "dependencies": {
     "@apps-in-toss/web-framework": "^3.10.0",
+    "@capacitor-community/apple-sign-in": "^7.1.0",
     "@capacitor/app": "^8.1.2",
     "@capacitor/core": "^8.6.2",
     "@capacitor/preferences": "^8.0.1",
+    "@revenuecat/purchases-capacitor": "^14.1.2",
     "firebase": "^12.19.0",
     "phaser": "^4.2.1"
   },

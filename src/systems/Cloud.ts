@@ -1,5 +1,6 @@
 import { DEMO, PLATFORM, onStoreWrite, platform, store } from '../platform';
-import { ACCOUNT_KEY, setAccountProvider, wipeLocalData, type AccountProvider, type AccountState } from './Account';
+import { ACCOUNT_KEY, setAccountProvider, wipeLocalData, type AccountProvider, type AccountResult, type AccountState } from './Account';
+import { AppleCancelled, appleCredential } from './appleAuth';
 import { CLOUD_KEY, decideSync, readMeta, summarize, type CloudMeta, type SaveSummary } from './cloudSync';
 import { loadProgress, saveProgress, SAVE_KEY } from './Progress';
 
@@ -8,6 +9,8 @@ import { loadProgress, saveProgress, SAVE_KEY } from './Progress';
 // - 자동 덮어쓰기·합산 금지: 둘 다 바뀌었으면 "이 기기 / 서버" 선택(로비가 cloud.conflict를 보고 묻는다).
 // - 서버 쓰기는 트랜잭션 + 버전(rev) 하나씩 증가(보안 규칙도 같은 조건) → 두 기기가 동시에 써도 한쪽만 성공, 다른 쪽은 고르기.
 // - 재화를 서버가 계산하는 것은 3단계(Cloud Functions). 이 단계는 "진행 백업·기기 이전".
+// - 2단계(2026-11-23, docs/PAYMENTS.md): iOS에서 Sign in with Apple 연결(같은 UID 유지) · 다른 기기에서 Apple로 이어 하기 ·
+//   계정 삭제 때 Apple 토큰 해지. iOS + RevenueCat 키가 있으면 결제(iosPurchases.ts)를 켠다.
 
 const env = import.meta.env;
 const CONFIG = {
@@ -26,6 +29,7 @@ class Conflict extends Error {}
 
 // Firebase 모듈은 켜질 때만 불러온다(번들 첫 화면 크기 유지)
 type Fb = {
+  app: import('firebase/app').FirebaseApp;
   auth: import('firebase/auth').Auth;
   db: import('firebase/firestore').Firestore;
   A: typeof import('firebase/auth');
@@ -35,6 +39,10 @@ let fb: Fb | null = null;
 let uid = '';
 let applying = false;
 let timer: ReturnType<typeof setTimeout> | null = null;
+/** Apple ID가 이미 다른 계정에 연결돼 있을 때 받은 자격 증명(그 계정으로 바꿀 때 씀) */
+let pendingApple: import('firebase/auth').AuthCredential | null = null;
+const userListeners: ((uid: string) => void)[] = [];
+export const FUNCTIONS_REGION = 'asia-northeast3';
 
 export const cloud = {
   enabled: !!(CONFIG.apiKey && CONFIG.projectId && CONFIG.appId) && PLATFORM !== 'toss' && !DEMO,
@@ -80,6 +88,20 @@ export const cloud = {
   onChange(cb: () => void) {
     this.listeners.push(cb);
   },
+  /** 로그인 계정(UID)이 바뀔 때(Apple 계정으로 전환·계정 삭제 후 새 게스트) — 결제(RevenueCat) 사용자 맞추기 */
+  onUser(cb: (uid: string) => void) {
+    userListeners.push(cb);
+  },
+  get uid() {
+    return uid;
+  },
+  /** 서버 함수 호출(functions/, 서울 지역). 로그인 토큰이 자동으로 붙는다 */
+  async call<T = unknown>(name: string, data: unknown = {}): Promise<T> {
+    if (!fb) throw new Error('cloud-off');
+    const { getFunctions, httpsCallable } = await import('firebase/functions');
+    const res = await httpsCallable(getFunctions(fb.app, FUNCTIONS_REGION), name, { timeout: 20_000 })(data);
+    return res.data as T;
+  },
 };
 
 interface RemoteDoc {
@@ -102,11 +124,11 @@ async function connect(): Promise<void> {
   // 웹뷰(iOS)에서도 팝업 없이 동작하도록 기기 저장 방식 지정
   const auth = A.initializeAuth(app, { persistence: [A.indexedDBLocalPersistence, A.browserLocalPersistence] });
   const db = F.getFirestore(app);
-  fb = { auth, db, A, F };
+  fb = { app, auth, db, A, F };
   await auth.authStateReady();
   const user = auth.currentUser ?? (await A.signInAnonymously(auth)).user;
   uid = user.uid;
-  adoptUid(uid);
+  adoptUid(uid, providerOf(user));
   setAccountProvider(FirebaseAccount);
 
   onStoreWrite((k) => {
@@ -120,18 +142,43 @@ async function connect(): Promise<void> {
   platform.onResume(() => void sync());
   window.addEventListener('online', () => void sync());
   await sync();
+  // 결제: iOS 앱 + RevenueCat 키가 있을 때만(웹·토스는 결제 없음). 앱이 꺼져 못 받은 지급이 있으면 지금 받는다
+  const rcKey = env.VITE_REVENUECAT_IOS_KEY as string | undefined;
+  if (PLATFORM === 'ios' && rcKey) {
+    void import('./iosPurchases')
+      .then((m) => m.installIosPurchases(rcKey))
+      .catch((e) => console.warn('결제 준비 실패', e));
+  }
 }
 
-/** 게스트 계정 기록을 Firebase UID로(화면 ID·계정 삭제가 같은 UID를 본다) */
-function adoptUid(id: string): void {
+const providerOf = (user: import('firebase/auth').User): AccountState['provider'] =>
+  user.providerData.some((d) => d.providerId === 'apple.com') ? 'apple' : 'guest';
+
+/** 다른 계정으로 바뀜(Apple 계정 전환·삭제 후 새 게스트): 저장 타이머 정리 → 새 UID → 결제 사용자 맞춤 → 서버 기록 확인 */
+async function switchUser(user: import('firebase/auth').User): Promise<void> {
+  if (timer) clearTimeout(timer);
+  uid = user.uid;
+  store.setItem(ACCOUNT_KEY, '');
+  adoptUid(uid, providerOf(user));
+  cloud.conflict = null;
+  for (const cb of userListeners) cb(uid);
+  setStatus('synced');
+  await sync();
+}
+
+/** 게스트 계정 기록을 Firebase UID로(화면 ID·계정 삭제가 같은 UID를 본다). 연결 방식은 Firebase 로그인 정보가 기준 */
+function adoptUid(id: string, provider: AccountState['provider']): void {
   let cur: AccountState | null = null;
   try {
     cur = JSON.parse(store.getItem(ACCOUNT_KEY) ?? 'null');
   } catch {
     /* 새로 */
   }
-  if (cur?.uid === id) return;
-  store.setItem(ACCOUNT_KEY, JSON.stringify({ uid: id, provider: cur?.provider === 'apple' ? 'apple' : 'guest', createdAt: cur?.createdAt ?? Date.now() }));
+  if (cur?.uid === id && cur.provider === provider) return;
+  const same = cur?.uid === id;
+  const next: AccountState = { uid: id, provider, createdAt: same && cur ? cur.createdAt : Date.now() };
+  if (provider === 'apple') next.linkedAt = same && cur?.linkedAt ? cur.linkedAt : Date.now();
+  store.setItem(ACCOUNT_KEY, JSON.stringify(next));
 }
 
 function schedule(): void {
@@ -148,7 +195,7 @@ async function sync(): Promise<void> {
     const action = decideSync(m, uid, remote, m ? m.dirty : true);
     if (action === 'upload') await upload(remote?.rev ?? 0);
     else if (action === 'download' && remote) applyRemote(remote);
-    else if (action === 'choose' && remote && !m && isFresh(summarize(loadProgress(store)))) applyRemote(remote); // 막 설치한 기기 → 묻지 않고 서버 기록
+    else if (action === 'choose' && remote && (!m || m.uid !== uid) && isFresh(summarize(loadProgress(store)))) applyRemote(remote); // 막 설치한 기기(또는 빈 진행으로 Apple 계정 전환) → 묻지 않고 서버 기록
     else if (action === 'choose' && remote) {
       cloud.conflict = { local: summarize(loadProgress(store)), remote: remote.summary ?? summarize(parseSave(remote.save)), remoteRev: remote.rev };
       setStatus('conflict');
@@ -203,22 +250,84 @@ function applyRemote(remote: RemoteDoc): void {
   writeMeta({ uid, rev: remote.rev, dirty: false, syncedAt: cloud.lastSyncAt });
 }
 
-/** Firebase 계정: 게스트(익명) UID. Apple 연결은 2단계 */
+const authDomain = () => CONFIG.authDomain || `${CONFIG.projectId}.firebaseapp.com`;
+const offline = () => typeof navigator !== 'undefined' && navigator.onLine === false;
+
+/** Apple 오류 → 화면 결과 */
+function appleFail(e: unknown, where: string): AccountResult {
+  if (e instanceof AppleCancelled) return { ok: false, reason: 'cancelled' };
+  console.warn(where, e);
+  return { ok: false, reason: offline() ? 'offline' : 'failed' };
+}
+
+/** Firebase 계정: 게스트(익명) UID → iOS에서 Apple 연결(같은 UID 유지) */
 const FirebaseAccount: AccountProvider = {
-  label: '게스트',
-  canLinkApple: false,
+  get label() {
+    return FirebaseAccount.current().provider === 'apple' ? 'Apple' : '게스트';
+  },
+  canLinkApple: PLATFORM === 'ios',
   current: () => {
     const s = JSON.parse(store.getItem(ACCOUNT_KEY) ?? 'null') as AccountState | null;
     return s ?? { uid, provider: 'guest', createdAt: Date.now() };
   },
-  linkApple: async () => ({ ok: false, reason: 'unavailable' }),
-  /** 서버 기록 → 로그인 계정 → 이 기기 저장 순서로 지우고, 새 게스트로 다시 시작 */
+
+  /**
+   * 지금 게스트 계정에 Apple ID를 붙인다 → UID·서버 기록·결제 기록이 그대로 이어진다.
+   * 이 Apple ID가 이미 다른 계정(예전 기기)에 붙어 있으면 'in-use' → 화면이 묻고 switchToApple.
+   */
+  linkApple: async () => {
+    if (!fb || PLATFORM !== 'ios') return { ok: false, reason: 'unavailable' };
+    const user = fb.auth.currentUser;
+    if (!user) return { ok: false, reason: 'failed' };
+    try {
+      const { credential } = await appleCredential(fb.A, authDomain());
+      const r = await fb.A.linkWithCredential(user, credential);
+      adoptUid(r.user.uid, 'apple');
+      return { ok: true };
+    } catch (e) {
+      const code = (e as { code?: string })?.code;
+      if (code === 'auth/credential-already-in-use' || code === 'auth/email-already-in-use') {
+        pendingApple = fb.A.OAuthProvider.credentialFromError(e as import('firebase/app').FirebaseError);
+        if (pendingApple) return { ok: false, reason: 'in-use' };
+      }
+      if (code === 'auth/provider-already-linked') {
+        adoptUid(uid, 'apple');
+        return { ok: true };
+      }
+      return appleFail(e, 'Apple 연결 실패');
+    }
+  },
+
+  /** Apple ID에 연결된 예전 계정으로 바꿔 로그인. 이 기기 진행과 서버 기록이 다르면 로비가 고르기 창을 띄운다 */
+  switchToApple: async () => {
+    if (!fb || !pendingApple) return { ok: false, reason: 'failed' };
+    try {
+      await cloud.flush(); // 바꾸기 전 게스트 진행을 게스트 서버 기록에 마저 올려 둔다(이 기기 저장도 고르기 창에서 고를 수 있음)
+      const r = await fb.A.signInWithCredential(fb.auth, pendingApple);
+      pendingApple = null;
+      await switchUser(r.user);
+      return { ok: true };
+    } catch (e) {
+      return appleFail(e, 'Apple 계정 전환 실패');
+    }
+  },
+
+  /**
+   * 서버 기록 → (Apple이면 토큰 해지) → 로그인 계정 → 이 기기 저장 순서로 지우고, 새 게스트로 다시 시작.
+   * 결제 장부(purchases)는 법정 보관 기간 동안 서버에 남는다(개인정보처리방침 4절).
+   */
   deleteAccount: async () => {
     if (!fb) return { ok: false, reason: 'failed' };
+    const user = fb.auth.currentUser;
     try {
       if (timer) clearTimeout(timer);
+      if (user && PLATFORM === 'ios' && providerOf(user) === 'apple') {
+        // 애플 요구: Sign in with Apple 계정을 지우면 Apple 토큰도 해지. 최근 로그인 확인을 겸해 한 번 더 Apple 창을 띄운다
+        const { credential, authorizationCode } = await appleCredential(fb.A, authDomain());
+        await fb.A.reauthenticateWithCredential(user, credential);
+        await fb.A.revokeAccessToken(fb.auth, authorizationCode);
+      }
       await fb.F.deleteDoc(fb.F.doc(fb.db, 'users', uid));
-      const user = fb.auth.currentUser;
       if (user) await fb.A.deleteUser(user);
       applying = true;
       wipeLocalData();
@@ -226,17 +335,11 @@ const FirebaseAccount: AccountProvider = {
       store.setItem(CLOUD_KEY, '');
       store.setItem(BEFORE_KEY, '');
       const fresh = await fb.A.signInAnonymously(fb.auth);
-      uid = fresh.user.uid;
-      store.setItem(ACCOUNT_KEY, '');
-      adoptUid(uid);
-      cloud.conflict = null;
-      setStatus('synced');
-      await sync();
+      await switchUser(fresh.user);
       return { ok: true };
     } catch (e) {
       applying = false;
-      console.warn('계정 삭제 실패', e);
-      return { ok: false, reason: 'failed' };
+      return appleFail(e, '계정 삭제 실패');
     }
   },
 };

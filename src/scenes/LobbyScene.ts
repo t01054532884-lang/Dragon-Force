@@ -365,8 +365,12 @@ export class LobbyScene extends Phaser.Scene {
     m.body(text(this, -240, -26, `${acc.provider === 'apple' ? 'Apple 연결됨' : '게스트'} · ${shortId(acc.uid)}`, TYPE.tiny, COLOR.textSub, true).setOrigin(0, 0.5));
     const link = button(this, 170, -50, 220, 76, acc.provider === 'apple' ? '연결됨' : 'Apple로 연결', () => {
       account.linkApple().then((r) => {
-        if (r.ok) this.openSettings();
+        if (r.ok) {
+          this.openSettings();
+          this.toast('Apple 계정에 연결했어요');
+        } else if (r.reason === 'in-use') this.confirmSwitchApple();
         else if (r.reason === 'unavailable') this.toast('Apple 연결은 App Store 앱에서 할 수 있어요');
+        else if (r.reason === 'offline') this.toast('인터넷 연결을 확인해 주세요');
         else if (r.reason === 'failed') this.toast('연결하지 못했어요. 잠시 뒤 다시 시도해 주세요');
       });
     }, { kind: 'primary', size: TYPE.caption, sub: account.canLinkApple || acc.provider === 'apple' ? undefined : '기기 바꿔도 이어서' });
@@ -376,6 +380,37 @@ export class LobbyScene extends Phaser.Scene {
     m.body(text(this, -240, 82, `☁ ${cloudLine()}`, 15, cloud.status === 'error' || cloud.status === 'conflict' ? COLOR.danger : COLOR.textSub, true).setOrigin(0, 0.5));
     m.body(button(this, 0, 140, 300, 66, '계정 삭제', () => this.confirmDelete(), { kind: 'danger', size: TYPE.caption }).root);
     m.body(button(this, 0, 260, 220, 70, '닫기', () => this.closeSettings(), { kind: 'secondary', size: TYPE.caption }).root);
+    this.settingsUi = m;
+  }
+
+  /**
+   * 이 Apple ID가 이미 다른 기록(예전 기기·재설치 전)에 연결돼 있을 때: 그 계정으로 바꿀지 묻는다.
+   * 바꾸면 이 기기 진행과 그 계정 서버 기록 중 고르는 창이 뜬다(이 기기가 처음 상태면 바로 서버 기록).
+   */
+  private confirmSwitchApple(): void {
+    this.closeSettings();
+    const m = modal(this, 600, 560, 'Apple 계정', { closeOnBackdrop: true, ribbonColor: COLOR.violet });
+    m.body(
+      text(this, 0, -120, '이 Apple ID에는 이미 저장된 기록이 있어요.\n그 계정으로 바꿔 이어서 할까요?', TYPE.caption, COLOR.text, true, true)
+        .setOrigin(0.5).setAlign('center').setLineSpacing(8),
+    );
+    m.body(
+      text(this, 0, -20, '바꾸면 이 기기 기록과 서버 기록 중 하나를 고를 수 있어요', TYPE.tiny, COLOR.textSub, true).setOrigin(0.5),
+    );
+    m.body(button(this, -130, 120, 220, 76, '취소', () => this.closeSettings(), { kind: 'secondary', size: TYPE.body }).root);
+    m.body(
+      button(this, 130, 120, 220, 76, '바꾸기', () => {
+        account.switchToApple().then((r) => {
+          if (!r.ok) {
+            if (r.reason !== 'cancelled') this.toast(r.reason === 'offline' ? '인터넷 연결을 확인해 주세요' : '바꾸지 못했어요. 잠시 뒤 다시 시도해 주세요');
+            return;
+          }
+          this.closeSettings();
+          this.registry.remove('gift-seen-ids');
+          this.scene.start('title'); // 새 계정 기록으로 처음부터 그리기(고르기 창은 로비가 띄움)
+        });
+      }, { kind: 'primary', size: TYPE.body }).root,
+    );
     this.settingsUi = m;
   }
 
@@ -393,7 +428,7 @@ export class LobbyScene extends Phaser.Scene {
       button(this, 130, 110, 220, 76, '삭제', () => {
         account.deleteAccount().then((r) => {
           if (!r.ok) {
-            this.toast('삭제하지 못했어요. 잠시 뒤 다시 시도해 주세요');
+            if (r.reason !== 'cancelled') this.toast(r.reason === 'offline' ? '인터넷 연결을 확인해 주세요' : '삭제하지 못했어요. 잠시 뒤 다시 시도해 주세요');
             return;
           }
           this.closeSettings();

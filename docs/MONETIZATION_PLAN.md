@@ -115,3 +115,7 @@
 - 앱 **"드래곤 특공대"**, iOS, 기본 언어 한국어, 번들 ID `com.dragonforce.app`, SKU `dragonforce001`, 사용자 액세스 전체 → **Apple ID 6837190960**(`codemagic.yaml` `APP_STORE_APPLE_ID`에 넣음).
 - 다음: 유료 앱 계약·세금·은행(제작자 직접) → Small Business Program 신청 → 인앱결제 키 → RevenueCat App Store 연결 → 루비 상품 등록(가격 확정 뒤).
 
+
+### 2026-11-23 ⑥ 코드: Apple 로그인 · RevenueCat 결제 16종 · 서버 지급
+- 구현·외부 설정 순서·상품 등록표·시험 목록은 **`docs/PAYMENTS.md`**. 법 문서 초안 `docs/legal/`.
+- 남은 외부 설정: 유료 앱 계약·세금·은행 → 인앱 구입 키 → RevenueCat App Store 연결 → 상품 16종 등록 → 키 값(Firebase 웹 4개 + RevenueCat 공개 키) → `firebase login` 후 함수 배포·비밀 값 → 웹훅.

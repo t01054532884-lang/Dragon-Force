@@ -15,7 +15,8 @@ export interface AccountState {
   linkedAt?: number; // Apple 연결 시각
 }
 
-export type AccountResult = { ok: true } | { ok: false; reason: 'unavailable' | 'cancelled' | 'failed' };
+/** in-use: 이 Apple ID가 이미 다른 기록(다른 기기에서 연결한 계정)에 연결됨 → switchToApple로 그 계정으로 바꿀 수 있음 */
+export type AccountResult = { ok: true } | { ok: false; reason: 'unavailable' | 'cancelled' | 'failed' | 'in-use' | 'offline' };
 
 export interface AccountProvider {
   /** 화면 표시용 이름 */
@@ -24,6 +25,8 @@ export interface AccountProvider {
   readonly canLinkApple: boolean;
   current(): AccountState;
   linkApple(): Promise<AccountResult>;
+  /** linkApple이 'in-use'를 돌려준 뒤: 그 Apple 계정으로 바꿔 로그인(이 기기 기록과 서버 기록 중 고르기 창이 뜰 수 있음) */
+  switchToApple(): Promise<AccountResult>;
   /** 계정 삭제: 서버 기록(있으면)과 이 기기의 진행 저장을 모두 지운다. 되돌릴 수 없음 */
   deleteAccount(): Promise<AccountResult>;
 }
@@ -64,6 +67,7 @@ export const LocalGuest: AccountProvider = {
   canLinkApple: false,
   current: () => readState() ?? newGuest(),
   linkApple: async () => ({ ok: false, reason: 'unavailable' }),
+  switchToApple: async () => ({ ok: false, reason: 'unavailable' }),
   deleteAccount: async () => {
     wipeLocalData();
     newGuest();

@@ -49,7 +49,8 @@ Claude 미리보기는 `.claude/launch.json`의 `dragon-force` 설정으로 연�
 | `src/data/economy.ts` | 정수·조각·범용 조각, 클리어 카드, 난이도·진행도 보상, 상자·천장, 업적, 미션, 인앱결제 자리(모두 임시 수치) |
 | `src/data/equipment.ts` · `specials.ts` · `power.ts` | 장비 8종·강화·합성 / 특수 스킬 15종 / 전투력·권장치 |
 | `src/systems/Loadout.ts` | 판 시작 능력치 한 벌(드래곤+연구소+장비+특수 스킬)과 전투력 — 화면과 전투가 같이 씀 |
-| `src/systems/Purchases.ts` | 인앱결제 구조만(첫 출시 결제 없음, 검증된 거래만 루비 지급) |
+| `src/systems/Purchases.ts` · `iosPurchases.ts` · `src/data/iap.ts` · `functions/` | 인앱결제 16종(`docs/PAYMENTS.md`): 서버 확인(iapCheck) → RevenueCat 결제 → 서버 검증·장부(iapSync) → 지급 → ack. 상품표 `iap.ts`는 앱·서버 공용. 웹·토스는 결제 없음 |
+| `src/systems/appleAuth.ts` · `Cloud.ts` | 게스트(Firebase 익명) → Sign in with Apple 연결(같은 UID)·다른 계정 전환·삭제 때 Apple 토큰 해지, 클라우드 저장 |
 | `src/data/season1.ts` · `src/enemyArt.ts` | 7단계 2~20단계: 적 100여 종·패턴·챕터 5개·생성 비중, 도형 그림 |
 | `src/data/events.ts` · `src/scenes/EventScene.ts` | 기간 이벤트 "드래곤의 겨울 축제"(2026-12-01~12-31 KST): 룰렛·누적 보상·7일 반복 출석. 규칙은 `Progress.ts` 이벤트 구역 |
 | `src/dragonArt.ts` | 드래곤 10종·투사체 도형 그림 |

@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { makeTextures } from '../textures';
 import { DRAGONS, RARITY_COLOR, RARITY_LABEL } from '../data/dragons';
 import { BOXES, DEALS, DRAGON_BOX, EQUIPMENT_BOX, ESSENCE, FREE_DAILY_GIFT, GOLD_OFFERS, PACKAGES, RARITIES, RUBY_PRODUCTS, type BoxId, type PackageDef } from '../data/economy';
-import { claimFreeDaily, freeDailyClaimed, grantVerifiedRubies, packageBought, purchases, type RubyProduct } from '../systems/Purchases';
+import { buyFailText, buyProduct, claimFreeDaily, freeDailyClaimed, grantLine, packageBought, PAY_NOTICE, purchases, restoreAll, type RubyProduct } from '../systems/Purchases';
 import { rewardPopup } from '../ui/celebrate';
 import { gameNow } from '../ui/widgets';
 import { tabs } from '../ui/kit2';
@@ -136,10 +136,10 @@ export class ShopScene extends Phaser.Scene {
     y = this.packageSection(y + 30);
     button(this, 200, y + 50, 300, 54, '확률 · 보장 안내', () => this.showRates(), { kind: 'secondary', size: TYPE.tiny });
     button(this, 520, y + 50, 300, 54, '구매 복원', () => this.restorePurchases(), { kind: 'secondary', size: TYPE.tiny });
-    text(this, 360, y + 120, '결제·환불은 App Store 정책을 따릅니다 · 미성년자는 보호자 동의 후 구매해 주세요\n유료 상품은 결제 서버 확인 뒤에 지급돼요', 15, COLOR.textSub, true)
+    text(this, 360, y + 135, PAY_NOTICE, 15, COLOR.textSub, true)
       .setOrigin(0.5).setAlign('center').setLineSpacing(6);
-    this.makeScroll(before, y + 170);
-    if (this.keepScroll && this.content) this.content.y = Math.max(this.keepScroll, Math.min(0, CONTENT.bottom + offY(this) - (y + 170)));
+    this.makeScroll(before, y + 200);
+    if (this.keepScroll && this.content) this.content.y = Math.max(this.keepScroll, Math.min(0, CONTENT.bottom + offY(this) - (y + 200)));
     // 스토어 가격 받아 오기(결제를 쓸 수 없으면 빈 목록 → 예정 가격 표시)
     purchases.products().catch(() => [] as RubyProduct[]).then((list) => (this.storeProducts = list));
 
@@ -272,7 +272,8 @@ export class ShopScene extends Phaser.Scene {
         cell.add(text(this, 0, 24, it.amount, 14, COLOR.text, true, true).setOrigin(0.5));
         card.add(cell);
       });
-      const b = button(this, 360 + 236, cy + 62, 160, 56, left ? `₩${pk.krw.toLocaleString()}` : '구매 완료', () => this.buyPackage(pk), { kind: 'cta', size: TYPE.caption });
+      const price = this.storeProducts.find((x) => x.productId === pk.productId)?.priceLabel ?? `₩${pk.krw.toLocaleString()}`;
+      const b = button(this, 360 + 236, cy + 62, 160, 56, left ? price : '구매 완료', () => this.buyPackage(pk), { kind: 'cta', size: TYPE.caption });
       b.setEnabled(left > 0);
     });
     return y + 100 + (list.length - 1) * 220 + 110;
@@ -311,35 +312,39 @@ export class ShopScene extends Phaser.Scene {
 
   /** 루비 결제: 결제 → 서버 검증 → 검증된 거래만 지급(거래 ID 한 번만). 결제를 못 쓰는 곳은 안내 */
   private buyRuby(productId: string): void {
+    this.pay(productId);
+  }
+
+  /** 패키지·특혜 결제: 서버가 기간·계정당 횟수를 확인한 뒤 결제 → 서버 검증 → 지급 */
+  private buyPackage(pk: PackageDef): void {
+    this.pay(pk.productId);
+  }
+
+  /** 공통 결제: 서버 확인 → App Store 결제 → 서버 검증 → 지급(docs/PAYMENTS.md). 결제를 못 쓰는 곳은 안내 */
+  private pay(productId: string): void {
     if (this.payBusy) return;
-    if (!purchases.available || !this.storeProducts.some((x) => x.productId === productId)) {
-      toast(this, '결제 준비 중이에요 — App Store 앱에서 구매할 수 있게 돼요', COLOR.textSub);
+    if (!purchases.available) {
+      toast(this, '결제는 App Store 앱에서 할 수 있어요', COLOR.textSub);
       return;
     }
     this.payBusy = true;
-    purchases
-      .buy(productId)
-      .then((t) => {
-        if (!t) return;
-        const r = grantVerifiedRubies(Progress.load(), t.transactionId, t.rubies);
+    void buyProduct(productId)
+      .then((r) => {
+        if (!this.sys.isActive()) return;
         if (r.ok) {
-          Progress.save(r.progress);
-          popWord(this, `루비 +${t.rubies.toLocaleString()}`, 640);
+          popWord(this, grantLine(r.delivered.total) || '구매 완료', 640);
           this.frame.refresh();
-          this.refresh();
-        } else toast(this, '이미 지급된 결제예요', COLOR.textSub);
+          // 지급 글자를 잠깐 보여 준 뒤 남은 구매 횟수·개봉권을 다시 그리기
+          this.time.delayedCall(1100, () => this.scene.restart({ dealTab: this.dealTab, scrollY: this.content?.y ?? 0 }));
+          return;
+        }
+        const msg = buyFailText(r.reason);
+        if (msg) toast(this, msg, r.reason === 'failed' ? COLOR.danger : COLOR.textSub);
       })
-      .catch(() => toast(this, '결제를 완료하지 못했어요. 잠시 뒤 다시 시도해 주세요', COLOR.danger))
       .finally(() => (this.payBusy = false));
   }
 
-  /** 패키지 결제(구조만 — 결제 연결 때 RevenueCat 상품과 grantVerifiedPackage로 지급) */
-  private buyPackage(pk: PackageDef): void {
-    void pk;
-    toast(this, '패키지 결제 준비 중이에요 — App Store 앱에서 구매할 수 있게 돼요', COLOR.textSub);
-  }
-
-  /** 구매 복원(애플 필수): 결제 서버 기록에서 지급 누락분만 다시 지급 */
+  /** 구매 복원(애플 필수): 스토어 복원 + 결제 서버 장부에서 아직 못 받은 지급 */
   private restorePurchases(): void {
     if (this.payBusy) return;
     if (!purchases.available) {
@@ -347,19 +352,12 @@ export class ShopScene extends Phaser.Scene {
       return;
     }
     this.payBusy = true;
-    purchases
-      .restore()
-      .then((list) => {
-        let added = 0;
-        for (const t of list) {
-          const r = grantVerifiedRubies(Progress.load(), t.transactionId, t.rubies);
-          if (r.ok) {
-            Progress.save(r.progress);
-            added += t.rubies;
-          }
-        }
-        toast(this, added ? `루비 ${added.toLocaleString()} 복원` : '복원할 결제가 없어요', added ? COLOR.ok : COLOR.textSub);
-        if (added) this.frame.refresh();
+    restoreAll()
+      .then((d) => {
+        if (!this.sys.isActive()) return;
+        const line = d ? grantLine(d.total) : '';
+        toast(this, line ? `복원 완료 · ${line}` : d?.applied.length ? '복원 완료' : '복원할 결제가 없어요', d?.applied.length ? COLOR.ok : COLOR.textSub);
+        if (d?.applied.length) this.time.delayedCall(1400, () => this.scene.restart({ dealTab: this.dealTab, scrollY: this.content?.y ?? 0 }));
       })
       .catch(() => toast(this, '복원하지 못했어요. 잠시 뒤 다시 시도해 주세요', COLOR.danger))
       .finally(() => (this.payBusy = false));

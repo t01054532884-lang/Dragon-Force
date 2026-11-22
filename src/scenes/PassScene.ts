@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { PASS, PASS_ITEM_ICON, PASS_ITEM_LABEL, PASS_REWARDS, passValuePct, type PassItem, type PassTrack } from '../data/pass';
 import { cellState, claimPass, passLevel, seasonEnd, syncPass } from '../systems/Pass';
 import { Progress } from '../systems/Progress';
-import { purchases } from '../systems/Purchases';
+import { buyFailText, buyProduct, PAY_NOTICE, purchases } from '../systems/Purchases';
 import { preloadArt } from '../ui/art';
 import { rewardPopup, type RewardItem } from '../ui/celebrate';
 import { badge, button, progressBar, text } from '../ui/kit';
@@ -131,11 +131,17 @@ export class PassScene extends Phaser.Scene {
       card.add(badge(this, -112, -96, k === 'royal' ? '최고 이득' : '추천', COLOR.ruby));
       const b = button(this, x, y + 196, 260, 60, owned ? '구매함 ✔' : `${PASS.price[k].toLocaleString()}원`, () => this.buy(k), { kind: k === 'royal' ? 'cta' : 'magic', size: TYPE.caption });
       b.setEnabled(!owned && !(k === 'premium' && p.pass.royal));
+      // 결제를 쓸 수 있으면 스토어 실제 가격으로 표시
+      if (!owned && purchases.available)
+        void purchases.products().then((list) => {
+          const sp = list.find((x) => x.productId === PASS.productId[k]);
+          if (sp && b.root.active) b.setLabel(sp.priceLabel);
+        }).catch(() => {});
     });
     y += 250;
-    text(this, 360, y + 20, '가치(%) = 보상을 상점 가격(루비 1,350 = ₩11,000 · 드래곤 상자 1회 250루비 · 장비·룬 상자 100루비 · 골드 20 = 1루비)으로 환산한 값\n유료 패스는 이번 시즌에만 적용 · 결제·환불은 App Store 정책을 따릅니다', 13, COLOR.textSub, true)
+    text(this, 360, y + 20, `가치(%) = 보상을 상점 가격(루비 1,350 = ₩11,000 · 드래곤 상자 1회 250루비 · 장비·룬 상자 100루비 · 골드 20 = 1루비)으로 환산한 값\n유료 패스는 구매한 시즌에만 적용돼요\n${PAY_NOTICE.replace(/\n/g, ' ')}`, 13, COLOR.textSub, true)
       .setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(660).setLineSpacing(4);
-    y += 80;
+    y += 130;
 
     this.scroll = makeScroll(this, before, y, () => this.popup);
     if (this.keepY !== null) this.scroll.box.y = this.keepY;
@@ -189,11 +195,23 @@ export class PassScene extends Phaser.Scene {
     rewardPopup(this, only ? `패스 Lv.${only.lv} 보상` : '패스 보상', [...sum].map(([kind, n]) => rewardItem({ kind, n } as PassItem)), () => this.scene.restart({ scrollY: y }));
   }
 
-  /** 패스 구매: 결제 연결 전(RevenueCat 상품 pass_premium_s · pass_royal_s 예정) → 안내. 연결되면 grantVerifiedPass로 반영 */
+  /** 패스 구매: 서버가 이번 시즌 구매 여부 확인 → App Store 결제 → 서버 검증 → 이번 시즌 유료 줄 열기(docs/PAYMENTS.md) */
+  private buying = false;
   private buy(kind: 'premium' | 'royal'): void {
-    if (this.scroll?.dragged) return;
-    void kind;
-    if (!purchases.available) return toast(this, '결제 준비 중이에요 — App Store 앱에서 구매할 수 있게 돼요', COLOR.textSub);
-    toast(this, '패스 결제는 곧 열려요', COLOR.textSub);
+    if (this.scroll?.dragged || this.buying) return;
+    if (!purchases.available) return toast(this, '결제는 App Store 앱에서 할 수 있어요', COLOR.textSub);
+    this.buying = true;
+    void buyProduct(PASS.productId[kind])
+      .then((r) => {
+        if (!this.sys.isActive()) return;
+        if (r.ok) {
+          toast(this, `${kind === 'royal' ? '로열' : '프리미엄'} 패스가 열렸어요`, COLOR.ok);
+          this.time.delayedCall(1100, () => this.scene.restart({ scrollY: this.scroll?.box.y ?? 0 }));
+          return;
+        }
+        const msg = buyFailText(r.reason);
+        if (msg) toast(this, msg, r.reason === 'failed' ? COLOR.danger : COLOR.textSub);
+      })
+      .finally(() => (this.buying = false));
   }
 }
