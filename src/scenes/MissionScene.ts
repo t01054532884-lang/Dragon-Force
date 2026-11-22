@@ -4,7 +4,7 @@ import {
   ACHIEVEMENTS, DIFFICULTIES, DIFFICULTY_RELEASED, DIFFICULTY_LABEL, PROGRESS_REWARDS, PROGRESS_STEPS, STAGE_COUNT, type MissionDef, type RewardBundle,
 } from '../data/economy';
 import { achievementProgress, activeMissions, claimableMissions, missionClaimed, missionProgress, progressPct, Progress, type PlayerProgress } from '../systems/Progress';
-import { rewardPopup, type RewardItem } from '../ui/celebrate';
+import { bundleItem, rewardPopup, type RewardItem } from '../ui/celebrate';
 import { ACTIVITY_DAILY, ACTIVITY_DAILY_MAX, ACTIVITY_WEEKLY, ACTIVITY_WEEKLY_MAX, ATTENDANCE_28, activityRewardIcon, activityRewardText, type ActivityReward, type ActivityTier } from '../data/activity';
 import { activityClaimed, activityPoints, attendanceState, claimableActivity } from '../systems/Activity';
 import { RUNES } from '../data/runes';
@@ -48,8 +48,17 @@ export class MissionScene extends Phaser.Scene {
   /** 로비 출석 팝업에서 "받기"로 들어오면 출석 탭을 열고 바로 받기(카드 고르기가 필요한 날은 여기서 고름) */
   private autoClaim = false;
 
-  init(data: { tab?: Tab; claim?: boolean }): void {
+  /**
+   * 로비 바로가기로 들어오면 그 화면만(제작자 요청 2026-11-22: 출석은 출석만, 업적은 업적만, 진행도는 진행도만,
+   * 미션은 일일·주간·월간만). 없으면 예전처럼 탭 5개.
+   */
+  private only: Only | null = null;
+
+  init(data: { tab?: Tab; claim?: boolean; only?: Only }): void {
+    this.only = data?.only ?? null;
     if (data?.tab) this.tab = data.tab;
+    if (this.only === 'mission' && this.tab !== 'missions') this.tab = 'daily';
+    else if (this.only && this.only !== 'mission') this.tab = this.only;
     this.autoClaim = !!data?.claim;
   }
 
@@ -59,7 +68,7 @@ export class MissionScene extends Phaser.Scene {
 
   create(): void {
     this.layer = [];
-    this.frame = screenFrame(this, { title: '보상', nav: '' });
+    this.frame = screenFrame(this, { title: this.only ? ONLY_TITLE[this.only] : '보상', nav: '' });
     this.input.keyboard?.on('keydown-ESC', () => this.scene.start('lobby'));
     this.refresh();
     if (this.autoClaim && this.tab === 'attendance' && !attendanceState(Progress.load(), gameNow()).claimedToday) this.time.delayedCall(250, () => this.claimAttendance());
@@ -81,12 +90,20 @@ export class MissionScene extends Phaser.Scene {
     const p = Progress.load();
     this.frame.refresh();
     const now = gameNow();
-    const keys: Tab[] = ['progress', 'daily', 'missions', 'achievements', 'attendance'];
+    // 출석은 로비의 출석 버튼으로 따로(2026-11-22) → 전체 보상 탭에서는 뺌
+    const keys: Tab[] = ['progress', 'daily', 'missions', 'achievements'];
     const ready = claimableMissions(p, now);
     const nDaily = ready.filter((m) => m.period === 'daily').length + claimableActivity(p, now);
     const nMission = ready.filter((m) => m.period !== 'daily').length;
     const att = attendanceState(p, now);
-    this.A(tabs(this, 262, ['진행도', `일일${nDaily ? ` (${nDaily})` : ''}`, `미션${nMission ? ` (${nMission})` : ''}`, '업적', `출석${att.claimedToday ? '' : ' !'}`], keys.indexOf(this.tab), (i) => {
+    if (this.only === 'mission') {
+      const mk: Tab[] = ['daily', 'missions'];
+      this.A(tabs(this, 262, [`일일${nDaily ? ` (${nDaily})` : ''}`, `주간·월간${nMission ? ` (${nMission})` : ''}`], mk.indexOf(this.tab), (i) => {
+        if (mk[i] === this.tab) return;
+        this.tab = mk[i];
+        this.refresh();
+      }));
+    } else if (!this.only) this.A(tabs(this, 262, ['진행도', `일일${nDaily ? ` (${nDaily})` : ''}`, `미션${nMission ? ` (${nMission})` : ''}`, '업적'], keys.indexOf(this.tab), (i) => {
       if (keys[i] === this.tab) return;
       this.tab = keys[i];
       this.refresh();
@@ -120,7 +137,7 @@ export class MissionScene extends Phaser.Scene {
         const x = 145 + k * 215;
         const claimed = dp.claimed.includes(step);
         const reached = pct >= step;
-        const label = `${step}% · ${(step / 100) * STAGE_COUNT}개\n${bundleText(PROGRESS_REWARDS[d][step])}\n${claimed ? '받음 ✔' : reached ? '눌러서 받기' : '잠김'}`;
+        const label = `${step}% · ${(step / 100) * STAGE_COUNT}개\n${claimed ? bundleText(PROGRESS_REWARDS[d][step]) : '받으면 공개'}\n${claimed ? '받음 ✔' : reached ? '눌러서 받기' : '잠김'}`;
         const b = this.keep(button(this, x, y + 50, 200, 104, label, () => this.claimBox(d, step), { kind: 'growth', size: 17 }));
         b.setEnabled(open && reached && !claimed);
       });
@@ -407,14 +424,10 @@ export class MissionScene extends Phaser.Scene {
 }
 
 type Tab = 'progress' | 'daily' | 'missions' | 'achievements' | 'attendance';
+type Only = 'mission' | 'progress' | 'achievements' | 'attendance';
+const ONLY_TITLE: Record<Only, string> = { mission: '미션', progress: '진행도', achievements: '업적', attendance: '출석' };
 
 /** 진행도 보상 → 보상 카드 */
-function bundleItem(b: RewardBundle): RewardItem {
-  if (b.gold) return { image: 'ui-gold', emoji: '🪙', label: '골드', amount: `+${b.gold.toLocaleString()}` };
-  if (b.rubies) return { image: 'ui-ruby', emoji: '💎', label: '루비', amount: `+${b.rubies.toLocaleString()}`, grade: 'epic' };
-  if (b.fragments) return { portrait: b.fragments.dragonId, label: `${DRAGONS[b.fragments.dragonId].short} 조각`, amount: `+${b.fragments.count}`, grade: 'rare' };
-  return { emoji: '🎁', label: bundleText(b) };
-}
 
 /** 보상 팝업 테두리 등급(드래곤 희귀도 → 일반·희귀·영웅·전설) */
 function gradeOf(id: DragonId): 'common' | 'rare' | 'epic' | 'legendary' {

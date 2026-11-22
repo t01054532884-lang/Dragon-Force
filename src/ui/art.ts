@@ -64,6 +64,9 @@ export const ART_FILES: Record<string, string> = {
   ),
   // 2차분(2026-11-18 오후, scripts/process_art_batch2.py): 스킬 아이콘 14 · 장비 4슬롯×4등급 · 전투용 탑다운 드래곤 4
   ...Object.fromEntries(SKILL_ICONS.map((k) => [k, `skill/${k}.webp`])),
+  // 15차분(scripts/process_art_batch15.py): 드래곤별 기본 공격 카드 아이콘 14종(레드는 skill-basic) · 전용 스킬 시전 연출 4종
+  ...Object.fromEntries(['blue', 'yellow', 'green', 'white', 'black', 'stone', 'wind', 'water', 'arcane', 'sand', 'steel', 'bloom', 'howl', 'crimson'].map((id) => [`basic-${id}`, `skill/basic-${id}.webp`])),
+  ...Object.fromEntries(['blue', 'yellow', 'wind', 'white'].map((id) => [`sigfx-${id}`, `fx/sigfx-${id}.webp`])),
   ...Object.fromEntries(
     (['weapon', 'armor', 'necklace', 'ring'] as const).flatMap((s) => EQUIP_RARITIES.map((r) => [`equip-${s}-${r}`, `equip/equip-${s}-${r}.webp`])),
   ),
@@ -83,7 +86,7 @@ export const ART_FILES: Record<string, string> = {
   ...Object.fromEntries(['blue', 'purple', 'gold'].map((c) => [`chest-inner-${c}`, `chest/chest-inner-${c}.webp`])),
   // 8차분(2026-11-21, 그림·소리 요청서 5 A-1, scripts/process_art_batch8.py): 전용 스킬 전투 효과 10장 512×512
   ...Object.fromEntries(
-    ['fx-wind-blade', 'fx-fire-ground', 'fx-ice-crystal', 'fx-lightning-arc', 'fx-poison-cloud', 'fx-rock-wave', 'fx-light-shield', 'fx-shadow-orb', 'fx-wave', 'fx-arcane-bolt'].map((k) => [k, `fx/${k}.webp`]),
+    ['fx-fireball', 'fx-meteor-rock', 'fx-ice-shard', 'fx-arcane-orb', 'fx-wind-blade', 'fx-fire-ground', 'fx-ice-crystal', 'fx-lightning-arc', 'fx-poison-cloud', 'fx-rock-wave', 'fx-light-shield', 'fx-shadow-orb', 'fx-wave', 'fx-arcane-bolt'].map((k) => [k, `fx/${k}.webp`]),
   ),
   // 9차분(2026-11-21, 그림 요청서 6 ①, scripts/process_art_batch6.py): 드래곤 전용 스킬 아이콘 10장 256×256(금테 둥근 배지)
   ...Object.fromEntries(['red', 'blue', 'yellow', 'green', 'white', 'black', 'stone', 'wind', 'water', 'arcane'].map((id) => [`sig-${id}`, `sig/sig-${id}.webp`])),

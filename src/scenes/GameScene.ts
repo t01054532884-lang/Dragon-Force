@@ -57,7 +57,7 @@ const UI_DEPTH = 200;
 
 /** 레벨업 카드·머리줄의 스킬 그림 키(기획자 그림 15장). 없는 것은 기존 이모지로 */
 function upgradeIcon(u: Upgrade, dragonId: string): string | null {
-  if (u.kind === 'basic') return dragonId === 'red' ? 'skill-basic' : null; // 기본공격 그림은 레드만 받음
+  if (u.kind === 'basic') return dragonId === 'red' ? 'skill-basic' : `basic-${dragonId}`; // 15차분: 14종 기본 공격 아이콘(미러·전설 3종은 아직 없음 → 그림이 없으면 이모지)
   if (u.kind === 'active') return `skill-${u.id}`;
   if (u.kind === 'passive') return `passive-${u.id}`;
   if (u.id === 'gold') return 'ui-gold';

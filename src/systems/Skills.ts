@@ -121,11 +121,15 @@ export class Skills {
       const a = dir + (Math.random() * 2 - 1) * half * 0.95;
       const dist = range * (0.35 + Math.random() * 0.65);
       const delay = Math.random() * 220;
-      const puff = sc.add.circle(x + Math.cos(dir) * 14, y + Math.sin(dir) * 14, 7 + Math.random() * 6, colors[i % colors.length], 0.9)
+      // 15차분 불덩이 그림이 있으면 그림(날아가는 방향으로 회전), 없으면 동그라미
+      const puff = (sc.textures.exists('fx-fireball')
+        ? sc.add.image(x + Math.cos(dir) * 14, y + Math.sin(dir) * 14, 'fx-fireball').setDisplaySize(30, 30).setRotation(a + Math.PI)
+        : sc.add.circle(x + Math.cos(dir) * 14, y + Math.sin(dir) * 14, 7 + Math.random() * 6, colors[i % colors.length], 0.9))
         .setDepth(8).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0);
+      const k = puff.scale;
       sc.tweens.add({
         targets: puff, delay, duration: 300 + Math.random() * 140, ease: 'Quad.Out',
-        x: x + Math.cos(a) * dist, y: y + Math.sin(a) * dist, scale: 2.4 + Math.random() * 1.6,
+        x: x + Math.cos(a) * dist, y: y + Math.sin(a) * dist, scale: k * (2.4 + Math.random() * 1.6),
         alpha: { from: 0.95, to: 0 },
         onComplete: () => puff.destroy(),
       });
@@ -139,9 +143,15 @@ export class Skills {
     const sy = my - 520;
     const rock = sc.add.container(sx, sy).setDepth(9);
     const glow = sc.add.circle(0, 0, 26, 0xff6d00, 0.55).setBlendMode(Phaser.BlendModes.ADD);
-    const body = sc.add.circle(0, 0, 16, 0x5d4037, 1).setStrokeStyle(4, 0xffb347, 1);
-    const core = sc.add.circle(-4, -4, 6, 0xffe066, 0.9);
-    rock.add([glow, body, core]);
+    if (sc.textures.exists('fx-meteor-rock')) {
+      // 15차분 운석 그림: 불꼬리가 왼쪽 위 → 오른쪽 아래로 떨어지는 방향과 맞춤
+      const img = sc.add.image(0, 0, 'fx-meteor-rock').setDisplaySize(92, 92).setRotation(Math.atan2(my - sy, mx - sx) - Math.atan2(0.45, 1));
+      rock.add([glow, img]);
+    } else {
+      const body = sc.add.circle(0, 0, 16, 0x5d4037, 1).setStrokeStyle(4, 0xffb347, 1);
+      const core = sc.add.circle(-4, -4, 6, 0xffe066, 0.9);
+      rock.add([glow, body, core]);
+    }
     const fall = ms * 0.85;
     sc.tweens.add({ targets: rock, x: mx, y: my, duration: fall, ease: 'Quad.In' });
     sc.tweens.add({ targets: rock, scale: { from: 0.6, to: 1.5 }, duration: fall, ease: 'Quad.In' });

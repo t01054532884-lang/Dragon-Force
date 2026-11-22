@@ -143,10 +143,33 @@ export const KST_OFFSET_MS = 9 * 3600_000;
 // ⚠ 기획자 수정안(2026-11-20, 미확정 — 경제 밸런스 시뮬레이션·Apple 실제 판매가 확인 후 확정, docs/MONETIZATION_PLAN.md 4절).
 // 실제 가격은 App Store Connect 상품 가격(스토어가 알려 줌), 여기는 상품 ID와 지급 루비만.
 // productId는 App Store Connect·RevenueCat에 같은 이름으로 등록 — 한 번 만들면 바꿀 수 없으니 등록 전에 확정.
-export const RUBY_PRODUCTS: { productId: string; rubies: number; bonus: number }[] = [
-  { productId: 'ruby_100', rubies: 100, bonus: 0 }, // 1,200원
-  { productId: 'ruby_550', rubies: 500, bonus: 50 }, // 5,900원
-  { productId: 'ruby_1350', rubies: 1000, bonus: 350 }, // 11,000원 = 10회 소환 1,350루비
-  { productId: 'ruby_2800', rubies: 2000, bonus: 800 }, // 22,000원
-  { productId: 'ruby_7500', rubies: 5000, bonus: 2500 }, // 55,000원
+// krw = 화면에 먼저 보여 줄 예정 가격(스토어가 실제 가격을 알려 주면 그 문자열로 바뀜)
+export const RUBY_PRODUCTS: { productId: string; rubies: number; bonus: number; krw: number }[] = [
+  { productId: 'ruby_100', rubies: 100, bonus: 0, krw: 1_200 },
+  { productId: 'ruby_550', rubies: 500, bonus: 50, krw: 5_900 },
+  { productId: 'ruby_1350', rubies: 1000, bonus: 350, krw: 11_000 }, // = 10회 소환 1,350루비
+  { productId: 'ruby_2800', rubies: 2000, bonus: 800, krw: 22_000 },
+  { productId: 'ruby_7500', rubies: 5000, bonus: 2500, krw: 55_000 },
+];
+
+/**
+ * 기간 한정 패키지(제작자 요청 2026-11-22: 상점에 패키지 칸 — 보석 대신 루비, 열쇠 대신 장비·룬 개봉권).
+ * ⚠ 구성·가격은 AI 1차안(제작자 확정 전). 결제가 연결되면 검증된 거래만 grantVerifiedPackage로 지급, 계정당 limit회.
+ * 가치 기준: 장비·룬 상자 1회 = 루비 100, 드래곤 상자 1회 = 루비 250, 골드 20,000 = 루비 1,000.
+ */
+export interface PackageDef {
+  productId: string;
+  name: string;
+  krw: number;
+  limit: number; // 계정당 구매 횟수
+  rubies?: number;
+  gold?: number;
+  dragonTickets?: number; // 드래곤·스킬 상자 무료 개봉권
+  equipTickets?: number; // 장비 상자 무료 개봉권
+  runeTickets?: number; // 룬 상자 무료 개봉권
+}
+export const PACKAGES: PackageDef[] = [
+  { productId: 'pkg_growth_1', name: '성장 지원 패키지', krw: 5_900, limit: 1, rubies: 500, gold: 20_000, dragonTickets: 3 },
+  { productId: 'pkg_gear_1', name: '장비 강화 패키지', krw: 11_000, limit: 1, rubies: 300, equipTickets: 15 },
+  { productId: 'pkg_rune_1', name: '룬 성장 패키지', krw: 11_000, limit: 1, rubies: 300, runeTickets: 15 },
 ];

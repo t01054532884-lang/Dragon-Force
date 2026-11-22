@@ -232,6 +232,7 @@ export class Signature {
     this.dealt.clear();
     const { x, y } = this.h.player;
     const rad = (d.radius ?? 0) * g.radius;
+    this.castFlash(x, y);
     switch (this.dragonId) {
       // ── 광역 3종: 폭발 + 속성별 남는 효과 ──
       case 'red': {
@@ -581,6 +582,16 @@ export class Signature {
 
   // ───────── 연출 ─────────
   /** 광역 폭발: 퍼지는 고리 + (있으면) 속성 그림이 잠깐 번쩍 */
+  /** 시전 연출(15차분 그림이 있는 드래곤만): 드래곤 머리 모양 기운이 커지며 사라짐 */
+  private castFlash(x: number, y: number): void {
+    const key = `sigfx-${this.dragonId}`;
+    if (!this.scene.textures.exists(key)) return;
+    const im = this.scene.add.image(x, y - 20, key).setDepth(DEPTH_FLASH + 1).setDisplaySize(220, 220).setAlpha(0.95).setBlendMode(Phaser.BlendModes.ADD);
+    const s0 = im.scale;
+    im.setScale(s0 * 0.5);
+    this.scene.tweens.add({ targets: im, scale: s0 * 1.35, alpha: 0, duration: 650, ease: 'Quad.Out', onComplete: () => im.destroy() });
+  }
+
   private burst(x: number, y: number, r: number, color: number, tex: string | null): void {
     const c = this.scene.add.circle(x, y, 20).setStrokeStyle(12, color, 0.95).setDepth(DEPTH_FLASH);
     this.scene.tweens.add({ targets: c, radius: r * this.h.stats.areaMult, alpha: 0.1, duration: 360, onComplete: () => c.destroy() });

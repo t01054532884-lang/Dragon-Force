@@ -1,7 +1,10 @@
 import Phaser from 'phaser';
 import { makeTextures } from '../textures';
 import { DRAGONS, RARITY_COLOR, RARITY_LABEL } from '../data/dragons';
-import { BOXES, DRAGON_BOX, EQUIPMENT_BOX, ESSENCE, GOLD_OFFERS, RARITIES, type BoxId } from '../data/economy';
+import { BOXES, DRAGON_BOX, EQUIPMENT_BOX, ESSENCE, GOLD_OFFERS, PACKAGES, RARITIES, RUBY_PRODUCTS, type BoxId, type PackageDef } from '../data/economy';
+import { grantVerifiedRubies, purchases, type RubyProduct } from '../systems/Purchases';
+import { CONTENT } from '../ui/screen';
+import { offY } from '../ui/layout';
 import { RUNE_BOX } from '../data/runes';
 import { popWord, toast } from '../ui/screen';
 import { equipDef, SLOT_ICON, SLOT_LABEL } from '../data/equipment';
@@ -34,6 +37,11 @@ export class ShopScene extends Phaser.Scene {
   private busy = false;
   private tx = 0;
   private opening: ChestOpening | null = null;
+  /** 세로 스크롤(2026-11-22 제작자 요청: 상자 → 골드 → 루비 구매 → 기간 한정 패키지를 아래로 내려 보기) */
+  private content: Phaser.GameObjects.Container | null = null;
+  private dragged = false;
+  private storeProducts: RubyProduct[] = [];
+  private payBusy = false;
 
   constructor() {
     super('shop');
@@ -65,6 +73,8 @@ export class ShopScene extends Phaser.Scene {
     // 화면을 떠나면 연출만 정리(보상은 개봉 순간 이미 저장됨)
     this.events.once('shutdown', () => this.opening?.destroy());
     this.frame = screenFrame(this, { title: '상점', nav: 'shop' });
+    this.dragged = false;
+    const before = new Set(this.children.list);
 
     // ── 드래곤·스킬 상자: 큰 배너
     const D = BOXES.dragon;
@@ -107,20 +117,17 @@ export class ShopScene extends Phaser.Scene {
       this.boxTicketButtons.push({ btn: tb, box, desc });
     });
 
-    // ── 골드 구매(v1.2: 골드 상자 대신 루비로 바로)
-    text(this, 40, 1040, '골드', TYPE.caption, COLOR.gold, true, true).setOrigin(0, 0.5);
-    GOLD_OFFERS.forEach((o, i) => {
-      // 골드 묶음 그림(gold-pack-s/m/l)이 있으면 그림 + "루비 N", 없으면 루비 아이콘 + 숫자
-      const pack = `gold-pack-${o.id.replace('gold-', '')}`;
-      const art = this.textures.exists(pack);
-      const b = button(this, 196 + i * 192, 1040, 176, 64, `${o.gold.toLocaleString()}G`, () => this.buyGold(o.id), {
-        kind: 'secondary', icon: art ? pack : 'ui-ruby', sub: art ? `루비 ${o.rubies.toLocaleString()}` : o.rubies.toLocaleString(), size: TYPE.caption,
-      });
-      this.goldButtons.push({ btn: b, rubies: o.rubies });
-    });
-
-    // ── 확률 안내 · 루비 얻는 곳
-    button(this, 360, 1110, 300, 46, '확률 · 보장 안내 보기', () => this.showRates(), { kind: 'secondary', size: TYPE.tiny });
+    // ── 아래로 이어지는 상품 칸: 골드(큰 카드 3장) → 루비 구매(5장) → 기간 한정 패키지(3장) → 안내
+    let y = this.goldSection(1050);
+    y = this.rubySection(y + 30);
+    y = this.packageSection(y + 30);
+    button(this, 200, y + 50, 300, 54, '확률 · 보장 안내', () => this.showRates(), { kind: 'secondary', size: TYPE.tiny });
+    button(this, 520, y + 50, 300, 54, '구매 복원', () => this.restorePurchases(), { kind: 'secondary', size: TYPE.tiny });
+    text(this, 360, y + 120, '결제·환불은 App Store 정책을 따릅니다 · 미성년자는 보호자 동의 후 구매해 주세요\n유료 상품은 결제 서버 확인 뒤에 지급돼요', 15, COLOR.textSub, true)
+      .setOrigin(0.5).setAlign('center').setLineSpacing(6);
+    this.makeScroll(before, y + 170);
+    // 스토어 가격 받아 오기(결제를 쓸 수 없으면 빈 목록 → 예정 가격 표시)
+    purchases.products().catch(() => [] as RubyProduct[]).then((list) => (this.storeProducts = list));
 
     if (devMode()) {
       const t = text(this, 704, 238, '[개발용] 루비·골드·카드 +', 16, 0xc98a8a, true, true).setOrigin(1, 0.5).setDepth(41);
@@ -142,6 +149,197 @@ export class ShopScene extends Phaser.Scene {
     this.buttons.push({ btn: b1, box, count: 1, pay: 'ruby' }, { btn: b10, box, count: 10, pay: 'ruby' });
   }
 
+  // ───────── 스크롤 · 상품 칸(2026-11-22) ─────────
+
+  /** before 이후에 만든 내용물을 한 판에 모아 위아래로 끌기·휠 스크롤. 끌었으면 그 손가락 떼기로는 버튼이 눌리지 않게 */
+  private makeScroll(before: Set<Phaser.GameObjects.GameObject>, bottom: number): void {
+    const items = this.children.list.filter((o) => !before.has(o));
+    const box = this.add.container(0, 0);
+    box.add(items);
+    this.content = box;
+    const top = CONTENT.top - 14;
+    const viewBottom = CONTENT.bottom + offY(this);
+    const mask = this.make.graphics({}, false).fillStyle(0xffffff).fillRect(0, top, 720, viewBottom - top);
+    // Phaser 4: 마스크는 필터로(화면 기준 = external, 메인 카메라로 봄)
+    box.enableFilters();
+    box.filters?.external.addMask(mask, false, this.cameras.main);
+    const minY = Math.min(0, viewBottom - bottom);
+    const clamp = (v: number) => Phaser.Math.Clamp(v, minY, 0);
+    // 버튼은 손을 뗄 때 눌림 → 끌었으면 막는다(눌림 처리 앞에 검사를 끼움)
+    const guard = (o: Phaser.GameObjects.GameObject) => {
+      if (o.input) {
+        for (const ev of ['pointerup']) {
+          const fns = o.listeners(ev) as ((...a: unknown[]) => void)[];
+          o.removeAllListeners(ev);
+          for (const fn of fns) o.on(ev, (...a: unknown[]) => (this.dragged ? undefined : fn(...a)));
+        }
+      }
+      if (o instanceof Phaser.GameObjects.Container) o.list.forEach(guard);
+    };
+    box.list.forEach(guard);
+    let startY = 0;
+    let startBox = 0;
+    let down = false;
+    this.input.on('pointerdown', (pt: Phaser.Input.Pointer) => {
+      if (this.opening || this.layer.length) return;
+      down = true;
+      this.dragged = false;
+      startY = pt.y;
+      startBox = box.y;
+    });
+    this.input.on('pointermove', (pt: Phaser.Input.Pointer) => {
+      if (!down || !pt.isDown) return;
+      if (Math.abs(pt.y - startY) > 12) this.dragged = true;
+      if (this.dragged) box.y = clamp(startBox + (pt.y - startY));
+    });
+    this.input.on('pointerup', () => {
+      down = false;
+      this.time.delayedCall(0, () => (this.dragged = false));
+    });
+    this.input.on('wheel', (_p: unknown, _o: unknown, _dx: number, dy: number) => {
+      if (this.opening || this.layer.length) return;
+      box.y = clamp(box.y - dy);
+    });
+  }
+
+  /** 칸 제목(왼쪽 아이콘 + 글자 + 오른쪽 작은 안내) */
+  private section(y: number, icon: string, title: string, note?: string): void {
+    const bar = plate(this, 360, y, 680, 64, { r: 20, fill: 0x241c3d });
+    if (this.textures.exists(icon)) bar.add(this.add.image(-300, 0, icon).setDisplaySize(48, 48));
+    bar.add(text(this, -264, 0, title, TYPE.body, COLOR.text, true, true).setOrigin(0, 0.5));
+    if (note) bar.add(text(this, 320, 0, note, TYPE.tiny, COLOR.gold, true, true).setOrigin(1, 0.5));
+  }
+
+  /** 골드: 독립된 큰 카드 3장(그림 · 골드 양 · 루비 가격 버튼) → 다음 칸 시작 y */
+  private goldSection(y0: number): number {
+    this.section(y0, 'ui-gold', '골드', '루비로 바로 교환');
+    const cy = y0 + 180;
+    GOLD_OFFERS.forEach((o, i) => {
+      const x = 130 + i * 230;
+      const card = plate(this, x, cy, 216, 260, { r: 22, fill: 0x1d3a52, gold: i === 2 });
+      const pack = `gold-pack-${o.id.replace('gold-', '')}`;
+      card.add(this.add.image(0, -50, this.textures.exists(pack) ? pack : 'ui-gold').setDisplaySize(130, 130));
+      card.add(text(this, 0, 36, `${o.gold.toLocaleString()} G`, TYPE.heading, COLOR.gold, true, true).setOrigin(0.5));
+      const extra = Math.round((o.gold / o.rubies / (GOLD_OFFERS[0].gold / GOLD_OFFERS[0].rubies) - 1) * 100);
+      if (extra > 0) card.add(badge(this, 62, -112, `+${extra}%`, COLOR.ruby));
+      const b = button(this, x, cy + 90, 180, 60, o.rubies.toLocaleString(), () => this.buyGold(o.id), { kind: 'growth', icon: 'ui-ruby', size: TYPE.caption });
+      this.goldButtons.push({ btn: b, rubies: o.rubies });
+    });
+    return cy + 130;
+  }
+
+  /** 루비 구매(인앱결제): 5장(3 + 2). 가격은 스토어 가격, 없으면 예정 가격 */
+  private rubySection(y0: number): number {
+    this.section(y0, 'ui-ruby', '루비 구매', '보너스 루비 포함');
+    RUBY_PRODUCTS.forEach((def, i) => {
+      const row = Math.floor(i / 3);
+      const col = i % 3;
+      const perRow = row === 0 ? 3 : RUBY_PRODUCTS.length - 3;
+      const x = 360 + (col - (perRow - 1) / 2) * 230;
+      const cy = y0 + 160 + row * 250;
+      const card = plate(this, x, cy, 216, 236, { r: 22, fill: i >= 3 ? 0x3a2370 : 0x2b2442, gold: i === RUBY_PRODUCTS.length - 1 });
+      const n = Math.min(5, 1 + i);
+      for (let k = 0; k < n; k++) {
+        const a = n === 1 ? 0 : (k / (n - 1) - 0.5) * 1.2;
+        card.add(this.add.image(Math.sin(a) * 44, -52 + Math.abs(a) * 14, 'ui-ruby').setDisplaySize(62 - n * 3, 62 - n * 3));
+      }
+      card.add(text(this, 0, 14, (def.rubies + def.bonus).toLocaleString(), TYPE.heading, COLOR.text, true, true).setOrigin(0.5));
+      card.add(text(this, 0, 46, def.bonus ? `보너스 +${def.bonus.toLocaleString()}` : '루비', TYPE.tiny, def.bonus ? COLOR.gold : COLOR.textSub, true, true).setOrigin(0.5));
+      const price = () => this.storeProducts.find((x) => x.productId === def.productId)?.priceLabel ?? `₩${def.krw.toLocaleString()}`;
+      button(this, x, cy + 88, 180, 58, price(), () => this.buyRuby(def.productId), { kind: 'cta', size: TYPE.caption });
+    });
+    return y0 + 160 + 250 + 120;
+  }
+
+  /** 기간 한정 패키지: 넓은 카드 3장(구성 아이콘 + 가격). 결제 연결 전에는 안내만 */
+  private packageSection(y0: number): number {
+    this.section(y0, 'ic-gift', '기간 한정 패키지', '계정당 1회');
+    PACKAGES.forEach((pk, i) => {
+      const cy = y0 + 150 + i * 220;
+      const card = plate(this, 360, cy, 680, 200, { r: 24, fill: [0x4a2a1a, 0x1d3a52, 0x22306a][i % 3], gold: true });
+      const art = ['chest-dragon', 'chest-equipment', this.textures.exists('chest-rune') ? 'chest-rune' : 'chest-gold'][i % 3];
+      card.add(this.add.image(-236, -6, art).setDisplaySize(170, 170));
+      card.add(badge(this, -268, -78, '한정', COLOR.ruby));
+      card.add(text(this, -130, -58, pk.name, TYPE.body, COLOR.gold, true, true).setOrigin(0, 0.5));
+      this.packageItems(pk).forEach((it, k) => {
+        const ix = -100 + k * 92;
+        const cell = plate(this, ix, 12, 80, 80, { r: 14, fill: 0x15102a });
+        if (this.textures.exists(it.icon)) cell.add(this.add.image(0, -6, it.icon).setDisplaySize(52, 52));
+        cell.add(text(this, 0, 26, it.amount, 15, COLOR.text, true, true).setOrigin(0.5));
+        card.add(cell);
+      });
+      button(this, 360 + 236, cy + 58, 160, 58, `₩${pk.krw.toLocaleString()}`, () => this.buyPackage(pk), { kind: 'cta', size: TYPE.caption });
+    });
+    return y0 + 150 + (PACKAGES.length - 1) * 220 + 110;
+  }
+
+  /** 패키지 구성 → 아이콘 칸(루비·골드·드래곤/장비/룬 개봉권) */
+  private packageItems(pk: PackageDef): { icon: string; amount: string }[] {
+    const out: { icon: string; amount: string }[] = [];
+    if (pk.rubies) out.push({ icon: 'ui-ruby', amount: `×${pk.rubies.toLocaleString()}` });
+    if (pk.gold) out.push({ icon: 'ui-gold', amount: `×${(pk.gold / 1000).toLocaleString()}K` });
+    if (pk.dragonTickets) out.push({ icon: 'ui-ticket', amount: `드래곤 ×${pk.dragonTickets}` });
+    if (pk.equipTickets) out.push({ icon: 'chest-equipment', amount: `장비 ×${pk.equipTickets}` });
+    if (pk.runeTickets) out.push({ icon: this.textures.exists('chest-rune') ? 'chest-rune' : 'chest-gold', amount: `룬 ×${pk.runeTickets}` });
+    return out;
+  }
+
+  /** 루비 결제: 결제 → 서버 검증 → 검증된 거래만 지급(거래 ID 한 번만). 결제를 못 쓰는 곳은 안내 */
+  private buyRuby(productId: string): void {
+    if (this.payBusy) return;
+    if (!purchases.available || !this.storeProducts.some((x) => x.productId === productId)) {
+      toast(this, '결제 준비 중이에요 — App Store 앱에서 구매할 수 있게 돼요', COLOR.textSub);
+      return;
+    }
+    this.payBusy = true;
+    purchases
+      .buy(productId)
+      .then((t) => {
+        if (!t) return;
+        const r = grantVerifiedRubies(Progress.load(), t.transactionId, t.rubies);
+        if (r.ok) {
+          Progress.save(r.progress);
+          popWord(this, `루비 +${t.rubies.toLocaleString()}`, 640);
+          this.frame.refresh();
+          this.refresh();
+        } else toast(this, '이미 지급된 결제예요', COLOR.textSub);
+      })
+      .catch(() => toast(this, '결제를 완료하지 못했어요. 잠시 뒤 다시 시도해 주세요', COLOR.danger))
+      .finally(() => (this.payBusy = false));
+  }
+
+  /** 패키지 결제(구조만 — 결제 연결 때 RevenueCat 상품과 grantVerifiedPackage로 지급) */
+  private buyPackage(pk: PackageDef): void {
+    void pk;
+    toast(this, '패키지 결제 준비 중이에요 — App Store 앱에서 구매할 수 있게 돼요', COLOR.textSub);
+  }
+
+  /** 구매 복원(애플 필수): 결제 서버 기록에서 지급 누락분만 다시 지급 */
+  private restorePurchases(): void {
+    if (this.payBusy) return;
+    if (!purchases.available) {
+      toast(this, '구매 복원은 App Store 앱에서 할 수 있어요', COLOR.textSub);
+      return;
+    }
+    this.payBusy = true;
+    purchases
+      .restore()
+      .then((list) => {
+        let added = 0;
+        for (const t of list) {
+          const r = grantVerifiedRubies(Progress.load(), t.transactionId, t.rubies);
+          if (r.ok) {
+            Progress.save(r.progress);
+            added += t.rubies;
+          }
+        }
+        toast(this, added ? `루비 ${added.toLocaleString()} 복원` : '복원할 결제가 없어요', added ? COLOR.ok : COLOR.textSub);
+        if (added) this.frame.refresh();
+      })
+      .catch(() => toast(this, '복원하지 못했어요. 잠시 뒤 다시 시도해 주세요', COLOR.danger))
+      .finally(() => (this.payBusy = false));
+  }
+
   private refresh(): void {
     const p = Progress.load();
     this.frame.refresh();
@@ -154,6 +352,7 @@ export class ShopScene extends Phaser.Scene {
     pity.add(progressBar(this, 10, 0, 250, 22, r10, COLOR.violet, `${p.summon.tenPity}/${DRAGON_BOX.rareGuarantee}`).root);
     pity.add(text(this, 306, 0, `전설 정수 ${p.summon.legendaryPity}/${DRAGON_BOX.legendaryGuarantee}`, TYPE.tiny, RARITY_COLOR.legendary, true, true).setOrigin(1, 0.5));
     this.pityRoot = pity;
+    this.content?.add(pity); // 스크롤 판 안으로(위치는 판 기준 그대로)
     const tickets = (box: BoxId) => (box === 'dragon' ? p.summon.legacyTickets : box === 'equipment' ? p.summon.equipTickets ?? 0 : p.summon.runeTickets ?? 0);
     for (const b of this.buttons) {
       const price = b.count === 10 ? BOXES[b.box].price10 : BOXES[b.box].price1;

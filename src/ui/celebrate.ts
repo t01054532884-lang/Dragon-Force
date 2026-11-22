@@ -6,6 +6,7 @@ import { button, text } from './kit';
 import { plate } from './kit2';
 import { COLOR, TYPE } from './theme';
 import { fullH } from './layout';
+import type { RewardBundle } from '../data/economy';
 
 // 보상 획득 팝업 · 드래곤 해금 축하(2026-11-21 종합 개선 기획서 12·13장).
 // 그림이 오면(그림·소리 요청서 5) frame-<등급>·sigil-<속성>·fx-unlock-rays를 쓰고, 없으면 도형으로 그린다.
@@ -192,4 +193,61 @@ function ensureSigil(scene: Phaser.Scene, key: string, color: number, accent: nu
   }
   g.generateTexture(key, 512, 512);
   g.destroy();
+}
+
+/** 보상 묶음(골드·루비·조각) → 보상 팝업 한 칸 */
+export function bundleItem(b: RewardBundle): RewardItem {
+  if (b.gold) return { image: 'ui-gold', emoji: '🪙', label: '골드', amount: `+${b.gold.toLocaleString()}` };
+  if (b.rubies) return { image: 'ui-ruby', emoji: '💎', label: '루비', amount: `+${b.rubies.toLocaleString()}`, grade: 'epic' };
+  if (b.fragments) return { portrait: b.fragments.dragonId, label: `${DRAGONS[b.fragments.dragonId].short} 조각`, amount: `+${b.fragments.count}`, grade: 'rare' };
+  return { emoji: '🎁', label: '보상' };
+}
+
+/**
+ * 작은 상자 개봉 연출(로비 진행도 상자, 2026-11-22): 상자가 가운데로 날아와 커짐 → 세 번 흔들림 → 빛 터짐 → onDone(보상 팝업).
+ * 화면 아무 곳이나 누르면 건너뜀. 보상은 연출 전에 이미 지급(연출 도중 앱을 꺼도 잃지 않음).
+ */
+export function openSmallChest(scene: Phaser.Scene, fromX: number, fromY: number, tex: string, onDone: () => void): void {
+  const D = DEPTH - 10;
+  const objs: Phaser.GameObjects.GameObject[] = [];
+  let finished = false;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    objs.forEach((o) => o.destroy());
+    onDone();
+  };
+  const dim = scene.add.rectangle(360, 640, 720, fullH(scene) + 400, 0x05030a, 0).setDepth(D).setInteractive();
+  dim.on('pointerdown', finish);
+  objs.push(dim);
+  scene.tweens.add({ targets: dim, fillAlpha: 0.8, duration: 250 });
+  const glow = scene.add.circle(360, 600, 160, 0xffd34d, 0).setDepth(D + 1).setBlendMode(Phaser.BlendModes.ADD);
+  objs.push(glow);
+  const chest = scene.textures.exists(tex)
+    ? scene.add.image(fromX, fromY, tex).setDisplaySize(62, 62)
+    : scene.add.rectangle(fromX, fromY, 50, 44, 0x8d6e63);
+  chest.setDepth(D + 2);
+  objs.push(chest);
+  const big = (chest.scaleX * 300) / 62;
+  playSfx(scene, 'sfx-ui-confirm');
+  scene.tweens.add({
+    targets: chest, x: 360, y: 600, scaleX: big, scaleY: big, duration: 420, ease: 'Back.Out',
+    onComplete: () => {
+      playSfx(scene, 'sfx-chest-shake');
+      scene.tweens.add({ targets: chest, angle: { from: -8, to: 8 }, duration: 90, yoyo: true, repeat: 3, onComplete: () => {
+        if (finished) return;
+        chest.setAngle(0);
+        playSfx(scene, 'sfx-chest-open');
+        scene.cameras.main.flash(180, 255, 240, 200);
+        scene.tweens.add({ targets: glow, fillAlpha: 0.7, scale: 2.4, duration: 300, yoyo: true });
+        for (let i = 0; i < 16; i++) {
+          const a = (i / 16) * Math.PI * 2;
+          const sp = scene.add.circle(360, 600, 7, i % 2 ? 0xffd34d : 0xfff3c4).setDepth(D + 3);
+          objs.push(sp);
+          scene.tweens.add({ targets: sp, x: 360 + Math.cos(a) * 260, y: 600 + Math.sin(a) * 260, alpha: 0, duration: 520, ease: 'Quad.Out' });
+        }
+        scene.tweens.add({ targets: chest, scaleX: big * 1.15, scaleY: big * 1.15, alpha: 0, duration: 380, delay: 120, onComplete: () => scene.time.delayedCall(120, finish) });
+      } });
+    },
+  });
 }

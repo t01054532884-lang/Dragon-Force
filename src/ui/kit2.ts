@@ -127,11 +127,13 @@ export function dragonCarousel(scene: Phaser.Scene, y: number, portraits: string
   });
   for (const s of [-1, 1]) {
     const tri = scene.add.triangle(360 + s * 236, 0, 0, -24, 0, 24, s * 30, 0, 0xffe39a).setStrokeStyle(4, COLOR.outline);
-    tri.setInteractive({ useHandCursor: true }).on('pointerdown', () => onPick((selected + s + n) % n));
-    root.add(tri);
+    // 왼쪽 삼각형은 음수 좌표라 도형의 누르는 영역이 그림과 어긋남 → 그림 가운데에 투명 영역(2026-11-22 버그)
+    const hit = scene.add.zone(360 + s * 236 - 15 + s * 15, 0, 70, 80);
+    hit.setInteractive({ useHandCursor: true }).on('pointerdown', () => onPick((selected + s + n) % n));
+    root.add([tri, hit]);
   }
   const dots = Math.min(n, 10);
-  for (let i = 0; i < dots; i++) root.add(scene.add.circle(360 + (i - (dots - 1) / 2) * 24, 88, 7, i === selected ? COLOR.gold : 0x6b6488).setStrokeStyle(3, COLOR.outline));
+  for (let i = 0; i < dots; i++) root.add(scene.add.circle(360 + (i - (dots - 1) / 2) * 24, 74, 7, i === selected ? COLOR.gold : 0x6b6488).setStrokeStyle(3, COLOR.outline));
   return root;
 }
 
