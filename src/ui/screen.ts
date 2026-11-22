@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { accountLevel } from '../systems/AccountLevel';
 import { DRAGONS } from '../data/dragons';
 import { Progress } from '../systems/Progress';
 import { loadout } from '../systems/Loadout';
@@ -69,7 +70,7 @@ export function screenFrame(scene: Phaser.Scene, opts: { title: string; nav: str
     const d = DRAGONS[p.selectedDragonId];
     bar = topBar(scene, {
       portrait: `portrait-${d.id}`,
-      level: p.dragons[d.id].level,
+      level: accountLevel(p).level, // 계정 레벨(2026-11-23)
       cp: loadout(p, d.id).cp.toLocaleString(),
       currencies: [
         { icon: 'ui-energy', value: '', onPlus: scene.scene.key === 'gifts' ? undefined : () => scene.scene.start('gifts') },

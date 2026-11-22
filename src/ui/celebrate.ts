@@ -86,8 +86,9 @@ export function rewardPopup(scene: Phaser.Scene, title: string, items: RewardIte
     else card.add(text(scene, 0, -22, it.emoji ?? '🎁', 46).setOrigin(0.5));
     card.add(text(scene, 0, 36, it.label, 16, COLOR.text, true, true).setOrigin(0.5).setWordWrapWidth(120).setAlign('center'));
     if (it.amount) card.add(text(scene, 0, 66, it.amount, 20, color === GRADE_COLOR.common ? COLOR.gold : color, true, true).setOrigin(0.5));
-    card.setScale(0.2).setAlpha(0);
-    scene.tweens.add({ targets: card, scale: 1, alpha: 1, duration: 220, delay: 80 + i * 70, ease: 'Back.Out' });
+    // 처음부터 보이게(커지는 연출만) — 연출이 멈춘 화면·백그라운드 탭에서 내용이 비어 보이던 문제(2026-11-23 제보)
+    card.setScale(0.7);
+    scene.tweens.add({ targets: card, scale: 1, duration: 220, delay: 80 + i * 70, ease: 'Back.Out' });
   });
   const ok = button(scene, 360, 640 + panelH / 2 - 62, 300, 76, '확인', close, { kind: 'cta', size: TYPE.body });
   add(ok.root);

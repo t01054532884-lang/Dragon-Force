@@ -1,5 +1,5 @@
-import { PACKAGES, RUBY_PRODUCTS } from '../data/economy';
-import { withTx, type PlayerProgress, type Result } from './Progress';
+import { DEALS, FREE_DAILY_GIFT, PACKAGES, RUBY_PRODUCTS, type PackageDef } from '../data/economy';
+import { dealPeriodKey, withTx, type PlayerProgress, type Result } from './Progress';
 
 // 인앱결제(첫 출시에 넣기 — 제작자 결정 2026-11-20: Firebase + RevenueCat, docs/MONETIZATION_PLAN.md).
 // 지금은 결제 창구(인터페이스)와 지급 규칙만 있고, 기본값은 "결제 없음"(웹·데모·서버 연결 전). 할 일:
@@ -43,17 +43,23 @@ export function grantVerifiedRubies(p: PlayerProgress, transactionId: string, ru
   return withTx(p, `iap:${transactionId}`, () => ({ ok: true, progress: { ...p, rubies: p.rubies + rubies } }));
 }
 
-/** 패키지 구매 횟수(기기 거래 기록에서 센다 — 최근 50건만 남으므로 계정당 횟수는 결제 서버 기록으로 최종 확인) */
-export const packageBought = (p: PlayerProgress, productId: string) => p.txIds.filter((t) => t.startsWith(`pkg:${productId}:`)).length;
+const allPackages = (): PackageDef[] => [...PACKAGES, ...DEALS];
+
+/** 이번 기간(한정은 계정 전체)에 이 상품을 산 횟수 — 상점 기록 shopLog에서 센다 */
+export function packageBought(p: PlayerProgress, productId: string, now = Date.now()): number {
+  const def = allPackages().find((x) => x.productId === productId);
+  const key = `${productId}@${dealPeriodKey(def?.period ?? 'once', now)}#`;
+  return p.shopLog.filter((t) => t.startsWith(key)).length;
+}
 
 /**
- * 서버가 검증한 패키지 거래만 지급(루비·골드·무료 개봉권). 같은 거래 ID는 한 번만, 계정당 limit회까지.
- * 결제 연결 전에는 상점 화면이 부르지 않는다(구조와 규칙만 — 테스트로 확인).
+ * 서버가 검증한 패키지·특혜 거래만 지급(루비·골드·무료 개봉권). 같은 거래 ID는 한 번만, 기간마다 limit회.
+ * 결제 연결 전에는 상점 화면이 부르지 않는다(구조와 규칙만 — 테스트로 확인). 최종 횟수 확인은 결제 서버 기록으로.
  */
-export function grantVerifiedPackage(p: PlayerProgress, transactionId: string, productId: string): Result {
-  const def = PACKAGES.find((x) => x.productId === productId);
+export function grantVerifiedPackage(p: PlayerProgress, transactionId: string, productId: string, now = Date.now()): Result {
+  const def = allPackages().find((x) => x.productId === productId);
   if (!def) return { ok: false, reason: 'product' };
-  if (packageBought(p, productId) >= def.limit) return { ok: false, reason: 'limit' };
+  if (packageBought(p, productId, now) >= def.limit) return { ok: false, reason: 'limit' };
   return withTx(p, `pkg:${productId}:${transactionId}`, () => ({
     ok: true,
     progress: {
@@ -66,6 +72,17 @@ export function grantVerifiedPackage(p: PlayerProgress, transactionId: string, p
         equipTickets: (p.summon.equipTickets ?? 0) + (def.equipTickets ?? 0),
         runeTickets: (p.summon.runeTickets ?? 0) + (def.runeTickets ?? 0),
       },
+      shopLog: [...p.shopLog, `${productId}@${dealPeriodKey(def.period ?? 'once', now)}#${transactionId}`].slice(-300),
     },
   }));
+}
+
+/** 무료 일일 선물: KST 하루 1번 골드·루비 */
+export const freeDailyClaimed = (p: PlayerProgress, now: number) => p.shopLog.includes(`free@${dealPeriodKey('daily', now)}`);
+export function claimFreeDaily(p: PlayerProgress, now: number): Result {
+  if (freeDailyClaimed(p, now)) return { ok: false, reason: 'claimed' };
+  return {
+    ok: true,
+    progress: { ...p, gold: p.gold + FREE_DAILY_GIFT.gold, rubies: p.rubies + FREE_DAILY_GIFT.rubies, shopLog: [...p.shopLog, `free@${dealPeriodKey('daily', now)}`].slice(-300) },
+  };
 }

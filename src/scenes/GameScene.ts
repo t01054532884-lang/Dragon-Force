@@ -199,6 +199,9 @@ export class GameScene extends Phaser.Scene {
   // 터치 조이스틱
   private stickBase!: Phaser.GameObjects.Arc;
   private stickKnob!: Phaser.GameObjects.Arc;
+  /** 이동 방향 표시(2026-11-23 제보: 드래그해도 어디로 가는지 잘 모르겠음) — 드래곤 앞 화살표 + 지나간 자리 발자국 */
+  private moveArrow: Phaser.GameObjects.Triangle | null = null;
+  private trailAt = 0;
   private stickPointerId: number | null = null;
   private stickVec = new Phaser.Math.Vector2();
 
@@ -719,8 +722,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createJoystick(): void {
-    this.stickBase = this.add.circle(0, 0, 90, 0xffffff, 0.12).setScrollFactor(0).setDepth(100).setVisible(false);
-    this.stickKnob = this.add.circle(0, 0, 40, 0xffffff, 0.35).setScrollFactor(0).setDepth(101).setVisible(false);
+    // 조이스틱을 또렷하게: 어두운 바탕 + 흰 테두리, 손잡이는 밝게(예전 흰색 12%·35%는 밝은 바닥에서 거의 안 보였음)
+    this.stickBase = this.add.circle(0, 0, 90, 0x000000, 0.28).setStrokeStyle(5, 0xffffff, 0.6).setScrollFactor(0).setDepth(100).setVisible(false);
+    this.stickKnob = this.add.circle(0, 0, 40, 0xffffff, 0.75).setStrokeStyle(4, 0xffd34d, 0.9).setScrollFactor(0).setDepth(101).setVisible(false);
+    // 드래곤 앞 방향 화살표(움직일 때만)
+    this.moveArrow = this.add.triangle(0, 0, 0, -24, 19, 15, -19, 15, 0xffd34d, 0.95).setStrokeStyle(3, 0x2a1a00, 0.9).setDepth(11).setVisible(false);
     this.input.on('pointerdown', (p: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
       if (this.mode !== 'play' || this.stickPointerId !== null || over.length > 0) return; // 버튼 위면 조이스틱 X
       this.stickPointerId = p.id;
@@ -796,6 +802,22 @@ export class GameScene extends Phaser.Scene {
       this.facing.copy(dir).normalize();
     }
     this.keepInArena(this.player, 20);
+    this.showMoveDir(dir);
+  }
+
+  /** 움직이는 동안: 드래곤 앞 70px에 방향 화살표, 0.12초마다 뒤에 옅은 발자국(바닥이 따라 움직여 이동이 잘 안 느껴지던 문제) */
+  private showMoveDir(dir: Phaser.Math.Vector2): void {
+    if (!this.moveArrow) return;
+    const moving = dir.lengthSq() > 0.01 && this.mode === 'play';
+    this.moveArrow.setVisible(moving);
+    if (!moving) return;
+    const a = dir.angle();
+    this.moveArrow.setPosition(this.player.x + Math.cos(a) * 78, this.player.y + Math.sin(a) * 78).setRotation(a + Math.PI / 2);
+    if (this.elapsed - this.trailAt >= 120) {
+      this.trailAt = this.elapsed;
+      const t = this.add.circle(this.player.x - Math.cos(a) * 26, this.player.y - Math.sin(a) * 26, 10, 0xffffff, 0.35).setDepth(9);
+      this.tweens.add({ targets: t, scale: 0.3, alpha: 0, duration: 420, onComplete: () => t.destroy() });
+    }
   }
 
   /** 원형 벽 밖으로 나가지 못하게 안쪽으로 되돌린다 */
@@ -1547,7 +1569,10 @@ export class GameScene extends Phaser.Scene {
     // 약화된 적(샌드 모래 산탄)은 주는 피해가 줄고, 샌드 특성은 약화된 적에게 받는 피해를 한 번 더 줄인다
     let weak = src ? src.weakMult : 1;
     if (src?.weakened && this.dragon.trait.id === 'weakGuard') weak *= 1 - this.dragon.trait.value * this.traitMult;
-    const dmg = Math.min(amount * weak * this.stats.damageTaken * (1 - this.signature.reduce) * aegis, cap);
+    // 첫 전투 보호(2026-11-23 제보: 쉬움 1단계 13초 만에 사망 — 조작이 익숙하지 않아 무리 속으로 들어감):
+    // 쉬움 1단계 처음 60초만 몸 부딪힘 피해 ×0.75. 보스·패턴 공격은 그대로
+    const rookie = src && !pattern && this.difficulty === 'easy' && this.stage.id === 1 && this.elapsed < 60_000 ? 0.75 : 1;
+    const dmg = Math.min(amount * rookie * weak * this.stats.damageTaken * (1 - this.signature.reduce) * aegis, cap);
     this.hp -= dmg;
     this.invincibleUntil = this.time.now + 500;
     // 장비 가시: 나를 때린 적에게 받은 피해의 x% 되돌림(엘리트·보스에게도, 고정 피해)

@@ -27,6 +27,7 @@ import { summaryLine } from '../systems/cloudSync';
 import { attendanceState, claimableActivity } from '../systems/Activity';
 import { DEMO, platform } from '../platform';
 import { goTab, navTabsWithAlerts } from '../ui/screen';
+import { accountLevel } from '../systems/AccountLevel';
 import { ATTENDANCE_28, activityRewardIcon, activityRewardText } from '../data/activity';
 import { fullH } from '../ui/layout';
 import { offY } from '../ui/layout';
@@ -109,7 +110,7 @@ export class LobbyScene extends Phaser.Scene {
     // ── 머리줄: 출격 드래곤 · 행동력(+ = 선물함, 결제 없음) · 골드 · 루비 · 전투력
     const bar = topBar(this, {
       portrait: `portrait-${d.id}`,
-      level: o.level,
+      level: accountLevel(p).level, // 계정 레벨(2026-11-23, 드래곤 레벨 아님)
       cp: lo.cp.toLocaleString(),
       currencies: [
         { icon: 'ui-energy', value: '', onPlus: () => this.scene.start('gifts') },

@@ -237,8 +237,10 @@ export class MissionScene extends Phaser.Scene {
     this.A(text(this, 40, 330, `달성 ${doneN} / ${prog.length} · 업적 루비는 달성한 판이 끝날 때 자동 지급`, TYPE.tiny, COLOR.textSub, true).setOrigin(0, 0.5));
     let y = 392;
     for (const c of cats) {
+      // 분류 제목이 첫 줄 판에 묻히지 않게(2026-11-23 제보): 제목 아래 여백을 넉넉히 + 밑줄
       this.A(text(this, 40, y, c.title, TYPE.body, 0xe1bee7, true, true).setOrigin(0, 0.5));
-      y += 56;
+      this.A(this.add.rectangle(40, y + 22, 640, 3, 0xe1bee7, 0.35).setOrigin(0, 0.5));
+      y += 80;
       const rows = c.ids.map((id) => ({ a: ACHIEVEMENTS.find((x) => x.id === id)!, pr: prog.find((x) => x.id === id)! }));
       rows.sort((r1, r2) => Number(r1.pr.done) - Number(r2.pr.done) || r2.pr.cur / r2.pr.goal - r1.pr.cur / r1.pr.goal);
       for (const { a, pr } of rows) {
@@ -251,7 +253,7 @@ export class MissionScene extends Phaser.Scene {
         b.setEnabled(!pr.done);
         y += 106;
       }
-      y += 10;
+      y += 30;
     }
   }
 
@@ -466,7 +468,7 @@ function activityItems(r: ActivityReward, choice?: DragonId, runeId?: string): R
   }
   const t = r.tickets ?? {};
   if (t.dragon) out.push({ image: 'ui-ticket', emoji: '🎟', label: '드래곤 상자 개봉권', amount: `+${t.dragon}`, grade: 'epic' });
-  if (t.equipment) out.push({ image: 'ui-ticket', emoji: '🎟', label: '장비 상자 개봉권', amount: `+${t.equipment}`, grade: 'rare' });
-  if (t.rune) out.push({ image: 'ui-ticket', emoji: '🎟', label: '룬 상자 개봉권', amount: `+${t.rune}`, grade: 'rare' });
+  if (t.equipment) out.push({ image: 'ui-ticket-equip', emoji: '🎟', label: '장비 상자 개봉권', amount: `+${t.equipment}`, grade: 'rare' });
+  if (t.rune) out.push({ image: 'ui-ticket-rune', emoji: '🎟', label: '룬 상자 개봉권', amount: `+${t.rune}`, grade: 'rare' });
   return out;
 }

@@ -157,6 +157,8 @@ export interface PlayerProgress {
   createdAt: number;
   stamina: StaminaState;
   mailbox: MailboxState;
+  /** 상점 기록(2026-11-23): 무료 일일 선물·일일/주간/월간 특혜·한정 패키지 구매 횟수 — 'free@기간키' · 'pkg_xxx@기간키#거래' */
+  shopLog: string[];
 }
 
 /** 저장소 흉내(테스트에서는 메모리, 게임에서는 플랫폼 저장소) */
@@ -173,6 +175,7 @@ export function defaultProgress(now = Date.now()): PlayerProgress {
     createdAt: now,
     stamina: newStamina(now),
     mailbox: newMailbox(),
+    shopLog: [],
     saveVersion: SAVE_VERSION,
     gold: 0,
     rubies: 0,
@@ -297,6 +300,7 @@ export function sanitize(raw: Record<string, unknown>): PlayerProgress {
     createdAt: Math.min(nowMs, Math.max(0, Number(raw.createdAt) || 0)),
     stamina: sanitizeStamina(raw.stamina, nowMs),
     mailbox: sanitizeMailbox(raw.mailbox),
+    shopLog: strs(raw.shopLog, 300),
     saveVersion: SAVE_VERSION,
     gold: int(raw.gold, 0, 999_999_999, 0),
     rubies: int(raw.rubies, 0, 999_999_999, 0),
@@ -906,6 +910,9 @@ export function unlockSpecial(p: PlayerProgress, id: SpecialId): Result {
 
 // ───────────────────────── 주기 보상(일일·주간·월간·이벤트, KST) ─────────────────────────
 const kstDate = (now: number) => new Date(now + KST_OFFSET_MS);
+/** 상점 특혜 기간 키(일일·주간·월간, KST) — 미션과 같은 규칙 */
+export const dealPeriodKey = (period: 'daily' | 'weekly' | 'monthly' | 'once', now: number) =>
+  period === 'once' ? 'once' : periodKey({ period, id: '' }, now);
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 /** 기간 키: 일일 'YYYY-MM-DD' · 주간 그 주 월요일 날짜 · 월간 'YYYY-MM' · 이벤트 이벤트 id (모두 KST 자정 기준) */
 export function periodKey(m: Pick<MissionDef, 'period' | 'id'>, now: number): string {

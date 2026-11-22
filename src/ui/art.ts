@@ -42,6 +42,9 @@ export const ART_FILES: Record<string, string> = {
   'ui-essence': 'ui-essence.webp',
   'ui-fragment': 'ui-fragment.webp',
   'ui-ticket': 'ui-ticket.webp',
+  // 16차분(2026-11-23): 장비·룬 상자 무료 개봉권 아이콘
+  'ui-ticket-equip': 'ui-ticket-equip.webp',
+  'ui-ticket-rune': 'ui-ticket-rune.webp',
   // 드래곤 초상 10종: 6단계 기획서 v1.0 아틀라스에서 잘라 냄(v1.2 31쪽: 도감·소환 결과·상세·선택 카드 사용 가능)
   ...Object.fromEntries(['red', 'blue', 'yellow', 'green', 'white', 'black', 'stone', 'wind', 'water', 'arcane'].map((id) => [`portrait-${id}`, `portrait-${id}.webp`])),
   // 신규 1묶음 초상(확정본, scripts/process_art_batch14.py) — 나머지 6종은 코드에 들어갈 때 여기에 추가
@@ -109,6 +112,7 @@ export const ART_FILES: Record<string, string> = {
   // 13차분(v1.2 마지막 묶음, scripts/process_art_batch13.py): 어려움 배지·최초 클리어 카드 테두리·20단계 왕관·폭죽·보스 2마리 막대 틀
   ...Object.fromEntries(['badge-hard', 'frame-hard', 'hard-clear-crown', 'fx-confetti', 'ui-boss-bar'].map((k) => [k, `hard/${k}.webp`])),
   ...Object.fromEntries(['s', 'm', 'l'].map((k) => [`gold-pack-${k}`, `shop/gold-pack-${k}.webp`])),
+  ...Object.fromEntries(['dragon', 'gear', 'rune', 'mega'].map((k) => [`pkg-${k}`, `shop/pkg-${k}.webp`])), // 패키지 그림(16차분)
 };
 
 /** 필요한 그림만 읽는다(키가 ART_FILES에 없거나 이미 읽었으면 건너뜀). 화면별 preload()에서 쓴다 */

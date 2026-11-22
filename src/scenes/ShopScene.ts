@@ -1,8 +1,13 @@
 import Phaser from 'phaser';
 import { makeTextures } from '../textures';
 import { DRAGONS, RARITY_COLOR, RARITY_LABEL } from '../data/dragons';
-import { BOXES, DRAGON_BOX, EQUIPMENT_BOX, ESSENCE, GOLD_OFFERS, PACKAGES, RARITIES, RUBY_PRODUCTS, type BoxId, type PackageDef } from '../data/economy';
-import { grantVerifiedRubies, purchases, type RubyProduct } from '../systems/Purchases';
+import { BOXES, DEALS, DRAGON_BOX, EQUIPMENT_BOX, ESSENCE, FREE_DAILY_GIFT, GOLD_OFFERS, PACKAGES, RARITIES, RUBY_PRODUCTS, type BoxId, type PackageDef } from '../data/economy';
+import { claimFreeDaily, freeDailyClaimed, grantVerifiedRubies, packageBought, purchases, type RubyProduct } from '../systems/Purchases';
+import { rewardPopup } from '../ui/celebrate';
+import { gameNow } from '../ui/widgets';
+import { tabs } from '../ui/kit2';
+
+type DealTab = 'once' | 'daily' | 'weekly' | 'monthly';
 import { CONTENT } from '../ui/screen';
 import { offY } from '../ui/layout';
 import { RUNE_BOX } from '../data/runes';
@@ -41,10 +46,17 @@ export class ShopScene extends Phaser.Scene {
   private content: Phaser.GameObjects.Container | null = null;
   private dragged = false;
   private storeProducts: RubyProduct[] = [];
+  private dealTab: DealTab = 'once';
+  private keepScroll = 0;
   private payBusy = false;
 
   constructor() {
     super('shop');
+  }
+
+  init(data: { dealTab?: DealTab; scrollY?: number }): void {
+    if (data?.dealTab) this.dealTab = data.dealTab;
+    this.keepScroll = data?.scrollY ?? 0;
   }
 
   onPlatformBack(): boolean {
@@ -126,6 +138,7 @@ export class ShopScene extends Phaser.Scene {
     text(this, 360, y + 120, '결제·환불은 App Store 정책을 따릅니다 · 미성년자는 보호자 동의 후 구매해 주세요\n유료 상품은 결제 서버 확인 뒤에 지급돼요', 15, COLOR.textSub, true)
       .setOrigin(0.5).setAlign('center').setLineSpacing(6);
     this.makeScroll(before, y + 170);
+    if (this.keepScroll && this.content) this.content.y = Math.max(this.keepScroll, Math.min(0, CONTENT.bottom + offY(this) - (y + 170)));
     // 스토어 가격 받아 오기(결제를 쓸 수 없으면 빈 목록 → 예정 가격 표시)
     purchases.products().catch(() => [] as RubyProduct[]).then((list) => (this.storeProducts = list));
 
@@ -252,25 +265,77 @@ export class ShopScene extends Phaser.Scene {
   }
 
   /** 기간 한정 패키지: 넓은 카드 3장(구성 아이콘 + 가격). 결제 연결 전에는 안내만 */
+  /**
+   * 패키지 · 특혜(2026-11-23 제작자 요청: 참고 시안처럼 일일/주간/월간 특혜 탭).
+   * 탭: 한정(계정당 1회) · 일일(무료 선물 + 꾸러미 2) · 주간 · 월간. 탭을 바꾸면 스크롤 위치를 지킨 채 다시 그린다.
+   */
   private packageSection(y0: number): number {
-    this.section(y0, 'ic-gift', '기간 한정 패키지', '계정당 1회');
-    PACKAGES.forEach((pk, i) => {
-      const cy = y0 + 150 + i * 220;
-      const card = plate(this, 360, cy, 680, 200, { r: 24, fill: [0x4a2a1a, 0x1d3a52, 0x22306a][i % 3], gold: true });
-      const art = ['chest-dragon', 'chest-equipment', this.textures.exists('chest-rune') ? 'chest-rune' : 'chest-gold'][i % 3];
-      card.add(this.add.image(-236, -6, art).setDisplaySize(170, 170));
-      card.add(badge(this, -268, -78, '한정', COLOR.ruby));
-      card.add(text(this, -130, -58, pk.name, TYPE.body, COLOR.gold, true, true).setOrigin(0, 0.5));
+    const TABS: { key: DealTab; label: string; note: string }[] = [
+      { key: 'once', label: '한정', note: '계정당 1회' },
+      { key: 'daily', label: '일일 특혜', note: '매일 0시 초기화' },
+      { key: 'weekly', label: '주간 특혜', note: '매주 월요일 초기화' },
+      { key: 'monthly', label: '월간 특혜', note: '매월 1일 초기화' },
+    ];
+    const cur = TABS.find((t) => t.key === this.dealTab) ?? TABS[0];
+    this.section(y0, 'ic-gift', '패키지 · 특혜', cur.note);
+    const p = Progress.load();
+    const now = gameNow();
+    tabs(this, y0 + 76, TABS.map((t) => (t.key === 'daily' && !freeDailyClaimed(p, now) ? `${t.label} !` : t.label)), TABS.indexOf(cur), (i) => {
+      if (this.dragged || TABS[i].key === this.dealTab) return;
+      this.scene.restart({ dealTab: TABS[i].key, scrollY: this.content?.y ?? 0 });
+    });
+    let y = y0 + 150;
+    if (cur.key === 'daily') {
+      // 무료 일일 선물(결제 없음)
+      const got = freeDailyClaimed(p, now);
+      const card = plate(this, 360, y + 54, 680, 128, { r: 24, fill: 0x1f4a2a, gold: !got });
+      card.add(this.add.image(-262, 0, 'ic-gift').setDisplaySize(96, 96));
+      card.add(text(this, -196, -24, '무료 일일 선물', TYPE.body, COLOR.gold, true, true).setOrigin(0, 0.5));
+      card.add(text(this, -196, 18, `골드 ${FREE_DAILY_GIFT.gold.toLocaleString()} + 루비 ${FREE_DAILY_GIFT.rubies}`, TYPE.caption, COLOR.text, true, true).setOrigin(0, 0.5));
+      const fb = button(this, 360 + 236, y + 54, 160, 62, got ? '내일 또' : '무료 받기', () => this.claimFree(), { kind: got ? 'secondary' : 'growth', size: TYPE.caption });
+      fb.setEnabled(!got);
+      y += 150;
+    }
+    const list = cur.key === 'once' ? PACKAGES : DEALS.filter((d) => d.period === cur.key);
+    list.forEach((pk, i) => {
+      const cy = y + 100 + i * 220;
+      const left = Math.max(0, pk.limit - packageBought(p, pk.productId, now));
+      const card = plate(this, 360, cy, 680, 200, { r: 24, fill: [0x4a2a1a, 0x1d3a52, 0x22306a][i % 3], gold: left > 0 });
+      const art = this.packageArt(pk);
+      card.add(this.add.image(-236, -6, art).setDisplaySize(160, 160));
+      card.add(badge(this, -268, -78, cur.key === 'once' ? '한정' : cur.label.replace(' 특혜', ''), COLOR.ruby));
+      card.add(text(this, -130, -64, pk.name, TYPE.body, COLOR.gold, true, true).setOrigin(0, 0.5));
+      card.add(text(this, 316, -64, `남은 구매 ${left}/${pk.limit}`, TYPE.tiny, left ? COLOR.textSub : COLOR.danger, true, true).setOrigin(1, 0.5));
       this.packageItems(pk).forEach((it, k) => {
-        const ix = -100 + k * 92;
-        const cell = plate(this, ix, 12, 80, 80, { r: 14, fill: 0x15102a });
-        if (this.textures.exists(it.icon)) cell.add(this.add.image(0, -6, it.icon).setDisplaySize(52, 52));
-        cell.add(text(this, 0, 26, it.amount, 15, COLOR.text, true, true).setOrigin(0.5));
+        const cell = plate(this, -96 + k * 84, -2, 74, 74, { r: 14, fill: 0x15102a });
+        if (this.textures.exists(it.icon)) cell.add(this.add.image(0, -8, it.icon).setDisplaySize(46, 46));
+        cell.add(text(this, 0, 24, it.amount, 14, COLOR.text, true, true).setOrigin(0.5));
         card.add(cell);
       });
-      button(this, 360 + 236, cy + 58, 160, 58, `₩${pk.krw.toLocaleString()}`, () => this.buyPackage(pk), { kind: 'cta', size: TYPE.caption });
+      const b = button(this, 360 + 236, cy + 62, 160, 56, left ? `₩${pk.krw.toLocaleString()}` : '구매 완료', () => this.buyPackage(pk), { kind: 'cta', size: TYPE.caption });
+      b.setEnabled(left > 0);
     });
-    return y0 + 150 + (PACKAGES.length - 1) * 220 + 110;
+    return y + 100 + (list.length - 1) * 220 + 110;
+  }
+
+  /** 패키지 대표 그림: 드래곤 개봉권 → 드래곤 상자, 장비 → 장비 상자, 룬 → 룬 상자, 그 밖엔 금 상자 */
+  private packageArt(pk: PackageDef): string {
+    // 16차분 패키지 그림: 여러 종류가 섞이면 큰 묶음, 드래곤·장비·룬 하나면 그 묶음, 루비·골드만이면 큰 묶음
+    const kinds = [pk.dragonTickets, pk.equipTickets, pk.runeTickets].filter(Boolean).length;
+    const key = kinds > 1 ? 'pkg-mega' : pk.dragonTickets ? 'pkg-dragon' : pk.equipTickets ? 'pkg-gear' : pk.runeTickets ? 'pkg-rune' : 'pkg-mega';
+    return this.textures.exists(key) ? key : 'chest-gold';
+  }
+
+  /** 무료 일일 선물 받기 → 보상 팝업 */
+  private claimFree(): void {
+    if (this.dragged) return;
+    const r = claimFreeDaily(Progress.load(), gameNow());
+    if (!r.ok) return toast(this, '오늘은 이미 받았어요', COLOR.textSub);
+    Progress.save(r.progress);
+    rewardPopup(this, '무료 일일 선물', [
+      { image: 'ui-gold', emoji: '🪙', label: '골드', amount: `+${FREE_DAILY_GIFT.gold.toLocaleString()}` },
+      { image: 'ui-ruby', emoji: '💎', label: '루비', amount: `+${FREE_DAILY_GIFT.rubies}`, grade: 'rare' },
+    ], () => this.scene.restart({ dealTab: this.dealTab, scrollY: this.content?.y ?? 0 }));
   }
 
   /** 패키지 구성 → 아이콘 칸(루비·골드·드래곤/장비/룬 개봉권) */
@@ -279,8 +344,8 @@ export class ShopScene extends Phaser.Scene {
     if (pk.rubies) out.push({ icon: 'ui-ruby', amount: `×${pk.rubies.toLocaleString()}` });
     if (pk.gold) out.push({ icon: 'ui-gold', amount: `×${(pk.gold / 1000).toLocaleString()}K` });
     if (pk.dragonTickets) out.push({ icon: 'ui-ticket', amount: `드래곤 ×${pk.dragonTickets}` });
-    if (pk.equipTickets) out.push({ icon: 'chest-equipment', amount: `장비 ×${pk.equipTickets}` });
-    if (pk.runeTickets) out.push({ icon: this.textures.exists('chest-rune') ? 'chest-rune' : 'chest-gold', amount: `룬 ×${pk.runeTickets}` });
+    if (pk.equipTickets) out.push({ icon: this.textures.exists('ui-ticket-equip') ? 'ui-ticket-equip' : 'chest-equipment', amount: `장비 ×${pk.equipTickets}` });
+    if (pk.runeTickets) out.push({ icon: this.textures.exists('ui-ticket-rune') ? 'ui-ticket-rune' : 'chest-rune', amount: `룬 ×${pk.runeTickets}` });
     return out;
   }
 
