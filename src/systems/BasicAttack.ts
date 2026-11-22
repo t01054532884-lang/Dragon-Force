@@ -557,7 +557,8 @@ export class BasicAttack {
         const bonus = 1 + Math.min(10, rg.n) * (this.traits.ringBonus ?? 0);
         rg.n++;
         if (rg.stun) e.hardCc('stun', L.pulse?.stunMs ?? 500);
-        this.h.hit(e, { source: 'basic', coef: L.coef * bonus, levelMod: L.levelMod, tag: 'basic-ring' });
+        // 고리는 보스·엘리트를 한 번만 지나가므로 ×1.6(봇 측정 10단계: 보스를 못 잡고 시간 초과)
+        this.h.hit(e, { source: 'basic', coef: L.coef * bonus * (e.rank === 'normal' ? 1 : 1.6), levelMod: L.levelMod, tag: 'basic-ring' });
       }
       if (rg.r >= rg.max) {
         rg.g.destroy();

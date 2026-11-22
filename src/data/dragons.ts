@@ -328,7 +328,7 @@ const BLOOM = common('씨앗 폭탄', '🌱', 'bolt-seed', build(
 const HOWL = common('음파 고리', '🔊', 'bolt-sound', build(
   { ...STRAIGHT, speed: 0, shots: 1, coef: 0.85, levelMod: 1, interval: 1300, pulse: { radius: 3.2 * M, layers: 1 } },
   [
-    { text: '드래곤 둘레로 퍼지는 음파 고리(3.2m, 85%): 닿은 모든 적에게 한 번씩' },
+    { text: '드래곤 둘레로 퍼지는 음파 고리(3.2m, 85%): 닿은 모든 적에게 한 번씩(엘리트·보스 ×1.6)' },
     { levelMod: 1.15, text: '피해 +15%' },
     { pulse: { radius: 3.8 * M, layers: 1 }, text: '고리 범위 3.8m' },
     { levelMod: 1.3, text: '피해 +30%' },
@@ -341,17 +341,17 @@ const HOWL = common('음파 고리', '🔊', 'bolt-sound', build(
 // 크림슨: 진홍 낫 — 가까운 적 쪽 반원 근접 베기(부채꼴 안 모든 적). Lv.1 100 · Lv.5 125 · Lv.6 145
 // 봇 측정(2026-11-22): 총 피해가 레드의 1.8배 → 계수 −8%
 const CRIMSON = common('진홍 낫', '🌙', 'bolt-crescent', build(
-  { ...STRAIGHT, speed: 0, shots: 1, coef: 1.1, levelMod: 1, interval: 1100, melee: { range: 2.4 * M, arc: 2.2 } },
+  { ...STRAIGHT, speed: 0, shots: 1, coef: 1.1, levelMod: 1, interval: 1100, melee: { range: 3 * M, arc: 2.2 } },
   [
-    { text: '가장 가까운 적 쪽으로 반원 베기(2.4m, 110%) — 범위 안 모든 적' },
+    { text: '가장 가까운 적 쪽으로 반원 베기(3m, 110%) — 범위 안 모든 적' },
     { levelMod: 1.15, text: '피해 +15%' },
-    { melee: { range: 2.9 * M, arc: 2.2 }, text: '베기 범위 2.9m' },
+    { melee: { range: 3.6 * M, arc: 2.2 }, text: '베기 범위 3.6m' },
     { levelMod: 1.25, text: '피해 +25%' },
-    { melee: { range: 2.9 * M, arc: 2.2, back: true }, text: '앞뒤로 두 번 베기' },
+    { melee: { range: 3.6 * M, arc: 2.2, back: true }, text: '앞뒤로 두 번 베기' },
     { interval: 950, text: '베기 간격 1.1 → 0.95초' },
-    { melee: { range: 2.9 * M, arc: 2.2, back: true, spinEvery: 5 }, text: '진화 — 5번째마다 360° 회전 베기(×1.5)' },
+    { melee: { range: 3.6 * M, arc: 2.2, back: true, spinEvery: 5 }, text: '진화 — 5번째마다 360° 회전 베기(×1.5)' },
   ],
-), { range: 2.9 * M });
+), { range: 3.6 * M }); // 봇 측정(10단계): 2.4m는 보스를 피하며 싸울 때 거의 닿지 않아 시간 초과 → 3m(Lv.3 3.6m)
 
 // 미러: 반사 광탄 — 맞힌 뒤 3.5m 안 다른 적으로 튕김(튕길 때마다 −15%). Lv.1 83 · Lv.5 137(튕김 피해 별도)
 // 봇 측정(2026-11-22): 클리어 3/4·총 피해 레드의 1.6배 → 계수 −9%
@@ -427,7 +427,7 @@ export const DRAGONS: Record<DragonId, DragonDef> = {
   wind: { id: 'wind', name: '윈드 드래곤', short: '윈드', element: 'wind', rarity: 'epic', role: '다중 투사체·연사', color: 0x6fd6b8, accent: 0xd8fff3, belly: 0xe6fff7, ...B(12, 105, 285), trait: { id: 'swift', text: '이동속도 +10%', value: 0.1 }, basic: WIND },
   water: { id: 'water', name: '워터 드래곤', short: '워터', element: 'water', rarity: 'epic', role: '둔화·감속', color: 0x2fa6d9, accent: 0xff9ec4, belly: 0xbdeeff, ...B(11.5, 125, 260), trait: { id: 'slowDuration', text: '기본 공격 둔화 지속시간 +15%', value: 0.15 }, basic: WATER },
   sand: { id: 'sand', name: '샌드 드래곤', short: '샌드', element: 'sand', rarity: 'common', role: '근거리 산탄·약화', color: 0xd9b27c, accent: 0xc8643c, belly: 0xf1e0c0, ...B(10.2, 115, 255), trait: { id: 'weakGuard', text: '약화된 적에게 받는 피해 −15%', value: 0.15 }, basic: SAND },
-  steel: { id: 'steel', name: '스틸 드래곤', short: '스틸', element: 'steel', rarity: 'common', role: '되돌아오는 원반·관통', color: 0x9aa3ad, accent: 0xff8a2a, belly: 0xc9d0d6, ...B(10, 115, 240), trait: { id: 'returnBonus', text: '되돌아오는 원반 피해 +20%', value: 0.2 }, basic: STEEL },
+  steel: { id: 'steel', name: '스틸 드래곤', short: '스틸', element: 'steel', rarity: 'common', role: '되돌아오는 원반·관통', color: 0x9aa3ad, accent: 0xff8a2a, belly: 0xc9d0d6, ...B(10, 125, 255), trait: { id: 'returnBonus', text: '되돌아오는 원반 피해 +20%', value: 0.2 }, basic: STEEL },
   bloom: { id: 'bloom', name: '블룸 드래곤', short: '블룸', element: 'bloom', rarity: 'rare', role: '지연 폭발·속박', color: 0xf48fb1, accent: 0x9ccc65, belly: 0xf1f8e0, ...B(10.5, 110, 260), trait: { id: 'rootBonus', text: '속박된 적에게 피해 +20%', value: 0.2 }, basic: BLOOM },
   howl: { id: 'howl', name: '하울 드래곤', short: '하울', element: 'sound', rarity: 'rare', role: '관통 음파·광역', color: 0x2f4fd6, accent: 0xcfd8e6, belly: 0xdde6ff, ...B(9.5, 110, 280), trait: { id: 'resonance', text: '음파 고리가 맞힌 적 1마리당 그 고리 피해 +2%(최대 +20%)', value: 0.02 }, basic: HOWL },
   crimson: { id: 'crimson', name: '크림슨 드래곤', short: '크림슨', element: 'blood', rarity: 'epic', role: '근접 베기·흡수', color: 0x8e1b3a, accent: 0xe0b44a, belly: 0xd88a9a, ...B(13, 115, 270), trait: { id: 'drain', text: '흡수: 기본 공격 피해의 1%만큼 HP 회복(1초에 최대 HP 1%까지)', value: 0.01 }, basic: CRIMSON },
