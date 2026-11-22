@@ -76,7 +76,7 @@ describe('신규 드래곤 데이터', () => {
     expect(DRAGONS.steel.basic.levels[0].returning).toBeDefined();
     expect(DRAGONS.steel.basic.levels[0].pierce).toBeGreaterThan(10);
     expect(DRAGONS.steel.basic.levels[6].returning!.mult).toBe(1.5);
-    expect(DRAGONS.bloom.basic.levels[0]).toMatchObject({ root: 1000, seed: { delay: 800 } });
+    expect(DRAGONS.bloom.basic.levels[0]).toMatchObject({ shots: 2, root: 1000, seed: { delay: 600 } }); // 제작자 플레이 후 강화(2개·0.6초)
     expect(DRAGONS.bloom.basic.levels[6].seed!.flower).toBe(true);
   });
   it('영구 성장이 약화·속박 세기·지속을 올림(약화 상한 50%)', () => {

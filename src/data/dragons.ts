@@ -306,18 +306,19 @@ const STEEL = common('강철 원반', '⚙️', 'bolt-steel', build(
   ],
 ), { range: 9 * M, life: 2600 });
 
-// 블룸: 씨앗 폭탄 — 적 발밑에 씨앗 → 0.8초 뒤 덩굴 폭발 + 속박. 단일 DPS Lv.1 69 · Lv.5 117 · Lv.6 125(범위·속박형이라 단일은 낮게)
-// 봇 측정(2026-11-22, 1단계·HP×2.5·시드 4개): 1차값(계수 1.1)은 클리어 4/4·피해 레드의 1.7배 → 계수 약 −18%
+// 블룸: 씨앗 폭탄 — 적 발밑에 씨앗 → 0.6초 뒤 덩굴 폭발 + 속박. 단일 DPS Lv.1 75 · Lv.5 114 · Lv.6 125(범위·속박형이라 단일은 낮게)
+// 제작자 플레이(2026-11-22): "너무 안 좋다" → 처음부터 씨앗 2개 · 범위 1.3 → 1.8m(Lv.5 2.3m) · 0.8 → 0.6초 · 화려한 폭발 연출.
+// (그 전 봇 측정은 계수 1.1 때 4/4라 −18% 했었음 — 사람이 쓸 때는 씨앗이 늦게 터져 빗나가는 느낌이 더 컸음)
 const BLOOM = common('씨앗 폭탄', '🌱', 'bolt-seed', build(
-  { ...STRAIGHT, speed: 0, shots: 1, coef: 0.9, levelMod: 1, interval: 1300, root: 1000, seed: { delay: 800, radius: 1.3 * M } },
+  { ...STRAIGHT, speed: 0, shots: 2, coef: 0.65, levelMod: 1, interval: 1300, root: 1000, seed: { delay: 600, radius: 1.8 * M } },
   [
-    { text: '적 발밑에 씨앗 1개 → 0.8초 뒤 1.3m 덩굴 폭발(90%) + 속박 1초(이동 불가)' },
+    { text: '적 발밑에 씨앗 2개(각 65%) → 0.6초 뒤 1.8m 꽃 폭발 + 속박 1초(이동 불가)' },
     { levelMod: 1.15, text: '피해 +15%' },
-    { shots: 2, coef: 0.75, text: '씨앗 2개(각 75%)' },
+    { shots: 3, coef: 0.55, text: '씨앗 3개(각 55%)' },
     { root: 1500, text: '속박 1.5초' },
-    { seed: { delay: 800, radius: 1.6 * M }, levelMod: 1.35, text: '폭발 범위 1.6m + 피해 +35%' },
-    { shots: 3, coef: 0.6, text: '씨앗 3개(각 60%)' },
-    { seed: { delay: 800, radius: 1.6 * M, flower: true }, text: '진화 — 터진 자리에 꽃 3초: 드래곤이 닿으면 최대 HP 1% 회복(판당 20회)' },
+    { seed: { delay: 600, radius: 2.3 * M }, levelMod: 1.35, text: '폭발 범위 2.3m + 피해 +35%' },
+    { shots: 4, coef: 0.48, text: '씨앗 4개(각 48%)' },
+    { seed: { delay: 600, radius: 2.3 * M, flower: true }, text: '진화 — 터진 자리에 꽃 3초: 드래곤이 닿으면 최대 HP 1% 회복(판당 20회)' },
   ],
 ), { range: 10 * M });
 

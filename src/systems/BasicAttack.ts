@@ -41,6 +41,7 @@ interface Seed {
   left: number;
   volley: Volley;
   g: Phaser.GameObjects.Image;
+  warn?: Phaser.GameObjects.Arc;
 }
 
 /** 하울 음파 고리: 드래곤 둘레로 퍼지며 닿는 적마다 한 번 */
@@ -607,9 +608,30 @@ export class BasicAttack {
 
   // ───────── 씨앗 폭탄(블룸) ─────────
   private plantSeed(target: Enemy, volley: Volley): void {
+    const delay = this.L.seed!.delay;
     const g = this.h.scene.add.image(target.x, target.y, this.spec.texture).setDepth(4).setScale(0.6);
-    this.h.scene.tweens.add({ targets: g, scale: 1.1, duration: this.L.seed!.delay, ease: 'Quad.In' });
-    this.seeds.push({ x: target.x, y: target.y, left: this.L.seed!.delay, volley, g });
+    this.h.scene.tweens.add({ targets: g, scale: 1.4, angle: 180, duration: delay, ease: 'Quad.In' });
+    // 터질 범위를 미리 보여 주는 분홍 테두리(자라면서 점점 진해짐)
+    const r = this.area(this.L.seed!.radius);
+    const warn = this.h.scene.add.circle(target.x, target.y, r).setStrokeStyle(3, 0xf48fb1, 0.25).setDepth(3.5);
+    this.h.scene.tweens.add({ targets: warn, alpha: { from: 0.3, to: 1 }, duration: delay });
+    this.seeds.push({ x: target.x, y: target.y, left: delay, volley, g, warn });
+  }
+
+  /** 블룸 꽃 폭발 연출: 섬광 + 두 겹 고리 + 사방으로 흩날리는 꽃잎 */
+  private bloomBurst(x: number, y: number, r: number): void {
+    const sc = this.h.scene;
+    const flash = sc.add.circle(x, y, r * 0.5, 0xfff0f6, 0.85).setDepth(8.5);
+    sc.tweens.add({ targets: flash, scale: 2, alpha: 0, duration: 220, onComplete: () => flash.destroy() });
+    const fill = sc.add.circle(x, y, r, 0x9ccc65, 0.3).setStrokeStyle(6, 0xf48fb1, 0.95).setDepth(8);
+    sc.tweens.add({ targets: fill, alpha: 0, scale: 1.12, duration: 360, onComplete: () => fill.destroy() });
+    const ring = sc.add.circle(x, y, r * 0.4).setStrokeStyle(5, 0xffffff, 0.8).setDepth(8.2);
+    sc.tweens.add({ targets: ring, radius: r * 1.05, alpha: 0, duration: 320, onComplete: () => ring.destroy() });
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2 + Math.random() * 0.4;
+      const pet = sc.add.ellipse(x, y, 16, 9, i % 3 === 0 ? 0x9ccc65 : 0xf48fb1, 0.95).setRotation(a).setDepth(8.3);
+      sc.tweens.add({ targets: pet, x: x + Math.cos(a) * r * 1.1, y: y + Math.sin(a) * r * 1.1, angle: pet.angle + 200, alpha: 0, scale: 0.6, duration: 420 + Math.random() * 120, ease: 'Quad.Out', onComplete: () => pet.destroy() });
+    }
   }
 
   private updateSeeds(delta: number): void {
@@ -619,6 +641,7 @@ export class BasicAttack {
       sd.left -= delta;
       if (sd.left > 0) return true;
       sd.g.destroy();
+      sd.warn?.destroy();
       const r = this.area(L.seed?.radius ?? 1.3 * 50);
       for (const e of this.h.enemies()) {
         if (!e.active || Phaser.Math.Distance.Between(sd.x, sd.y, e.x, e.y) >= r + e.def.radius) continue;
@@ -628,8 +651,7 @@ export class BasicAttack {
         this.applyStatus(e, L, repeat, 0);
         this.h.hit(e, { source: 'basic', coef: L.coef, levelMod: L.levelMod, sameVolley: repeat ? this.spec.sameVolley : 1, tag: 'basic-seed' });
       }
-      const c = this.h.scene.add.circle(sd.x, sd.y, r, 0x9ccc65, 0.35).setStrokeStyle(4, 0xf48fb1, 0.8).setDepth(8);
-      this.h.scene.tweens.add({ targets: c, alpha: 0, scale: 1.15, duration: 280, onComplete: () => c.destroy() });
+      this.bloomBurst(sd.x, sd.y, r);
       if (L.seed?.flower && this.flowerHeals < FLOWER.maxHeals) {
         const f = this.h.scene.add.image(sd.x, sd.y, 'bolt-seed').setDepth(4).setScale(1.4).setTint(0xf8bbd0);
         this.flowers.push({ x: sd.x, y: sd.y, left: FLOWER.ms, g: f });
@@ -685,7 +707,7 @@ export class BasicAttack {
     [...this.bullets, ...this.queued].forEach((b) => (b.stopTrail?.(), b.img.destroy()));
     this.clouds.forEach((c) => c.g.destroy());
     this.spinImgs.forEach((i) => i.destroy());
-    this.seeds.forEach((sd) => sd.g.destroy());
+    this.seeds.forEach((sd) => (sd.g.destroy(), sd.warn?.destroy()));
     this.rings.forEach((rg) => rg.g?.destroy());
     this.rings = [];
     this.flowers.forEach((f) => f.g.destroy());
