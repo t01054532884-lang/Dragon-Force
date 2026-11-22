@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { makeTextures } from '../textures';
 import { STAGES } from '../data/stages';
-import { DRAGON_ORDER, releasedDragons, DRAGONS, ELEMENT_LABEL, RARITY_COLOR, RARITY_LABEL } from '../data/dragons';
+import { DRAGONS, ELEMENT_LABEL, RARITY_COLOR, RARITY_LABEL } from '../data/dragons';
 import { DIFFICULTIES, DIFFICULTY_LABEL, DIFFICULTY_RELEASED, STAGE_COUNT, type Difficulty } from '../data/economy';
 import { cpVerdict, recommendedCp } from '../data/power';
 import { hardStage } from '../data/hardStages';
@@ -16,7 +16,7 @@ import { button, modal, navBar, text, type KitButton } from '../ui/kit';
 import { applySound, loadSettings, saveSettings } from '../systems/Settings';
 import { playSfx, preloadSfx, UI_SFX_FILES } from '../systems/Sfx';
 import { playMusic, preloadMusic, refreshMusic } from '../systems/Music';
-import { altar, dragonCarousel, iconTile, plate, tabs, topBar, torch, wingBanner } from '../ui/kit2';
+import { altar, iconTile, plate, tabs, topBar, torch, wingBanner } from '../ui/kit2';
 import { COLOR, css, TYPE } from '../ui/theme';
 import { giftAlert } from '../ui/giftFx';
 import { bundleItem, openSmallChest, rewardPopup } from '../ui/celebrate';
@@ -144,32 +144,32 @@ export class LobbyScene extends Phaser.Scene {
     const t0 = gameNow();
     const missionAlert = claimableMissions(p, t0).length > 0 || claimableActivity(p, t0) > 0;
     const side = (x: number, i: number, icon: string, label: string, onClick: () => void, alert = false) =>
-      iconTile(this, x, 318 + i * 108, icon, { size: 80, label, alert, onClick });
+      iconTile(this, x, 312 + i * 100, icon, { size: 76, label, alert, onClick });
     const toMissions = (tab: string) => () => this.scene.start('missions', { tab, only: tab === 'daily' ? 'mission' : tab });
     side(62, 0, 'ic-cal-star', live ? '이벤트' : '이벤트 12/1', () => this.scene.start('event'), evAlert);
     side(62, 1, 'ic-mission', '미션', toMissions('daily'), missionAlert);
     side(62, 2, 'ic-trophy', '업적', toMissions('achievements'));
     side(62, 3, 'ic-calendar', '출석', toMissions('attendance'), !attendanceState(p, t0).claimedToday);
     side(658, 0, 'ui-mailbox', '우편함', () => this.scene.start('gifts'));
-    giftAlert(this, 658, 316, 80, pendingGifts(p.mailbox, now).map((g) => g.id));
+    giftAlert(this, 658, 310, 76, pendingGifts(p.mailbox, now).map((g) => g.id));
     side(658, 1, 'ic-gear', '설정', () => this.openSettings());
     // 드래곤 패스(2026-11-23 제작자 요청: 설정 아래) — 받을 칸이 있으면 !
     side(658, 2, this.textures.exists('pass-royal') ? 'pass-royal' : 'ic-crown', '패스', () => this.scene.start('pass'), claimablePass(syncPass(p, t0)).length > 0);
 
     // ── 횃불 · 제단 · 출격 드래곤(숨쉬기 + 터치하면 살짝 뛰어오름)
-    torch(this, 172, 548);
-    torch(this, 548, 548);
-    altar(this, 360, 584, 400);
-    const hero = this.add.image(360, 418, `portrait-${d.id}`).setDisplaySize(290, 290);
+    torch(this, 172, 560);
+    torch(this, 548, 560);
+    altar(this, 360, 598, 400);
+    const hero = this.add.image(360, 428, `portrait-${d.id}`).setDisplaySize(310, 310);
     const baseScale = hero.scaleX;
-    this.tweens.add({ targets: hero, y: 408, duration: 1600, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+    this.tweens.add({ targets: hero, y: 418, duration: 1600, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
     hero.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
       this.tweens.add({ targets: hero, scaleX: baseScale * 1.06, scaleY: baseScale * 0.94, duration: 90, yoyo: true, ease: 'Quad.Out' });
     });
     const rc = RARITY_COLOR[d.rarity];
     // 이름·정보를 한 줄로(아래에 진행도 상자 자리)
-    const nameT = text(this, 0, 614, `${d.name} ${'★'.repeat(o.stars)}`, TYPE.caption, COLOR.text, true, true).setOrigin(0, 0.5);
-    const infoT = text(this, 0, 614, `${ELEMENT_LABEL[d.element]} · ${RARITY_LABEL[d.rarity]} · Lv.${o.level}`, TYPE.tiny, rc, true, true).setOrigin(0, 0.5);
+    const nameT = text(this, 0, 640, `${d.name} ${'★'.repeat(o.stars)}`, TYPE.caption, COLOR.text, true, true).setOrigin(0, 0.5);
+    const infoT = text(this, 0, 640, `${ELEMENT_LABEL[d.element]} · ${RARITY_LABEL[d.rarity]} · Lv.${o.level}`, TYPE.tiny, rc, true, true).setOrigin(0, 0.5);
     const lineW = nameT.width + 12 + infoT.width;
     nameT.setX(360 - lineW / 2);
     infoT.setX(nameT.x + nameT.width + 12);
@@ -177,21 +177,15 @@ export class LobbyScene extends Phaser.Scene {
     // ── 진행도 상자 25·50·100%(제작자 요청 2026-11-22: 드래곤 아래, 미달성 잠금·달성 시 받기, 보상은 받기 전 비공개)
     this.progressChests(p, curDiff);
 
-    // ── 보유 드래곤 캐러셀(누르면 출격 드래곤 변경)
-    const owned = releasedDragons().filter((id) => p.dragons[id].unlocked);
-    if (owned.length > 1) {
-      dragonCarousel(this, 802, owned.map((id) => `portrait-${id}`), Math.max(0, owned.indexOf(d.id)), (i) => {
-        Progress.select(owned[i]);
-        this.scene.restart();
-      });
-    } else {
-      text(this, 360, 802, '상점에서 드래곤을 모으면 여기서 바꿀 수 있어요', TYPE.tiny, COLOR.textSub, true, true).setOrigin(0.5);
-    }
+    // (2026-11-23 제작자 결정) 로비의 드래곤 바꾸기 줄은 없앰 — 출격 드래곤은 드래곤 화면의 "출격하기"로만 정하고, 로비는 그 드래곤만 보여 줌.
+    // 그 자리는 진행도 상자를 크게.
 
     // ── 난이도 탭: 출시한 난이도만 보인다(기획자 요청 1, 2026-11-20 — 심사 2.1 미완성 노출 방지). 진행 데이터는 그대로 둔다.
     // 개발 모드에서는 미출시 난이도도 보여 시험 플레이. 보이는 난이도가 하나뿐이면 탭을 그리지 않는다.
     // 데모(?demo=1)는 출시 화면과 같게 보여야 하므로 미출시 난이도를 숨긴다
-    const shownDiffs = DIFFICULTIES.filter((k) => DIFFICULTY_RELEASED[k] || (dev && !DEMO));
+    // (2026-11-23) 개발 모드에서도 미출시 난이도는 숨김(제작자: 심사·이용자에게 보이면 안 됨). 시험할 때만 ?dev=1&unreleased=1
+    const showUnreleased = dev && !DEMO && new URLSearchParams(location.search).has('unreleased');
+    const shownDiffs = DIFFICULTIES.filter((k) => DIFFICULTY_RELEASED[k] || showUnreleased);
     const labels = shownDiffs.map((k) => {
       const released = DIFFICULTY_RELEASED[k];
       const real = released && p.difficulty[k].unlocked.length > 0;
@@ -428,31 +422,33 @@ export class LobbyScene extends Phaser.Scene {
    * 누르면 상자 개봉 연출 → 실제 받은 보상 팝업. 보상 내용은 받기 전까지 보여 주지 않는다.
    */
   private progressChests(p: ReturnType<typeof Progress.load>, diff: Difficulty): void {
-    const y = 690; // 상자 줄: 어두운 판 위에 진행 막대 + 상자 3개(퍼센트는 상자 아래)
-    const x0 = 196;
-    const w = 340;
+    // 큰 판(2026-11-23: 드래곤 바꾸기 줄이 빠진 자리): 제목 · 진행 막대 · 상자 3개(104px) · 퍼센트
+    const y = 800; // 상자 가운데
+    const x0 = 110;
+    const w = 500;
     const pct = progressPct(p, diff);
-    plate(this, 372, y, 520, 90, { r: 22, fill: 0x1d1733 });
-    this.add.rectangle(x0, y, w, 12, 0x0e0a1c).setOrigin(0, 0.5).setStrokeStyle(3, COLOR.outline);
-    if (pct > 0) this.add.rectangle(x0, y, (w * Math.min(100, pct)) / 100, 8, 0xffd34d).setOrigin(0, 0.5);
-    text(this, x0 - 12, y, `${pct}%`, TYPE.tiny, COLOR.text, true, true).setOrigin(1, 0.5);
+    plate(this, 360, 786, 680, 184, { r: 26, fill: 0x1d1733 });
+    text(this, 44, 722, '왕국 정복 진행도', TYPE.caption, COLOR.gold, true, true).setOrigin(0, 0.5);
+    text(this, 676, 722, `${DIFFICULTY_LABEL[diff]} ${p.difficulty[diff].cleared.length}/${STAGE_COUNT} · ${pct}%`, TYPE.tiny, COLOR.text, true, true).setOrigin(1, 0.5);
+    this.add.rectangle(x0, y + 18, w, 14, 0x0e0a1c).setOrigin(0, 0.5).setStrokeStyle(3, COLOR.outline);
+    if (pct > 0) this.add.rectangle(x0, y + 18, (w * Math.min(100, pct)) / 100, 10, 0xffd34d).setOrigin(0, 0.5);
     const TEX: Record<number, string> = { 25: 'chest-gold', 50: 'chest-equipment', 100: 'chest-dragon' };
     for (const step of [25, 50, 100] as const) {
-      const x = x0 + (w * step) / 100;
+      const x = step === 100 ? x0 + w - 6 : x0 + (w * step) / 100;
       const claimed = p.difficulty[diff].claimed.includes(step);
       const ready = !claimed && pct >= step && DIFFICULTY_RELEASED[diff];
       const tex = TEX[step];
-      const im = this.textures.exists(tex) ? this.add.image(x, y - 8, tex).setDisplaySize(84, 84) : this.add.rectangle(x, y - 8, 64, 56, 0x8d6e63);
+      const im = this.textures.exists(tex) ? this.add.image(x, y - 4, tex).setDisplaySize(108, 108) : this.add.rectangle(x, y - 4, 84, 72, 0x8d6e63);
       const s0 = im.scaleX;
-      text(this, x, y + 30, claimed ? '받음 ✔' : `${step}%`, 15, claimed ? COLOR.ok : COLOR.text, true, true).setOrigin(0.5);
+      text(this, x, y + 54, claimed ? '받음 ✔' : `${step}%`, 17, claimed ? COLOR.ok : COLOR.text, true, true).setOrigin(0.5);
       if (!ready && !claimed) {
         if (im instanceof Phaser.GameObjects.Image) im.setTint(0x8c86a3);
-        text(this, x + 26, y + 6, '🔒', 20, COLOR.text).setOrigin(0.5);
+        text(this, x + 34, y + 14, '🔒', 24, COLOR.text).setOrigin(0.5);
       }
       if (claimed) im.setAlpha(0.45);
       if (ready) {
-        this.tweens.add({ targets: im, scaleX: s0 * 1.12, scaleY: s0 * 1.12, y: y - 14, duration: 520, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
-        const dot = this.add.circle(x + 32, y - 30, 12, COLOR.danger).setStrokeStyle(3, 0xffffff);
+        this.tweens.add({ targets: im, scaleX: s0 * 1.12, scaleY: s0 * 1.12, y: y - 16, duration: 520, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+        const dot = this.add.circle(x + 42, y - 44, 14, COLOR.danger).setStrokeStyle(3, 0xffffff);
         text(this, dot.x, dot.y, '!', 16, COLOR.text, true).setOrigin(0.5);
       }
       im.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
