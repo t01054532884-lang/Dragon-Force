@@ -162,9 +162,9 @@ export class PassScene extends Phaser.Scene {
       box.add(text(this, c.w / 2 - 16, -18, '🔒', 18, COLOR.text).setOrigin(0.5));
       if (st === 'locked') box.setAlpha(0.8);
     } else {
-      // 받기 가능: 반짝이는 테두리 + "받기"
-      const tag = plate(this, c.w / 2 - 34, 0, 58, 34, { r: 12, fill: 0x2e9e4a });
-      tag.add(text(this, 0, 0, '받기', 15, COLOR.text, true, true).setOrigin(0.5));
+      // 받기 가능: 금 테두리 + 칸 아래 테두리에 걸친 작은 "받기"(좁은 칸에서 이름·수량을 가리지 않게 — 2026-11-23)
+      const tag = plate(this, c.w / 2 - 30, 30, 52, 24, { r: 10, fill: 0x2e9e4a });
+      tag.add(text(this, 0, 0, '받기', 13, COLOR.text, true, true).setOrigin(0.5));
       box.add(tag);
       this.tweens.add({ targets: tag, scale: 1.1, duration: 500, yoyo: true, repeat: -1 });
     }

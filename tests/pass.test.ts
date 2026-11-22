@@ -50,3 +50,40 @@ describe('드래곤 패스', () => {
     expect(next.pass).toMatchObject({ season: 2, premium: false, royal: false, claimed: [] });
   });
 });
+
+describe('패스 구매 → 전부 받기(2026-11-23 제작자 확인 요청)', () => {
+  it('로열 구매 + Lv.30이면 90칸이 한 번에 모두 들어오고 합계가 보상표와 같음', () => {
+    const start = syncPass(defaultProgress(), T0);
+    const maxed = withXp(start, 40); // 4,000P → Lv.30
+    const bought = grantVerifiedPass(maxed, 'tx-royal', 'royal', T0);
+    if (!bought.ok) throw new Error('buy');
+    const r = claimPass(bought.progress, T0);
+    if (!r.ok) throw new Error('claim');
+    expect(r.items).toHaveLength(90);
+    expect(r.progress.pass.claimed).toHaveLength(90);
+    const sum = (kind: string) => (['free', 'premium', 'royal'] as const).flatMap((t) => PASS_REWARDS[t]).filter((x) => x.kind === kind).reduce((s, x) => s + x.n, 0);
+    const p0 = bought.progress;
+    const p1 = r.progress;
+    expect(p1.gold - p0.gold).toBe(sum('gold'));
+    expect(p1.rubies - p0.rubies).toBe(sum('rubies'));
+    expect(p1.dragons.red.fragments - p0.dragons.red.fragments).toBe(sum('redFrag'));
+    expect(p1.universalFragments - p0.universalFragments).toBe(sum('uniFrag'));
+    expect(p1.summon.legacyTickets - p0.summon.legacyTickets).toBe(sum('dragonTicket'));
+    expect(p1.summon.equipTickets - p0.summon.equipTickets).toBe(sum('equipTicket'));
+    expect(p1.summon.runeTickets - p0.summon.runeTickets).toBe(sum('runeTicket'));
+    // 다시 받기는 없음
+    expect(claimPass(p1, T0).ok).toBe(false);
+  });
+  it('레벨 중간에 사도 지난 칸까지 소급해서 받음 · 프리미엄만 사면 로열 줄은 잠김', () => {
+    const p = withXp(syncPass(defaultProgress(), T0), 9); // Lv.10
+    const free = claimPass(p, T0);
+    if (!free.ok) throw new Error('free');
+    expect(free.items).toHaveLength(10);
+    const b = grantVerifiedPass(free.progress, 'tx', 'premium', T0);
+    if (!b.ok) throw new Error('buy');
+    const r = claimPass(b.progress, T0);
+    if (!r.ok) throw new Error('claim');
+    expect(r.items).toHaveLength(10); // 프리미엄 1~10
+    expect(cellState(r.progress, 'royal', 1)).toBe('buy');
+  });
+});
