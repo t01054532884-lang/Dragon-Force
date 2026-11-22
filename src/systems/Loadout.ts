@@ -1,6 +1,6 @@
 import { buildRunStats } from '../data/progression';
 import { DRAGONS, type DragonId } from '../data/dragons';
-import { equipDef, equipValue, SLOTS } from '../data/equipment';
+import { equipBonus, equipDef, equipValue, SLOTS } from '../data/equipment';
 import { SPECIAL_IDS } from '../data/specials';
 import { RUNE_RULES, runeEffects } from '../data/runes';
 import { combatPower, CP_RULES } from '../data/power';
@@ -23,9 +23,16 @@ export function loadout(p: PlayerProgress, dragonId: DragonId = p.selectedDragon
   // 장비(v1.3): 무기 공격력 +a% · 갑옷 HP +a%, 피해 감소 b% — 드래곤 기본값 × a%를 더한다
   // (= 기본값 × (1 + 연구소 + 레벨 + 승급 + 장비), 같은 능력치 보너스는 합산). 목걸이 스킬 피해 a%, 쿨타임 b% · 반지 치명타 a%, 이동속도 b%
   const equips = SLOTS.map((s) => p.equipment.items.find((i) => i.uid === p.equipment.equipped[s])).filter((i) => !!i);
+  // 영웅·전설 장비 추가 능력(흡혈·가시는 전투 장면이 처리)
+  const gear = { lifesteal: 0, thorns: 0 };
   for (const it of equips) {
     const slot = equipDef(it.itemId)!.slot;
     const [a, b] = equipValue(slot, it.rarity, it.level);
+    const bonus = equipBonus(slot, it.rarity);
+    if (slot === 'weapon') gear.lifesteal += bonus / 100;
+    if (slot === 'armor') gear.thorns += bonus / 100;
+    if (slot === 'necklace') stats.critMult += bonus / 100;
+    if (slot === 'ring') stats.xpMult += bonus / 100;
     if (slot === 'weapon') stats.attack += def.baseAttack * (a / 100);
     if (slot === 'armor') {
       stats.maxHp += def.baseHp * (a / 100);
@@ -69,6 +76,7 @@ export function loadout(p: PlayerProgress, dragonId: DragonId = p.selectedDragon
     // 35% 한 방 상한 기준 = 종별 기본 HP. 연구소·영구 레벨·승급·장비·대지의 의지로 오른 HP는 모두 뺀다.
     permHpBonus: stats.maxHp - def.baseHp,
     runes,
+    gear,
     signatureCdMult,
     cp,
     cpS: S,

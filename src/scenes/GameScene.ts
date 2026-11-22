@@ -138,6 +138,10 @@ export class GameScene extends Phaser.Scene {
   /** 이번 판에 출격한 드래곤(전투 중에는 바뀌지 않음) */
   dragon: DragonDef = DRAGONS.red;
   private traitMult = 1;
+  /** 영웅·전설 장비 추가 능력: 흡혈(기본 공격 피해 비율)·가시(받은 피해 되돌림) */
+  private gear = { lifesteal: 0, thorns: 0 };
+  private gearHealUsed = 0; // 흡혈: 이번 1초 동안 회복한 양(최대 HP 비율, 상한 1%)
+  private gearHealAt = 0;
   private runRewards: Reward[] = [];
   private difficulty: Difficulty = 'easy';
   /** 드래곤 전용 액티브(v1.2 3장) */
@@ -237,6 +241,9 @@ export class GameScene extends Phaser.Scene {
     this.traitMult = built.traitMult;
     this.basicTraits = built.traits;
     this.runes = built.runes;
+    this.gear = built.gear;
+    this.gearHealUsed = 0;
+    this.gearHealAt = 0;
     Enemy.slowBoost = 1 + this.runes.slow;
     this.runRewards = [];
     setBasicCard(this.dragon.basic, BASIC_TAGS[this.dragon.id]);
@@ -1097,11 +1104,25 @@ export class GameScene extends Phaser.Scene {
       playSfx(this, crit ? 'sfx-crit' : 'sfx-hit', { pitch: 0.9 + Math.random() * 0.2 });
     }
     if (crit) this.popText(enemy.x + (Math.random() - 0.5) * 16, enemy.y - 20, `★${Math.round(amount)}`, '#ffd34d', 31);
+    if (spec.source === 'basic' && this.gear.lifesteal > 0) this.gearLifesteal(amount);
     if (enemy.hurt(amount)) {
       this.killEnemy(enemy, tag);
       return true;
     }
     return false;
+  }
+
+  /** 장비 흡혈: 기본 공격 피해의 x%를 회복, 1초에 최대 HP 1%까지 */
+  private gearLifesteal(amount: number): void {
+    if (this.elapsed - this.gearHealAt >= 1000) {
+      this.gearHealAt = this.elapsed;
+      this.gearHealUsed = 0;
+    }
+    const cap = this.stats.maxHp * 0.01;
+    const heal = Math.min(amount * this.gear.lifesteal, cap - this.gearHealUsed);
+    if (heal <= 0) return;
+    this.gearHealUsed += heal;
+    this.hp = Math.min(this.stats.maxHp, this.hp + heal);
   }
 
   /**
@@ -1529,6 +1550,8 @@ export class GameScene extends Phaser.Scene {
     const dmg = Math.min(amount * weak * this.stats.damageTaken * (1 - this.signature.reduce) * aegis, cap);
     this.hp -= dmg;
     this.invincibleUntil = this.time.now + 500;
+    // 장비 가시: 나를 때린 적에게 받은 피해의 x% 되돌림(엘리트·보스에게도, 고정 피해)
+    if (src?.active && this.gear.thorns > 0) this.hitEnemy(src, { source: 'active', coef: 0, flat: dmg * this.gear.thorns, tag: 'thorns' });
     // 연출(기획 7.4): 그림 층만 붉게 80~120ms, 화면 흔들림은 큰 피해(최대 HP 15% 이상)만·300ms 간격
     this.fx.playerHit(this.skin, dmg >= this.stats.maxHp * 0.15);
     playSfx(this, 'sfx-player-hit');

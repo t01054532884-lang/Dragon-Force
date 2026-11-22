@@ -269,6 +269,36 @@ describe('6-6 장비', () => {
     expect(lo.cp).toBeGreaterThan(1000);
     expect(lo.cp).toBeLessThan(1300);
   });
+  it('장비는 계정 공통 — 장착하면 어느 드래곤으로 출격해도 같은 장비 보너스', () => {
+    const e = equipItem(withItems([item('a', 'sword', 'rare', 1)]), 'a');
+    if (!e.ok) throw new Error();
+    const red = loadout(e.progress, 'red');
+    const blue = loadout(e.progress, 'blue');
+    expect(red.stats.attack).toBeCloseTo(10 * 1.07);
+    expect(blue.stats.attack).toBeCloseTo(10 * 1.07);
+  });
+  it('영웅·전설 추가 능력: 발톱 흡혈 1/2% · 갑주 가시 20/40% · 목걸이 치명타 피해 +20/40%p · 반지 경험치 +10/20%, 일반·희귀는 없음', () => {
+    const gear = (rarity: string) => {
+      let p = withItems([item('w', 'sword', rarity), item('a', 'plate', rarity), item('n', 'fang', rarity), item('r', 'ember', rarity)]);
+      for (const uid of ['w', 'a', 'n', 'r']) {
+        const e = equipItem(p, uid);
+        if (!e.ok) throw new Error();
+        p = e.progress;
+      }
+      return loadout(p, 'red');
+    };
+    expect(gear('rare').gear).toEqual({ lifesteal: 0, thorns: 0 });
+    expect(gear('rare').stats.critMult).toBeCloseTo(1.5);
+    const ep = gear('epic');
+    expect(ep.gear.lifesteal).toBeCloseTo(0.01);
+    expect(ep.gear.thorns).toBeCloseTo(0.2);
+    expect(ep.stats.critMult).toBeCloseTo(1.7);
+    expect(ep.stats.xpMult).toBeCloseTo(1.1);
+    const lg = gear('legendary');
+    expect(lg.gear).toEqual({ lifesteal: 0.02, thorns: 0.4 });
+    expect(lg.stats.critMult).toBeCloseTo(1.9);
+    expect(lg.stats.xpMult).toBeCloseTo(1.2);
+  });
 });
 
 describe('6-7 → v1.2 룬(옛 장착형 특수 스킬)', () => {

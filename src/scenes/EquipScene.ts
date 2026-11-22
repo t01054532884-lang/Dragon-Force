@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { DRAGONS, RARITY_COLOR, RARITY_LABEL } from '../data/dragons';
 import { RARITIES } from '../data/economy';
-import { EQUIP_BASE, EQUIP_RULES, equipDef, equipValue, NEXT_RARITY, SLOT_LABEL, SLOTS, type Slot } from '../data/equipment';
+import { EQUIP_BASE, EQUIP_BONUS, EQUIP_RULES, equipBonus, equipDef, equipValue, NEXT_RARITY, SLOT_LABEL, SLOTS, type Slot } from '../data/equipment';
 import { fuseCandidates, isEquipped, Progress, type EquipmentItem, type PlayerProgress } from '../systems/Progress';
 import { loadout } from '../systems/Loadout';
 import { equipIcon, preloadArt } from '../ui/art';
@@ -50,7 +50,7 @@ export class EquipScene extends Phaser.Scene {
     const p = Progress.load();
     this.frame.refresh();
     // v1.2(2026-11-21): 특수 스킬 탭은 연구소 "룬"으로 옮김 → 장비만
-    this.A(text(this, 360, 262, '장비 4칸 · 강화 · 잠금 · 합성 (룬은 연구소에서)', TYPE.tiny, COLOR.textSub, true, true).setOrigin(0.5));
+    this.A(text(this, 360, 262, '장비는 모든 드래곤 공통 · 영웅 이상은 추가 능력 · 강화·잠금·합성', TYPE.tiny, COLOR.textSub, true, true).setOrigin(0.5));
     this.drawEquip(p);
   }
 
@@ -68,7 +68,9 @@ export class EquipScene extends Phaser.Scene {
     const slot = equipDef(it.itemId)!.slot;
     const B = EQUIP_BASE[slot];
     const [a, b] = equipValue(slot, it.rarity, it.level);
-    return `${B.a} +${a}${B.unitA}${B.b ? ` · ${B.b} ${b}${B.unitB}` : ''}`;
+    const bonus = equipBonus(slot, it.rarity);
+    const extra = bonus > 0 ? ` · ${EQUIP_BONUS[slot].name} ${bonus}${EQUIP_BONUS[slot].unit}` : '';
+    return `${B.a} +${a}${B.unitA}${B.b ? ` · ${B.b} ${b}${B.unitB}` : ''}${extra}`;
   }
 
   // ───────── 장비 ─────────

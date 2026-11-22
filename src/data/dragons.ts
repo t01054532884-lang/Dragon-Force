@@ -445,9 +445,9 @@ export const DRAGON_ORDER: DragonId[] = ['red', 'blue', 'yellow', 'green', 'whit
  */
 export const DRAGON_RELEASED: Record<DragonId, boolean> = {
   red: true, blue: true, yellow: true, green: true, white: true, black: true, stone: true, wind: true, water: true, arcane: true,
-  sand: false, steel: false, bloom: false,
-  howl: false, crimson: false, mirror: false,
-  chrono: false, void: false, aurora: false,
+  // 첫 출시(제작자 결정 2026-11-22): 신규 9종 중 5종은 처음부터, 4종(미러·전설 3종)은 "신규 드래곤 업데이트"로
+  sand: true, steel: true, bloom: true, howl: true, crimson: true,
+  mirror: false, chrono: false, void: false, aurora: false,
 };
 const PREVIEW_NEW = typeof location !== 'undefined' && new URLSearchParams(location.search).has('newdragons');
 /** 화면·뽑기에 쓰는 드래곤 목록(출시된 것 + 시험 주소면 전부) */

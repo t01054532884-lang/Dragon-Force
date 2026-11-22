@@ -19,17 +19,23 @@ const dps = (id: DragonId, lv: number): number => {
 };
 
 describe('출시 스위치', () => {
-  it('데이터는 19종, 화면·뽑기는 출시된 10종만', () => {
+  it('데이터는 19종, 첫 출시는 15종(신규 5) · 업데이트용 4종(미러·전설 3)은 숨김', () => {
     expect(DRAGON_ORDER).toHaveLength(19);
-    for (const id of NEW) expect(DRAGON_RELEASED[id]).toBe(false);
-    expect(releasedDragons()).toHaveLength(10);
-    for (const id of NEW) {
+    const launch: DragonId[] = ['sand', 'steel', 'bloom', 'howl', 'crimson'];
+    const later: DragonId[] = ['mirror', 'chrono', 'void', 'aurora'];
+    expect(releasedDragons()).toHaveLength(15);
+    for (const id of launch) {
+      expect(DRAGON_RELEASED[id]).toBe(true);
+      expect(BOX_POOL).toContain(id);
+    }
+    for (const id of later) {
+      expect(DRAGON_RELEASED[id]).toBe(false);
       expect(releasedDragons()).not.toContain(id);
       expect(BOX_POOL).not.toContain(id);
     }
-    expect(poolOf('common', false)).not.toContain('sand');
-    expect(poolOf('rare', false)).not.toContain('bloom');
-    expect(poolOf('epic', false)).not.toContain('crimson');
+    expect(poolOf('common', false)).toContain('sand');
+    expect(poolOf('epic', false)).toContain('crimson');
+    expect(poolOf('epic', false)).not.toContain('mirror');
     expect(poolOf('legendary', false)).toEqual(['arcane']);
   });
   it('예전 저장(10종)을 열면 신규 드래곤은 잠긴 기본값으로 채워짐', () => {

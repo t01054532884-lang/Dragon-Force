@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { DRAGONS, GROWTH, levelBonus, releasedDragons, starBonus, traitMultFor } from '../src/data/dragons';
 
-// 출시된 드래곤(기존 10종) 기준 — 신규 드래곤은 tests/newdragons.test.ts
-const DRAGON_ORDER = releasedDragons();
+// 기존 10종 기준 — 신규 드래곤은 tests/newdragons.test.ts
+const DRAGON_ORDER = releasedDragons().slice(0, 10);
 import { buildRunStats } from '../src/data/progression';
 import { BASE_STATS } from '../src/data/stats';
 import { RED_BASIC } from '../src/data/basicAttack';
@@ -21,7 +21,7 @@ const withDragon = (p: PlayerProgress, id: keyof PlayerProgress['dragons'], v: P
 });
 
 describe('드래곤 데이터', () => {
-  it('출시 10종, 기본 공격 모두 Lv.1~7', () => {
+  it('기존 10종, 기본 공격 모두 Lv.1~7', () => {
     expect(DRAGON_ORDER).toHaveLength(10);
     for (const id of DRAGON_ORDER) expect(DRAGONS[id].basic.levels).toHaveLength(7);
   });

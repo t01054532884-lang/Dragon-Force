@@ -27,6 +27,23 @@ export const EQUIPS: EquipDef[] = [
 ];
 export const equipDef = (id: string) => EQUIPS.find((e) => e.id === id);
 
+/**
+ * 영웅·전설 장비 추가 능력(제작자 요청 2026-11-22: "영웅 이상부터는 흡혈 같은 추가 능력"). 수치는 AI 1차안.
+ * 장비는 계정 하나에 한 벌 — 장착하면 어느 드래곤으로 출격해도 적용(드래곤마다 따로 끼지 않음).
+ */
+export const EQUIP_BONUS: Record<Slot, { name: string; unit: string; epic: number; legendary: number; text: (v: number) => string }> = {
+  weapon: { name: '흡혈', unit: '%', epic: 1, legendary: 2, text: (v) => `기본 공격 피해의 ${v}% 회복(1초에 최대 HP 1%까지)` },
+  armor: { name: '가시', unit: '%', epic: 20, legendary: 40, text: (v) => `나를 때린 적에게 받은 피해의 ${v}% 되돌림` },
+  necklace: { name: '치명타 피해', unit: '%p', epic: 20, legendary: 40, text: (v) => `치명타 피해 +${v}%p` },
+  ring: { name: '경험치 획득', unit: '%', epic: 10, legendary: 20, text: (v) => `전투 경험치 +${v}%` },
+};
+
+/** 장비 하나의 추가 능력 값(일반·희귀는 0) */
+export function equipBonus(slot: Slot, rarity: string): number {
+  const b = EQUIP_BONUS[slot];
+  return rarity === 'legendary' ? b.legendary : rarity === 'epic' ? b.epic : 0;
+}
+
 /** 등급별 Lv.1 기본치. 한 슬롯에 두 능력치(a·b) */
 export const EQUIP_BASE: Record<Slot, { a: string; b: string; unitA: string; unitB: string; values: Record<Rarity, [number, number]> }> = {
   // v1.3(제작자 2026-11-18): 고정값(+5~30, HP +20~110) 폐기 → 드래곤 기본 공격력·HP에 대한 비율 보너스 4/7/11/16%.
