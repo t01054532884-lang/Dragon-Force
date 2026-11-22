@@ -58,6 +58,7 @@ export class Signature {
   private pending: { at: number; run: () => void }[] = [];
   private clock = 0;
   private swordsPriority = 0; // 칼날비: 엘리트·보스를 먼저 노리는 남은 자루 수
+  private clones: Phaser.GameObjects.Image[] = []; // 만화경 거울 분신
   uses = 0;
   /** 이번 사용에서 엘리트·보스에게 넣은 피해(한 번 사용 상한용) */
   private dealt = new Map<Enemy, number>();
@@ -209,6 +210,34 @@ export class Signature {
         }
         break;
       }
+      case 'howl': { // 용의 포효: 0.35초 간격 음파 여러 겹(겹마다 대상당 피해를 나눔)
+        const waves = g.count;
+        for (let w = 0; w < waves; w++) {
+          this.later(w * 350, () => {
+            const p = this.h.player;
+            const ring = this.scene.add.circle(p.x, p.y, 20).setStrokeStyle(12, d.color, 0.9).setDepth(DEPTH_FLASH);
+            this.scene.tweens.add({ targets: ring, radius: rad * this.h.stats.areaMult, alpha: 0.1, duration: 320, onComplete: () => ring.destroy() });
+            const t = this.inCircle(p.x, p.y, rad);
+            this.strike(t, aoePerTarget(dps, t.length) / waves);
+          });
+        }
+        playSfx(this.scene, 'sfx-boss-enrage', { pitch: 1.4 });
+        break;
+      }
+      case 'crimson': { // 진홍의 갈증: 주변 베기 + 준 피해의 10%만큼 회복(최대 HP 25%까지)
+        this.burst(x, y, rad, d.color, null);
+        const t = this.inCircle(x, y, rad);
+        const dealt = this.strike(t, aoePerTarget(dps, t.length));
+        this.healPct(Math.min(0.25, (dealt * 0.1) / Math.max(1, this.h.stats.maxHp)));
+        break;
+      }
+      case 'mirror': { // 만화경: 거울 분신이 드래곤 둘레에서 0.5초마다 쏨
+        const dur = g.lingerMs;
+        const ticks = Math.round(dur / 500);
+        this.spawnClones(g.count);
+        this.startTicks(dur, 500, (dps * R.singleSec) / (ticks * g.count));
+        break;
+      }
       // ── 단일: 엘리트·보스 우선 마력탄 ──
       case 'arcane': {
         const dur = d.durationMs!;
@@ -239,6 +268,7 @@ export class Signature {
     }
     this.updateBlades(delta);
     this.updateZones(delta);
+    if (this.clones.length) this.placeClones();
     if (this.bubble) this.bubble.setPosition(this.h.player.x, this.h.player.y);
     if (this.active > 0) this.active -= delta;
     if (this.running && this.active <= 0 && this.tickLeft === 0) this.end();
@@ -271,6 +301,18 @@ export class Signature {
       this.boltFx(x, y, t);
       this.strike([t], this.tickDamage);
     }
+    if (this.dragonId === 'mirror') {
+      // 분신마다 가까운 적 하나(엘리트·보스 우선, 분신끼리 다른 적부터)
+      const used = new Set<Enemy>();
+      for (const c of this.clones) {
+        const cand = this.live().filter((e) => !used.has(e) && Phaser.Math.Distance.Between(c.x, c.y, e.x, e.y) < this.def.radius!);
+        const t = cand.find((e) => e.rank !== 'normal') ?? cand.sort((a, b) => Phaser.Math.Distance.Between(c.x, c.y, a.x, a.y) - Phaser.Math.Distance.Between(c.x, c.y, b.x, b.y))[0];
+        if (!t) continue;
+        used.add(t);
+        this.boltFx(c.x, c.y, t);
+        this.strike([t], this.tickDamage);
+      }
+    }
     if (this.dragonId === 'steel') {
       // 처음 몇 자루는 보스·엘리트, 나머지는 적이 가장 많이 모인 곳
       const t = this.swordsPriority > 0 ? this.priorityTarget(x, y, this.def.radius!) : this.densest(x, y, this.def.radius!);
@@ -289,11 +331,29 @@ export class Signature {
     this.tickLeft = 0;
     this.blades.forEach((b) => b.destroy());
     this.blades = [];
+    this.clones.forEach((c) => c.destroy());
+    this.clones = [];
     if (this.bubble) {
       const b = this.bubble;
       this.bubble = null;
       this.scene.tweens.add({ targets: b, alpha: 0, scale: b.scale * 1.3, duration: 250, onComplete: () => b.destroy() });
     }
+  }
+
+  /** 만화경 분신: 드래곤 그림을 반투명 하늘색으로, 둘레에 고르게 */
+  private spawnClones(n: number): void {
+    this.clones.forEach((c) => c.destroy());
+    const key = this.scene.textures.exists(`top-${this.dragonId}`) ? `top-${this.dragonId}` : `dragon-${this.dragonId}`;
+    this.clones = Array.from({ length: n }, () => this.scene.add.image(0, 0, key).setDisplaySize(64, 64).setAlpha(0.55).setTint(0x9be7ff).setDepth(9));
+    this.placeClones();
+  }
+
+  private placeClones(): void {
+    const { x, y } = this.h.player;
+    this.clones.forEach((c, i) => {
+      const a = (i / this.clones.length) * Math.PI * 2 + this.clock / 900;
+      c.setPosition(x + Math.cos(a) * 90, y + Math.sin(a) * 90);
+    });
   }
 
   /** 칼날비 연출: 위에서 검이 내려꽂힘 */
@@ -503,8 +563,9 @@ export class Signature {
   }
 
   /** 대상마다 고정 피해(이미 DPS로 계산된 값) + 상태이상 */
-  private strike(targets: Enemy[], each: number, ang?: number): void {
+  private strike(targets: Enemy[], each: number, ang?: number): number {
     const d = this.def;
+    let total = 0;
     for (const e of targets) {
       if (!e.active) continue;
       if (d.burn) e.burn(RED_BASIC.burn.perSec, RED_BASIC.burn.ms, RED_BASIC.burn.maxStacks);
@@ -514,6 +575,7 @@ export class Signature {
       if (d.freezeMs) e.hardCc('freeze', d.freezeMs);
       if (d.weaken) e.weaken(d.weaken.ratio, d.weaken.ms);
       if (d.root) e.root(d.root);
+      if (d.stunMs) e.hardCc('stun', d.stunMs);
       if (d.knock) {
         const a = ang ?? Math.atan2(e.y - this.h.player.y, e.x - this.h.player.x);
         e.knock(Math.cos(a), Math.sin(a), d.knock, 200);
@@ -526,8 +588,12 @@ export class Signature {
         this.dealt.set(e, used + amount);
         if (amount <= 0) continue;
       }
-      if (amount > 0) this.h.hit(e, { source: 'active', coef: 0, flat: amount, tag: 'signature' });
+      if (amount > 0) {
+        total += amount;
+        this.h.hit(e, { source: 'active', coef: 0, flat: amount, tag: 'signature' });
+      }
     }
+    return total;
   }
 
   private live(): Enemy[] {

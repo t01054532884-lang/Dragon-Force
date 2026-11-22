@@ -8,15 +8,17 @@ import { RED_BASIC } from './basicAttack';
 
 export type DragonId = 'red' | 'blue' | 'yellow' | 'green' | 'white' | 'black' | 'stone' | 'wind' | 'water' | 'arcane'
   // 신규 1묶음(2026-11-22, docs/NEW_DRAGONS_DEV_PLAN.md) — DRAGON_RELEASED가 켜지기 전까지 상점·도감에 안 나옴
-  | 'sand' | 'steel' | 'bloom';
+  | 'sand' | 'steel' | 'bloom'
+  // 신규 2묶음(2026-11-22)
+  | 'howl' | 'crimson' | 'mirror';
 export type DragonRarity = 'starter' | 'common' | 'rare' | 'epic' | 'legendary';
-export type DragonElement = 'fire' | 'ice' | 'lightning' | 'poison' | 'light' | 'dark' | 'earth' | 'wind' | 'water' | 'arcane' | 'sand' | 'steel' | 'bloom';
+export type DragonElement = 'fire' | 'ice' | 'lightning' | 'poison' | 'light' | 'dark' | 'earth' | 'wind' | 'water' | 'arcane' | 'sand' | 'steel' | 'bloom' | 'sound' | 'blood' | 'mirror';
 
 export const RARITY_LABEL: Record<DragonRarity, string> = { starter: '기본', common: '일반', rare: '희귀', epic: '영웅', legendary: '전설' };
 export const RARITY_COLOR: Record<DragonRarity, number> = { starter: 0xb0bec5, common: 0x9ccc65, rare: 0x4fc3f7, epic: 0xba68c8, legendary: 0xffb300 };
 export const ELEMENT_LABEL: Record<DragonElement, string> = {
   fire: '화염', ice: '얼음', lightning: '번개', poison: '독', light: '빛', dark: '암흑', earth: '대지', wind: '바람', water: '물', arcane: '신비',
-  sand: '모래', steel: '강철', bloom: '꽃',
+  sand: '모래', steel: '강철', bloom: '꽃', sound: '음파', blood: '혈기', mirror: '거울',
 };
 
 /** 기본 공격 한 레벨의 상태(앞 레벨 효과를 모두 포함한 누적값) */
@@ -53,6 +55,10 @@ export interface BasicLevel {
   root?: number; // 속박(ms): 일반 적은 이동 불가(공격은 함), 엘리트·보스는 15% 둔화 1초
   returning?: { dist: number; mult: number }; // 되돌아오는 원반: dist만큼 날아간 뒤 드래곤에게 돌아오며 다시 맞힘(돌아올 때 피해 ×mult)
   seed?: { delay: number; radius: number; flower?: boolean }; // 씨앗 폭탄: 적 발밑에 심고 delay 뒤 범위 폭발(flower = 터진 자리 회복 꽃)
+  // ── 신규 2묶음(하울·크림슨·미러) ──
+  pulse?: { radius: number; layers: number; stunEvery?: number; stunMs?: number }; // 음파 고리: 드래곤 둘레로 퍼지는 고리(적마다 고리당 1회), layers겹, stunEvery번째 고리마다 일반 적 기절
+  melee?: { range: number; arc: number; back?: boolean; spinEvery?: number }; // 근접 베기: 가장 가까운 적 쪽 부채꼴(arc 라디안) 안 모두, back = 뒤쪽도, spinEvery번째마다 360°(×1.5)
+  bounceFalloff?: number; // 튕길 때마다 피해 감소율(미러 0.15, Lv.7 0)
   // ── 6단계 v1.2 영구 성장(permGrowth.ts)이 덧붙이는 값. 전투 중 Lv.1~7 데이터에는 없다 ──
   bounce?: number; // 적중 후 근처 다른 적으로 튕기는 횟수
   burnMult?: number; // 화상 피해 배율
@@ -86,6 +92,8 @@ export interface BasicTraits {
   healAdd: number; // 화이트 영구 성장: 처치 회복 확률 +x
   executeBonus: number; // 블랙: HP 30% 이하 적에게 기본 공격 피해 +x(특성 + 영구 성장)
   extraChain: number; // 천둥의 문장(장착형 특수 스킬): 연쇄가 있는 기본 공격의 연쇄 +n
+  ringBonus?: number; // 하울: 고리가 맞힌 적 1마리당 그 고리 피해 +x(최대 10마리분)
+  drain?: number; // 크림슨: 기본 공격 피해의 x만큼 회복(1초에 최대 HP 1%까지)
 }
 
 export const NO_TRAITS: BasicTraits = { intervalMult: 1, poisonDurMult: 1, slowDurMult: 1, chainRelief: 0, killHealChance: 0, killHealPct: 0, healAdd: 0, executeBonus: 0, extraChain: 0 };
@@ -311,6 +319,52 @@ const BLOOM = common('씨앗 폭탄', '🌱', 'bolt-seed', build(
   ],
 ), { range: 10 * M });
 
+// ───────── 신규 2묶음(2026-11-22) — 수치는 AI 1차안 ─────────
+// 하울: 음파 고리 — 드래곤 둘레로 퍼지는 고리(모든 방향·적 관통). 범위형이라 단일 DPS는 낮게: Lv.1 65 · Lv.5 126 · Lv.6 142
+// 봇 측정(2026-11-22): 보스 처치가 느려(166~217초) 계수 +6%
+const HOWL = common('음파 고리', '🔊', 'bolt-sound', build(
+  { ...STRAIGHT, speed: 0, shots: 1, coef: 0.85, levelMod: 1, interval: 1300, pulse: { radius: 3.2 * M, layers: 1 } },
+  [
+    { text: '드래곤 둘레로 퍼지는 음파 고리(3.2m, 85%): 닿은 모든 적에게 한 번씩' },
+    { levelMod: 1.15, text: '피해 +15%' },
+    { pulse: { radius: 3.8 * M, layers: 1 }, text: '고리 범위 3.8m' },
+    { levelMod: 1.3, text: '피해 +30%' },
+    { pulse: { radius: 3.8 * M, layers: 2 }, coef: 0.63, text: '고리 2겹(각 63%)' },
+    { interval: 1150, text: '고리 간격 1.3 → 1.15초' },
+    { pulse: { radius: 3.8 * M, layers: 2, stunEvery: 3, stunMs: 500 }, text: '진화 — 3번째 고리마다 일반 적 0.5초 기절' },
+  ],
+), { range: 3.8 * M });
+
+// 크림슨: 진홍 낫 — 가까운 적 쪽 반원 근접 베기(부채꼴 안 모든 적). Lv.1 100 · Lv.5 125 · Lv.6 145
+// 봇 측정(2026-11-22): 총 피해가 레드의 1.8배 → 계수 −8%
+const CRIMSON = common('진홍 낫', '🌙', 'bolt-crescent', build(
+  { ...STRAIGHT, speed: 0, shots: 1, coef: 1.1, levelMod: 1, interval: 1100, melee: { range: 2.4 * M, arc: 2.2 } },
+  [
+    { text: '가장 가까운 적 쪽으로 반원 베기(2.4m, 110%) — 범위 안 모든 적' },
+    { levelMod: 1.15, text: '피해 +15%' },
+    { melee: { range: 2.9 * M, arc: 2.2 }, text: '베기 범위 2.9m' },
+    { levelMod: 1.25, text: '피해 +25%' },
+    { melee: { range: 2.9 * M, arc: 2.2, back: true }, text: '앞뒤로 두 번 베기' },
+    { interval: 950, text: '베기 간격 1.1 → 0.95초' },
+    { melee: { range: 2.9 * M, arc: 2.2, back: true, spinEvery: 5 }, text: '진화 — 5번째마다 360° 회전 베기(×1.5)' },
+  ],
+), { range: 2.9 * M });
+
+// 미러: 반사 광탄 — 맞힌 뒤 3.5m 안 다른 적으로 튕김(튕길 때마다 −15%). Lv.1 83 · Lv.5 137(튕김 피해 별도)
+// 봇 측정(2026-11-22): 클리어 3/4·총 피해 레드의 1.6배 → 계수 −9%
+const MIRROR = common('반사 광탄', '💎', 'bolt-prism', build(
+  { ...STRAIGHT, speed: 700, shots: 1, coef: 0.95, levelMod: 1, interval: 1150, bounce: 2, bounceFalloff: 0.15 },
+  [
+    { text: '빠른 광탄 1발(95%): 맞힌 뒤 다른 적으로 2번 튕김(튕길 때마다 −15%)' },
+    { levelMod: 1.2, text: '피해 +20%' },
+    { bounce: 3, text: '튕김 3번' },
+    { shots: 2, coef: 0.78, text: '광탄 2발(각 78%)' },
+    { levelMod: 1.35, text: '피해 +35%' },
+    { bounce: 4, text: '튕김 4번' },
+    { bounceFalloff: 0, text: '진화 — 튕겨도 피해가 줄지 않음' },
+  ],
+), { life: 1800 });
+
 // ───────── 10종 정의 ─────────
 // 기본 능력치: 기획 수정안 v1.2 2장 표(Lv.1·1성·장비·연구소 미적용 기준). 레드는 기존과 같은 10 / 100 / 260.
 const B = (baseAttack: number, baseHp: number, baseMoveSpeed: number) => ({ baseAttack, baseHp, baseMoveSpeed });
@@ -328,10 +382,13 @@ export const DRAGONS: Record<DragonId, DragonDef> = {
   sand: { id: 'sand', name: '샌드 드래곤', short: '샌드', element: 'sand', rarity: 'common', role: '근거리 산탄·약화', color: 0xd9b27c, accent: 0xc8643c, belly: 0xf1e0c0, ...B(10.2, 115, 255), trait: { id: 'weakGuard', text: '약화된 적에게 받는 피해 −15%', value: 0.15 }, basic: SAND },
   steel: { id: 'steel', name: '스틸 드래곤', short: '스틸', element: 'steel', rarity: 'common', role: '되돌아오는 원반·관통', color: 0x9aa3ad, accent: 0xff8a2a, belly: 0xc9d0d6, ...B(10, 115, 240), trait: { id: 'returnBonus', text: '되돌아오는 원반 피해 +20%', value: 0.2 }, basic: STEEL },
   bloom: { id: 'bloom', name: '블룸 드래곤', short: '블룸', element: 'bloom', rarity: 'rare', role: '지연 폭발·속박', color: 0xf48fb1, accent: 0x9ccc65, belly: 0xf1f8e0, ...B(10.5, 110, 260), trait: { id: 'rootBonus', text: '속박된 적에게 피해 +20%', value: 0.2 }, basic: BLOOM },
+  howl: { id: 'howl', name: '하울 드래곤', short: '하울', element: 'sound', rarity: 'rare', role: '관통 음파·광역', color: 0x2f4fd6, accent: 0xcfd8e6, belly: 0xdde6ff, ...B(9.5, 110, 280), trait: { id: 'resonance', text: '음파 고리가 맞힌 적 1마리당 그 고리 피해 +2%(최대 +20%)', value: 0.02 }, basic: HOWL },
+  crimson: { id: 'crimson', name: '크림슨 드래곤', short: '크림슨', element: 'blood', rarity: 'epic', role: '근접 베기·흡수', color: 0x8e1b3a, accent: 0xe0b44a, belly: 0xd88a9a, ...B(13, 115, 270), trait: { id: 'drain', text: '흡수: 기본 공격 피해의 1%만큼 HP 회복(1초에 최대 HP 1%까지)', value: 0.01 }, basic: CRIMSON },
+  mirror: { id: 'mirror', name: '미러 드래곤', short: '미러', element: 'mirror', rarity: 'epic', role: '튕기는 탄', color: 0xd8dde6, accent: 0x9be7ff, belly: 0xf4f6fa, ...B(12, 95, 285), trait: { id: 'bounceBonus', text: '튕긴 탄 피해 +15%', value: 0.15 }, basic: MIRROR },
   arcane: { id: 'arcane', name: '아케인 드래곤', short: '아케인', element: 'arcane', rarity: 'legendary', role: '분열·추가 발동', color: 0x9b6fe0, accent: 0xff8de8, belly: 0xe9d9ff, ...B(14, 120, 275), trait: { id: 'haste', text: '기본 공격 재사용 대기시간 −10%', value: 0.1 }, basic: ARCANE },
 };
 
-export const DRAGON_ORDER: DragonId[] = ['red', 'blue', 'yellow', 'green', 'white', 'black', 'stone', 'wind', 'water', 'arcane', 'sand', 'steel', 'bloom'];
+export const DRAGON_ORDER: DragonId[] = ['red', 'blue', 'yellow', 'green', 'white', 'black', 'stone', 'wind', 'water', 'arcane', 'sand', 'steel', 'bloom', 'howl', 'crimson', 'mirror'];
 
 /**
  * 출시 스위치(2026-11-22): 켜진 드래곤만 상점 뽑기·도감·로비·미션 고르기에 나온다. 저장 데이터는 모든 드래곤 칸을 갖는다.
@@ -340,6 +397,7 @@ export const DRAGON_ORDER: DragonId[] = ['red', 'blue', 'yellow', 'green', 'whit
 export const DRAGON_RELEASED: Record<DragonId, boolean> = {
   red: true, blue: true, yellow: true, green: true, white: true, black: true, stone: true, wind: true, water: true, arcane: true,
   sand: false, steel: false, bloom: false,
+  howl: false, crimson: false, mirror: false,
 };
 const PREVIEW_NEW = typeof location !== 'undefined' && new URLSearchParams(location.search).has('newdragons');
 /** 화면·뽑기에 쓰는 드래곤 목록(출시된 것 + 시험 주소면 전부) */

@@ -1103,6 +1103,7 @@ export class GameScene extends Phaser.Scene {
       if (t.id === 'slowBonus' && e.slowed) add += v; // 블루: 둔화된 적 +20%
       if (t.id === 'rootBonus' && e.rooted) add += v; // 블룸: 속박된 적 +20%
       if (t.id === 'returnBonus' && spec.tag === 'basic-return') add += v; // 스틸: 되돌아오는 원반 +20%
+      if (t.id === 'bounceBonus' && spec.tag === 'basic-bounce') add += v; // 미러: 튕긴 탄 +15%
       if (spec.source === 'basic' && e.hp <= e.maxHp * 0.3) add += this.basicTraits.executeBonus; // 블랙: HP 30% 이하(특성 + 영구 성장)
     }
     let m = (1 + add) * e.vulnMult * this.attackMult();

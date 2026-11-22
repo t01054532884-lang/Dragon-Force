@@ -43,6 +43,17 @@ interface Seed {
   g: Phaser.GameObjects.Image;
 }
 
+/** 하울 음파 고리: 드래곤 둘레로 퍼지며 닿는 적마다 한 번 */
+interface Ring {
+  r: number;
+  max: number;
+  delay: number;
+  hit: Set<number>;
+  n: number; // 이 고리가 맞힌 적 수(하울 특성)
+  stun: boolean;
+  g: Phaser.GameObjects.Arc | null;
+}
+
 /** 블룸 Lv.7 꽃: 드래곤이 닿으면 회복 */
 interface Flower {
   x: number;
@@ -79,6 +90,9 @@ export class BasicAttack {
   private seeds: Seed[] = [];
   private flowers: Flower[] = [];
   private flowerHeals = 0; // 판당 회복 횟수(상한 FLOWER.maxHeals)
+  private rings: Ring[] = [];
+  private drainUsed = 0; // 크림슨 흡수: 이번 1초 동안 회복한 양(최대 HP 비율)
+  private drainClock = 0;
 
   private cache = new Map<number, BasicLevel>();
   /** 전용 액티브(아케인 마력 폭주)가 잠시 바꾸는 공격 주기 배율 */
@@ -113,7 +127,7 @@ export class BasicAttack {
    */
   singleTargetDps(): number {
     const L = this.L;
-    const perVolley = L.coef * L.levelMod * (1 + (L.shots - 1) * this.spec.sameVolley) * (L.returning ? 1 + L.returning.mult : 1);
+    const perVolley = L.coef * L.levelMod * (1 + (L.shots - 1) * this.spec.sameVolley) * (L.returning ? 1 + L.returning.mult : 1) * (L.pulse ? L.pulse.layers : 1);
     const sec = (L.interval * this.traits.intervalMult * this.hasteMult) / 1000;
     return (this.h.stats.attack * perVolley) / sec;
   }
@@ -128,7 +142,12 @@ export class BasicAttack {
     const L = this.L;
 
     this.timer -= delta;
-    if (this.timer <= 0) {
+    if (this.timer <= 0 && (L.pulse || L.melee)) {
+      // 하울 음파 고리 · 크림슨 근접 베기: 투사체 없이 드래곤 자리에서. 범위 안에 적이 없으면 준비된 채로 기다린다
+      const fired = L.pulse ? this.firePulse(L) : this.fireMelee(L);
+      if (!fired) this.timer = 0;
+      else this.timer += L.interval * this.traits.intervalMult * this.hasteMult;
+    } else if (this.timer <= 0) {
       // 부채꼴 산탄(샌드)은 가장 가까운 적 하나 쪽으로 모든 발을 고르게 벌린다
       const targets = L.spread ? this.selectDistinctFirst(this.spec.range, 1).flatMap((t) => Array.from({ length: L.shots }, () => t)) : this.selectDistinctFirst(this.spec.range, L.shots);
       if (targets.length === 0) {
@@ -156,6 +175,12 @@ export class BasicAttack {
     this.updateWave(delta);
     this.updateSeeds(delta);
     this.updateFlowers(delta);
+    this.updateRings(delta);
+    this.drainClock += delta;
+    if (this.drainClock >= 1000) {
+      this.drainClock -= 1000;
+      this.drainUsed = 0;
+    }
   }
 
   /** 거리 우선, 같은 거리면 먼저 나온 적. 서로 다른 적을 먼저 배정하고 모자라면 같은 적에 다시 배정. */
@@ -247,6 +272,10 @@ export class BasicAttack {
           const next = this.nearestTo(b.img.x, b.img.y, PERM_RULES.bounceRange, enemies, b.hitSet);
           if (next) {
             b.bounceLeft--;
+            if (this.L.bounceFalloff !== undefined) {
+              b.coef *= 1 - this.L.bounceFalloff; // 미러: 튕길 때마다 −15%(Lv.7 0)
+              b.tag = 'basic-bounce';
+            }
             b.target = next;
             b.angle = Phaser.Math.Angle.Between(b.img.x, b.img.y, next.x, next.y);
             b.img.setRotation(b.angle);
@@ -494,6 +523,88 @@ export class BasicAttack {
     this.h.scene.tweens.add({ targets: ring, radius: r, alpha: 0.1, duration: 350, onComplete: () => ring.destroy() });
   }
 
+  // ───────── 음파 고리(하울) ─────────
+  private firePulse(L: BasicLevel): boolean {
+    const p = L.pulse!;
+    const max = this.area(p.radius);
+    const { x, y } = this.h.player;
+    if (!this.h.enemies().some((e) => e.active && Phaser.Math.Distance.Between(x, y, e.x, e.y) < max + e.def.radius)) return false;
+    this.volleyCount++;
+    const stun = !!p.stunEvery && this.volleyCount % p.stunEvery === 0;
+    for (let k = 0; k < p.layers; k++) this.rings.push({ r: 0, max, delay: k * 160, hit: new Set(), n: 0, stun, g: null });
+    this.h.onFire?.(0);
+    return true;
+  }
+
+  private updateRings(delta: number): void {
+    if (!this.rings.length) return;
+    const L = this.L;
+    const { x, y } = this.h.player;
+    const speed = 1 / 0.4; // 0.4초에 끝까지
+    this.rings = this.rings.filter((rg) => {
+      if (rg.delay > 0) {
+        rg.delay -= delta;
+        return true;
+      }
+      if (!rg.g) rg.g = this.h.scene.add.circle(x, y, 10).setStrokeStyle(6, 0x8fa8ff, 0.85).setDepth(8);
+      rg.r = Math.min(rg.max, rg.r + rg.max * speed * (delta / 1000));
+      rg.g.setPosition(x, y).setRadius(rg.r).setAlpha(1 - (rg.r / rg.max) * 0.6);
+      for (const e of this.h.enemies()) {
+        if (!e.active || rg.hit.has(e.uid) || Phaser.Math.Distance.Between(x, y, e.x, e.y) > rg.r + e.def.radius) continue;
+        rg.hit.add(e.uid);
+        // 하울 특성(공명): 이 고리가 이미 맞힌 적 1마리당 +x(최대 10마리분)
+        const bonus = 1 + Math.min(10, rg.n) * (this.traits.ringBonus ?? 0);
+        rg.n++;
+        if (rg.stun) e.hardCc('stun', L.pulse?.stunMs ?? 500);
+        this.h.hit(e, { source: 'basic', coef: L.coef * bonus, levelMod: L.levelMod, tag: 'basic-ring' });
+      }
+      if (rg.r >= rg.max) {
+        rg.g.destroy();
+        return false;
+      }
+      return true;
+    });
+  }
+
+  // ───────── 근접 베기(크림슨) ─────────
+  private fireMelee(L: BasicLevel): boolean {
+    const m = L.melee!;
+    const range = this.area(m.range);
+    const target = this.selectDistinctFirst(range, 1)[0];
+    if (!target) return false;
+    this.volleyCount++;
+    const { x, y } = this.h.player;
+    const spin = !!m.spinEvery && this.volleyCount % m.spinEvery === 0;
+    const ang = Phaser.Math.Angle.Between(x, y, target.x, target.y);
+    const dirs = spin ? [] : m.back ? [ang, ang + Math.PI] : [ang];
+    const g = this.h.scene.add.graphics().setDepth(8);
+    g.fillStyle(0xc2185b, 0.35).lineStyle(5, 0xff5c7a, 0.9);
+    if (spin) g.strokeCircle(x, y, range).fillCircle(x, y, range);
+    for (const a of dirs) g.slice(x, y, range, a - m.arc / 2, a + m.arc / 2).fillPath().strokePath();
+    this.h.scene.tweens.add({ targets: g, alpha: 0, duration: 200, onComplete: () => g.destroy() });
+    for (const e of this.h.enemies()) {
+      if (!e.active) continue;
+      const d = Phaser.Math.Distance.Between(x, y, e.x, e.y);
+      if (d > range + e.def.radius) continue;
+      const ea = Phaser.Math.Angle.Between(x, y, e.x, e.y);
+      if (!spin && !dirs.some((a) => Math.abs(Phaser.Math.Angle.Wrap(ea - a)) <= m.arc / 2 + Math.atan2(e.def.radius, Math.max(1, d)))) continue;
+      const coef = L.coef * (spin ? 1.5 : 1);
+      this.h.hit(e, { source: 'basic', coef, levelMod: L.levelMod, tag: 'basic-melee' });
+      this.drain(coef * L.levelMod);
+    }
+    this.h.onFire?.(ang);
+    return true;
+  }
+
+  /** 크림슨 흡수: 기본 공격 피해(공격력 × 계수, 치명타 제외 어림값)의 x만큼 회복, 1초에 최대 HP 1%까지 */
+  private drain(coef: number): void {
+    const k = this.traits.drain ?? 0;
+    if (k <= 0 || this.drainUsed >= 0.01) return;
+    const pct = Math.min(0.01 - this.drainUsed, (this.h.stats.attack * coef * k) / Math.max(1, this.h.stats.maxHp));
+    this.drainUsed += pct;
+    this.h.heal?.(pct);
+  }
+
   // ───────── 씨앗 폭탄(블룸) ─────────
   private plantSeed(target: Enemy, volley: Volley): void {
     const g = this.h.scene.add.image(target.x, target.y, this.spec.texture).setDepth(4).setScale(0.6);
@@ -575,6 +686,8 @@ export class BasicAttack {
     this.clouds.forEach((c) => c.g.destroy());
     this.spinImgs.forEach((i) => i.destroy());
     this.seeds.forEach((sd) => sd.g.destroy());
+    this.rings.forEach((rg) => rg.g?.destroy());
+    this.rings = [];
     this.flowers.forEach((f) => f.g.destroy());
     this.seeds = [];
     this.flowers = [];
