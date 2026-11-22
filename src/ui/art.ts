@@ -113,6 +113,7 @@ export const ART_FILES: Record<string, string> = {
   ...Object.fromEntries(['badge-hard', 'frame-hard', 'hard-clear-crown', 'fx-confetti', 'ui-boss-bar'].map((k) => [k, `hard/${k}.webp`])),
   ...Object.fromEntries(['s', 'm', 'l'].map((k) => [`gold-pack-${k}`, `shop/gold-pack-${k}.webp`])),
   ...Object.fromEntries(['dragon', 'gear', 'rune', 'mega'].map((k) => [`pkg-${k}`, `shop/pkg-${k}.webp`])), // 패키지 그림(16차분)
+  ...Object.fromEntries(['free', 'premium', 'royal'].map((k) => [`pass-${k}`, `pass/pass-${k}.webp`])), // 드래곤 패스 상자(17차분)
 };
 
 /** 필요한 그림만 읽는다(키가 ART_FILES에 없거나 이미 읽었으면 건너뜀). 화면별 preload()에서 쓴다 */

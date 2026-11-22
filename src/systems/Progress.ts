@@ -159,6 +159,16 @@ export interface PlayerProgress {
   mailbox: MailboxState;
   /** 상점 기록(2026-11-23): 무료 일일 선물·일일/주간/월간 특혜·한정 패키지 구매 횟수 — 'free@기간키' · 'pkg_xxx@기간키#거래' */
   shopLog: string[];
+  /** 드래곤 패스(2026-11-23): 시즌 번호 · 시즌 시작 때 계정 경험치 · 받은 칸('free-3' 등) · 유료 줄 구매 여부 */
+  pass: PassState;
+}
+
+export interface PassState {
+  season: number;
+  baseXp: number;
+  claimed: string[];
+  premium: boolean;
+  royal: boolean;
 }
 
 /** 저장소 흉내(테스트에서는 메모리, 게임에서는 플랫폼 저장소) */
@@ -176,6 +186,7 @@ export function defaultProgress(now = Date.now()): PlayerProgress {
     stamina: newStamina(now),
     mailbox: newMailbox(),
     shopLog: [],
+    pass: { season: 0, baseXp: 0, claimed: [], premium: false, royal: false },
     saveVersion: SAVE_VERSION,
     gold: 0,
     rubies: 0,
@@ -301,6 +312,11 @@ export function sanitize(raw: Record<string, unknown>): PlayerProgress {
     stamina: sanitizeStamina(raw.stamina, nowMs),
     mailbox: sanitizeMailbox(raw.mailbox),
     shopLog: strs(raw.shopLog, 300),
+    pass: (() => {
+      const rp = (raw.pass ?? {}) as Partial<PassState>;
+      const royal = rp.royal === true;
+      return { season: int(rp.season, 0, 1e6, 0), baseXp: int(rp.baseXp, 0, 1e12, 0), claimed: strs(rp.claimed, 200), premium: rp.premium === true || royal, royal };
+    })(),
     saveVersion: SAVE_VERSION,
     gold: int(raw.gold, 0, 999_999_999, 0),
     rubies: int(raw.rubies, 0, 999_999_999, 0),
@@ -493,7 +509,7 @@ function openNextDifficulty(p: PlayerProgress): PlayerProgress {
 }
 
 const addCards = (p: PlayerProgress, id: DragonId, n: number): PlayerProgress => ({ ...p, dragons: { ...p.dragons, [id]: { ...p.dragons[id], cards: p.dragons[id].cards + n } } });
-const addFragments = (p: PlayerProgress, id: DragonId, n: number): PlayerProgress => ({ ...p, dragons: { ...p.dragons, [id]: { ...p.dragons[id], fragments: p.dragons[id].fragments + n } } });
+export const addFragments = (p: PlayerProgress, id: DragonId, n: number): PlayerProgress => ({ ...p, dragons: { ...p.dragons, [id]: { ...p.dragons[id], fragments: p.dragons[id].fragments + n } } });
 
 /**
  * 전투 보상 정산. 같은 runId는 한 번만 지급한다.

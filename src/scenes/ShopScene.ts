@@ -9,6 +9,7 @@ import { tabs } from '../ui/kit2';
 
 type DealTab = 'once' | 'daily' | 'weekly' | 'monthly';
 import { CONTENT } from '../ui/screen';
+import { makeScroll, type Scroller } from '../ui/scroll';
 import { offY } from '../ui/layout';
 import { RUNE_BOX } from '../data/runes';
 import { popWord, toast } from '../ui/screen';
@@ -44,7 +45,7 @@ export class ShopScene extends Phaser.Scene {
   private opening: ChestOpening | null = null;
   /** 세로 스크롤(2026-11-22 제작자 요청: 상자 → 골드 → 루비 구매 → 기간 한정 패키지를 아래로 내려 보기) */
   private content: Phaser.GameObjects.Container | null = null;
-  private dragged = false;
+  private scroller: Scroller | null = null;
   private storeProducts: RubyProduct[] = [];
   private dealTab: DealTab = 'once';
   private keepScroll = 0;
@@ -85,7 +86,7 @@ export class ShopScene extends Phaser.Scene {
     // 화면을 떠나면 연출만 정리(보상은 개봉 순간 이미 저장됨)
     this.events.once('shutdown', () => this.opening?.destroy());
     this.frame = screenFrame(this, { title: '상점', nav: 'shop' });
-    this.dragged = false;
+    this.scroller = null;
     const before = new Set(this.children.list);
 
     // ── 드래곤·스킬 상자: 큰 배너
@@ -164,55 +165,14 @@ export class ShopScene extends Phaser.Scene {
 
   // ───────── 스크롤 · 상품 칸(2026-11-22) ─────────
 
-  /** before 이후에 만든 내용물을 한 판에 모아 위아래로 끌기·휠 스크롤. 끌었으면 그 손가락 떼기로는 버튼이 눌리지 않게 */
+  /** 공용 스크롤 판(ui/scroll.ts) — 상자 개봉 연출·결과 창이 떠 있으면 스크롤하지 않음 */
   private makeScroll(before: Set<Phaser.GameObjects.GameObject>, bottom: number): void {
-    const items = this.children.list.filter((o) => !before.has(o));
-    const box = this.add.container(0, 0);
-    box.add(items);
-    this.content = box;
-    const top = CONTENT.top - 14;
-    const viewBottom = CONTENT.bottom + offY(this);
-    const mask = this.make.graphics({}, false).fillStyle(0xffffff).fillRect(0, top, 720, viewBottom - top);
-    // Phaser 4: 마스크는 필터로(화면 기준 = external, 메인 카메라로 봄)
-    box.enableFilters();
-    box.filters?.external.addMask(mask, false, this.cameras.main);
-    const minY = Math.min(0, viewBottom - bottom);
-    const clamp = (v: number) => Phaser.Math.Clamp(v, minY, 0);
-    // 버튼은 손을 뗄 때 눌림 → 끌었으면 막는다(눌림 처리 앞에 검사를 끼움)
-    const guard = (o: Phaser.GameObjects.GameObject) => {
-      if (o.input) {
-        for (const ev of ['pointerup']) {
-          const fns = o.listeners(ev) as ((...a: unknown[]) => void)[];
-          o.removeAllListeners(ev);
-          for (const fn of fns) o.on(ev, (...a: unknown[]) => (this.dragged ? undefined : fn(...a)));
-        }
-      }
-      if (o instanceof Phaser.GameObjects.Container) o.list.forEach(guard);
-    };
-    box.list.forEach(guard);
-    let startY = 0;
-    let startBox = 0;
-    let down = false;
-    this.input.on('pointerdown', (pt: Phaser.Input.Pointer) => {
-      if (this.opening || this.layer.length) return;
-      down = true;
-      this.dragged = false;
-      startY = pt.y;
-      startBox = box.y;
-    });
-    this.input.on('pointermove', (pt: Phaser.Input.Pointer) => {
-      if (!down || !pt.isDown) return;
-      if (Math.abs(pt.y - startY) > 12) this.dragged = true;
-      if (this.dragged) box.y = clamp(startBox + (pt.y - startY));
-    });
-    this.input.on('pointerup', () => {
-      down = false;
-      this.time.delayedCall(0, () => (this.dragged = false));
-    });
-    this.input.on('wheel', (_p: unknown, _o: unknown, _dx: number, dy: number) => {
-      if (this.opening || this.layer.length) return;
-      box.y = clamp(box.y - dy);
-    });
+    this.scroller = makeScroll(this, before, bottom, () => !!this.opening || this.layer.length > 0);
+    this.content = this.scroller.box;
+  }
+
+  private get dragged(): boolean {
+    return this.scroller?.dragged ?? false;
   }
 
   /** 칸 제목(왼쪽 아이콘 + 글자 + 오른쪽 작은 안내) */

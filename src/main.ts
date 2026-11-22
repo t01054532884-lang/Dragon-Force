@@ -4,6 +4,7 @@ import { LobbyScene } from './scenes/LobbyScene';
 import { LabScene } from './scenes/LabScene';
 import { DragonsScene } from './scenes/DragonsScene';
 import { ShopScene } from './scenes/ShopScene';
+import { PassScene } from './scenes/PassScene';
 import { EquipScene } from './scenes/EquipScene';
 import { MissionScene } from './scenes/MissionScene';
 import { EventScene } from './scenes/EventScene';
@@ -45,7 +46,7 @@ async function boot(): Promise<void> {
     backgroundColor: '#1b2a1f',
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
     physics: { default: 'arcade', arcade: { debug: false } },
-    scene: [TitleScene, LobbyScene, GameScene, LabScene, DragonsScene, ShopScene, EquipScene, MissionScene, EventScene, GiftScene], // 첫 화면은 시작 화면(로고) → 로비
+    scene: [TitleScene, LobbyScene, GameScene, LabScene, DragonsScene, ShopScene, EquipScene, MissionScene, EventScene, GiftScene, PassScene], // 첫 화면은 시작 화면(로고) → 로비
   });
 
   // 메뉴 화면(전투 제외)은 시작할 때마다 기준 화면을 가운데로

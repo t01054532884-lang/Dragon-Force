@@ -28,6 +28,7 @@ import { attendanceState, claimableActivity } from '../systems/Activity';
 import { DEMO, platform } from '../platform';
 import { goTab, navTabsWithAlerts } from '../ui/screen';
 import { accountLevel } from '../systems/AccountLevel';
+import { claimablePass, syncPass } from '../systems/Pass';
 import { ATTENDANCE_28, activityRewardIcon, activityRewardText } from '../data/activity';
 import { fullH } from '../ui/layout';
 import { offY } from '../ui/layout';
@@ -152,6 +153,8 @@ export class LobbyScene extends Phaser.Scene {
     side(658, 0, 'ui-mailbox', '우편함', () => this.scene.start('gifts'));
     giftAlert(this, 658, 316, 80, pendingGifts(p.mailbox, now).map((g) => g.id));
     side(658, 1, 'ic-gear', '설정', () => this.openSettings());
+    // 드래곤 패스(2026-11-23 제작자 요청: 설정 아래) — 받을 칸이 있으면 !
+    side(658, 2, this.textures.exists('pass-royal') ? 'pass-royal' : 'ic-crown', '패스', () => this.scene.start('pass'), claimablePass(syncPass(p, t0)).length > 0);
 
     // ── 횃불 · 제단 · 출격 드래곤(숨쉬기 + 터치하면 살짝 뛰어오름)
     torch(this, 172, 548);
