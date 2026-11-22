@@ -152,6 +152,37 @@ export const PERM_TIERS: Record<DragonId, Tier[]> = {
     t('분열 강화', '분열 3개(각 35%)가 다른 적 추적', { feature: { split: { count: 3, coef: 0.35, homing: Math.PI * 3 } } }),
     t('마력 폭주', '4번째 공격마다 2.2m 마력 폭발(140%)', { blast: blast(4, 2.2, 1.4, 0xb693ff) }),
   ],
+  // 신규 1묶음(2026-11-22, AI 1차안 — 기존 10종과 같은 크기의 단계)
+  sand: [
+    t('모래 피해↑', '기본 공격 피해 +10%', { dmg: 0.1 }),
+    t('모래 +1발', '한 번에 모래 +1발', { shots: 1 }),
+    t('약화 강화', '약화 세기 +50%', { status: 0.5 }),
+    t('사막 피부', '받는 피해 −5%', { guard: 0.05 }),
+    t('약화 지속↑', '약화 지속 +40%', { duration: 0.4 }),
+    t('모래 파편', '맞힌 자리 1.2m 모래 파편(40%)', { feature: { splash: { radius: 1.2 * M, coef: 0.4 } } }),
+    t('모래 피해↑', '기본 공격 피해 +15%', { dmg: 0.15 }),
+    t('사막의 분노', '5번째 공격마다 2.4m 모래 폭발(160%) + 약화', { blast: blast(5, 2.4, 1.6, 0xd8b27a) }),
+  ],
+  steel: [
+    t('원반 피해↑', '기본 공격 피해 +10%', { dmg: 0.1 }),
+    t('원반 크기↑', '범위 +15%', { area: 0.15 }),
+    t('강철 갑주', '받는 피해 −5%', { guard: 0.05 }),
+    t('원반 +1', '원반 +1개', { shots: 1 }),
+    t('빠른 손', '던지는 간격 −8%', { haste: 0.08 }),
+    t('원반 피해↑', '기본 공격 피해 +15%', { dmg: 0.15 }),
+    t('톱날 파편', '맞힌 자리 1.2m 파편(35%)', { feature: { splash: { radius: 1.2 * M, coef: 0.35 } } }),
+    t('강철 폭풍', '4번째 공격마다 2.2m 강철 폭발(150%)', { blast: blast(4, 2.2, 1.5, 0xc9d0d6) }),
+  ],
+  bloom: [
+    t('덩굴 피해↑', '기본 공격 피해 +10%', { dmg: 0.1 }),
+    t('속박 지속↑', '속박 지속 +30%', { duration: 0.3 }),
+    t('씨앗 +1', '씨앗 +1개', { shots: 1 }),
+    t('넓은 덩굴', '폭발 범위 +20%', { area: 0.2 }),
+    t('꽃의 생기', '받는 피해 −5%', { guard: 0.05 }),
+    t('덩굴 피해↑', '기본 공격 피해 +15%', { dmg: 0.15 }),
+    t('빠른 성장', '씨앗 간격 −8%', { haste: 0.08 }),
+    t('만개', '4번째 공격마다 2.4m 꽃 폭발(150%) + 속박', { blast: blast(4, 2.4, 1.5, 0xf48fb1) }),
+  ],
 };
 
 export const PERM_TIER_LEVELS = [5, 10, 15, 20, 25, 30, 35, 40];
@@ -205,6 +236,8 @@ export function applyPerm(L: BasicLevel, P: PermState): BasicLevel {
     burnMult: (L.burnMult ?? 1) * (L.burn ? st : 1),
   };
   if (L.slow) out.slow = { ratio: Math.min(PERM_RULES.maxSlow, L.slow.ratio * st), ms: L.slow.ms * du };
+  if (L.weaken) out.weaken = { ratio: Math.min(0.5, L.weaken.ratio * st), ms: L.weaken.ms * du };
+  if (L.root) out.root = L.root * du;
   if (L.poison) out.poison = { perSec: L.poison.perSec * st, ms: L.poison.ms * du, maxStacks: L.poison.maxStacks + P.stacks };
   if (L.shock || P.shockAdd) {
     const base = L.shock ?? { mult: 1.1, ms: 2000 };

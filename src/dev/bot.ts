@@ -28,7 +28,8 @@ function run(game: Phaser.Game, opt: BotOpt): Promise<unknown> {
   g.loop.wake();
   for (const s of game.scene.getScenes(true)) if (s.scene.key !== 'game') game.scene.stop(s.scene.key);
   if (game.scene.isActive('game')) game.scene.stop('game');
-  game.scene.start('game', { stageId: opt.stage, dragonId: opt.dragon ?? 'red', seed: opt.seed ?? 1, difficulty: opt.difficulty ?? 'easy' });
+  // anyDragon: 보유 여부와 상관없이 요청한 드래곤으로(예전엔 미보유면 출격 드래곤으로 바뀌어 다른 드래곤을 잰 셈이었음 — 2026-11-22 발견)
+  game.scene.start('game', { stageId: opt.stage, dragonId: opt.dragon ?? 'red', seed: opt.seed ?? 1, difficulty: opt.difficulty ?? 'easy', anyDragon: true });
   return new Promise((resolve) => {
     const wait = () => {
       const s = game.scene.getScene('game') as Any;

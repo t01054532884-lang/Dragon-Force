@@ -1,7 +1,7 @@
 // 하단 메뉴 빨간 알림 점(2026-11-22, 참고 UI 비교 — 받을 것·할 수 있는 강화가 있으면 메뉴에 표시).
 // 조건은 각 화면의 버튼이 켜지는 조건과 같게 둔다(점이 떴는데 들어가 보니 할 게 없는 일이 없게).
 import { DIFFICULTIES, econRarity, ESSENCE } from '../data/economy';
-import { DRAGON_ORDER, DRAGONS, GROWTH, type DragonId } from '../data/dragons';
+import { releasedDragons, DRAGONS, GROWTH, type DragonId } from '../data/dragons';
 import { getUpgradeCost, PERMANENT_UPGRADES, UPGRADE_TYPES } from '../data/progression';
 import { RUNE_RULES, RUNES, runeUpgradeCost } from '../data/runes';
 import { attendanceState, claimableActivity } from '../systems/Activity';
@@ -41,7 +41,7 @@ export function navAlerts(p: PlayerProgress, now: number): Record<string, boolea
   const s = p.summon;
   return {
     shop: s.legacyTickets + (s.equipTickets ?? 0) + (s.runeTickets ?? 0) > 0, // 무료 개봉권
-    dragons: DRAGON_ORDER.some((id) => dragonCanGrow(p, id)),
+    dragons: releasedDragons().some((id) => dragonCanGrow(p, id)),
     lobby: lobbyAlert(p, now),
     equip: false,
     lab: labAlert(p),

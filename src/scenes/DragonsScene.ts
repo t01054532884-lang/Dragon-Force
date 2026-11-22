@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { makeTextures } from '../textures';
 import {
-  DRAGON_ORDER, DRAGONS, ELEMENT_LABEL, GROWTH, RARITY_COLOR, RARITY_LABEL, levelBonus, starBonus, traitMultFor, type DragonId,
+  DRAGON_ORDER, releasedDragons, DRAGONS, ELEMENT_LABEL, GROWTH, RARITY_COLOR, RARITY_LABEL, levelBonus, starBonus, traitMultFor, type DragonId,
 } from '../data/dragons';
 import { PERM_TIER_LEVELS, PERM_TIERS } from '../data/permGrowth';
 import { SIG_TIER_LEVELS, sigGrowthLines, sigTier, SIGNATURES } from '../data/signature';
@@ -22,8 +22,13 @@ import { COLOR, tint, TYPE } from '../ui/theme';
  * 육성(레벨업 = 카드 + 골드, 승급 = 조각(+범용 조각), 미보유는 조각 → 정수 해금, 5성 이후 범용 조각 교환).
  * 영구 성장표·기본 공격 Lv.1~7은 버튼으로 여는 팝업(8단계 v2.0 C: 시안 형식으로 바꾸며 화면 공간을 위해 옮김). 규칙·저장은 그대로.
  */
+/** 도감 한 쪽 칸 수(5열 × 2줄) */
+const PER_PAGE = 10;
+
 export class DragonsScene extends Phaser.Scene {
   private viewing: DragonId = 'red';
+  /** 도감 쪽(한 쪽 10칸 = 5×2). 드래곤이 10종을 넘으면 ◀ ▶로 넘긴다(아래 상세 판 자리를 그대로 두려고) */
+  private page = 0;
   private layer: Phaser.GameObjects.GameObject[] = [];
   private frame!: ScreenFrame;
   private popup: { close: () => void } | null = null;
@@ -41,6 +46,8 @@ export class DragonsScene extends Phaser.Scene {
 
   init(data: { view?: DragonId }): void {
     this.viewing = data?.view ?? Progress.load().selectedDragonId;
+    const i = releasedDragons().indexOf(this.viewing);
+    this.page = i >= 0 ? Math.floor(i / PER_PAGE) : 0; // 보고 있는 드래곤이 있는 쪽부터
   }
 
   preload(): void {
@@ -76,12 +83,25 @@ export class DragonsScene extends Phaser.Scene {
     this.layer = [];
     const p = Progress.load();
     this.frame.refresh();
-    const owned = DRAGON_ORDER.filter((id) => p.dragons[id].unlocked).length;
-    this.A(text(this, 30, 246, `보유 ${owned} / 10`, TYPE.tiny, COLOR.text, true, true).setOrigin(0, 0.5));
+    const list = releasedDragons(); // 출시된 드래곤만(신규는 출시 스위치가 켜질 때까지 숨김)
+    const owned = list.filter((id) => p.dragons[id].unlocked).length;
+    this.A(text(this, 30, 246, `보유 ${owned} / ${list.length}`, TYPE.tiny, COLOR.text, true, true).setOrigin(0, 0.5));
     this.A(text(this, 690, 246, `범용 조각 ${p.universalFragments}`, TYPE.tiny, COLOR.textSub, true, true).setOrigin(1, 0.5));
 
-    // 10종 초상 타일(5 × 2)
-    DRAGON_ORDER.forEach((id, i) => {
+    // 초상 타일 5×2 한 쪽 — 10종을 넘으면 쪽 넘기기
+    const pages = Math.max(1, Math.ceil(list.length / PER_PAGE));
+    this.page = Math.min(this.page, pages - 1);
+    if (pages > 1) {
+      const nav = (dx: number, label: string, to: number) => {
+        const on = to >= 0 && to < pages;
+        const t = this.A(text(this, 360 + dx, 246, label, TYPE.caption, on ? COLOR.gold : COLOR.textDim, true, true).setOrigin(0.5));
+        if (on) t.setInteractive({ useHandCursor: true }).on('pointerdown', () => ((this.page = to), this.refresh()));
+      };
+      nav(-70, '◀', this.page - 1);
+      this.A(text(this, 360, 246, `${this.page + 1} / ${pages}`, TYPE.tiny, COLOR.text, true, true).setOrigin(0.5));
+      nav(70, '▶', this.page + 1);
+    }
+    list.slice(this.page * PER_PAGE, (this.page + 1) * PER_PAGE).forEach((id, i) => {
       const x = 92 + (i % 5) * 134;
       const y = 340 + Math.floor(i / 5) * 150;
       const o = p.dragons[id];

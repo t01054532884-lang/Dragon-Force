@@ -210,8 +210,12 @@ export class GameScene extends Phaser.Scene {
     preloadMusic(this, ['bgm-battle', 'bgm-boss']);
   }
 
-  init(data: { stageId?: number; seed?: number; dragonId?: DragonId; difficulty?: Difficulty }): void {
+  /** 개발 전용(측정 봇): 보유하지 않은 드래곤도 그대로 출격(저장은 건드리지 않음). 배포본에서는 무시 */
+  private anyDragon = false;
+
+  init(data: { stageId?: number; seed?: number; dragonId?: DragonId; difficulty?: Difficulty; anyDragon?: boolean }): void {
     this.forcedDragon = data?.dragonId;
+    this.anyDragon = import.meta.env.DEV && !!data?.anyDragon;
     this.difficulty = data?.difficulty ?? Progress.load().selectedDifficulty;
     this.stage = STAGES.find((s) => s.id === (data?.stageId ?? 1)) ?? STAGES[0];
     // 시드: 주소에 ?seed=123 이 있으면 그 값, 아니면 무작위. 같은 시드면 적 생성·위치가 똑같이 재현된다.
@@ -224,7 +228,7 @@ export class GameScene extends Phaser.Scene {
     this.rng = new Phaser.Math.RandomDataGenerator([String(this.seed)]);
     // 출격 드래곤 확인 → 연구소·드래곤 레벨·승급을 판 시작 때 한 번만 적용해 고정(전투 중에는 바뀌지 않음)
     const prog = Progress.load();
-    const did = this.forcedDragon && prog.dragons[this.forcedDragon]?.unlocked ? this.forcedDragon : prog.selectedDragonId;
+    const did = this.forcedDragon && (prog.dragons[this.forcedDragon]?.unlocked || this.anyDragon) ? this.forcedDragon : prog.selectedDragonId;
     this.dragon = DRAGONS[did] ?? DRAGONS.red;
     // 드래곤(종·영구 레벨·승급) + 연구소 + 장비 + 장착형 특수 스킬. 장비·특수 스킬이 없으면 5·6단계와 같은 값.
     const built = loadout(prog, this.dragon.id);
@@ -1097,6 +1101,8 @@ export class GameScene extends Phaser.Scene {
     if (spec.source !== 'dot') {
       if (t.id === 'burnBonus' && e.burnCount > 0) add += v; // 레드: 5성부터 화상 상태 적 +20%(1~4성은 traitMult 0)
       if (t.id === 'slowBonus' && e.slowed) add += v; // 블루: 둔화된 적 +20%
+      if (t.id === 'rootBonus' && e.rooted) add += v; // 블룸: 속박된 적 +20%
+      if (t.id === 'returnBonus' && spec.tag === 'basic-return') add += v; // 스틸: 되돌아오는 원반 +20%
       if (spec.source === 'basic' && e.hp <= e.maxHp * 0.3) add += this.basicTraits.executeBonus; // 블랙: HP 30% 이하(특성 + 영구 성장)
     }
     let m = (1 + add) * e.vulnMult * this.attackMult();
@@ -1498,7 +1504,10 @@ export class GameScene extends Phaser.Scene {
     const cap = src ? HIT_CAP[src.rank] * (this.stats.maxHp - this.permHpBonus) : Infinity;
     // 받는 피해 감소: 드래곤 특성·장비(damageTaken) × 전용 액티브(신성한 가호·대지의 수호) × 고대의 보호막
     const aegis = 1; // 고대의 보호막은 룬(받는 피해 감소)으로 바뀌어 능력치에 이미 들어감
-    const dmg = Math.min(amount * this.stats.damageTaken * (1 - this.signature.reduce) * aegis, cap);
+    // 약화된 적(샌드 모래 산탄)은 주는 피해가 줄고, 샌드 특성은 약화된 적에게 받는 피해를 한 번 더 줄인다
+    let weak = src ? src.weakMult : 1;
+    if (src?.weakened && this.dragon.trait.id === 'weakGuard') weak *= 1 - this.dragon.trait.value * this.traitMult;
+    const dmg = Math.min(amount * weak * this.stats.damageTaken * (1 - this.signature.reduce) * aegis, cap);
     this.hp -= dmg;
     this.invincibleUntil = this.time.now + 500;
     // 연출(기획 7.4): 그림 층만 붉게 80~120ms, 화면 흔들림은 큰 피해(최대 HP 15% 이상)만·300ms 간격

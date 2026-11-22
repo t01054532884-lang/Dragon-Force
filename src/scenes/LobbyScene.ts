@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { makeTextures } from '../textures';
 import { STAGES } from '../data/stages';
-import { DRAGON_ORDER, DRAGONS, ELEMENT_LABEL, RARITY_COLOR, RARITY_LABEL } from '../data/dragons';
+import { DRAGON_ORDER, releasedDragons, DRAGONS, ELEMENT_LABEL, RARITY_COLOR, RARITY_LABEL } from '../data/dragons';
 import { DIFFICULTIES, DIFFICULTY_LABEL, DIFFICULTY_RELEASED, STAGE_COUNT, type Difficulty } from '../data/economy';
 import { cpVerdict, recommendedCp } from '../data/power';
 import { hardStage } from '../data/hardStages';
@@ -158,7 +158,7 @@ export class LobbyScene extends Phaser.Scene {
     text(this, 360, 700, `${ELEMENT_LABEL[d.element]} · ${RARITY_LABEL[d.rarity]} · 영구 Lv.${o.level}`, TYPE.tiny, rc, true, true).setOrigin(0.5);
 
     // ── 보유 드래곤 캐러셀(누르면 출격 드래곤 변경)
-    const owned = DRAGON_ORDER.filter((id) => p.dragons[id].unlocked);
+    const owned = releasedDragons().filter((id) => p.dragons[id].unlocked);
     if (owned.length > 1) {
       dragonCarousel(this, 784, owned.map((id) => `portrait-${id}`), Math.max(0, owned.indexOf(d.id)), (i) => {
         Progress.select(owned[i]);

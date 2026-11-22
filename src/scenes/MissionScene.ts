@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { DRAGON_ORDER, DRAGONS, RARITY_COLOR } from '../data/dragons';
+import { DRAGON_ORDER, releasedDragons, DRAGONS, RARITY_COLOR } from '../data/dragons';
 import {
   ACHIEVEMENTS, DIFFICULTIES, DIFFICULTY_RELEASED, DIFFICULTY_LABEL, PROGRESS_REWARDS, PROGRESS_STEPS, STAGE_COUNT, type MissionDef, type RewardBundle,
 } from '../data/economy';
@@ -236,7 +236,7 @@ export class MissionScene extends Phaser.Scene {
   private choose(m: MissionDef): void {
     const p = Progress.load();
     const cards = !!m.reward.pickCards;
-    const ids = DRAGON_ORDER.filter((id) => !cards || p.dragons[id].unlocked);
+    const ids = releasedDragons().filter((id) => !cards || p.dragons[id].unlocked);
     const layer: Phaser.GameObjects.GameObject[] = [];
     const close = () => layer.forEach((o) => o.destroy());
     layer.push(this.add.rectangle(360, 640, 720, fullH(this), 0x000000, 0.85).setInteractive().setDepth(100));
@@ -362,7 +362,7 @@ export class MissionScene extends Phaser.Scene {
   /** 드래곤 고르기 창(카드 = 보유 드래곤만) */
   private pickDragon(title: string, ownedOnly: boolean, onPick: (id: DragonId) => void): void {
     const p = Progress.load();
-    const ids = DRAGON_ORDER.filter((id) => !ownedOnly || p.dragons[id].unlocked);
+    const ids = releasedDragons().filter((id) => !ownedOnly || p.dragons[id].unlocked);
     const layer: Phaser.GameObjects.GameObject[] = [];
     const close = () => layer.forEach((o) => o.destroy());
     layer.push(this.add.rectangle(360, 640, 720, fullH(this), 0x000000, 0.85).setInteractive().setDepth(100));

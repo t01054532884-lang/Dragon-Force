@@ -44,6 +44,11 @@ export const ART_FILES: Record<string, string> = {
   'ui-ticket': 'ui-ticket.webp',
   // 드래곤 초상 10종: 6단계 기획서 v1.0 아틀라스에서 잘라 냄(v1.2 31쪽: 도감·소환 결과·상세·선택 카드 사용 가능)
   ...Object.fromEntries(['red', 'blue', 'yellow', 'green', 'white', 'black', 'stone', 'wind', 'water', 'arcane'].map((id) => [`portrait-${id}`, `portrait-${id}.webp`])),
+  // 신규 1묶음 초상(확정본, scripts/process_art_batch14.py) — 나머지 6종은 코드에 들어갈 때 여기에 추가
+  ...Object.fromEntries(['sand', 'steel', 'bloom'].map((id) => [`portrait-${id}`, `portrait-${id}.webp`])),
+  ...Object.fromEntries(['sand', 'steel', 'bloom'].map((id) => [`top-${id}`, `top/top-${id}.webp`])), // 전투 탑다운(확정)
+  ...Object.fromEntries(['sand', 'steel', 'bloom'].map((id) => [`sig-${id}`, `sig/sig-${id}.webp`])), // 전용 스킬 배지(확정)
+  ...Object.fromEntries(['sand', 'steel', 'bloom'].map((el) => [`sigil-${el}`, `sigil/sigil-${el}.webp`])), // 해금 마법진(합본에서 잘라 냄, 속성 이름 = 드래곤 이름)
   // UI 아이콘(임시): 기획자 UI 시안 6장에서 타일 바탕을 지우고 떼어 낸 것. 깨끗한 아이콘 묶음이 오면 교체
   ...Object.fromEntries(
     ['ic-banner', 'ic-book', 'ic-cal-star', 'ic-calendar', 'ic-cards', 'ic-chest', 'ic-crystal', 'ic-dragon', 'ic-egg', 'ic-gear', 'ic-gift', 'ic-heart',

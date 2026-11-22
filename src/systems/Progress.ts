@@ -13,7 +13,7 @@ import {
   type PermanentUpgrades,
   type UpgradeType,
 } from '../data/progression';
-import { DRAGON_ORDER, DRAGONS, GROWTH, type DragonId } from '../data/dragons';
+import { DRAGON_ORDER, releasedDragons, DRAGONS, GROWTH, type DragonId } from '../data/dragons';
 import {
   ACHIEVEMENTS,
   BOXES,
@@ -686,8 +686,8 @@ function pickWeighted<T extends string | number>(weights: [T, number][], r: numb
 const rarityRoll = (w: Record<Rarity, number>, r: number) => pickWeighted<Rarity>(RARITIES.map((k) => [k, w[k]]), r);
 const pickIn = <T>(arr: T[], r: number) => arr[Math.min(arr.length - 1, Math.floor(r * arr.length))];
 /** 정수·조각을 줄 수 있는 드래곤(레드 제외) */
-export const BOX_POOL = DRAGON_ORDER.filter((id) => id !== 'red');
-export const poolOf = (r: Rarity, withRed: boolean) => DRAGON_ORDER.filter((id) => (withRed || id !== 'red') && econRarity(DRAGONS[id].rarity) === r);
+export const BOX_POOL = releasedDragons().filter((id) => id !== 'red'); // 출시된 드래곤만 뽑힘
+export const poolOf = (r: Rarity, withRed: boolean) => releasedDragons().filter((id) => (withRed || id !== 'red') && econRarity(DRAGONS[id].rarity) === r);
 
 /**
  * 드래곤·스킬 상자 1회. 보장(원문 6장):
@@ -1227,8 +1227,8 @@ export const Progress = {
     if (browserStore().getItem(SAVE_KEY)) return;
     let n = defaultProgress();
     n = { ...n, rubies: 30000, gold: 300000, summon: { ...n.summon, legacyTickets: 30 } };
-    for (const id of DRAGON_ORDER) n = { ...n, dragons: { ...n.dragons, [id]: { ...n.dragons[id], unlocked: true } } };
-    for (const id of DRAGON_ORDER) n = addCards(n, id, 50);
+    for (const id of releasedDragons()) n = { ...n, dragons: { ...n.dragons, [id]: { ...n.dragons[id], unlocked: true } } };
+    for (const id of releasedDragons()) n = addCards(n, id, 50);
     const all = Array.from({ length: 20 }, (_, i) => i + 1);
     n = { ...n, unlockedStages: all, difficulty: { ...n.difficulty, easy: { ...n.difficulty.easy, unlocked: all } } };
     this.save(n);
@@ -1236,7 +1236,7 @@ export const Progress = {
   devGrant(): void {
     let n = this.load();
     n = { ...n, rubies: n.rubies + 3000, gold: n.gold + 20000 };
-    for (const id of DRAGON_ORDER) n = addCards(n, id, 20);
+    for (const id of releasedDragons()) n = addCards(n, id, 20);
     this.save(n);
   },
   reset() {

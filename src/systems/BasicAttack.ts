@@ -30,6 +30,25 @@ interface Bullet {
   tag: string;
   first: boolean; // 묶음의 첫 발(독구름 위치)
   stopTrail?: () => void; // 화염탄 꼬리(연출) 끄기
+  /** 스틸 강철 원반: 날아간 거리·되돌아오는 중인지 */
+  ret?: { dist: number; traveled: number; back: boolean; mult: number };
+}
+
+/** 블룸 씨앗: 심은 자리에서 delay 뒤 터짐 */
+interface Seed {
+  x: number;
+  y: number;
+  left: number;
+  volley: Volley;
+  g: Phaser.GameObjects.Image;
+}
+
+/** 블룸 Lv.7 꽃: 드래곤이 닿으면 회복 */
+interface Flower {
+  x: number;
+  y: number;
+  left: number;
+  g: Phaser.GameObjects.Image;
 }
 
 interface Cloud {
@@ -57,6 +76,9 @@ export class BasicAttack {
   private spinHitAt = new Map<number, number>();
   private waveTimer = 0;
   private now = 0;
+  private seeds: Seed[] = [];
+  private flowers: Flower[] = [];
+  private flowerHeals = 0; // 판당 회복 횟수(상한 FLOWER.maxHeals)
 
   private cache = new Map<number, BasicLevel>();
   /** 전용 액티브(아케인 마력 폭주)가 잠시 바꾸는 공격 주기 배율 */
@@ -91,7 +113,7 @@ export class BasicAttack {
    */
   singleTargetDps(): number {
     const L = this.L;
-    const perVolley = L.coef * L.levelMod * (1 + (L.shots - 1) * this.spec.sameVolley);
+    const perVolley = L.coef * L.levelMod * (1 + (L.shots - 1) * this.spec.sameVolley) * (L.returning ? 1 + L.returning.mult : 1);
     const sec = (L.interval * this.traits.intervalMult * this.hasteMult) / 1000;
     return (this.h.stats.attack * perVolley) / sec;
   }
@@ -107,7 +129,8 @@ export class BasicAttack {
 
     this.timer -= delta;
     if (this.timer <= 0) {
-      const targets = this.selectDistinctFirst(this.spec.range, L.shots);
+      // 부채꼴 산탄(샌드)은 가장 가까운 적 하나 쪽으로 모든 발을 고르게 벌린다
+      const targets = L.spread ? this.selectDistinctFirst(this.spec.range, 1).flatMap((t) => Array.from({ length: L.shots }, () => t)) : this.selectDistinctFirst(this.spec.range, L.shots);
       if (targets.length === 0) {
         this.timer = 0; // 준비된 상태로 기다리다가 적이 사거리에 들어오면 바로 쏜다
       } else {
@@ -115,7 +138,8 @@ export class BasicAttack {
         const volley: Volley = { hitUids: new Set(), index: this.volleyCount };
         const explode = !!L.explodeEvery && this.volleyCount % L.explodeEvery === 0;
         const blast = !!L.blast && this.volleyCount % L.blast.every === 0;
-        targets.forEach((t, i) => this.spawnBullet(t, volley, explode && i === 0, i, targets, blast && i === 0));
+        if (L.seed) targets.forEach((t) => this.plantSeed(t, volley)); // 블룸: 투사체 대신 적 발밑에 씨앗
+        else targets.forEach((t, i) => this.spawnBullet(t, volley, explode && i === 0, i, targets, blast && i === 0));
         // 연출: 묶음당 한 번(탄마다 소리를 내지 않음 — 기획 10.1)
         const { x: px, y: py } = this.h.player;
         this.h.onFire?.(Phaser.Math.Angle.Between(px, py, targets[0].x, targets[0].y));
@@ -130,6 +154,8 @@ export class BasicAttack {
     this.updateClouds(delta);
     this.updateSpin(delta);
     this.updateWave(delta);
+    this.updateSeeds(delta);
+    this.updateFlowers(delta);
   }
 
   /** 거리 우선, 같은 거리면 먼저 나온 적. 서로 다른 적을 먼저 배정하고 모자라면 같은 적에 다시 배정. */
@@ -162,6 +188,7 @@ export class BasicAttack {
       const step = Math.min(0.22, Math.atan((target.def.radius * 0.6) / dist));
       spread = same > 1 ? (k - (same - 1) / 2) * step : 0;
     }
+    if (L.spread && total > 1) spread = (index - (total - 1) / 2) * (L.spread / (total - 1)); // 샌드: 부채꼴로 고르게
     const angle = Phaser.Math.Angle.Between(x, y, target.x, target.y) + spread;
     const img = this.h.scene.add.image(x, y, this.spec.texture).setDepth(9).setRotation(angle).setScale((explode ? 1.6 : 1) * L.scale);
     this.bullets.push({
@@ -169,6 +196,7 @@ export class BasicAttack {
       pierceLeft: L.pierce, hitSet: new Set(), coef: L.coef, child: false, tag: 'basic', first: index === 0,
       // 레드 화염탄: 밝은 중심 + 짧은 꼬리(기획 7.2). 다른 드래곤은 확장 단계에서 속성 색으로
       stopTrail: this.spec.texture === 'fireball' ? this.h.fx?.trail(img) : undefined,
+      ret: L.returning ? { dist: L.returning.dist, traveled: 0, back: false, mult: L.returning.mult } : undefined,
     });
   }
 
@@ -187,6 +215,23 @@ export class BasicAttack {
         const want = Phaser.Math.Angle.Between(b.img.x, b.img.y, b.target.x, b.target.y);
         b.angle = Phaser.Math.Angle.RotateTo(b.angle, want, b.homing * dt);
         b.img.setRotation(b.angle);
+      }
+      if (b.ret) {
+        // 강철 원반: dist만큼 날아가면 돌아서서 드래곤을 쫓아온다. 돌아올 때는 같은 적을 다시 맞힐 수 있다(새 묶음, ×mult)
+        b.ret.traveled += b.speed * dt;
+        if (!b.ret.back && b.ret.traveled >= b.ret.dist) {
+          b.ret.back = true;
+          b.hitSet.clear();
+          b.volley = { hitUids: new Set(), index: b.volley.index };
+          b.coef *= b.ret.mult;
+          b.tag = 'basic-return';
+        }
+        if (b.ret.back) {
+          const { x: px, y: py } = this.h.player;
+          b.angle = Phaser.Math.Angle.Between(b.img.x, b.img.y, px, py);
+          if (Phaser.Math.Distance.Between(b.img.x, b.img.y, px, py) < 26) return this.kill(b);
+        }
+        b.img.rotation += 14 * dt; // 회전하는 원반
       }
       b.img.x += Math.cos(b.angle) * b.speed * dt;
       b.img.y += Math.sin(b.angle) * b.speed * dt;
@@ -243,6 +288,8 @@ export class BasicAttack {
 
   private applyStatus(e: Enemy, L: BasicLevel, repeat: boolean, angle: number): void {
     if (L.slow) e.slow(L.slow.ratio, L.slow.ms * this.traits.slowDurMult);
+    if (L.weaken) e.weaken(L.weaken.ratio, L.weaken.ms);
+    if (L.root) e.root(L.root);
     if (L.poison && !repeat) e.poison(L.poison.perSec, L.poison.ms * this.traits.poisonDurMult, L.poison.maxStacks);
     if (L.shock) e.shock(L.shock.mult, L.shock.ms);
     if (L.knock) e.knock(Math.cos(angle), Math.sin(angle), L.knock.speed, L.knock.ms);
@@ -272,6 +319,8 @@ export class BasicAttack {
           if (status.poison) e.poison(status.poison.perSec, status.poison.ms * this.traits.poisonDurMult, status.poison.maxStacks);
           if (status.shock) e.shock(status.shock.mult, status.shock.ms);
           if (status.knock) e.knock(e.x - x || 1, e.y - y, status.knock.speed, status.knock.ms);
+          if (status.weaken) e.weaken(status.weaken.ratio, status.weaken.ms);
+          if (status.root) e.root(status.root);
         }
         this.h.hit(e, { source: 'basic', coef, tag });
       }
@@ -445,6 +494,57 @@ export class BasicAttack {
     this.h.scene.tweens.add({ targets: ring, radius: r, alpha: 0.1, duration: 350, onComplete: () => ring.destroy() });
   }
 
+  // ───────── 씨앗 폭탄(블룸) ─────────
+  private plantSeed(target: Enemy, volley: Volley): void {
+    const g = this.h.scene.add.image(target.x, target.y, this.spec.texture).setDepth(4).setScale(0.6);
+    this.h.scene.tweens.add({ targets: g, scale: 1.1, duration: this.L.seed!.delay, ease: 'Quad.In' });
+    this.seeds.push({ x: target.x, y: target.y, left: this.L.seed!.delay, volley, g });
+  }
+
+  private updateSeeds(delta: number): void {
+    if (!this.seeds.length) return;
+    const L = this.L;
+    this.seeds = this.seeds.filter((sd) => {
+      sd.left -= delta;
+      if (sd.left > 0) return true;
+      sd.g.destroy();
+      const r = this.area(L.seed?.radius ?? 1.3 * 50);
+      for (const e of this.h.enemies()) {
+        if (!e.active || Phaser.Math.Distance.Between(sd.x, sd.y, e.x, e.y) >= r + e.def.radius) continue;
+        // 같은 묶음의 씨앗이 같은 적을 또 맞히면 50%(다른 드래곤의 여러 발과 같은 규칙)
+        const repeat = sd.volley.hitUids.has(e.uid);
+        sd.volley.hitUids.add(e.uid);
+        this.applyStatus(e, L, repeat, 0);
+        this.h.hit(e, { source: 'basic', coef: L.coef, levelMod: L.levelMod, sameVolley: repeat ? this.spec.sameVolley : 1, tag: 'basic-seed' });
+      }
+      const c = this.h.scene.add.circle(sd.x, sd.y, r, 0x9ccc65, 0.35).setStrokeStyle(4, 0xf48fb1, 0.8).setDepth(8);
+      this.h.scene.tweens.add({ targets: c, alpha: 0, scale: 1.15, duration: 280, onComplete: () => c.destroy() });
+      if (L.seed?.flower && this.flowerHeals < FLOWER.maxHeals) {
+        const f = this.h.scene.add.image(sd.x, sd.y, 'bolt-seed').setDepth(4).setScale(1.4).setTint(0xf8bbd0);
+        this.flowers.push({ x: sd.x, y: sd.y, left: FLOWER.ms, g: f });
+      }
+      return false;
+    });
+  }
+
+  private updateFlowers(delta: number): void {
+    if (!this.flowers.length) return;
+    const { x, y } = this.h.player;
+    this.flowers = this.flowers.filter((f) => {
+      f.left -= delta;
+      if (f.left > 0 && this.flowerHeals < FLOWER.maxHeals && Phaser.Math.Distance.Between(x, y, f.x, f.y) < FLOWER.touch) {
+        this.flowerHeals++;
+        this.h.heal?.(FLOWER.healPct);
+        f.left = 0;
+      }
+      if (f.left <= 0) {
+        f.g.destroy();
+        return false;
+      }
+      return true;
+    });
+  }
+
   private tint(): number {
     return { 'bolt-water': 0x4fc3f7, 'bolt-rock': 0xb08d57 }[this.spec.texture] ?? 0xffffff;
   }
@@ -474,6 +574,10 @@ export class BasicAttack {
     [...this.bullets, ...this.queued].forEach((b) => (b.stopTrail?.(), b.img.destroy()));
     this.clouds.forEach((c) => c.g.destroy());
     this.spinImgs.forEach((i) => i.destroy());
+    this.seeds.forEach((sd) => sd.g.destroy());
+    this.flowers.forEach((f) => f.g.destroy());
+    this.seeds = [];
+    this.flowers = [];
     this.bullets = [];
     this.queued = [];
     this.clouds = [];
@@ -482,3 +586,5 @@ export class BasicAttack {
 }
 
 const BASE_HEAL = 0.02;
+/** 블룸 Lv.7 꽃(AI 1차안): 3초, 닿으면 최대 HP 1%, 판당 20회 */
+const FLOWER = { ms: 3000, healPct: 0.01, maxHeals: 20, touch: 40 };

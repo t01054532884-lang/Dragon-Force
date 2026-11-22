@@ -94,6 +94,10 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
   private ccKind: 'freeze' | 'stun' | null = null;
   private vulnLeft = 0;
   vulnMult = 1;
+  // 신규 1묶음 상태이상(2026-11-22): 약화(적 공격 피해 감소 — 샌드) · 속박(이동 불가, 공격은 함 — 블룸)
+  private weakLeft = 0;
+  private weakRatio = 0;
+  private rootLeft = 0;
   orbHitAt = -Infinity;
   private queue: Move[] = [];
   private moveLeft = -1;
@@ -207,6 +211,14 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
       this.vulnLeft -= delta;
       if (this.vulnLeft <= 0) this.vulnMult = 1;
     }
+    if (this.weakLeft > 0) {
+      this.weakLeft -= delta;
+      if (this.weakLeft <= 0) this.refreshTint();
+    }
+    if (this.rootLeft > 0) {
+      this.rootLeft -= delta;
+      if (this.rootLeft <= 0) this.refreshTint();
+    }
     if (this.knockLeft > 0) {
       this.knockLeft -= delta;
       this.body.setVelocity(this.knockVel.x, this.knockVel.y);
@@ -273,6 +285,7 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
     }
     let speed = this.def.speed * this.speedMult;
     if (this.slowLeft > 0) speed *= 1 - this.slowRatio;
+    if (this.rootLeft > 0) speed = 0; // 속박: 걸어서 다가오지 못함(예고·돌진 같은 공격 동작은 그대로)
     let vx = Math.cos(aim) * speed;
     let vy = Math.sin(aim) * speed;
     const keep = this.def.keep;
@@ -650,6 +663,40 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
     this.vulnLeft = Math.max(this.vulnLeft, ms);
   }
 
+  /** 약화: ms 동안 이 적이 주는 피해 −ratio(가장 센 값, 시간 갱신). 엘리트·보스는 효과 60% 감소(둔화와 같은 저항) */
+  weaken(ratio: number, ms: number): void {
+    const r = Math.min(0.5, ratio) * CC[this.def.rank].slowKeep;
+    this.weakRatio = Math.max(this.weakLeft > 0 ? this.weakRatio : 0, r);
+    this.weakLeft = Math.max(this.weakLeft, ms);
+    if (this.hitFlash <= 0) this.refreshTint();
+  }
+
+  get weakened(): boolean {
+    return this.weakLeft > 0;
+  }
+
+  /** 이 적이 주는 피해 배율(약화 반영) */
+  get weakMult(): number {
+    return this.weakLeft > 0 ? 1 - this.weakRatio : 1;
+  }
+
+  /** 속박: 일반 적은 ms 동안 이동 불가. 엘리트·보스는 빙결·기절처럼 15% 둔화 1초로 바뀐다 */
+  root(ms: number): boolean {
+    if (this.def.rank !== 'normal') {
+      this.slowRatio = Math.max(this.slowLeft > 0 ? this.slowRatio : 0, HARD_CC_BOSS.slow);
+      this.slowLeft = Math.max(this.slowLeft, HARD_CC_BOSS.ms);
+      if (this.hitFlash <= 0) this.refreshTint();
+      return false;
+    }
+    this.rootLeft = Math.max(this.rootLeft, ms);
+    if (this.hitFlash <= 0) this.refreshTint();
+    return true;
+  }
+
+  get rooted(): boolean {
+    return this.rootLeft > 0;
+  }
+
   get burnCount(): number {
     return this.burnStacks.length;
   }
@@ -670,13 +717,15 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
     return coef;
   }
 
-  /** 상태 색: 빙결(하늘색) > 기절(회색) > 얼음(푸른색) > 화상(주황색) > 중독(보라) > 원래 색 */
+  /** 상태 색: 빙결(하늘색) > 기절(회색) > 속박(연두) > 얼음(푸른색) > 화상(주황색) > 중독(보라) > 약화(모래색) > 원래 색 */
   private refreshTint(): void {
     if (this.ccLeft > 0 && this.ccKind === 'freeze') this.setTint(0xc9f0ff);
     else if (this.stunned || this.ccLeft > 0) this.setTint(0x9e9e9e);
+    else if (this.rootLeft > 0) this.setTint(0xb5e28a);
     else if (this.slowLeft > 0) this.setTint(0x8fd3ff);
     else if (this.burnStacks.length > 0) this.setTint(0xffa64d);
     else if (this.poisonStacks.length > 0) this.setTint(0xb388ff);
+    else if (this.weakLeft > 0) this.setTint(0xe6cfa3);
     else this.clearTint();
   }
 }

@@ -30,6 +30,8 @@ export interface SignatureDef {
   poison?: boolean;
   shock?: boolean;
   knock?: number;
+  weaken?: { ratio: number; ms: number }; // 약화(신규: 샌드)
+  root?: number; // 속박 ms(신규: 블룸)
   color: number;
 }
 
@@ -72,6 +74,10 @@ export const SIGNATURES: Record<DragonId, SignatureDef> = {
   stone: { name: '대지의 수호', icon: '🪨', text: '일시적 피해 감소', detail: `방어: ${R.guardMs / 1000}초 동안 받는 피해 −${R.guardReduce * 100}% + 주변 4m 밀쳐내며 적마다 DPS×${R.guardHitSec}초`, kind: 'guard', cooldownMs: CD, radius: 4 * M, knock: 600, color: 0xb08d57 },
   wind: { name: '폭풍의 질주', icon: '🌪️', text: '이동속도 강화·주변 공격', detail: `이동 강화: ${R.moveMs / 1000}초 동안 이동속도 +${R.moveBoost * 100}% + 주변 3.2m 회오리(적마다 총 DPS×${R.moveWeakSec}초)`, kind: 'move', cooldownMs: CD, radius: 3.2 * M, durationMs: R.moveMs, ticks: 12, color: 0xb2fff0 },
   water: { name: '해일', icon: '🌊', text: '전방 넓은 파도 공격', detail: `광역: 적이 가장 많은 방향으로 8.5m·폭 7.6m, 적마다 DPS×${R.aoePerTargetSec}초 + 밀쳐냄·40% 둔화 3초`, kind: 'beam', cooldownMs: CD, length: 8.5 * M, width: 3.8 * M, knock: 520, slow: { ratio: 0.4, ms: 3000 }, color: 0x4fc3f7 },
+  // 신규 1묶음(2026-11-22, AI 1차안 — docs/NEW_DRAGONS_SKILLS.md): 같은 예산 규칙(지속형 DPS×5초 · 단일형 DPS×9초 · 광역 총 24초)
+  sand: { name: '모래 늪', icon: '🏜️', text: '주변에 모래 늪', detail: `지속: 주변 5m 모래 늪 6초, 안의 적 50% 둔화·약화(공격 피해 −20%) + 머문 적마다 총 DPS×${R.dotSec}초`, kind: 'dot', cooldownMs: CD, radius: 5 * M, durationMs: 6000, slow: { ratio: 0.5, ms: 700 }, weaken: { ratio: 0.2, ms: 1000 }, color: 0xd8b27a },
+  steel: { name: '칼날비', icon: '⚔️', text: '하늘에서 강철 검이 떨어짐', detail: `단일+범위: 1.5초 동안 검 12자루가 적이 많은 곳에 떨어짐(처음 3자루는 엘리트·보스 우선), 자루마다 1.2m, 합계 DPS×${R.singleSec}초`, kind: 'single', cooldownMs: CD, durationMs: 1500, radius: 10 * M, color: 0xc9d0d6 },
+  bloom: { name: '가시 정원', icon: '🌸', text: '가시 꽃이 다가온 적을 붙잡음', detail: '함정: 주변 4곳에 가시 꽃 8초, 다가온 적 속박 1.5초 + 피해(꽃마다 최대 3번, 한 번에 DPS×2초)', kind: 'aoe', cooldownMs: CD, radius: 2.6 * M, durationMs: 8000, root: 1500, color: 0xf48fb1 },
   arcane: { name: '마력 폭주', icon: '🔮', text: '짧은 시간 추가 마력탄', detail: `단일: 4초 동안 마력탄 10발, 엘리트·보스 우선, 합계 DPS×${R.singleSec}초`, kind: 'single', cooldownMs: CD, durationMs: 4000, ticks: 10, radius: 11 * M, color: 0xb693ff },
 };
 
@@ -116,6 +122,9 @@ export function sigGrowth(id: DragonId, tier: number): SigGrowth {
     case 'wind': return { dmg, radius: 1 + 0.1 * t, count: 2 + t, lingerMs: 500 * t }; // 회전 바람 칼날
     case 'water': return { dmg, radius: 1 + 0.1 * t, count: t >= 2 ? 2 : 1, lingerMs: 0 }; // 해일 횟수
     case 'arcane': return { dmg, radius: 1, count: 10 + 2 * t, lingerMs: 0 }; // 마력탄 수
+    case 'sand': return { dmg, radius: 1 + 0.08 * t, count: 0, lingerMs: 6000 + 1000 * t }; // 모래 늪 유지
+    case 'steel': return { dmg, radius: 1, count: 12 + 3 * t, lingerMs: 0 }; // 검 수
+    case 'bloom': return { dmg, radius: 1 + 0.06 * t, count: 4 + t, lingerMs: 8000 + 1000 * t }; // 가시 꽃 수·유지
   }
 }
 
@@ -127,9 +136,10 @@ export function sigGrowthLines(id: DragonId, tier: number): Record<string, strin
   const out: Record<string, string> = { 피해: `${Math.round(g.dmg * 100)}%` };
   if (d.radius) out['범위'] = m(d.radius);
   if (d.length) out['길이·폭'] = `${m(d.length)} · ${m(d.width! * 2)}`;
-  const label: Partial<Record<DragonId, string>> = { yellow: '연쇄 번개', black: '암흑 빔', stone: '바위 파동', wind: '바람 칼날', water: '해일', arcane: '마력탄' };
-  if (label[id]) out[label[id]!] = `${g.count}${id === 'yellow' ? '갈래' : id === 'arcane' || id === 'wind' ? '개' : '번'}`;
-  const linger: Partial<Record<DragonId, string>> = { red: '남는 불길', blue: '냉기 장판', green: '독구름', white: '보호막', wind: '질주 추가' };
+  const label: Partial<Record<DragonId, string>> = { yellow: '연쇄 번개', black: '암흑 빔', stone: '바위 파동', wind: '바람 칼날', water: '해일', arcane: '마력탄', steel: '강철 검', bloom: '가시 꽃' };
+  const unit: Partial<Record<DragonId, string>> = { yellow: '갈래', arcane: '개', wind: '개', steel: '자루', bloom: '송이' };
+  if (label[id]) out[label[id]!] = `${g.count}${unit[id] ?? '번'}`;
+  const linger: Partial<Record<DragonId, string>> = { red: '남는 불길', blue: '냉기 장판', green: '독구름', white: '보호막', wind: '질주 추가', sand: '모래 늪', bloom: '꽃 유지' };
   if (linger[id] && g.lingerMs) out[linger[id]!] = `${(g.lingerMs / 1000).toFixed(1)}초`;
   return out;
 }

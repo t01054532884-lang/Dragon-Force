@@ -61,7 +61,7 @@ export function drawDragon(g: Phaser.GameObjects.Graphics, d: DragonDef, k: numb
   const horn = id === 'blue' ? 0xe3f4ff : id === 'white' || id === 'yellow' ? 0xd9b44a : id === 'stone' ? 0x6e5a44 : 0x8a6a4a;
   g.fillStyle(horn).fillTriangle(p(25), p(14), p(28), p(12), p(23), p(4)).fillTriangle(p(39), p(14), p(36), p(12), p(41), p(4));
   // 눈
-  const eye = { red: 0xffd34d, blue: 0x4fc3f7, yellow: 0xff8f00, green: 0xb388ff, white: 0xffc107, black: 0xd1a3ff, stone: 0xffb300, wind: 0x26a69a, water: 0x0277bd, arcane: 0xff80ab }[id];
+  const eye = { red: 0xffd34d, blue: 0x4fc3f7, yellow: 0xff8f00, green: 0xb388ff, white: 0xffc107, black: 0xd1a3ff, stone: 0xffb300, wind: 0x26a69a, water: 0x0277bd, arcane: 0xff80ab, sand: 0xff8f00, steel: 0xff6d00, bloom: 0xc2185b }[id];
   g.fillStyle(eye).fillCircle(p(28), p(17), p(2)).fillCircle(p(36), p(17), p(2));
 
   // 속성 장식
@@ -95,6 +95,20 @@ export function drawDragon(g: Phaser.GameObjects.Graphics, d: DragonDef, k: numb
       break;
     case 'water': // 물방울
       g.fillStyle(0xe1f5fe, 0.9).fillCircle(p(10), p(46), p(2.5)).fillCircle(p(54), p(48), p(2)).fillCircle(p(48), p(54), p(1.5));
+      break;
+    case 'sand': // 날개 끝 모래 알갱이 + 이마 고글
+      g.fillStyle(0xf1e0c0, 0.9).fillCircle(p(4), p(16), p(1.6)).fillCircle(p(7), p(12), p(1.2)).fillCircle(p(60), p(16), p(1.6)).fillCircle(p(57), p(12), p(1.2));
+      g.fillStyle(d.accent).fillRect(p(26), p(12), p(12), p(3));
+      break;
+    case 'steel': // 판갑 이음매(주황)와 꼬리 원반
+      g.lineStyle(p(1.5), d.accent, 1).lineBetween(p(24), p(30), p(40), p(30)).lineBetween(p(24), p(38), p(40), p(38));
+      g.fillStyle(0xc9d0d6).fillCircle(p(32), p(60), p(4));
+      g.fillStyle(d.accent).fillCircle(p(32), p(60), p(1.5));
+      break;
+    case 'bloom': // 등의 꽃봉오리와 잎
+      g.fillStyle(d.accent).fillEllipse(p(14), p(30), p(10), p(5)).fillEllipse(p(50), p(30), p(10), p(5));
+      g.fillStyle(0xf8bbd0).fillCircle(p(32), p(34), p(5));
+      g.fillStyle(0xfff59d).fillCircle(p(32), p(34), p(2));
       break;
     case 'arcane': // 마법 결정과 고리
       g.lineStyle(p(1.5), d.accent, 0.9).strokeEllipse(p(32), p(36), p(44), p(14));
@@ -145,6 +159,25 @@ function drawBolts(g: Phaser.GameObjects.Graphics): void {
   g.fillStyle(0xb388ff).fillCircle(10, 10, 6);
   g.fillStyle(0xffffff).fillTriangle(10, 4, 12, 10, 8, 10).fillTriangle(10, 16, 12, 10, 8, 10);
   g.generateTexture('bolt-arcane', 20, 20);
+  // ── 신규 1묶음 ──
+  g.clear(); // 모래 산탄: 작은 모래 알갱이 뭉치
+  g.fillStyle(0xd8b27a).fillCircle(8, 7, 6);
+  g.fillStyle(0xf1e0c0).fillCircle(13, 8, 3).fillCircle(5, 4, 2);
+  g.fillStyle(0xc8643c).fillCircle(10, 10, 2);
+  g.generateTexture('bolt-sand', 18, 14);
+  g.clear(); // 강철 원반: 톱니 원판
+  g.fillStyle(0x9aa3ad).fillCircle(12, 12, 11);
+  g.fillStyle(0xc9d0d6).fillCircle(12, 12, 7);
+  g.fillStyle(0xff8a2a).fillCircle(12, 12, 3);
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    g.fillStyle(0x6d747c).fillTriangle(12 + Math.cos(a) * 9, 12 + Math.sin(a) * 9, 12 + Math.cos(a + 0.3) * 12, 12 + Math.sin(a + 0.3) * 12, 12 + Math.cos(a - 0.2) * 12, 12 + Math.sin(a - 0.2) * 12);
+  }
+  g.generateTexture('bolt-steel', 24, 24);
+  g.clear(); // 씨앗: 분홍 꽃씨
+  g.fillStyle(0x7cb342).fillEllipse(9, 9, 14, 10);
+  g.fillStyle(0xf48fb1).fillCircle(9, 9, 4);
+  g.generateTexture('bolt-seed', 18, 18);
 }
 
 /** 드래곤 64px(전투) · 192px(UI 초상) + 투사체 */

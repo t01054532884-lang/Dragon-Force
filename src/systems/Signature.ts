@@ -19,9 +19,11 @@ interface Zone {
   every: number;
   acc: number;
   perTick: number;
-  kind: 'fire' | 'frost' | 'poison';
+  kind: 'fire' | 'frost' | 'poison' | 'sand' | 'thorn';
   follow: boolean;
   img: Phaser.GameObjects.Image;
+  /** 가시 꽃: 남은 붙잡기 횟수 */
+  charges?: number;
 }
 
 /** 전투 효과 깊이: 바닥에 남는 것은 적 공격 예고(3~4)보다 아래, 순간 섬광은 위(짧고 반투명) */
@@ -55,6 +57,7 @@ export class Signature {
   private bubble: Phaser.GameObjects.Image | null = null;
   private pending: { at: number; run: () => void }[] = [];
   private clock = 0;
+  private swordsPriority = 0; // 칼날비: 엘리트·보스를 먼저 노리는 남은 자루 수
   uses = 0;
   /** 이번 사용에서 엘리트·보스에게 넣은 피해(한 번 사용 상한용) */
   private dealt = new Map<Enemy, number>();
@@ -189,6 +192,23 @@ export class Signature {
         this.startTicks(R.moveMs + g.lingerMs, 500, (dps * R.moveWeakSec) / ((R.moveMs + g.lingerMs) / 500));
         this.spawnBlades(g.count);
         break;
+      // ── 신규 1묶음 ──
+      case 'sand': // 모래 늪: 시전 자리에 남는 지속 피해 + 둔화·약화(머문 적마다 총 DPS × 5초)
+        this.addZone({ x, y, r: rad, left: g.lingerMs, every: 500, perTick: (dps * R.dotSec) / (g.lingerMs / 500), kind: 'sand', follow: false, tex: 'fx-rock-wave' });
+        break;
+      case 'steel': { // 칼날비: 짧은 시간 검이 연달아 떨어짐(처음 3자루는 엘리트·보스 우선)
+        const dur = d.durationMs!;
+        this.swordsPriority = 3;
+        this.startTicks(dur, dur / g.count, (dps * R.singleSec) / g.count);
+        break;
+      }
+      case 'bloom': { // 가시 정원: 드래곤 둘레에 가시 꽃(다가온 적을 붙잡고 피해, 꽃마다 3번)
+        for (let i = 0; i < g.count; i++) {
+          const a = (i / g.count) * Math.PI * 2 + Math.PI / 4;
+          this.addZone({ x: x + Math.cos(a) * rad, y: y + Math.sin(a) * rad, r: 1.2 * 50 * g.radius, left: g.lingerMs, every: 250, perTick: dps * 2, kind: 'thorn', follow: false, tex: 'fx-thorn', charges: 3 }, true);
+        }
+        break;
+      }
       // ── 단일: 엘리트·보스 우선 마력탄 ──
       case 'arcane': {
         const dur = d.durationMs!;
@@ -251,6 +271,14 @@ export class Signature {
       this.boltFx(x, y, t);
       this.strike([t], this.tickDamage);
     }
+    if (this.dragonId === 'steel') {
+      // 처음 몇 자루는 보스·엘리트, 나머지는 적이 가장 많이 모인 곳
+      const t = this.swordsPriority > 0 ? this.priorityTarget(x, y, this.def.radius!) : this.densest(x, y, this.def.radius!);
+      this.swordsPriority--;
+      if (!t) return;
+      this.swordFx(t.x, t.y);
+      this.strike(this.inCircle(t.x, t.y, 1.2 * 50), this.tickDamage);
+    }
   }
 
   private end(): void {
@@ -268,14 +296,40 @@ export class Signature {
     }
   }
 
+  /** 칼날비 연출: 위에서 검이 내려꽂힘 */
+  private swordFx(x: number, y: number): void {
+    const img = this.scene.add.image(x, y - 140, 'fx-sword').setDepth(DEPTH_FLASH).setAlpha(0.95);
+    this.scene.tweens.add({ targets: img, y, duration: 120, ease: 'Quad.In', onComplete: () => {
+      const ring = this.scene.add.circle(x, y, 1.2 * 50 * this.h.stats.areaMult, 0xc9d0d6, 0.3).setStrokeStyle(3, 0xff8a2a, 0.8).setDepth(DEPTH_FLASH);
+      this.scene.tweens.add({ targets: [img, ring], alpha: 0, duration: 260, onComplete: () => (img.destroy(), ring.destroy()) });
+    } });
+  }
+
+  /** 반경 안에서 주변 1.5m에 적이 가장 많이 모인 적 */
+  private densest(x: number, y: number, maxD: number): Enemy | null {
+    const inRange = this.live().filter((e) => Phaser.Math.Distance.Between(x, y, e.x, e.y) < maxD);
+    let best: Enemy | null = null;
+    let bestN = -1;
+    for (const e of inRange) {
+      const n = inRange.filter((o) => Phaser.Math.Distance.Between(e.x, e.y, o.x, o.y) < 75).length;
+      if (n > bestN) {
+        bestN = n;
+        best = e;
+      }
+    }
+    return best;
+  }
+
   // ───────── 남는 바닥 효과 ─────────
-  private addZone(z: Omit<Zone, 'acc' | 'img'> & { tex: string }): void {
-    if (this.zones.length >= MAX_ZONES) this.dropZone(this.zones[0]);
+  /** many = 한 번에 여러 개를 까는 경우(가시 꽃) — 개수 상한 대신 같은 종류끼리만 바꾼다 */
+  private addZone(z: Omit<Zone, 'acc' | 'img'> & { tex: string }, many = false): void {
+    if (!many && this.zones.length >= MAX_ZONES) this.dropZone(this.zones[0]);
     const color = z.kind === 'fire' ? 0xff7a1a : z.kind === 'frost' ? 0x9be7ff : 0x8bc34a;
     const img = this.scene.add.image(z.x, z.y, z.tex).setDepth(DEPTH_GROUND).setAlpha(0).setTint(z.tex === 'fx-ice-crystal' ? 0xffffff : 0xffffff);
     img.setDisplaySize(z.r * 2, z.r * 2);
     void color;
-    this.scene.tweens.add({ targets: img, alpha: z.kind === 'frost' ? 0.45 : 0.6, duration: 200 });
+    if (z.kind === 'sand') img.setTint(0xe6c38f); // 모래 늪: 바위 파동 그림을 모래색으로
+    this.scene.tweens.add({ targets: img, alpha: z.kind === 'frost' ? 0.45 : z.kind === 'thorn' ? 1 : 0.6, duration: 200 });
     this.zones.push({ ...z, acc: 0, img });
   }
 
@@ -298,7 +352,16 @@ export class Signature {
         z.acc -= z.every;
         const t = this.inCircle(z.x, z.y, z.r, false);
         if (z.kind === 'frost') t.forEach((e) => e.slow(0.45, 600));
-        else this.strike(t, z.perTick);
+        else if (z.kind === 'thorn') {
+          // 가시 꽃: 아직 붙잡히지 않은 적부터, 남은 횟수만큼
+          const fresh = t.filter((e) => !e.rooted).slice(0, z.charges ?? 0);
+          if (fresh.length) {
+            this.strike(fresh, z.perTick);
+            z.charges = (z.charges ?? 0) - fresh.length;
+            this.scene.tweens.add({ targets: z.img, scale: z.img.scale * 1.2, duration: 90, yoyo: true });
+            if (z.charges <= 0) z.left = 0;
+          }
+        } else this.strike(t, z.perTick);
       }
       if (z.left <= 0) this.dropZone(z);
     }
@@ -449,6 +512,8 @@ export class Signature {
       if (d.shock) e.shock(1.1, 2000);
       if (d.slow) e.slow(d.slow.ratio, d.slow.ms);
       if (d.freezeMs) e.hardCc('freeze', d.freezeMs);
+      if (d.weaken) e.weaken(d.weaken.ratio, d.weaken.ms);
+      if (d.root) e.root(d.root);
       if (d.knock) {
         const a = ang ?? Math.atan2(e.y - this.h.player.y, e.x - this.h.player.x);
         e.knock(Math.cos(a), Math.sin(a), d.knock, 200);
@@ -537,7 +602,7 @@ export class Signature {
  * 없는 것만 여기서 도형으로 그린다(키 이름이 같아서 코드는 그대로).
  */
 export function makeSigTextures(scene: Phaser.Scene): void {
-  const need = ['fx-wind-blade', 'fx-fire-ground', 'fx-frost-ground', 'fx-ice-crystal', 'fx-poison-cloud', 'fx-rock-wave', 'fx-light-shield', 'fx-shadow-orb', 'fx-arcane-bolt', 'fx-wave'];
+  const need = ['fx-wind-blade', 'fx-fire-ground', 'fx-frost-ground', 'fx-ice-crystal', 'fx-poison-cloud', 'fx-rock-wave', 'fx-light-shield', 'fx-shadow-orb', 'fx-arcane-bolt', 'fx-wave', 'fx-sword', 'fx-thorn'];
   if (need.every((k) => scene.textures.exists(k))) return;
   const g = scene.make.graphics({}, false);
   const make = (key: string, size: number, draw: () => void) => {
@@ -548,6 +613,26 @@ export function makeSigTextures(scene: Phaser.Scene): void {
   };
   const S = 128;
   const c = S / 2;
+  // 신규 1묶음 임시 도형(그림이 오면 교체): 칼날비 검 · 가시 꽃
+  make('fx-sword', 64, () => {
+    g.fillStyle(0xc9d0d6).fillRect(29, 4, 6, 44);
+    g.fillStyle(0xffffff, 0.8).fillRect(30, 6, 2, 40);
+    g.fillStyle(0xff8a2a).fillRect(20, 46, 24, 5);
+    g.fillStyle(0x6d4c41).fillRect(29, 51, 6, 10);
+  });
+  make('fx-thorn', 96, () => {
+    g.fillStyle(0x558b2f);
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      g.fillTriangle(48 + Math.cos(a) * 18, 48 + Math.sin(a) * 18, 48 + Math.cos(a + 0.25) * 44, 48 + Math.sin(a + 0.25) * 44, 48 + Math.cos(a + 0.5) * 18, 48 + Math.sin(a + 0.5) * 18);
+    }
+    g.fillStyle(0xf48fb1);
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2;
+      g.fillCircle(48 + Math.cos(a) * 12, 48 + Math.sin(a) * 12, 10);
+    }
+    g.fillStyle(0xfff59d).fillCircle(48, 48, 7);
+  });
   make('fx-wind-blade', S, () => {
     // 초승달 바람 칼날: 겹친 호 몇 겹(바깥 진한 청록 → 안쪽 흰빛)
     for (let i = 0; i < 6; i++) {

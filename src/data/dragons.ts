@@ -6,14 +6,17 @@ import { RED_BASIC } from './basicAttack';
 // 테스트로 조정한다. 1차안 기준: 공격력 100일 때 Lv.5 단일 대상 DPS가 레드(152.9)와 크게 벌어지지 않게,
 // 대신 다수 대상·제어·생존에서 차이를 낸다(`docs/DRAGONS.md` 측정표).
 
-export type DragonId = 'red' | 'blue' | 'yellow' | 'green' | 'white' | 'black' | 'stone' | 'wind' | 'water' | 'arcane';
+export type DragonId = 'red' | 'blue' | 'yellow' | 'green' | 'white' | 'black' | 'stone' | 'wind' | 'water' | 'arcane'
+  // 신규 1묶음(2026-11-22, docs/NEW_DRAGONS_DEV_PLAN.md) — DRAGON_RELEASED가 켜지기 전까지 상점·도감에 안 나옴
+  | 'sand' | 'steel' | 'bloom';
 export type DragonRarity = 'starter' | 'common' | 'rare' | 'epic' | 'legendary';
-export type DragonElement = 'fire' | 'ice' | 'lightning' | 'poison' | 'light' | 'dark' | 'earth' | 'wind' | 'water' | 'arcane';
+export type DragonElement = 'fire' | 'ice' | 'lightning' | 'poison' | 'light' | 'dark' | 'earth' | 'wind' | 'water' | 'arcane' | 'sand' | 'steel' | 'bloom';
 
 export const RARITY_LABEL: Record<DragonRarity, string> = { starter: '기본', common: '일반', rare: '희귀', epic: '영웅', legendary: '전설' };
 export const RARITY_COLOR: Record<DragonRarity, number> = { starter: 0xb0bec5, common: 0x9ccc65, rare: 0x4fc3f7, epic: 0xba68c8, legendary: 0xffb300 };
 export const ELEMENT_LABEL: Record<DragonElement, string> = {
   fire: '화염', ice: '얼음', lightning: '번개', poison: '독', light: '빛', dark: '암흑', earth: '대지', wind: '바람', water: '물', arcane: '신비',
+  sand: '모래', steel: '강철', bloom: '꽃',
 };
 
 /** 기본 공격 한 레벨의 상태(앞 레벨 효과를 모두 포함한 누적값) */
@@ -44,6 +47,12 @@ export interface BasicLevel {
   healChance?: number; // 처치 회복 확률(화이트 Lv.5 강화)
   spin?: { count: number; radius: number; coef: number; speed: number }; // 회전 칼날
   wave?: { every: number; radius: number; coef: number }; // 주기적 파도
+  // ── 신규 1묶음(샌드·스틸·블룸) ──
+  spread?: number; // 부채꼴 산탄: 가장 가까운 적 방향으로 shots발을 이 각도(라디안) 안에 고르게(샌드)
+  weaken?: { ratio: number; ms: number }; // 약화: 맞은 적의 공격 피해 −ratio(엘리트·보스는 효과 60% 감소)
+  root?: number; // 속박(ms): 일반 적은 이동 불가(공격은 함), 엘리트·보스는 15% 둔화 1초
+  returning?: { dist: number; mult: number }; // 되돌아오는 원반: dist만큼 날아간 뒤 드래곤에게 돌아오며 다시 맞힘(돌아올 때 피해 ×mult)
+  seed?: { delay: number; radius: number; flower?: boolean }; // 씨앗 폭탄: 적 발밑에 심고 delay 뒤 범위 폭발(flower = 터진 자리 회복 꽃)
   // ── 6단계 v1.2 영구 성장(permGrowth.ts)이 덧붙이는 값. 전투 중 Lv.1~7 데이터에는 없다 ──
   bounce?: number; // 적중 후 근처 다른 적으로 튕기는 횟수
   burnMult?: number; // 화상 피해 배율
@@ -258,6 +267,50 @@ const ARCANE = common('추적 마력탄', '🔮', 'bolt-arcane', build(
   ],
 ), { life: 2000 });
 
+// ───────── 신규 1묶음(2026-11-22) — 수치는 AI 1차안: 공격력 100 기준 Lv.5 단일 대상 DPS가 레드(152.9)와 크게 벌어지지 않게 ─────────
+// 샌드: 모래 산탄 — 짧은 사거리 부채꼴 + 약화. 단일 DPS(공격력 100): Lv.1 90 · Lv.5 140 · Lv.6 151
+const SAND = common('모래 산탄', '🏜️', 'bolt-sand', build(
+  { ...STRAIGHT, speed: 620, shots: 3, coef: 0.45, levelMod: 1, interval: 1000, spread: 0.5, weaken: { ratio: 0.15, ms: 2000 } },
+  [
+    { text: '가장 가까운 적 쪽으로 모래 3발 부채꼴(각 45%, 짧은 사거리) + 약화(적 공격 피해 −15%, 2초)' },
+    { levelMod: 1.15, text: '피해 +15%' },
+    { shots: 4, coef: 0.4, text: '모래 4발(각 40%)' },
+    { weaken: { ratio: 0.2, ms: 2500 }, text: '약화 강화: 적 공격 피해 −20%, 2.5초' },
+    { spread: 0.8, levelMod: 1.4, text: '부채꼴 넓어짐 + 피해 +40%' },
+    { shots: 5, coef: 0.36, text: '모래 5발(각 36%)' },
+    { explodeEvery: 5, explosion: { radius: 1.6 * M, coef: 1.2, color: 0xd8b27a }, text: '진화 — 모래 기둥: 5번째 공격마다 맞은 자리 1.6m 모래 폭발(120%)' },
+  ],
+), { range: 7.2 * M, life: 650 });
+
+// 스틸: 강철 원반 — 관통하며 날아갔다가 드래곤에게 되돌아옴(갈 때·올 때 각 1회 적중). Lv.1 86 · Lv.5 139 · Lv.7 203
+const STEEL = common('강철 원반', '⚙️', 'bolt-steel', build(
+  { ...STRAIGHT, speed: 520, shots: 1, coef: 0.6, levelMod: 1, interval: 1400, pierce: 99, returning: { dist: 6 * M, mult: 1 } },
+  [
+    { text: '원반 1개(60%): 적을 꿰뚫고 6m 날아간 뒤 되돌아오며 다시 맞힘' },
+    { levelMod: 1.15, text: '피해 +15%' },
+    { shots: 2, coef: 0.5, text: '원반 2개(각 50%)' },
+    { scale: 1.4, text: '원반 크기 +40%' },
+    { levelMod: 1.3, text: '피해 +30%' },
+    { interval: 1200, text: '던지는 간격 1.4 → 1.2초' },
+    { returning: { dist: 6 * M, mult: 1.5 }, text: '진화 — 되돌아올 때 피해 ×1.5' },
+  ],
+), { range: 9 * M, life: 2600 });
+
+// 블룸: 씨앗 폭탄 — 적 발밑에 씨앗 → 0.8초 뒤 덩굴 폭발 + 속박. 단일 DPS Lv.1 69 · Lv.5 117 · Lv.6 125(범위·속박형이라 단일은 낮게)
+// 봇 측정(2026-11-22, 1단계·HP×2.5·시드 4개): 1차값(계수 1.1)은 클리어 4/4·피해 레드의 1.7배 → 계수 약 −18%
+const BLOOM = common('씨앗 폭탄', '🌱', 'bolt-seed', build(
+  { ...STRAIGHT, speed: 0, shots: 1, coef: 0.9, levelMod: 1, interval: 1300, root: 1000, seed: { delay: 800, radius: 1.3 * M } },
+  [
+    { text: '적 발밑에 씨앗 1개 → 0.8초 뒤 1.3m 덩굴 폭발(90%) + 속박 1초(이동 불가)' },
+    { levelMod: 1.15, text: '피해 +15%' },
+    { shots: 2, coef: 0.75, text: '씨앗 2개(각 75%)' },
+    { root: 1500, text: '속박 1.5초' },
+    { seed: { delay: 800, radius: 1.6 * M }, levelMod: 1.35, text: '폭발 범위 1.6m + 피해 +35%' },
+    { shots: 3, coef: 0.6, text: '씨앗 3개(각 60%)' },
+    { seed: { delay: 800, radius: 1.6 * M, flower: true }, text: '진화 — 터진 자리에 꽃 3초: 드래곤이 닿으면 최대 HP 1% 회복(판당 20회)' },
+  ],
+), { range: 10 * M });
+
 // ───────── 10종 정의 ─────────
 // 기본 능력치: 기획 수정안 v1.2 2장 표(Lv.1·1성·장비·연구소 미적용 기준). 레드는 기존과 같은 10 / 100 / 260.
 const B = (baseAttack: number, baseHp: number, baseMoveSpeed: number) => ({ baseAttack, baseHp, baseMoveSpeed });
@@ -272,10 +325,25 @@ export const DRAGONS: Record<DragonId, DragonDef> = {
   stone: { id: 'stone', name: '스톤 드래곤', short: '스톤', element: 'earth', rarity: 'rare', role: '넉백·방어', color: 0x8d7558, accent: 0x7fae4e, belly: 0xb9a383, ...B(10.5, 135, 240), trait: { id: 'guard', text: '받는 피해 −10%', value: 0.1 }, basic: STONE },
   wind: { id: 'wind', name: '윈드 드래곤', short: '윈드', element: 'wind', rarity: 'epic', role: '다중 투사체·연사', color: 0x6fd6b8, accent: 0xd8fff3, belly: 0xe6fff7, ...B(12, 105, 285), trait: { id: 'swift', text: '이동속도 +10%', value: 0.1 }, basic: WIND },
   water: { id: 'water', name: '워터 드래곤', short: '워터', element: 'water', rarity: 'epic', role: '둔화·감속', color: 0x2fa6d9, accent: 0xff9ec4, belly: 0xbdeeff, ...B(11.5, 125, 260), trait: { id: 'slowDuration', text: '기본 공격 둔화 지속시간 +15%', value: 0.15 }, basic: WATER },
+  sand: { id: 'sand', name: '샌드 드래곤', short: '샌드', element: 'sand', rarity: 'common', role: '근거리 산탄·약화', color: 0xd9b27c, accent: 0xc8643c, belly: 0xf1e0c0, ...B(10.2, 115, 255), trait: { id: 'weakGuard', text: '약화된 적에게 받는 피해 −15%', value: 0.15 }, basic: SAND },
+  steel: { id: 'steel', name: '스틸 드래곤', short: '스틸', element: 'steel', rarity: 'common', role: '되돌아오는 원반·관통', color: 0x9aa3ad, accent: 0xff8a2a, belly: 0xc9d0d6, ...B(10, 115, 240), trait: { id: 'returnBonus', text: '되돌아오는 원반 피해 +20%', value: 0.2 }, basic: STEEL },
+  bloom: { id: 'bloom', name: '블룸 드래곤', short: '블룸', element: 'bloom', rarity: 'rare', role: '지연 폭발·속박', color: 0xf48fb1, accent: 0x9ccc65, belly: 0xf1f8e0, ...B(10.5, 110, 260), trait: { id: 'rootBonus', text: '속박된 적에게 피해 +20%', value: 0.2 }, basic: BLOOM },
   arcane: { id: 'arcane', name: '아케인 드래곤', short: '아케인', element: 'arcane', rarity: 'legendary', role: '분열·추가 발동', color: 0x9b6fe0, accent: 0xff8de8, belly: 0xe9d9ff, ...B(14, 120, 275), trait: { id: 'haste', text: '기본 공격 재사용 대기시간 −10%', value: 0.1 }, basic: ARCANE },
 };
 
-export const DRAGON_ORDER: DragonId[] = ['red', 'blue', 'yellow', 'green', 'white', 'black', 'stone', 'wind', 'water', 'arcane'];
+export const DRAGON_ORDER: DragonId[] = ['red', 'blue', 'yellow', 'green', 'white', 'black', 'stone', 'wind', 'water', 'arcane', 'sand', 'steel', 'bloom'];
+
+/**
+ * 출시 스위치(2026-11-22): 켜진 드래곤만 상점 뽑기·도감·로비·미션 고르기에 나온다. 저장 데이터는 모든 드래곤 칸을 갖는다.
+ * 개발 중 시험: 주소에 ?newdragons=1 을 붙이면 꺼진 드래곤도 보인다(시험용 — 진행 저장은 그대로).
+ */
+export const DRAGON_RELEASED: Record<DragonId, boolean> = {
+  red: true, blue: true, yellow: true, green: true, white: true, black: true, stone: true, wind: true, water: true, arcane: true,
+  sand: false, steel: false, bloom: false,
+};
+const PREVIEW_NEW = typeof location !== 'undefined' && new URLSearchParams(location.search).has('newdragons');
+/** 화면·뽑기에 쓰는 드래곤 목록(출시된 것 + 시험 주소면 전부) */
+export const releasedDragons = (): DragonId[] => DRAGON_ORDER.filter((id) => DRAGON_RELEASED[id] || PREVIEW_NEW);
 
 // ───────── 영구 육성 (6단계 기획서 6장) ─────────
 export const GROWTH = {
@@ -316,7 +384,7 @@ export function levelBonus(level: number): { attack: number; hp: number } {
 
 // ───────── 소환 (6단계 기획서 5장) ─────────
 export const SUMMON = {
-  pool: DRAGON_ORDER.filter((id) => id !== 'red'),
+  pool: releasedDragons().filter((id) => id !== 'red'),
   rarityWeights: { common: 70, rare: 22, epic: 7, legendary: 1 } as Record<Exclude<DragonRarity, 'starter'>, number>,
   rareGuarantee: 10, // 연속 9번 일반이면 10번째는 희귀 이상
   legendaryGuarantee: 90, // 89번 연속 전설이 아니면 90번째는 전설
