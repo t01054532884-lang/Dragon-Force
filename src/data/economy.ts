@@ -154,7 +154,7 @@ export const RUBY_PRODUCTS: { productId: string; rubies: number; bonus: number; 
 
 /**
  * 기간 한정 패키지(제작자 요청 2026-11-22: 상점에 패키지 칸 — 보석 대신 루비, 열쇠 대신 장비·룬 개봉권).
- * ⚠ 구성·가격은 AI 1차안(제작자 확정 전). 결제가 연결되면 검증된 거래만 grantVerifiedPackage로 지급, 계정당 limit회.
+ * 구성·가격 확정(아래 PACKAGES 주석). 결제가 연결되면 검증된 거래만 grantVerifiedPackage로 지급, 계정당 limit회.
  * 가치 기준: 장비·룬 상자 1회 = 루비 100, 드래곤 상자 1회 = 루비 250, 골드 20,000 = 루비 1,000.
  */
 export interface PackageDef {
