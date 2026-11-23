@@ -9,7 +9,7 @@ import { aoePerTarget, signatureCap, SIGNATURE_RULES, SIGNATURES } from '../src/
 import { SPECIALS } from '../src/data/specials';
 import { loadout } from '../src/systems/Loadout';
 import {
-  claimMission, claimAllStageBoxes, claimStageBox, claimableStageBoxes, sanitize, convertToUniversal, defaultProgress, exchangeEssence, fuseItem, openBox, openDragonBoxOnce,
+  claimMission, claimAllStageBoxes, claimStageBox, claimableStageBoxes, stageChestState, CHEST_TIERS, sanitize, convertToUniversal, defaultProgress, exchangeEssence, fuseItem, openBox, openDragonBoxOnce,
   addMissionProgress, periodKey, progressPct, settleRun, starUpDragon, toggleLock, upgradeItem, withTx, equipItem, unlockSpecial, upgradeRune, buyGold, sanitize,
   type EquipmentItem, type PlayerProgress,
 } from '../src/systems/Progress';
@@ -98,11 +98,14 @@ describe('6-3 정수·조각·카드', () => {
     expect(exchangeEssence({ ...p, dragons: { ...p.dragons, arcane: { ...p.dragons.arcane, fragments: 159 } } }, 'arcane')).toMatchObject({ ok: false });
   });
   it('중복 정수 → 조각 20/30/50/80', () => {
-    // 전설 보장 직전 상태에서 아케인 보유 → 전설 정수는 조각 80
-    const p = own({ ...defaultProgress(), summon: { tenPity: 0, legendaryPity: 89, legacyTickets: 0, totalOpens: 0 } }, 'arcane');
+    // 전설 보장 직전 상태에서 전설 4종(아케인·크로노·보이드·오로라, 2026-11-23 밤 출시) 모두 보유 → 전설 정수는 조각 80
+    let p = { ...defaultProgress(), summon: { tenPity: 0, legendaryPity: 89, legacyTickets: 0, totalOpens: 0 } };
+    for (const id of ['arcane', 'chrono', 'void', 'aurora'] as const) p = own(p, id);
     const r = openDragonBoxOnce(p, seeded(1));
-    expect(r.result).toMatchObject({ kind: 'essence', dragonId: 'arcane', isNew: false, fragments: 80, guaranteed: 'legendary' });
-    expect(r.progress.dragons.arcane.fragments).toBe(80);
+    expect(r.result).toMatchObject({ kind: 'essence', isNew: false, fragments: 80, guaranteed: 'legendary' });
+    const got = (r.result as { dragonId: 'arcane' | 'chrono' | 'void' | 'aurora' }).dragonId;
+    expect(['arcane', 'chrono', 'void', 'aurora']).toContain(got);
+    expect(r.progress.dragons[got].fragments).toBe(80);
   });
   it('5성 이후 초과 조각 → 범용(일반 5:1·전설 1:1), 나머지 보관, 5성 전에는 불가', () => {
     const p = own(defaultProgress(), 'blue', { stars: 5, fragments: 23 });
@@ -130,40 +133,56 @@ describe('6-4 난이도·진행도', () => {
     expect(p.difficulty.easy.cleared).toEqual([1]);
     expect(progressPct(p, 'easy')).toBe(5);
   });
-  it('단계 상자(2026-11-23): 단계를 깨야 받고, 단계마다 한 번만, 5단계마다 조각', () => {
+  it('단계 상자 25·50·100%(2026-11-23 밤): 첫 엘리트·두 번째 엘리트·클리어로 열리고, 칸마다 한 번만', () => {
     let p = defaultProgress();
-    expect(claimStageBox(p, 'easy', 1)).toMatchObject({ ok: false, reason: 'locked' });
-    p = clear(p, 1, 's1');
-    expect(claimableStageBoxes(p, 'easy')).toEqual([1]);
+    expect(claimStageBox(p, 'easy', 1, 1)).toMatchObject({ ok: false, reason: 'locked' });
+    // 엘리트 1마리 잡고 사망 → 25%만
+    p = settleRun(p, 'e1', 0, undefined, { stageId: 1, cleared: false, elapsedMs: 200_000, normalKills: 0, eliteKills: 1, difficulty: 'easy', dragonId: 'red' }).progress;
+    expect(claimableStageBoxes(p, 'easy')).toEqual([{ stage: 1, tier: 1 }]);
+    expect(stageChestState(p, 'easy', 1, 2)).toBe('locked');
     const g0 = p.gold;
-    const a = claimStageBox(p, 'easy', 1);
+    const a = claimStageBox(p, 'easy', 1, 1);
     expect(a.ok).toBe(true);
     if (!a.ok) return;
-    expect(a.progress.gold - g0).toBe(50);
-    expect(a.reward).toEqual({ gold: 50, rubies: 15 });
-    expect(claimStageBox(a.progress, 'easy', 1)).toMatchObject({ ok: false, reason: 'claimed' });
-    expect(stageBoxReward('easy', 5).fragments).toEqual({ dragonId: 'red', count: 5 });
-    // 같은 단계 반복 클리어는 상자 추가 없음
-    expect(claimableStageBoxes(clear(a.progress, 1, 's1b'), 'easy')).toEqual([]);
+    expect(a.reward).toEqual({ gold: 15, rubies: 5 });
+    expect(a.progress.gold - g0).toBe(15);
+    expect(stageChestState(a.progress, 'easy', 1, 1)).toBe('opened');
+    expect(claimStageBox(a.progress, 'easy', 1, 1)).toMatchObject({ ok: false, reason: 'claimed' });
+    // 클리어하면 50·100% 둘 다
+    p = clear(a.progress, 1, 's1');
+    expect(claimableStageBoxes(p, 'easy')).toEqual([{ stage: 1, tier: 2 }, { stage: 1, tier: 3 }]);
+    // 다른 단계로 갔다 와도 받은 칸은 열림 그대로, 다시 깨도 새 상자 없음
+    const all = claimAllStageBoxes(p, 'easy');
+    expect(all.ok && all.count).toBe(2);
+    if (!all.ok) return;
+    const again = clear(clear(all.progress, 2, 's2'), 1, 's1b');
+    expect(CHEST_TIERS.map((t) => stageChestState(again, 'easy', 1, t))).toEqual(['opened', 'opened', 'opened']);
+    expect(claimableStageBoxes(again, 'easy').every((c) => c.stage === 2)).toBe(true);
+    // 세 칸 합 = 예전 단계 상자 1개 몫, 조각은 5단계마다 100% 칸에
+    const sum = CHEST_TIERS.map((t) => stageBoxReward('easy', 5, t));
+    expect(sum.reduce((s, r) => s + (r.gold ?? 0), 0)).toBe(50);
+    expect(sum.reduce((s, r) => s + (r.rubies ?? 0), 0)).toBe(15);
+    expect(sum.map((r) => r.fragments?.count ?? 0)).toEqual([0, 0, 5]);
   });
-  it('단계 상자 모두 받기: 20개 합계 = 루비 300 · 골드 1,000 · 레드 조각 20(쉬움), 어려움은 2배', () => {
+  it('단계 상자 모두 받기: 20단계 × 3칸 합계 = 루비 300 · 골드 1,000 · 레드 조각 20(쉬움), 어려움은 2배', () => {
     let p = defaultProgress();
     for (let s = 1; s <= 20; s++) p = clear(p, s, `s${s}`);
     const before = { r: p.rubies, g: p.gold, f: p.dragons.red.fragments };
     const r = claimAllStageBoxes(p, 'easy');
-    expect(r.ok && r.count).toBe(20);
+    expect(r.ok && r.count).toBe(60);
     if (!r.ok) return;
     expect(r.reward).toEqual({ gold: 1000, rubies: 300, fragments: { dragonId: 'red', count: 20 } });
     expect([r.progress.rubies - before.r, r.progress.gold - before.g]).toEqual([300, 1000]);
     expect(claimableStageBoxes(r.progress, 'easy')).toEqual([]);
     expect(STAGE_BOX.hard).toEqual({ gold: 100, rubies: 30, fragments: 10 });
   });
-  it('예전 진행도 상자 기록(25·50·100)은 단계 상자로 잘못 읽지 않음', () => {
+  it('예전 기록 이어받기: 진행도 상자(25·50·100)는 버리고, 단계 상자 1개로 받은 단계는 세 칸 모두 열림', () => {
     const raw = JSON.parse(JSON.stringify(defaultProgress()));
-    raw.difficulty.easy = { unlocked: [1, 2], cleared: [1], claimed: [25, 50, 100] };
+    raw.difficulty.easy = { unlocked: [1, 2, 3], cleared: [1, 2], claimed: [25, 50, 100, 2] };
     const p = sanitize(raw);
     expect(p.difficulty.easy.claimed).toEqual([]);
-    expect(claimableStageBoxes(p, 'easy')).toEqual([1]);
+    expect(p.difficulty.easy.chests).toEqual([21, 22, 23]);
+    expect(claimableStageBoxes(p, 'easy')).toEqual([{ stage: 1, tier: 1 }, { stage: 1, tier: 2 }, { stage: 1, tier: 3 }]);
   });
   it('쉬움 20개를 모두 깨야 어려움 해금', () => {
     let p = defaultProgress();

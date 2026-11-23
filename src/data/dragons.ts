@@ -414,6 +414,9 @@ const AURORA = common('분광 빛살', '🌈', 'bolt-aurora', build(
 
 // ───────── 10종 정의 ─────────
 // 기본 능력치: 기획 수정안 v1.2 2장 표(Lv.1·1성·장비·연구소 미적용 기준). 레드는 기존과 같은 10 / 100 / 260.
+// 2026-11-23 밤 19종 봇 측정(10단계·시드 3개, docs/SKINS.md 9절)으로 기본 공격력 조정(AI 1차안):
+// 하울 9.5→10.5 · 스틸 10→11 · 샌드 10.2→11(느린 쪽, 하울은 3판 중 2판 시간 초과) / 미러 12→11.3 · 오로라 14→13.3(전설·영웅 중 너무 빠름).
+// 스톤도 느리지만 기획서 v1.2 확정 값이라 그대로(3판 모두 클리어한 방어형). 기존 10종 값은 건드리지 않음.
 const B = (baseAttack: number, baseHp: number, baseMoveSpeed: number) => ({ baseAttack, baseHp, baseMoveSpeed });
 
 export const DRAGONS: Record<DragonId, DragonDef> = {
@@ -426,15 +429,15 @@ export const DRAGONS: Record<DragonId, DragonDef> = {
   stone: { id: 'stone', name: '스톤 드래곤', short: '스톤', element: 'earth', rarity: 'rare', role: '넉백·방어', color: 0x8d7558, accent: 0x7fae4e, belly: 0xb9a383, ...B(10.5, 135, 240), trait: { id: 'guard', text: '받는 피해 −10%', value: 0.1 }, basic: STONE },
   wind: { id: 'wind', name: '윈드 드래곤', short: '윈드', element: 'wind', rarity: 'epic', role: '다중 투사체·연사', color: 0x6fd6b8, accent: 0xd8fff3, belly: 0xe6fff7, ...B(12, 105, 285), trait: { id: 'swift', text: '이동속도 +10%', value: 0.1 }, basic: WIND },
   water: { id: 'water', name: '워터 드래곤', short: '워터', element: 'water', rarity: 'epic', role: '둔화·감속', color: 0x2fa6d9, accent: 0xff9ec4, belly: 0xbdeeff, ...B(11.5, 125, 260), trait: { id: 'slowDuration', text: '기본 공격 둔화 지속시간 +15%', value: 0.15 }, basic: WATER },
-  sand: { id: 'sand', name: '샌드 드래곤', short: '샌드', element: 'sand', rarity: 'common', role: '근거리 산탄·약화', color: 0xd9b27c, accent: 0xc8643c, belly: 0xf1e0c0, ...B(10.2, 115, 255), trait: { id: 'weakGuard', text: '약화된 적에게 받는 피해 −15%', value: 0.15 }, basic: SAND },
-  steel: { id: 'steel', name: '스틸 드래곤', short: '스틸', element: 'steel', rarity: 'common', role: '되돌아오는 원반·관통', color: 0x9aa3ad, accent: 0xff8a2a, belly: 0xc9d0d6, ...B(10, 125, 255), trait: { id: 'returnBonus', text: '되돌아오는 원반 피해 +20%', value: 0.2 }, basic: STEEL },
+  sand: { id: 'sand', name: '샌드 드래곤', short: '샌드', element: 'sand', rarity: 'common', role: '근거리 산탄·약화', color: 0xd9b27c, accent: 0xc8643c, belly: 0xf1e0c0, ...B(11, 115, 255), trait: { id: 'weakGuard', text: '약화된 적에게 받는 피해 −15%', value: 0.15 }, basic: SAND },
+  steel: { id: 'steel', name: '스틸 드래곤', short: '스틸', element: 'steel', rarity: 'common', role: '되돌아오는 원반·관통', color: 0x9aa3ad, accent: 0xff8a2a, belly: 0xc9d0d6, ...B(11, 125, 255), trait: { id: 'returnBonus', text: '되돌아오는 원반 피해 +20%', value: 0.2 }, basic: STEEL },
   bloom: { id: 'bloom', name: '블룸 드래곤', short: '블룸', element: 'bloom', rarity: 'rare', role: '지연 폭발·속박', color: 0xf48fb1, accent: 0x9ccc65, belly: 0xf1f8e0, ...B(10.5, 110, 260), trait: { id: 'rootBonus', text: '속박된 적에게 피해 +20%', value: 0.2 }, basic: BLOOM },
-  howl: { id: 'howl', name: '하울 드래곤', short: '하울', element: 'sound', rarity: 'rare', role: '관통 음파·광역', color: 0x2f4fd6, accent: 0xcfd8e6, belly: 0xdde6ff, ...B(9.5, 110, 280), trait: { id: 'resonance', text: '음파 고리가 맞힌 적 1마리당 그 고리 피해 +2%(최대 +20%)', value: 0.02 }, basic: HOWL },
+  howl: { id: 'howl', name: '하울 드래곤', short: '하울', element: 'sound', rarity: 'rare', role: '관통 음파·광역', color: 0x2f4fd6, accent: 0xcfd8e6, belly: 0xdde6ff, ...B(10.5, 110, 280), trait: { id: 'resonance', text: '음파 고리가 맞힌 적 1마리당 그 고리 피해 +2%(최대 +20%)', value: 0.02 }, basic: HOWL },
   crimson: { id: 'crimson', name: '크림슨 드래곤', short: '크림슨', element: 'blood', rarity: 'epic', role: '근접 베기·흡수', color: 0x8e1b3a, accent: 0xe0b44a, belly: 0xd88a9a, ...B(13, 115, 270), trait: { id: 'drain', text: '흡수: 기본 공격 피해의 1%만큼 HP 회복(1초에 최대 HP 1%까지)', value: 0.01 }, basic: CRIMSON },
-  mirror: { id: 'mirror', name: '미러 드래곤', short: '미러', element: 'mirror', rarity: 'epic', role: '튕기는 탄', color: 0xd8dde6, accent: 0x9be7ff, belly: 0xf4f6fa, ...B(12, 95, 285), trait: { id: 'bounceBonus', text: '튕긴 탄 피해 +15%', value: 0.15 }, basic: MIRROR },
+  mirror: { id: 'mirror', name: '미러 드래곤', short: '미러', element: 'mirror', rarity: 'epic', role: '튕기는 탄', color: 0xd8dde6, accent: 0x9be7ff, belly: 0xf4f6fa, ...B(11.3, 95, 285), trait: { id: 'bounceBonus', text: '튕긴 탄 피해 +15%', value: 0.15 }, basic: MIRROR },
   chrono: { id: 'chrono', name: '크로노 드래곤', short: '크로노', element: 'time', rarity: 'legendary', role: '빠른 화살·시계 폭탄', color: 0x9c5b2e, accent: 0x1f2d5c, belly: 0xe7c9a0, ...B(14, 115, 270), trait: { id: 'eliteHunter', text: '엘리트·보스에게 피해 +15%', value: 0.15 }, basic: CHRONO },
   void: { id: 'void', name: '보이드 드래곤', short: '보이드', element: 'gravity', rarity: 'legendary', role: '묵직한 구슬·블랙홀', color: 0x3a3d45, accent: 0xbfe9ff, belly: 0x6b6f7a, ...B(14.5, 125, 255), trait: { id: 'fullHp', text: 'HP 70% 이상인 적에게 피해 +20%', value: 0.2 }, basic: VOID },
-  aurora: { id: 'aurora', name: '오로라 드래곤', short: '오로라', element: 'aurora', rarity: 'legendary', role: '추적 빛살·극광 휩쓸기', color: 0x1e2a6e, accent: 0x7cf2c4, belly: 0xd9e6ff, ...B(14, 120, 275), trait: { id: 'allBonus', text: '모든 피해 +10%', value: 0.1 }, basic: AURORA },
+  aurora: { id: 'aurora', name: '오로라 드래곤', short: '오로라', element: 'aurora', rarity: 'legendary', role: '추적 빛살·극광 휩쓸기', color: 0x1e2a6e, accent: 0x7cf2c4, belly: 0xd9e6ff, ...B(13.3, 120, 275), trait: { id: 'allBonus', text: '모든 피해 +10%', value: 0.1 }, basic: AURORA },
   arcane: { id: 'arcane', name: '아케인 드래곤', short: '아케인', element: 'arcane', rarity: 'legendary', role: '분열·추가 발동', color: 0x9b6fe0, accent: 0xff8de8, belly: 0xe9d9ff, ...B(14, 120, 275), trait: { id: 'haste', text: '기본 공격 재사용 대기시간 −10%', value: 0.1 }, basic: ARCANE },
 };
 
@@ -448,7 +451,8 @@ export const DRAGON_RELEASED: Record<DragonId, boolean> = {
   red: true, blue: true, yellow: true, green: true, white: true, black: true, stone: true, wind: true, water: true, arcane: true,
   // 첫 출시(제작자 결정 2026-11-22): 신규 9종 중 5종은 처음부터, 4종(미러·전설 3종)은 "신규 드래곤 업데이트"로
   sand: true, steel: true, bloom: true, howl: true, crimson: true,
-  mirror: false, chrono: false, void: false, aurora: false,
+  // 제작자 결정 2026-11-23 밤: 남은 4종(미러·크로노·보이드·오로라)도 첫 출시에 함께 → 19종 모두
+  mirror: true, chrono: true, void: true, aurora: true,
 };
 const PREVIEW_NEW = typeof location !== 'undefined' && new URLSearchParams(location.search).has('newdragons');
 /** 화면·뽑기에 쓰는 드래곤 목록(출시된 것 + 시험 주소면 전부) */

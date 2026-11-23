@@ -52,9 +52,17 @@ export const STAGE_BOX: Record<Difficulty, { gold: number; rubies: number; fragm
   extreme: { gold: 200, rubies: 60, fragments: 20 },
 };
 export const STAGE_BOX_FRAGMENT_EVERY = 5;
-export function stageBoxReward(d: Difficulty, stage: number): RewardBundle {
+/** 한 단계 상자 몫을 25·50·100% 세 칸으로 나눔(2026-11-23 밤): 골드 30%·30%·40%, 루비 ⅓씩, 조각은 100% 칸에. 단계 합계는 그대로 */
+export const STAGE_CHEST_SPLIT = { gold: [0.3, 0.3, 0.4], rubies: [1 / 3, 1 / 3, 1 / 3] };
+export function stageBoxReward(d: Difficulty, stage: number, tier: 1 | 2 | 3 = 3): RewardBundle {
   const b = STAGE_BOX[d];
-  return { gold: b.gold, rubies: b.rubies, ...(stage % STAGE_BOX_FRAGMENT_EVERY === 0 ? { fragments: { dragonId: 'red' as DragonId, count: b.fragments } } : {}) };
+  // 마지막 칸이 나머지를 가져가 세 칸 합 = 단계 몫(반올림 오차 없음)
+  const part = (total: number, ratios: number[]) => (tier === 3 ? total - Math.round(total * ratios[0]) - Math.round(total * ratios[1]) : Math.round(total * ratios[tier - 1]));
+  return {
+    gold: part(b.gold, STAGE_CHEST_SPLIT.gold),
+    rubies: part(b.rubies, STAGE_CHEST_SPLIT.rubies),
+    ...(tier === 3 && stage % STAGE_BOX_FRAGMENT_EVERY === 0 ? { fragments: { dragonId: 'red' as DragonId, count: b.fragments } } : {}),
+  };
 }
 
 // ───────── 루비 상자 (원문 6장 + 제작자 임시) ─────────

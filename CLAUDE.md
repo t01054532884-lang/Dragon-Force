@@ -30,7 +30,7 @@ npm install
 npm run dev
 ```
 http://localhost:5173 (첫 화면은 로비). `?seed=123`을 붙이면 같은 적 생성이 재현된다. `?dev=1`이면 상점에 루비·골드·카드 지급, 로비에 진행 초기화·잠긴 난이도 시험 플레이. `?dev=1&now=2026-12-05`로 게임 안 날짜를 바꿔 이벤트·미션 시험. 개발 중에는 브라우저 콘솔에서 `window.__game.scene.getScene('game')`으로 상태를 볼 수 있다(배포본엔 없음).
-타입 검사 `npx tsc --noEmit`, 규칙 테스트 `npm test`(vitest 182개: 비용·골드·저장·이어받기·상자·천장·장비·미션·전투력·이벤트·드롭 천장·보석 합치기·카드 연계·클라우드 저장 판단·활동 점수·출석). 자동 전투 측정: 개발 서버 콘솔에서 `await botRun({ stage: 1, dragon: 'red', seed: 1, atk: 1, hp: 4 })`(`src/dev/bot.ts`, 배포본 제외).
+타입 검사 `npx tsc --noEmit`, 규칙 테스트 `npm test`(vitest 238개: 비용·골드·저장·이어받기·상자·천장·장비·미션·전투력·이벤트·드롭 천장·보석 합치기·카드 연계·클라우드 저장 판단·활동 점수·출석). 자동 전투 측정: 개발 서버 콘솔에서 `await botRun({ stage: 1, dragon: 'red', seed: 1, atk: 1, hp: 4 })`(`src/dev/bot.ts`, 배포본 제외).
 빌드: `npm run build`(웹 → `dist/`, main에 push하면 GitHub Pages 자동 배포) · `npm run build:ios`(iOS용 빌드 + `cap sync ios`, 실제 앱은 Codemagic이 `codemagic.yaml`로 빌드·TestFlight 업로드) · `npm run build:toss`(토스용 빌드 → `dragon-force.ait`).
 Claude 미리보기는 `.claude/launch.json`의 `dragon-force` 설정으로 연다.
 
@@ -42,6 +42,7 @@ Claude 미리보기는 `.claude/launch.json`의 `dragon-force` 설정으로 연�
 | `src/scenes/ShopScene.ts` | 루비 상점: 상자 3종 1회/10회, 무료 개봉권(구 소환권), 천장 진행도, 확률·보장 안내, 결과 |
 | `src/scenes/EquipScene.ts` | 장비 4슬롯(장착·강화·잠금·합성)과 장착형 특수 스킬 15종(해금·장착) |
 | `src/scenes/GiftScene.ts` · `src/systems/Mailbox.ts` · `src/systems/Stamina.ts` · `src/ui/entry.ts` | 8단계 선물함 화면 / 선물함·캠페인·행동력 규칙(순수 함수) / 전투 입장(행동력 차감) |
+| `src/data/skins.ts` · `src/systems/Skins.ts` · `src/scenes/SkinScene.ts` · `src/ui/skinArt.ts` | 스킨(망토·발자국, 꾸미기 전용)·스킨 룰렛(9칸·뽑힌 칸 제외·주간 교체·열쇠 `skin_key_1` 4,900원)·임시 도형 그림. 장비 화면 "스킨" 탭·전투 표시(`docs/SKINS.md`) |
 | `src/scenes/MissionScene.ts` | 보상: 난이도 진행도 25/50/100% 상자, 일일·주간·월간 미션(선택 카드·조각), 업적 |
 | `src/data/dragons.ts` | 드래곤 10종(종별 능력치 v1.2)·기본 공격 Lv.1~7·특성(레드 5성 개방)·영구 Lv.40 카드·골드 비용 |
 | `src/data/permGrowth.ts` | 5레벨 단위 고유 성장 10종 × 8단계(임시 수치)와 덧입히기 `applyPerm`(탄 상한 5발) |
@@ -72,6 +73,7 @@ Claude 미리보기는 `.claude/launch.json`의 `dragon-force` 설정으로 연�
 | `public/privacy.html` · `.github/workflows/pages.yml` | 개인정보처리방침, GitHub Pages 배포 |
 
 ## 확정된 결정 (요약)
+- **2026-11-23 밤(`docs/SKINS.md`)**: 드래곤 19종 모두 출시. 로비 단계 상자 = 고른 단계마다 25(첫 엘리트)·50(두 번째 엘리트)·100%(클리어) 3개, 받은 상자는 열린 채(저장 `chests`·`reach`). 스킨 룰렛 열쇠는 현금 결제만(iOS), 장비 착용 모습은 레드 먼저 4부위(`wear-red-<부위>`). 결정 대기 5건은 SKINS.md 4절.
 - 슬롯: 고유 기본공격 1 + 액티브 6 + 패시브 4. 6단계부터 드래곤 10종(레드 기본 지급 + 소환 9종).
 - 레드 DPS 기준(공격력 100): 83.3 / 100 / 112.5 / 132.4 / **152.9** / 211.8 / 243.1 — 코드 측정과 일치. 화상은 발사 묶음당 1중첩, 브레스 Lv.5 화상과 3중첩 공유. Lv.7 폭발은 5번째 묶음마다, Lv.2 배율 미적용. 추적 360°/초.
 - 카드 가중치 새 액티브 35 / 액티브 강화 30 / 기본공격 15 / 패시브 20, 레벨 4·9 기본공격 보장.

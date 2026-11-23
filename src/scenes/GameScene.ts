@@ -37,6 +37,7 @@ import { chapterOf, SEASON1_FINALE } from '../data/season1';
 import { enterBattle } from '../ui/entry';
 import { HARD_GOLD_MULT, hardStage, type HardStageDef } from '../data/hardStages';
 import { fullH, offY } from '../ui/layout';
+import { capeKey, makeSkinTextures, trailKey } from '../ui/skinArt';
 
 /** 적 투사체(직선탄·추적 구체) */
 interface EnemyShot {
@@ -165,6 +166,10 @@ export class GameScene extends Phaser.Scene {
   /** 드래곤 그림 층: 물리 몸체(this.player)를 따라다니는 탑다운 그림. 반동·피격 색은 여기에만 → 판정·좌표는 그대로 */
   private skin!: Phaser.GameObjects.Image;
   private skinScale = 1;
+  /** 스킨(2026-11-23 밤): 망토(드래곤 아래층, 함께 회전) · 발자국(움직인 거리마다 흔적) — 꾸미기 전용, 판정·능력치 없음 */
+  private cape: Phaser.GameObjects.Image | null = null;
+  private trailTex: string | null = null;
+  private trailLast = { x: 0, y: 0 };
   private emberAt = 0;
   /** 첫 전투 안내(이동·자동 공격). 움직이거나 7초가 지나면 사라지고 다시 안 나옴 */
   private moveTip: Phaser.GameObjects.GameObject[] = [];
@@ -321,6 +326,13 @@ export class GameScene extends Phaser.Scene {
       this.skin = this.player; // 그림이 없으면 예전 도형 그림 그대로
     }
     this.skinScale = this.skin.scaleX;
+    {
+      const sk = Progress.load().skins;
+      makeSkinTextures(this);
+      this.cape = sk.cape ? this.add.image(this.player.x, this.player.y, capeKey(sk.cape)).setDepth(9.9).setDisplaySize(SKIN_SIZE * 0.92, SKIN_SIZE * 0.92) : null;
+      this.trailTex = sk.trail ? trailKey(sk.trail) : null;
+      this.trailLast = { x: this.player.x, y: this.player.y };
+    }
     this.cameras.main.startFollow(this.player, true, 0.15, 0.15);
 
     this.enemies = this.physics.add.group();
@@ -755,8 +767,27 @@ export class GameScene extends Phaser.Scene {
 
   // ───────────────────────── 매 프레임 ─────────────────────────
 
+  /** 망토는 등 쪽(진행 방향 반대)으로 살짝 밀어 붙이고 펄럭임, 발자국은 26px 움직일 때마다 하나씩 남기고 0.7초에 사라짐 */
+  private updateSkinFx(time: number): void {
+    const r = this.player.rotation;
+    if (this.cape) {
+      const back = SKIN_SIZE * 0.23;
+      this.cape.setPosition(this.player.x - Math.sin(r) * back, this.player.y + Math.cos(r) * back).setRotation(r + Math.sin(time / 110) * 0.05);
+      this.cape.setVisible(this.skin.visible);
+    }
+    if (!this.trailTex || this.mode !== 'play') return;
+    const dx = this.player.x - this.trailLast.x;
+    const dy = this.player.y - this.trailLast.y;
+    if (dx * dx + dy * dy < 26 * 26) return;
+    this.trailLast = { x: this.player.x, y: this.player.y };
+    const back = SKIN_SIZE * 0.4;
+    const fx = this.add.image(this.player.x - Math.sin(r) * back, this.player.y + Math.cos(r) * back, this.trailTex).setDepth(2).setDisplaySize(30, 30).setRotation(r);
+    this.tweens.add({ targets: fx, alpha: 0, scale: fx.scale * 0.5, duration: 700, onComplete: () => fx.destroy() });
+  }
+
   update(_time: number, rawDelta: number): void {
     if (this.skin && this.skin !== this.player) this.skin.setPosition(this.player.x, this.player.y).setRotation(this.player.rotation);
+    this.updateSkinFx(_time);
     if (this.moveTip.length && this.mode === 'play' && this.player.body && (this.player.body as Phaser.Physics.Arcade.Body).speed > 10) this.hideMoveTip();
     if (this.mode !== 'play' && this.mode !== 'clearing') return;
     const delta = rawDelta * this.timeScale;

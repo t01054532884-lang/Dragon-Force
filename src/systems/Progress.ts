@@ -44,6 +44,7 @@ import { EQUIP_RULES, EQUIPS, equipDef, NEXT_RARITY, SLOTS, type Slot } from '..
 import { SPECIAL_IDS, SPECIAL_RULES, type SpecialId } from '../data/specials';
 import { RUNE_BOX, RUNE_RULES, runeUpgradeCost } from '../data/runes';
 import { WINTER_2026, WINTER_DRAGON, type RouletteReward } from '../data/events';
+import { skinDef } from '../data/skins';
 import { store as platformStore } from '../platform';
 import { claimActivity, claimDailyAttendance } from './Activity';
 
@@ -92,7 +93,11 @@ export interface DailyAttendance {
 export interface DifficultyProgress {
   unlocked: number[]; // 이 난이도에서 해금된 단계
   cleared: number[]; // 클리어한 서로 다른 단계 ID(진행도)
-  claimed: number[]; // 받은 단계 상자(1~20단계, 2026-11-23부터)
+  claimed: number[]; // (예전) 받은 단계 상자 1~20 — 2026-11-23 밤부터 chests로 옮김, 읽을 때 비움
+  /** 단계 상자 25·50·100%(제작자 요청 2026-11-23 밤): 받은 상자 코드 = 단계×10 + 칸(1=25%·2=50%·3=100%) */
+  chests?: number[];
+  /** 단계별 가장 멀리 간 칸(0~3): 1 = 첫 엘리트 처치, 2 = 두 번째 엘리트 처치, 3 = 클리어. 클리어한 단계는 저장 없이 3으로 본다 */
+  reach?: Record<string, number>;
   /** 단계별 최고 기록(클리어 시간 ms, 짧을수록 좋음) — 어려움 기획서 9장, 2026-11-21. 예전 저장에는 없음 → 빈 값 */
   best?: Record<string, number>;
 }
@@ -160,6 +165,17 @@ export interface PlayerProgress {
   shopLog: string[];
   /** 드래곤 패스(2026-11-23): 시즌 번호 · 시즌 시작 때 계정 경험치 · 받은 칸('free-3' 등) · 유료 줄 구매 여부 */
   pass: PassState;
+  /** 스킨(2026-11-23 밤): 가진 스킨 · 장착(계정 공통) · 열쇠 · 이번 주 룰렛 판에서 뽑은 칸 */
+  skins: SkinState;
+}
+
+export interface SkinState {
+  owned: string[];
+  cape: string | null;
+  trail: string | null;
+  keys: number;
+  /** 룰렛 판: 주 키('w2026-11-23') · 그 주에 뽑은 칸 아이디 · 지금까지 돌린 횟수(난수 회차) */
+  board: { week: string; picked: string[]; spins: number };
 }
 
 export interface PassState {
@@ -177,7 +193,7 @@ export interface Store {
 }
 
 const dragonState = (id: DragonId, unlocked = false): DragonProgress => ({ dragonId: id, unlocked, level: 1, stars: 1, cards: 0, fragments: 0 });
-const emptyDiff = (): DifficultyProgress => ({ unlocked: [1], cleared: [], claimed: [], best: {} });
+const emptyDiff = (): DifficultyProgress => ({ unlocked: [1], cleared: [], claimed: [], chests: [], reach: {}, best: {} });
 
 export function defaultProgress(now = Date.now()): PlayerProgress {
   return {
@@ -186,6 +202,7 @@ export function defaultProgress(now = Date.now()): PlayerProgress {
     mailbox: newMailbox(),
     shopLog: [],
     pass: { season: 0, baseXp: 0, claimed: [], premium: false, royal: false },
+    skins: { owned: [], cape: null, trail: null, keys: 0, board: { week: '', picked: [], spins: 0 } },
     saveVersion: SAVE_VERSION,
     gold: 0,
     rubies: 0,
@@ -198,7 +215,7 @@ export function defaultProgress(now = Date.now()): PlayerProgress {
     txIds: [],
     dragons: Object.fromEntries(DRAGON_ORDER.map((id) => [id, dragonState(id, id === 'red')])) as Record<DragonId, DragonProgress>,
     summon: { tenPity: 0, legendaryPity: 0, legacyTickets: 1, totalOpens: 0, runePity: 0, equipTickets: 0, runeTickets: 0 }, // 튜토리얼 무료 개봉권 1장(기존 튜토리얼 소환권)
-    difficulty: { easy: emptyDiff(), hard: { unlocked: [], cleared: [], claimed: [], best: {} }, extreme: { unlocked: [], cleared: [], claimed: [], best: {} } },
+    difficulty: { easy: emptyDiff(), hard: { unlocked: [], cleared: [], claimed: [], chests: [], reach: {}, best: {} }, extreme: { unlocked: [], cleared: [], claimed: [], chests: [], reach: {}, best: {} } },
     equipment: { items: [], equipped: { weapon: null, armor: null, necklace: null, ring: null }, nextUid: 1 },
     specials: Object.fromEntries(SPECIAL_IDS.map((id) => [id, { fragments: 0, unlocked: false, level: 0 }])) as Record<SpecialId, SpecialState>,
     equippedSpecial: null,
@@ -247,8 +264,18 @@ export function sanitize(raw: Record<string, unknown>): PlayerProgress {
     difficulty[k] = {
       unlocked: ints(o.unlocked, 1, STAGE_COUNT),
       cleared: ints(o.cleared, 1, STAGE_COUNT),
-      // 받은 단계 상자(1~20). 예전 진행도 상자 값(25·50·100)은 범위 밖이라 버린다(2026-11-23 단계 상자로 바뀜)
-      claimed: ints(Array.isArray(o.claimed) ? o.claimed.filter((n) => Number.isInteger(n) && n >= 1 && n <= STAGE_COUNT) : [], 1, STAGE_COUNT),
+      claimed: [],
+      // 단계 상자 25·50·100%(2026-11-23 밤). 그전 "단계마다 상자 1개"로 받은 단계(claimed 1~20)는 세 칸 모두 받은 것으로 옮긴다.
+      // 예전 진행도 상자 값(25·50·100)은 1~20 범위 밖이라 버린다.
+      chests: [...new Set([
+        ...(Array.isArray(o.chests) ? o.chests : []).filter((n) => Number.isInteger(n) && n % 10 >= 1 && n % 10 <= 3 && Math.floor(n / 10) >= 1 && Math.floor(n / 10) <= STAGE_COUNT),
+        ...(Array.isArray(o.claimed) ? o.claimed : []).filter((n) => Number.isInteger(n) && n >= 1 && n <= STAGE_COUNT).flatMap((n) => [n * 10 + 1, n * 10 + 2, n * 10 + 3]),
+      ])].sort((a, b) => a - b),
+      reach: Object.fromEntries(
+        Object.entries((o.reach ?? {}) as Record<string, unknown>)
+          .filter(([st, v]) => Number(st) >= 1 && Number(st) <= STAGE_COUNT && Number.isInteger(v) && (v as number) >= 1 && (v as number) <= 3)
+          .map(([st, v]) => [String(Number(st)), v as number]),
+      ),
       best: Object.fromEntries(
         Object.entries((o.best ?? {}) as Record<string, unknown>)
           .filter(([s, v]) => Number(s) >= 1 && Number(s) <= STAGE_COUNT && typeof v === 'number' && v > 0 && v < 3_600_000)
@@ -312,6 +339,19 @@ export function sanitize(raw: Record<string, unknown>): PlayerProgress {
     stamina: sanitizeStamina(raw.stamina, nowMs),
     mailbox: sanitizeMailbox(raw.mailbox),
     shopLog: strs(raw.shopLog, 300),
+    skins: (() => {
+      const rk = (raw.skins ?? {}) as Partial<SkinState>;
+      const owned = strs(rk.owned, 200).filter((id) => !!skinDef(id));
+      const pick = (id: unknown, kind: 'cape' | 'trail') => (typeof id === 'string' && owned.includes(id) && skinDef(id)?.kind === kind ? id : null);
+      const b = (rk.board ?? {}) as Partial<SkinState['board']>;
+      return {
+        owned,
+        cape: pick(rk.cape, 'cape'),
+        trail: pick(rk.trail, 'trail'),
+        keys: int(rk.keys, 0, 99_999, 0),
+        board: { week: typeof b.week === 'string' ? b.week.slice(0, 16) : '', picked: strs(b.picked, 20), spins: int(b.spins, 0, 1e9, 0) },
+      };
+    })(),
     pass: (() => {
       const rp = (raw.pass ?? {}) as Partial<PassState>;
       const royal = rp.royal === true;
@@ -397,7 +437,7 @@ function migrate(raw: Record<string, unknown>): Record<string, unknown> {
         legacyTickets: r.summonTickets,
         totalOpens: r.totalPulls,
       },
-      difficulty: { easy: { unlocked, cleared, claimed: [] } },
+      difficulty: { easy: { unlocked, cleared, claimed: [], chests: [], reach: {} } },
     };
   }
   if (Number(r.saveVersion) < 4) {
@@ -545,6 +585,13 @@ export function settleRun(
         clears: next.lifetime.clears + (run.cleared ? 1 : 0),
       },
     };
+    // 단계 상자 칸 진행(25% = 첫 엘리트, 50% = 두 번째 엘리트, 100% = 클리어) — 가장 멀리 간 기록만 남긴다
+    {
+      const cur = next.difficulty[diff];
+      const got = run.cleared ? 3 : Math.min(2, Math.max(0, Math.floor(run.eliteKills)));
+      const key = String(run.stageId);
+      if (run.stageId >= 1 && run.stageId <= STAGE_COUNT && got > (cur.reach?.[key] ?? 0)) next = setDiff(next, diff, { ...cur, reach: { ...(cur.reach ?? {}), [key]: got } });
+    }
     if (run.cleared) {
       const cur = next.difficulty[diff];
       const first = !cur.cleared.includes(run.stageId);
@@ -605,9 +652,24 @@ export function claimAchievements(p: PlayerProgress): { progress: PlayerProgress
 // ───────────────────────── 난이도 진행도 상자(25·50·100%) ─────────────────────────
 export const progressPct = (p: PlayerProgress, d: Difficulty) => Math.floor((p.difficulty[d].cleared.length / STAGE_COUNT) * 100);
 
-/** 받을 수 있는 단계 상자(깼지만 아직 안 받은 단계, 낮은 단계부터) */
-export const claimableStageBoxes = (p: PlayerProgress, d: Difficulty): number[] =>
-  DIFFICULTY_RELEASED[d] ? p.difficulty[d].cleared.filter((s) => !p.difficulty[d].claimed.includes(s)).sort((a, b) => a - b) : [];
+export type ChestTier = 1 | 2 | 3;
+export const CHEST_TIERS: ChestTier[] = [1, 2, 3];
+export type StageChest = { stage: number; tier: ChestTier };
+/** 그 단계에서 가장 멀리 간 칸(0~3). 클리어한 단계는 3 */
+export const stageReach = (p: PlayerProgress, d: Difficulty, stage: number): number =>
+  p.difficulty[d].cleared.includes(stage) ? 3 : Math.min(3, p.difficulty[d].reach?.[String(stage)] ?? 0);
+/** 상자 한 칸의 상태: 닫힘(아직 못 감) · 받기(도달, 안 받음 — 반짝임) · 열림(받음). 한 번 받은 상자는 단계를 오가도 계속 열림 */
+export function stageChestState(p: PlayerProgress, d: Difficulty, stage: number, tier: ChestTier): 'locked' | 'ready' | 'opened' {
+  if ((p.difficulty[d].chests ?? []).includes(stage * 10 + tier)) return 'opened';
+  return DIFFICULTY_RELEASED[d] && stageReach(p, d, stage) >= tier ? 'ready' : 'locked';
+}
+
+/** 받을 수 있는 단계 상자(도달했지만 아직 안 받은 칸, 낮은 단계·낮은 칸부터) */
+export const claimableStageBoxes = (p: PlayerProgress, d: Difficulty): StageChest[] => {
+  const out: StageChest[] = [];
+  for (let s = 1; s <= STAGE_COUNT; s++) for (const t of CHEST_TIERS) if (stageChestState(p, d, s, t) === 'ready') out.push({ stage: s, tier: t });
+  return out;
+};
 
 /** 단계 상자 모두 받기: 받은 상자 수와 합친 보상 */
 export function claimAllStageBoxes(p: PlayerProgress, d: Difficulty): Result<{ reward: RewardBundle; count: number }> {
@@ -615,8 +677,8 @@ export function claimAllStageBoxes(p: PlayerProgress, d: Difficulty): Result<{ r
   if (!list.length) return fail('locked');
   let cur = p;
   const sum: RewardBundle = {};
-  for (const s of list) {
-    const r = claimStageBox(cur, d, s);
+  for (const c of list) {
+    const r = claimStageBox(cur, d, c.stage, c.tier);
     if (!r.ok) continue;
     cur = r.progress;
     sum.gold = (sum.gold ?? 0) + (r.reward.gold ?? 0);
@@ -626,13 +688,14 @@ export function claimAllStageBoxes(p: PlayerProgress, d: Difficulty): Result<{ r
   return { ok: true, progress: cur, reward: sum, count: list.length };
 }
 
-/** 단계 상자 받기(제작자 요청 2026-11-23): 그 난이도에서 그 단계를 깼고 아직 안 받았으면, 계정당 단계마다 1회 */
-export function claimStageBox(p: PlayerProgress, d: Difficulty, stage: number): Result<{ reward: RewardBundle }> {
+/** 단계 상자 한 칸 받기: 그 칸까지 갔고 아직 안 받았으면, 계정당 칸마다 1회(최초 보상) */
+export function claimStageBox(p: PlayerProgress, d: Difficulty, stage: number, tier: ChestTier): Result<{ reward: RewardBundle }> {
+  const st = stageChestState(p, d, stage, tier);
+  if (st === 'opened') return fail('claimed');
+  if (st !== 'ready') return fail('locked');
   const dp = p.difficulty[d];
-  if (dp.claimed.includes(stage)) return fail('claimed');
-  if (!dp.cleared.includes(stage) || !DIFFICULTY_RELEASED[d]) return fail('locked');
-  const reward = stageBoxReward(d, stage);
-  let next = setDiff(p, d, { ...dp, claimed: [...dp.claimed, stage].sort((a, b) => a - b) });
+  const reward = stageBoxReward(d, stage, tier);
+  let next = setDiff(p, d, { ...dp, chests: [...(dp.chests ?? []), stage * 10 + tier].sort((a, b) => a - b) });
   next = { ...next, gold: next.gold + (reward.gold ?? 0), rubies: next.rubies + (reward.rubies ?? 0) };
   if (reward.fragments) next = addFragments(next, reward.fragments.dragonId, reward.fragments.count);
   return { ok: true, progress: next, reward };
@@ -1117,7 +1180,7 @@ export function pickRoulette(r: number): RouletteReward {
 }
 
 /** 정수 확정 상자: 그 희귀도 드래곤 하나(레드 제외, 균등). 보유 중이면 조각. 소환 천장 카운터는 건드리지 않는다. */
-function grantEssence(p: PlayerProgress, rarity: Rarity, r: number): { progress: PlayerProgress; dragonId: DragonId; isNew: boolean; fragments: number } {
+export function grantEssence(p: PlayerProgress, rarity: Rarity, r: number): { progress: PlayerProgress; dragonId: DragonId; isNew: boolean; fragments: number } {
   return grantDragonEssence(p, pickIn(poolOf(rarity, false), r), rarity);
 }
 
@@ -1284,7 +1347,7 @@ export const Progress = {
   selectDifficulty(d: Difficulty): void {
     this.save(selectDifficulty(this.load(), d));
   },
-  claimStageBox: (d: Difficulty, stage: number) => act((p) => claimStageBox(p, d, stage)),
+  claimStageBox: (d: Difficulty, stage: number, tier: ChestTier) => act((p) => claimStageBox(p, d, stage, tier)),
   claimAllStageBoxes: (d: Difficulty) => act((p) => claimAllStageBoxes(p, d)),
   claimMission: (id: string, choice?: DragonId, now = Date.now()) => act((p) => claimMission(p, id, now, choice)),
   claimAllMissions: (now = Date.now()) => act((p) => claimAllMissions(p, now)),

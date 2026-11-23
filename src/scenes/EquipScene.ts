@@ -9,6 +9,11 @@ import { badge, button, slot as slotBox, text, type KitButton } from '../ui/kit'
 import { altar, plate, tabs } from '../ui/kit2';
 import { popWord, screenFrame, toast, type ScreenFrame } from '../ui/screen';
 import { COLOR, TYPE } from '../ui/theme';
+import { SKINS, skinDef, type SkinKind } from '../data/skins';
+import { equipSkin } from '../systems/Skins';
+import { capeKey, makeSkinTextures, skinIconKey, trailKey } from '../ui/skinArt';
+import { purchases } from '../systems/Purchases';
+import { devMode } from '../ui/widgets';
 
 const PAGE = 10; // 보유 목록 한 쪽(5 × 2)
 
@@ -23,6 +28,8 @@ export class EquipScene extends Phaser.Scene {
   private sort: 'rarity' | 'level' | 'recent' = 'rarity';
   private layer: Phaser.GameObjects.GameObject[] = [];
   private frame!: ScreenFrame;
+  /** 장비 / 스킨(2026-11-23 밤: 장비 메뉴에 스킨 추가) */
+  private tab: 'equip' | 'skin' = 'equip';
 
   constructor() {
     super('equip');
@@ -49,8 +56,15 @@ export class EquipScene extends Phaser.Scene {
     this.layer = [];
     const p = Progress.load();
     this.frame.refresh();
-    // v1.2(2026-11-21): 특수 스킬 탭은 연구소 "룬"으로 옮김 → 장비만
-    this.drawEquip(p);
+    // v1.2(2026-11-21): 특수 스킬 탭은 연구소 "룬"으로 옮김. 2026-11-23 밤: 스킨 탭 추가(망토·발자국)
+    const keys = ['equip', 'skin'] as const;
+    this.A(tabs(this, 250, ['장비', `스킨 ${p.skins.owned.length}`], keys.indexOf(this.tab), (i) => {
+      if (keys[i] === this.tab) return;
+      this.tab = keys[i];
+      this.refresh();
+    }));
+    if (this.tab === 'skin') this.drawSkins(p);
+    else this.drawEquip(p);
   }
 
   private A<T extends Phaser.GameObjects.GameObject>(o: T): T {
@@ -81,7 +95,16 @@ export class EquipScene extends Phaser.Scene {
     // 제단 위 출격 드래곤 + 양옆 장착 슬롯(누르면 그 슬롯 목록)
     this.layer.push(...altar(this, 360, 512, 300));
     const hero = A(this.add.image(360, 418, `portrait-${d.id}`).setDisplaySize(230, 230));
-    this.tweens.add({ targets: hero, y: 410, duration: 1600, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+    // 장비를 끼면 드래곤에 보이기(2026-11-23 밤, 레드 먼저): 초상과 같은 캔버스에 장비만 그린 그림 wear-<드래곤>-<부위>-<등급>을 겹친다.
+    // 그림이 없으면 아무것도 안 겹침(요청서 docs/SKINS.md). 위에서 차례로: 갑주 → 목걸이 → 발톱 → 반지
+    const worn: Phaser.GameObjects.Image[] = [hero];
+    for (const s of ['armor', 'necklace', 'weapon', 'ring'] as Slot[]) {
+      const it = p.equipment.items.find((x) => x.uid === p.equipment.equipped[s]);
+      if (!it) continue;
+      const key = [`wear-${d.id}-${s}-${it.rarity}`, `wear-${d.id}-${s}`].find((k) => this.textures.exists(k));
+      if (key) worn.push(A(this.add.image(360, 418, key).setDisplaySize(230, 230)));
+    }
+    this.tweens.add({ targets: worn, y: 410, duration: 1600, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
     SLOTS.forEach((s, i) => {
       const x = i < 2 ? 98 : 622;
       const y = 382 + (i % 2) * 150;
@@ -184,6 +207,74 @@ export class EquipScene extends Phaser.Scene {
     }));
     bF.setEnabled(!!nextR && !it.locked && !eq && mats >= EQUIP_RULES.fuseCount);
     if (nextR && (it.locked || eq)) pl.add(text(this, 306, -58, '잠금·장착 중엔 합성 재료 제외', 14, COLOR.textDim, true).setOrigin(1, 0.5));
+  }
+
+  // ───────── 스킨 ─────────
+  /** 스킨 탭: 위쪽 미리보기(전투 모습 — 위에서 본 드래곤 + 망토 + 발자국이 원을 그리며) · 망토 줄 · 발자국 줄 · 룰렛 가기 */
+  private drawSkins(p: PlayerProgress): void {
+    makeSkinTextures(this);
+    const A = this.A.bind(this);
+    const d = DRAGONS[p.selectedDragonId];
+    A(plate(this, 360, 450, 664, 300, { r: 26, fill: 0x161126 }));
+    A(text(this, 44, 322, '전투에서 보이는 모습', TYPE.tiny, COLOR.textSub, true, true).setOrigin(0, 0.5));
+    const cx = 360;
+    const cy = 462;
+    const R = 92;
+    const cape = p.skins.cape ? A(this.add.image(cx, cy, capeKey(p.skins.cape)).setDisplaySize(120, 120)) : null;
+    const top = this.textures.exists(`top-${d.id}`) ? `top-${d.id}` : `dragon-${d.id}`;
+    const dragon = A(this.add.image(cx, cy, top).setDisplaySize(130, 130));
+    // 원을 따라 돌며 지나간 자리에 흔적
+    let t = 0;
+    let lastX = cx;
+    let lastY = cy;
+    let dropX = cx;
+    let dropY = cy;
+    const trailId = p.skins.trail;
+    const ev = this.time.addEvent({
+      delay: 16, loop: true, callback: () => {
+        if (!dragon.active) return ev.remove();
+        t += 0.016 * 0.9;
+        const x = cx + Math.cos(t) * R * 1.6;
+        const y = cy + Math.sin(t) * R * 0.75;
+        const ang = Math.atan2(y - lastY, x - lastX) + Math.PI / 2;
+        dragon.setPosition(x, y).setRotation(ang);
+        cape?.setPosition(x - Math.sin(ang) * 30, y + Math.cos(ang) * 30).setRotation(ang + Math.sin(t * 9) * 0.06);
+        if (trailId && Phaser.Math.Distance.Between(x, y, dropX, dropY) > 22) {
+          dropX = x;
+          dropY = y;
+          const fx = A(this.add.image(x - Math.sin(ang) * 48, y + Math.cos(ang) * 48, trailKey(trailId)).setDisplaySize(36, 36).setRotation(ang));
+          this.children.moveBelow(fx, cape ?? dragon);
+          this.tweens.add({ targets: fx, alpha: 0, scale: fx.scale * 0.5, duration: 800, onComplete: () => fx.destroy() });
+        }
+        lastX = x;
+        lastY = y;
+      },
+    });
+
+    const row = (kind: SkinKind, y: number, label: string) => {
+      A(text(this, 40, y - 76, label, TYPE.caption, COLOR.gold, true, true).setOrigin(0, 0.5));
+      const owned = SKINS.filter((s) => s.kind === kind && p.skins.owned.includes(s.id));
+      const cur = kind === 'cape' ? p.skins.cape : p.skins.trail;
+      const cells: (string | null)[] = [null, ...owned.map((s) => s.id)];
+      cells.slice(0, 5).forEach((id, i) => {
+        const x = 96 + i * 132;
+        const on = cur === id;
+        if (on) A(this.add.rectangle(x, y, 122, 122, COLOR.cta, 0.95).setStrokeStyle(4, COLOR.outline));
+        const box = A(slotBox(this, x, y, 106, { icon: id ? skinIconKey(id) : undefined }));
+        box.add(text(this, 0, 40, id ? skinDef(id)!.name : '없음', 13, COLOR.text, true, true).setOrigin(0.5));
+        if (on) box.add(badge(this, -30, -40, '장착', COLOR.teal));
+        box.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+          const r = equipSkin(Progress.load(), kind, id);
+          if (r.ok) Progress.save(r.progress);
+          this.refresh();
+        });
+      });
+      if (!owned.length) A(text(this, 228, y, '스킨 룰렛에서 얻을 수 있어요', TYPE.tiny, COLOR.textDim, true).setOrigin(0, 0.5));
+    };
+    row('cape', 720, '망토');
+    row('trail', 900, '발자국');
+    A(text(this, 360, 1000, '스킨은 꾸미기 전용(능력치 없음) · 모든 드래곤에 함께 적용', TYPE.tiny, COLOR.textSub, true).setOrigin(0.5));
+    if (purchases.available || devMode()) this.B(button(this, 360, 1068, 340, 72, '스킨 룰렛 가기', () => this.scene.start('skins'), { kind: 'magic', size: TYPE.caption }));
   }
 
   private act(r: { ok: boolean; reason?: string; cost?: number }, done?: string): void {

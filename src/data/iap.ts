@@ -1,14 +1,15 @@
 import { DEALS, PACKAGES, RUBY_PRODUCTS, type PackageDef } from './economy';
 import { PASS } from './pass';
+import { SKIN_ROULETTE } from './skins';
 
 /**
- * 인앱결제 상품표 16종(루비 5 · 패키지 3 · 특혜 6 · 패스 2) — 앱과 서버(functions/)가 같이 쓴다(docs/PAYMENTS.md).
+ * 인앱결제 상품표 17종(루비 5 · 패키지 3 · 특혜 6 · 패스 2 · 스킨 열쇠 1) — 앱과 서버(functions/)가 같이 쓴다(docs/PAYMENTS.md).
  * - 지급 내용·구매 제한은 economy.ts·pass.ts 값을 그대로 옮긴 것(숫자는 거기서만 바꾼다).
  * - 서버는 RevenueCat이 확인한 거래만 이 표로 지급 내용을 정해 장부에 적고, 앱은 그 장부 내용만 지급한다.
  * - 이 파일은 순수 데이터·함수만(Progress·플랫폼을 불러오지 않음 → 서버 번들에 그대로 들어감).
  */
 
-export type IapKind = 'ruby' | 'package' | 'pass';
+export type IapKind = 'ruby' | 'package' | 'pass' | 'skinkey';
 /** 구매 제한 기간: 일일·주간·월간(KST) · 계정당 1번(once) · 패스 시즌 · 제한 없음(루비) */
 export type IapPeriod = 'daily' | 'weekly' | 'monthly' | 'once' | 'season' | 'none';
 
@@ -20,6 +21,8 @@ export interface IapGrant {
   equipTickets: number;
   runeTickets: number;
   pass?: 'premium' | 'royal';
+  /** 스킨 룰렛 열쇠(2026-11-23 밤) */
+  skinKeys?: number;
 }
 
 export interface IapProduct {
@@ -57,6 +60,8 @@ export const IAP_PRODUCTS: IapProduct[] = [
   ...DEALS.map(pkg),
   { productId: PASS.productId.premium, kind: 'pass', name: '드래곤 패스 프리미엄', krw: PASS.price.premium, grant: { ...emptyGrant, pass: 'premium' }, period: 'season', limit: 1 },
   { productId: PASS.productId.royal, kind: 'pass', name: '드래곤 패스 로열', krw: PASS.price.royal, grant: { ...emptyGrant, pass: 'royal' }, period: 'season', limit: 1 },
+  // 스킨 룰렛 열쇠 1개(제작자 결정 2026-11-23 밤: 4,900원, 현금 결제만). 소모성, 구매 제한 없음
+  { productId: SKIN_ROULETTE.keyProductId, kind: 'skinkey', name: '스킨 룰렛 열쇠', krw: SKIN_ROULETTE.keyKrw, grant: { ...emptyGrant, skinKeys: 1 }, period: 'none', limit: Infinity },
 ];
 
 export const iapProduct = (productId: string): IapProduct | undefined => IAP_PRODUCTS.find((x) => x.productId === productId);

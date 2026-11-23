@@ -5,7 +5,7 @@ import { DRAGONS, ELEMENT_LABEL, RARITY_COLOR, RARITY_LABEL } from '../data/drag
 import { DIFFICULTIES, DIFFICULTY_LABEL, DIFFICULTY_RELEASED, STAGE_COUNT, type Difficulty } from '../data/economy';
 import { cpVerdict, recommendedCp } from '../data/power';
 import { hardStage } from '../data/hardStages';
-import { attendedToday, claimableMissions, claimableStageBoxes, eventActive, eventState, progressPct, Progress, spinsAvailable } from '../systems/Progress';
+import { attendedToday, CHEST_TIERS, claimableMissions, claimableStageBoxes, eventActive, eventState, progressPct, Progress, spinsAvailable, stageChestState, stageReach } from '../systems/Progress';
 import { loadout } from '../systems/Loadout';
 import { pendingGifts, staminaNow } from '../systems/Mailbox';
 import { STAMINA, formatLeft, nextRegenIn } from '../systems/Stamina';
@@ -31,6 +31,10 @@ import { accountLevel } from '../systems/AccountLevel';
 import { claimablePass, syncPass } from '../systems/Pass';
 import { ATTENDANCE_28, activityRewardIcon, activityRewardText } from '../data/activity';
 import { fullH } from '../ui/layout';
+import { purchases } from '../systems/Purchases';
+import { rotationIndex, syncSkinBoard } from '../systems/Skins';
+import { SKIN_ROULETTE } from '../data/skins';
+import { makeSkinTextures, skinIconKey } from '../ui/skinArt';
 import { offY } from '../ui/layout';
 
 /** 접속 출석 팝업을 이번 실행에서 이미 띄운 날(같은 날 로비에 다시 와도 또 뜨지 않게) */
@@ -153,10 +157,20 @@ export class LobbyScene extends Phaser.Scene {
     // 개발 모드(?dev=1)에서는 기간 밖에도 보여 시험할 수 있다. 데모(?demo=1)는 출시 화면과 같게 숨긴다.
     const leftTiles: [string, string, () => void, boolean][] = [];
     if (live || (dev && !DEMO)) leftTiles.push(['ic-cal-star', live ? '이벤트' : '이벤트(시험)', () => this.scene.start('event'), evAlert]);
+    // 스킨 룰렛(2026-11-23 밤 제작자 요청: 겨울 축제 아래). 열쇠는 App Store 결제로만 → 결제가 되는 iOS 앱(또는 개발 모드)에서만 보임.
+    // 열쇠가 남아 있으면 "!"(이번 판에 남은 칸이 있을 때)
+    if (purchases.available || (dev && !DEMO)) {
+      makeSkinTextures(this);
+      const sk = syncSkinBoard(p, t0).skins;
+      leftTiles.push([skinIconKey(SKIN_ROULETTE.rotations[rotationIndex(t0)].cape), '스킨 룰렛', () => this.scene.start('skins'), sk.keys > 0 && sk.board.picked.length < 9]);
+    }
     leftTiles.push(['ic-mission', '미션', toMissions('daily'), missionAlert]);
     leftTiles.push(['ic-trophy', '업적', toMissions('achievements'), false]);
     leftTiles.push(['ic-calendar', '출석', toMissions('attendance'), !attendanceState(p, t0).claimedToday]);
+    // 왼쪽은 4칸까지(그 아래는 단계 상자 판) — 넘치는 칸은 오른쪽 패스 아래로
+    const overflow = leftTiles.splice(4);
     leftTiles.forEach(([icon, label, onClick, alert], i) => side(62, i, icon, label, onClick, alert));
+    overflow.forEach(([icon, label, onClick, alert], i) => side(658, 3 + i, icon, label, onClick, alert));
     side(658, 0, 'ui-mailbox', '우편함', () => this.scene.start('gifts'));
     giftAlert(this, 658, 310, 76, pendingGifts(p.mailbox, now).map((g) => g.id));
     side(658, 1, 'ic-gear', '설정', () => this.openSettings());
@@ -460,58 +474,87 @@ export class LobbyScene extends Phaser.Scene {
   }
 
   /**
-   * 단계 상자 판(제작자 요청 2026-11-23): 그 난이도 1~20단계를 하나씩 깰 때마다 상자 1개.
-   * 왼쪽 큰 상자 = 다음에 받을 상자(받을 것이 여러 개면 숫자), 오른쪽 = 20칸 막대(깬 단계 금색·받은 단계 흐리게).
-   * 누르면 상자 개봉 연출 → 실제 받은 보상 팝업. 보상 내용은 받기 전까지 보여 주지 않는다.
+   * 단계 상자 판(제작자 요청 2026-11-23 밤, 참고 화면의 25·50·100% 상자): 로비에서 고른 단계의 상자 3개.
+   * 25% = 첫 엘리트 처치 · 50% = 두 번째 엘리트 처치 · 100% = 클리어. 단계를 바꾸면 그 단계의 상자로 바뀐다.
+   * 상태: 닫힘(아직) → 반짝임(도달 — 눌러서 받기) → 열린 상자(받음). 최초 보상이라 다시 와도 열린 채로 남는다.
+   * 보상 내용은 받기 전까지 보여 주지 않는다.
    */
   private progressChests(p: ReturnType<typeof Progress.load>, diff: Difficulty): void {
-    const dp = p.difficulty[diff];
-    const ready = claimableStageBoxes(p, diff);
-    const next = ready[0];
-    const pct = progressPct(p, diff);
+    const stage = this.stageId;
+    const reach = stageReach(p, diff, stage);
+    const others = claimableStageBoxes(p, diff).filter((c) => c.stage !== stage);
     plate(this, 360, 786, 680, 184, { r: 26, fill: 0x1d1733 });
-    text(this, 44, 722, '단계 상자 — 단계를 처음 깰 때마다 1개', TYPE.caption, COLOR.gold, true, true).setOrigin(0, 0.5);
-    text(this, 676, 722, `${DIFFICULTY_LABEL[diff]} ${dp.cleared.length}/${STAGE_COUNT} · ${pct}%`, TYPE.tiny, COLOR.text, true, true).setOrigin(1, 0.5);
+    text(this, 44, 716, `${DIFFICULTY_LABEL[diff]} ${stage}단계 상자`, TYPE.caption, COLOR.gold, true, true).setOrigin(0, 0.5);
+    text(this, 676, 716, others.length ? `다른 단계에 받을 상자 ${others.length}개` : '첫 달성 때 한 번', TYPE.tiny, others.length ? COLOR.ok : COLOR.textSub, true, true).setOrigin(1, 0.5);
 
-    // 20칸 막대
-    const x0 = 200;
-    const cw = 22;
-    const gap = 2;
-    for (let s = 1; s <= STAGE_COUNT; s++) {
-      const x = x0 + (s - 1) * (cw + gap);
-      const cleared = dp.cleared.includes(s);
-      const claimed = dp.claimed.includes(s);
-      const col = claimed ? 0x8a7a3a : cleared ? 0xffd34d : 0x2a2440;
-      this.add.rectangle(x, 790, cw, 30, col).setOrigin(0, 0.5).setStrokeStyle(2, COLOR.outline);
-      if (cleared && !claimed) this.add.circle(x + cw / 2, 768, 4, COLOR.danger);
-      if (s === 1 || s % 5 === 0) text(this, x + cw / 2, 822, String(s), 15, COLOR.textSub, true).setOrigin(0.5);
-    }
-    text(this, x0, 852, ready.length ? `받을 상자 ${ready.length}개 · 5단계마다 특별 상자` : next === undefined && dp.cleared.length >= STAGE_COUNT ? '모든 단계 상자를 받았어요' : '다음 단계를 처음 깨면 상자가 생겨요', TYPE.tiny, ready.length ? COLOR.ok : COLOR.textSub, true, true).setOrigin(0, 0.5);
+    // 진행 막대(참고 화면처럼 상자 뒤로 지나감): 0 → 25 → 50 → 100%
+    const x0 = 70;
+    const x1 = 650;
+    const by = 812;
+    const at = (pct: number) => x0 + (x1 - x0) * pct;
+    const PCT = [0.25, 0.5, 1] as const;
+    this.add.rectangle((x0 + x1) / 2, by, x1 - x0 + 16, 26, 0x0e0b18).setStrokeStyle(3, COLOR.outline);
+    const fillTo = reach >= 3 ? 1 : reach >= 1 ? PCT[reach - 1] : 0;
+    if (fillTo > 0) this.add.rectangle(x0, by, (x1 - x0) * fillTo, 16, 0x5ee35a).setOrigin(0, 0.5);
 
-    // 왼쪽 큰 상자
-    const cx = 110;
-    const cy = 800;
-    const special = next !== undefined && next % 5 === 0;
-    const tex = special ? 'chest-dragon' : 'chest-gold';
-    const im = this.textures.exists(tex) ? this.add.image(cx, cy - 6, tex).setDisplaySize(112, 112) : this.add.rectangle(cx, cy - 6, 84, 72, 0x8d6e63);
-    const s0 = im.scaleX;
-    text(this, cx, cy + 56, next !== undefined ? `${next}단계 상자` : '상자 없음', 16, COLOR.text, true, true).setOrigin(0.5);
-    if (next === undefined) {
-      if (im instanceof Phaser.GameObjects.Image) im.setTint(0x8c86a3);
-      text(this, cx + 34, cy + 10, '🔒', 24, COLOR.text).setOrigin(0.5);
-    } else {
-      this.tweens.add({ targets: im, scaleX: s0 * 1.1, scaleY: s0 * 1.1, y: cy - 16, duration: 520, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
-      const dot = this.add.circle(cx + 44, cy - 50, 16, COLOR.danger).setStrokeStyle(3, 0xffffff);
-      text(this, dot.x, dot.y, ready.length > 1 ? String(ready.length) : '!', 16, COLOR.text, true).setOrigin(0.5);
-    }
-    im.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
-      if (next === undefined) return this.toast('단계를 처음 깨면 상자를 받을 수 있어요');
-      const r = Progress.claimStageBox(diff, next);
-      if (!r.ok) return this.toast('아직 받을 수 없어요');
-      this.tweens.killTweensOf(im);
-      openSmallChest(this, im.x, im.y, tex, () =>
-        rewardPopup(this, `${DIFFICULTY_LABEL[diff]} ${next}단계 상자`, bundleItems(r.reward), () => this.scene.restart()));
+    CHEST_TIERS.forEach((tier, i) => {
+      const x = Math.min(at(PCT[i]), 612);
+      const y = 790;
+      const state = stageChestState(p, diff, stage, tier);
+      const box = tier === 3 && stage % 5 === 0 ? 'dragon' : 'gold';
+      const size = 112;
+      const parts = this.chestArt(x, y, box, size, state);
+      text(this, x, by + 42, `${Math.round(PCT[i] * 100)}%`, 20, COLOR.text, true, true).setOrigin(0.5);
+      const hit = this.add.zone(x, y, size, size + 20).setInteractive({ useHandCursor: true });
+      hit.on('pointerdown', () => {
+        if (state === 'opened') return this.toast('이미 받은 상자예요');
+        if (state === 'locked') return this.toast(tier === 3 ? '이 단계를 클리어하면 열려요' : `이 단계에서 ${tier === 1 ? '첫' : '두 번째'} 엘리트를 처치하면 열려요`);
+        const r = Progress.claimStageBox(diff, stage, tier);
+        if (!r.ok) return this.toast('아직 받을 수 없어요');
+        parts.forEach((o) => { this.tweens.killTweensOf(o); o.setVisible(false); });
+        openSmallChest(this, x, y, `chest-${box}`, () =>
+          rewardPopup(this, `${DIFFICULTY_LABEL[diff]} ${stage}단계 ${Math.round(PCT[i] * 100)}% 상자`, bundleItems(r.reward), () => this.scene.restart()));
+      });
     });
+  }
+
+  /** 상자 그림 한 개: 닫힘(어둡게) · 받기(반짝임·통통) · 열림(뚜껑이 뒤로 젖혀지고 안쪽 빛) */
+  private chestArt(x: number, y: number, box: 'gold' | 'dragon', size: number, state: 'locked' | 'ready' | 'opened'): Phaser.GameObjects.Image[] {
+    const bodyKey = `chest-${box}-body`;
+    const lidKey = `chest-${box}-lid`;
+    const out: Phaser.GameObjects.Image[] = [];
+    if (!this.textures.exists(bodyKey) || !this.textures.exists(lidKey)) {
+      const im = this.add.image(x, y, `chest-${box}`).setDisplaySize(size, size);
+      if (state === 'locked') im.setTint(0x8c86a3);
+      if (state === 'opened') im.setAlpha(0.55);
+      return [im];
+    }
+    if (state === 'opened' && this.textures.exists('chest-inner-gold')) {
+      out.push(this.add.image(x, y - size * 0.12, 'chest-inner-gold').setDisplaySize(size * 0.9, size * 0.9).setAlpha(0.7).setBlendMode(Phaser.BlendModes.ADD));
+    }
+    const body = this.add.image(x, y, bodyKey).setDisplaySize(size, size);
+    const lid = this.add.image(x, y, lidKey).setDisplaySize(size, size);
+    if (state === 'opened') {
+      // 뚜껑을 뒤로 젖혀 올린 모양(본체 뒤에 그려 열린 상자처럼)
+      lid.setPosition(x + size * 0.02, y - size * 0.3).setAngle(-12).setScale(lid.scaleX, lid.scaleY * 0.8).setTint(0xd8d0c0);
+      this.children.moveBelow(lid, body);
+    }
+    out.push(lid, body);
+    if (state === 'locked') out.forEach((o) => o.setTint(0x8c86a3));
+    if (state === 'ready') {
+      const glow = this.add.circle(x, y, size * 0.52, 0xffd34d, 0.18).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({ targets: glow, alpha: 0.45, scale: 1.15, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+      [body, lid].forEach((o) => this.tweens.add({ targets: o, y: o.y - 6, duration: 520, yoyo: true, repeat: -1, ease: 'Sine.InOut' }));
+      // 반짝이 별 4개가 번갈아 깜빡임
+      for (let k = 0; k < 4; k++) {
+        const a = (k / 4) * Math.PI * 2 + 0.6;
+        const st = this.add.star(x + Math.cos(a) * size * 0.46, y + Math.sin(a) * size * 0.4 - 8, 4, 3, 11, 0xfff6c2).setAlpha(0);
+        this.tweens.add({ targets: st, alpha: 1, scale: 1.4, angle: 90, duration: 420, yoyo: true, repeat: -1, delay: k * 260, repeatDelay: 500 });
+      }
+      const dot = this.add.circle(x + size * 0.38, y - size * 0.4, 13, COLOR.danger).setStrokeStyle(3, 0xffffff);
+      text(this, dot.x, dot.y, '!', 16, COLOR.text, true).setOrigin(0.5);
+    }
+    return out;
   }
 
   /** 받을 보상이 있으면 보상 버튼에 "!" */

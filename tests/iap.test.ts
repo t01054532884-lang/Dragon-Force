@@ -6,7 +6,7 @@ import { seasonOf } from '../src/systems/Pass';
 import { dealPeriodKey, defaultProgress, Progress } from '../src/systems/Progress';
 import { applyServerGrant, buyProduct, deliverPending, NoPurchases, packageBought, setPurchaseProvider, type PurchaseProvider } from '../src/systems/Purchases';
 
-// 인앱결제 2단계(2026-11-23, docs/PAYMENTS.md): 상품표 16종 · 서버 구매 제한 · RevenueCat 응답 읽기 · 서버 지급 반영 · 결제 흐름
+// 인앱결제 2단계(2026-11-23, docs/PAYMENTS.md): 상품표 17종 · 서버 구매 제한 · RevenueCat 응답 읽기 · 서버 지급 반영 · 결제 흐름
 const T0 = Date.parse('2026-11-25T12:00:00+09:00');
 const grantOf = (productId: string, tx: string, at = T0): ServerGrant => {
   const def = iapProduct(productId)!;
@@ -14,12 +14,13 @@ const grantOf = (productId: string, tx: string, at = T0): ServerGrant => {
 };
 
 describe('상품표', () => {
-  it('16종: 루비 5 · 패키지 3 · 특혜 6 · 패스 2, ID 중복 없음', () => {
-    expect(IAP_PRODUCTS).toHaveLength(16);
+  it('17종: 루비 5 · 패키지 3 · 특혜 6 · 패스 2 · 스킨 열쇠 1, ID 중복 없음', () => {
+    expect(IAP_PRODUCTS).toHaveLength(17);
+    expect(IAP_PRODUCTS.filter((p) => p.kind === 'skinkey').map((p) => [p.productId, p.krw, p.grant.skinKeys])).toEqual([['skin_key_1', 4900, 1]]);
     expect(IAP_PRODUCTS.filter((p) => p.kind === 'ruby')).toHaveLength(RUBY_PRODUCTS.length);
     expect(IAP_PRODUCTS.filter((p) => p.kind === 'package')).toHaveLength(PACKAGES.length + DEALS.length);
     expect(IAP_PRODUCTS.filter((p) => p.kind === 'pass').map((p) => p.productId)).toEqual([PASS.productId.premium, PASS.productId.royal]);
-    expect(new Set(IAP_PRODUCTS.map((p) => p.productId)).size).toBe(16);
+    expect(new Set(IAP_PRODUCTS.map((p) => p.productId)).size).toBe(17);
     for (const p of IAP_PRODUCTS) expect(p.productId).toMatch(/^[a-z0-9_]+$/); // App Store 상품 ID로 쓸 수 있는 글자
   });
   it('기간 키가 상점(dealPeriodKey)·패스 시즌(seasonOf)과 같다', () => {
