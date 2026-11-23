@@ -115,6 +115,9 @@ export const ART_FILES: Record<string, string> = {
   ...Object.fromEntries(['dragon', 'gear', 'rune', 'mega'].map((k) => [`pkg-${k}`, `shop/pkg-${k}.webp`])), // 패키지 그림(16차분)
   ...Object.fromEntries(['free', 'premium', 'royal'].map((k) => [`pass-${k}`, `pass/pass-${k}.webp`])), // 드래곤 패스 상자(17차분)
   // 19차분(2026-11-24, 그림 요청서 7 ②, scripts/process_art_batch19.py): 신규 9종 기본 공격 탄·고리·베기 256px — dragonArt.applyProjectileArt가 bolt-* 로 바꿔 씀
+  // 22차분(2026-11-24, scripts/process_art_batch22.py): 스킨 망토 3·발자국 6·아이콘 9 — 키가 있으면 skinArt.ts 도형 그림 대신 씀
+  ...Object.fromEntries(['cape-ember-king', 'cape-frost-crown', 'cape-starlight'].flatMap((id) => [[`skin-cape-${id}`, `skin/skin-cape-${id}.webp`], [`skin-icon-${id}`, `skin/skin-icon-${id}.webp`]])),
+  ...Object.fromEntries(['flame', 'frost', 'star', 'petal', 'spark', 'shadow'].flatMap((t) => [[`skin-trail-${t}`, `skin/skin-trail-${t}.webp`], [`skin-icon-trail-${t}`, `skin/skin-icon-trail-${t}.webp`]])),
   // 21차분(2026-11-24, scripts/process_art_batch21.py): 진화·적중 효과 6장 256px(BasicAttack.flashArt)
   ...Object.fromEntries(['fx-aurora-split', 'fx-mirror-bounce', 'fx-void-burst', 'fx-sand-pillar', 'fx-bloom-burst', 'fx-heal-flower'].map((k) => [k, `fx/${k}.webp`])),
   // 20차분(2026-11-24, scripts/process_art_batch20.py): 탄 수정본(아래 같은 파일 덮어씀) + 신규 9종 전용 스킬 전투 연출 512px(Signature.ts SIGART)
