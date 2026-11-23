@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { DRAGONS, RARITY_COLOR, RARITY_LABEL } from '../data/dragons';
 import { RARITIES } from '../data/economy';
-import { EQUIP_BASE, EQUIP_BONUS, EQUIP_RULES, equipBonus, equipDef, equipValue, NEXT_RARITY, SLOT_LABEL, SLOTS, type Slot } from '../data/equipment';
+import { EQUIP_BASE, EQUIP_BONUS, EQUIP_RULES, equipAuraRarity, equipBonus, equipDef, equipValue, NEXT_RARITY, SLOT_LABEL, SLOTS, type Slot } from '../data/equipment';
 import { fuseCandidates, isEquipped, Progress, type EquipmentItem, type PlayerProgress } from '../systems/Progress';
 import { loadout } from '../systems/Loadout';
 import { equipIcon, preloadArt } from '../ui/art';
@@ -51,7 +51,11 @@ export class EquipScene extends Phaser.Scene {
     this.refresh();
   }
 
+  private orbit: Phaser.Time.TimerEvent | null = null;
+
   private refresh(): void {
+    this.orbit?.remove();
+    this.orbit = null;
     this.layer.forEach((o) => o.destroy());
     this.layer = [];
     const p = Progress.load();
@@ -86,6 +90,57 @@ export class EquipScene extends Phaser.Scene {
     return `${B.a} +${a}${B.unitA}${B.b ? ` · ${B.b} ${b}${B.unitB}` : ''}${extra}`;
   }
 
+  /** 등급 오라: 드래곤 뒤에서 천천히 돌며 숨 쉬는 빛 */
+  private drawAura(r: Exclude<EquipmentItem['rarity'], 'common'>): void {
+    const color = RARITY_COLOR[r];
+    const art = `aura-equip-${r}`;
+    if (this.textures.exists(art)) {
+      const im = this.A(this.add.image(360, 420, art).setDisplaySize(360, 360).setDepth(1).setAlpha(0.95));
+      this.tweens.add({ targets: im, angle: 360, duration: 24000, repeat: -1 });
+      this.tweens.add({ targets: im, alpha: 0.7, duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+      return;
+    }
+    // 임시: 둥근 빛 + 빛줄기(fx-unlock-rays)를 등급 색으로
+    const glow = this.A(this.add.circle(360, 420, 150, color, 0.18).setDepth(1));
+    this.tweens.add({ targets: glow, scale: 1.12, alpha: 0.08, duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+    if (this.textures.exists('fx-unlock-rays')) {
+      const rays = this.A(this.add.image(360, 420, 'fx-unlock-rays').setDisplaySize(r === 'legendary' ? 380 : 330, r === 'legendary' ? 380 : 330).setDepth(1).setTint(color).setAlpha(r === 'rare' ? 0.45 : 0.65).setBlendMode(Phaser.BlendModes.ADD));
+      this.tweens.add({ targets: rays, angle: 360, duration: 30000, repeat: -1 });
+    }
+  }
+
+  /** 낀 장비 아이콘이 드래곤 둘레를 타원으로 돎(앞쪽일 때 드래곤 앞, 뒤쪽일 때 뒤) */
+  private drawOrbit(worn: { slot: Slot; rarity: EquipmentItem['rarity'] }[]): void {
+    if (!worn.length) return;
+    const items = worn.map(({ slot, rarity }) => {
+      const orb = `equip-orb-${rarity}`;
+      const back = this.textures.exists(orb)
+        ? this.A(this.add.image(0, 0, orb).setDisplaySize(74, 74))
+        : this.A(this.add.circle(0, 0, 30, RARITY_COLOR[rarity], 0.35).setStrokeStyle(3, RARITY_COLOR[rarity], 0.95));
+      const icon = this.A(this.add.image(0, 0, equipIcon(slot, rarity)).setDisplaySize(52, 52));
+      return { back, icon };
+    });
+    let t = 0;
+    const place = () => {
+      items.forEach(({ back, icon }, i) => {
+        const a = t / 2400 + (i / items.length) * Math.PI * 2;
+        const x = 360 + Math.cos(a) * 168;
+        const y = 440 + Math.sin(a) * 52;
+        const front = Math.sin(a) > 0;
+        const k = 0.82 + 0.18 * (Math.sin(a) + 1) / 2; // 앞쪽일수록 크게
+        back.setPosition(x, y).setDepth(front ? 3 : 0.5);
+        if (back instanceof Phaser.GameObjects.Image) back.setDisplaySize(74 * k, 74 * k);
+        else back.setScale(k);
+        icon.setPosition(x, y).setDepth(front ? 3.1 : 0.6).setDisplaySize(52 * k, 52 * k).setAlpha(front ? 1 : 0.8);
+      });
+    };
+    place();
+    this.orbit = this.time.addEvent({ delay: 16, loop: true, callback: () => {
+      t += 16;
+      place();
+    } });
+  }
+
   // ───────── 장비 ─────────
   private drawEquip(p: PlayerProgress): void {
     const A = this.A.bind(this);
@@ -94,17 +149,14 @@ export class EquipScene extends Phaser.Scene {
 
     // 제단 위 출격 드래곤 + 양옆 장착 슬롯(누르면 그 슬롯 목록)
     this.layer.push(...altar(this, 360, 512, 300));
-    const hero = A(this.add.image(360, 418, `portrait-${d.id}`).setDisplaySize(230, 230));
-    // 장비를 끼면 드래곤에 보이기(2026-11-23 밤, 레드 먼저): 초상과 같은 캔버스에 장비만 그린 그림 wear-<드래곤>-<부위>-<등급>을 겹친다.
-    // 그림이 없으면 아무것도 안 겹침(요청서 docs/SKINS.md). 위에서 차례로: 갑주 → 목걸이 → 발톱 → 반지
-    const worn: Phaser.GameObjects.Image[] = [hero];
-    for (const s of ['armor', 'necklace', 'weapon', 'ring'] as Slot[]) {
-      const it = p.equipment.items.find((x) => x.uid === p.equipment.equipped[s]);
-      if (!it) continue;
-      const key = [`wear-${d.id}-${s}-${it.rarity}`, `wear-${d.id}-${s}`].find((k) => this.textures.exists(k));
-      if (key) worn.push(A(this.add.image(360, 418, key).setDisplaySize(230, 230)));
-    }
-    this.tweens.add({ targets: worn, y: 410, duration: 1600, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+    // 장비 보이기(제작자 결정 2026-11-24): 몸에 그리지 않고 ① 4부위 모두 낀 등급 오라(드래곤 뒤) ② 낀 장비 아이콘이 둘레를 돎.
+    // 그림 aura-equip-<등급>·equip-orb-<등급>이 있으면 그것을, 없으면 빛줄기 그림을 등급 색으로 물들인 임시 연출(요청서 docs/ART_REQUEST_8.md)
+    const wornItems = SLOTS.map((s) => p.equipment.items.find((x) => x.uid === p.equipment.equipped[s]) ?? null);
+    const aura = equipAuraRarity(wornItems.map((it) => it?.rarity));
+    if (aura) this.drawAura(aura);
+    const hero = A(this.add.image(360, 418, `portrait-${d.id}`).setDisplaySize(230, 230).setDepth(2));
+    this.tweens.add({ targets: hero, y: 410, duration: 1600, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+    this.drawOrbit(SLOTS.flatMap((s, i) => (wornItems[i] ? [{ slot: s, rarity: wornItems[i]!.rarity }] : [])));
     SLOTS.forEach((s, i) => {
       const x = i < 2 ? 98 : 622;
       const y = 382 + (i % 2) * 150;

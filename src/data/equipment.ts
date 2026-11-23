@@ -75,3 +75,14 @@ export function equipValue(slot: Slot, rarity: Rarity, level: number): [number, 
 }
 
 export const NEXT_RARITY: Record<Rarity, Rarity | null> = { common: 'rare', rare: 'epic', epic: 'legendary', legendary: null };
+
+/**
+ * 장비 오라(제작자 결정 2026-11-24: 장비를 몸에 그리지 않고 제단 오라·장비 아이콘 궤도로 보여 줌).
+ * 4부위를 모두 끼었을 때, 끼운 장비 중 가장 낮은 등급이 오라 등급. 희귀 미만이거나 빈 칸이 있으면 오라 없음.
+ */
+export function equipAuraRarity(worn: (Rarity | null | undefined)[]): Exclude<Rarity, 'common'> | null {
+  if (worn.length < 4 || worn.some((r) => !r)) return null;
+  const order: Rarity[] = ['common', 'rare', 'epic', 'legendary'];
+  const low = order[Math.min(...worn.map((r) => order.indexOf(r!)))];
+  return low === 'common' ? null : low;
+}
