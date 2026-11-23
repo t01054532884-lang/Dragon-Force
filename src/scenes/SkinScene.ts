@@ -138,6 +138,11 @@ export class SkinScene extends Phaser.Scene {
       [580, 810], [360, 810], [140, 810],
       [140, 590],
     ];
+    // 판 뒤 마법진(24차분 그림, 없으면 생략): 천천히 돌며 가운데 대표 망토를 비춤
+    if (this.textures.exists('skin-board-bg')) {
+      const bg = this.A(this.add.image(360, 590, 'skin-board-bg').setDisplaySize(660, 660).setAlpha(0.9));
+      this.tweens.add({ targets: bg, angle: 360, duration: 60000, repeat: -1 });
+    }
     // 칸 사이를 잇는 빛줄기
     const g = this.A(this.add.graphics());
     g.lineStyle(10, 0xd05cff, 0.35).strokeRoundedRect(140, 370, 440, 440, 30);
@@ -153,13 +158,15 @@ export class SkinScene extends Phaser.Scene {
 
     // ── 아래: 열쇠·뽑기·구매
     const keys = p.skins.keys;
-    this.A(text(this, 360, 950, `열쇠 ${keys}개 · 받지 못한 칸은 초기화 때 사라져요`, TYPE.caption, COLOR.gold, true, true).setOrigin(0.5));
+    const keyLine = this.A(text(this, 378, 950, `열쇠 ${keys}개 · 받지 못한 칸은 초기화 때 사라져요`, TYPE.caption, COLOR.gold, true, true).setOrigin(0.5));
+    if (this.textures.exists('ui-skinkey')) this.A(this.add.image(keyLine.x - keyLine.width / 2 - 22, 950, 'ui-skinkey').setDisplaySize(38, 38));
     const left = slots.filter((s) => !picked.has(s.id)).length;
     const canBuy = purchases.available || devMode();
     const spinBtn = this.keep(button(this, canBuy ? 270 : 360, 1026, canBuy ? 360 : 400, 88, left ? '1회 뽑기' : '이번 판 모두 받음', () => this.spin(), { kind: 'cta', size: 34, sub: left ? '열쇠 1개' : '다음 주 새 판' }));
     spinBtn.setEnabled(left > 0);
     if (canBuy) {
-      this.keep(button(this, 572, 1026, 210, 78, '열쇠 구매', () => this.buyKey(), { kind: 'secondary', size: TYPE.caption, sub: `${R.keyKrw.toLocaleString()}원` }));
+      const buy = this.keep(button(this, 572, 1026, 210, 78, '열쇠 구매', () => this.buyKey(), { kind: 'secondary', size: TYPE.caption, sub: `${R.keyKrw.toLocaleString()}원` }));
+      if (this.textures.exists('ui-skinkey')) buy.root.add(this.add.image(-78, 0, 'ui-skinkey').setDisplaySize(46, 46));
     }
     this.A(this.add.text(360, 1080, PAY_NOTICE, { fontFamily: FONT, fontSize: '13px', color: '#b9a9d9', align: 'center', wordWrap: { width: 640 } }).setOrigin(0.5, 0));
   }

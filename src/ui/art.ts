@@ -115,6 +115,9 @@ export const ART_FILES: Record<string, string> = {
   ...Object.fromEntries(['dragon', 'gear', 'rune', 'mega'].map((k) => [`pkg-${k}`, `shop/pkg-${k}.webp`])), // 패키지 그림(16차분)
   ...Object.fromEntries(['free', 'premium', 'royal'].map((k) => [`pass-${k}`, `pass/pass-${k}.webp`])), // 드래곤 패스 상자(17차분)
   // 19차분(2026-11-24, 그림 요청서 7 ②, scripts/process_art_batch19.py): 신규 9종 기본 공격 탄·고리·베기 256px — dragonArt.applyProjectileArt가 bolt-* 로 바꿔 씀
+  // 24차분(2026-11-24, 요청서 8 ③④): 스킨 룰렛 열쇠 아이콘 · 룰렛 판 배경(원본 art-src/roulette)
+  'ui-skinkey': 'ui/ui-skinkey.webp',
+  'skin-board-bg': 'ui/skin-board-bg.webp',
   // 23차분(2026-11-24, scripts/process_art_batch23.py, 요청서 8): 장비 등급 오라 3(512) · 장비 궤도 받침 4(192) — EquipScene.drawAura·drawOrbit
   ...Object.fromEntries(['rare', 'epic', 'legendary'].map((r) => [`aura-equip-${r}`, `equip/aura-equip-${r}.webp`])),
   ...Object.fromEntries(['common', 'rare', 'epic', 'legendary'].map((r) => [`equip-orb-${r}`, `equip/equip-orb-${r}.webp`])),
