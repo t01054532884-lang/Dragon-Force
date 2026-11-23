@@ -3,7 +3,7 @@ import { makeTextures } from '../textures';
 import { DRAGONS, type DragonId } from '../data/dragons';
 import { SKIN_ROULETTE as R, skinDef } from '../data/skins';
 import { Progress } from '../systems/Progress';
-import { boardSlots, nextRotationAt, skinOdds, slotLabel, spinSkinRoulette, syncSkinBoard, type BoardSlot } from '../systems/Skins';
+import { boardSlots, nextRotationAt, resetLeftText, skinOdds, slotLabel, spinSkinRoulette, syncSkinBoard, type BoardSlot } from '../systems/Skins';
 import { buyFailText, buyProduct, PAY_NOTICE, purchases } from '../systems/Purchases';
 import { preloadArt } from '../ui/art';
 import { rewardPopup, type RewardItem } from '../ui/celebrate';
@@ -69,11 +69,7 @@ export class SkinScene extends Phaser.Scene {
     if (this.shownWeekEnd && now >= this.shownWeekEnd && !this.busy) return this.refresh();
     if (!this.timerText?.active) return;
     const left = Math.max(0, this.shownWeekEnd - now);
-    const d = Math.floor(left / 86_400_000);
-    const h = Math.floor(left / 3_600_000) % 24;
-    const m = Math.floor(left / 60_000) % 60;
-    const s = Math.floor(left / 1000) % 60;
-    this.timerText.setText(`이번 판 남은 시간  ${d}일 ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+    this.timerText.setText(`초기화까지 ${resetLeftText(left)}`);
   }
 
   private refresh(): void {
@@ -89,9 +85,12 @@ export class SkinScene extends Phaser.Scene {
     }
     this.frame.refresh();
     this.shownWeekEnd = nextRotationAt(now);
-    this.timerText = this.A(this.add.text(360, 250, '', { fontFamily: FONT, fontSize: '24px', fontStyle: 'bold', color: '#ffd54f' }).setOrigin(0.5));
+    // 초기화 타이머(제작자 요청 2026-11-24): 빨간 글씨로 눈에 띄게 — 받지 못한 칸이 사라지는 시각을 주의하도록
+    this.A(this.add.rectangle(300, 250, 470, 56, 0x2a0006, 0.85).setStrokeStyle(3, 0xff3b3b, 0.9));
+    this.timerText = this.A(this.add.text(300, 250, '', { fontFamily: FONT, fontSize: '28px', fontStyle: 'bold', color: '#ff4d4d', stroke: '#120000', strokeThickness: 5 }).setOrigin(0.5));
+    this.tweens.add({ targets: this.timerText, alpha: 0.65, yoyo: true, repeat: -1, duration: 900 });
     this.tickTimer();
-    this.keep(button(this, 640, 250, 110, 48, '확률', () => this.openOdds(), { kind: 'secondary', size: TYPE.caption }));
+    this.keep(button(this, 625, 250, 110, 52, '확률', () => this.openOdds(), { kind: 'secondary', size: TYPE.caption }));
 
     // ── 판: 3×3, 가운데 큰 칸 = 대표 망토
     const slots = boardSlots(p, now);
@@ -118,7 +117,7 @@ export class SkinScene extends Phaser.Scene {
 
     // ── 아래: 열쇠·뽑기·구매
     const keys = p.skins.keys;
-    this.A(text(this, 360, 950, `열쇠 ${keys}개 · 뽑힌 칸은 다시 나오지 않아요`, TYPE.caption, COLOR.gold, true, true).setOrigin(0.5));
+    this.A(text(this, 360, 950, `열쇠 ${keys}개 · 받지 못한 칸은 초기화 때 사라져요`, TYPE.caption, COLOR.gold, true, true).setOrigin(0.5));
     const left = slots.filter((s) => !picked.has(s.id)).length;
     const canBuy = purchases.available || devMode();
     const spinBtn = this.keep(button(this, canBuy ? 270 : 360, 1026, canBuy ? 360 : 400, 88, left ? '1회 뽑기' : '이번 판 모두 받음', () => this.spin(), { kind: 'cta', size: 34, sub: left ? '열쇠 1개' : '다음 주 새 판' }));

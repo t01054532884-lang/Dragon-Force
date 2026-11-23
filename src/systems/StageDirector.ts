@@ -35,6 +35,7 @@ export interface DirectorHost {
  * - 웨이브는 처치 목표(stage.waveKills)를 채우면 바로 끝난다 → 강할수록 빨리 진행.
  * - 목표를 못 채워도 늦은 시각(eliteSpawns.timeMs · bossSpawnMs)이 되면 진행한다 → 약한 이용자도 끝까지 간다.
  * - 엘리트를 잡으면 다음 웨이브가 즉시 시작, 못 잡아도 40초 뒤에는 다음 웨이브(엘리트는 남아 보스에게 흡수).
+ * - 흡수는 엘리트가 나온 지 90초(TIMELINE.eliteAbsorbAfterMs)가 지나야 — 그 전엔 마지막 웨이브를 채워도 보스 경고를 미룸(늦은 보스 시각은 지킴).
  * - 시간은 카드 선택·일시정지 동안 멈춘다(장면이 elapsed를 멈춤).
  * 어려움(2026-11-21, hard 설정): 같은 진행에 엘리트 여러 마리·보스 2마리·단계별 기믹. 모든 엘리트·보스를 잡아야 진행/클리어.
  */
@@ -163,8 +164,15 @@ export class StageDirector {
     if (this.wave < 0) return;
     const i = this.wave;
     const late = i < this.stage.eliteSpawns.length ? this.stage.eliteSpawns[i].timeMs - TIMELINE.eliteWarnMs : this.stage.bossSpawnMs - TIMELINE.bossWarnMs;
-    if (this.waveKills >= this.waveGoal(i)) this.endWave(elapsed, 'goal');
+    const last = i >= this.stage.eliteSpawns.length;
+    // 마지막 웨이브: 나온 지 얼마 안 된 엘리트가 살아 있으면 목표를 채워도 보스를 부르지 않는다(흡수 늦춤)
+    if (this.waveKills >= this.waveGoal(i) && !(last && this.youngEliteAlive(elapsed))) this.endWave(elapsed, 'goal');
     else if (elapsed >= late) this.endWave(elapsed, 'time');
+  }
+
+  /** 나온 지 TIMELINE.eliteAbsorbAfterMs가 안 된 엘리트가 살아 있나 */
+  private youngEliteAlive(elapsed: number): boolean {
+    return this.eliteSlots.some((st, i) => st === 'alive' && this.eliteGroups[i].some((e) => e.active) && elapsed - this.record.eliteSpawnAt[i] < TIMELINE.eliteAbsorbAfterMs);
   }
 
   // ───────── 엘리트 ─────────

@@ -24,6 +24,18 @@ export function nextRotationAt(now: number): number {
   return Date.parse(`${monday}T00:00:00+09:00`) + 7 * 86_400_000;
 }
 
+/** 남은 시간 표시: 하루 이상 "5일 20시간 20분", 하루 미만 "20시간 20분 5초", 1시간 미만 "20분 5초" */
+export function resetLeftText(ms: number): string {
+  const t = Math.max(0, Math.floor(ms / 1000));
+  const d = Math.floor(t / 86_400);
+  const h = Math.floor(t / 3_600) % 24;
+  const m = Math.floor(t / 60) % 60;
+  const s = t % 60;
+  if (d > 0) return `${d}일 ${h}시간 ${m}분`;
+  if (h > 0) return `${h}시간 ${m}분 ${s}초`;
+  return `${m}분 ${s}초`;
+}
+
 export interface BoardSlot extends SkinSlot {
   /** 가진 스킨이라 루비로 바뀐 칸 */
   duplicate?: boolean;

@@ -3,7 +3,7 @@ import { SKIN_ROULETTE, SKINS } from '../src/data/skins';
 import { iapProduct, type ServerGrant } from '../src/data/iap';
 import { defaultProgress, sanitize, type PlayerProgress } from '../src/systems/Progress';
 import { applyServerGrant } from '../src/systems/Purchases';
-import { boardSlots, equipSkin, nextRotationAt, rotationIndex, skinOdds, spinSkinRoulette, syncSkinBoard, weekKey } from '../src/systems/Skins';
+import { boardSlots, equipSkin, nextRotationAt, resetLeftText, rotationIndex, skinOdds, spinSkinRoulette, syncSkinBoard, weekKey } from '../src/systems/Skins';
 
 // 스킨 룰렛(제작자 요청 2026-11-23 밤): 9칸 · 뽑힌 칸 제외 · 열쇠 4,900원 · 매주 월요일 새 판
 const T0 = Date.parse('2026-11-25T12:00:00+09:00'); // 수요일, 첫 판 주
@@ -94,5 +94,15 @@ describe('스킨 룰렛', () => {
     expect(a.ok && a.progress.skins.keys).toBe(1);
     if (!a.ok) return;
     expect(applyServerGrant(a.progress, g, T0)).toMatchObject({ ok: false });
+  });
+});
+
+describe('스킨 룰렛 초기화 타이머 문구', () => {
+  it('하루 이상은 일·시간·분, 하루 미만은 초까지', () => {
+    const M = 60_000, H = 60 * M, D = 24 * H;
+    expect(resetLeftText(5 * D + 20 * H + 20 * M + 59_000)).toBe('5일 20시간 20분');
+    expect(resetLeftText(20 * H + 20 * M + 5_000)).toBe('20시간 20분 5초');
+    expect(resetLeftText(20 * M + 5_000)).toBe('20분 5초');
+    expect(resetLeftText(-1)).toBe('0분 0초');
   });
 });
