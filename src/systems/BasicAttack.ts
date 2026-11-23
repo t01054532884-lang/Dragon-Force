@@ -281,6 +281,7 @@ export class BasicAttack {
             b.angle = Phaser.Math.Angle.Between(b.img.x, b.img.y, next.x, next.y);
             b.img.setRotation(b.angle);
             b.life = Math.max(b.life, 600);
+            if (this.spec.texture === 'bolt-prism') this.flashArt('fx-mirror-bounce', b.img.x, b.img.y, 56);
             return true;
           }
         }
@@ -357,7 +358,10 @@ export class BasicAttack {
     }
     this.h.fx?.explode(x, y, r, color); // 연출: 실제 반지름 r까지만
     playSfx(this.h.scene, 'sfx-explode');
-    const boom = this.h.scene.add.circle(x, y, r, color, 0.55).setDepth(8);
+    // 21차분 그림: 보이드 중력 폭발·샌드 모래 기둥(없으면 색 원만)
+    const art = this.spec.texture === 'bolt-void' ? 'fx-void-burst' : this.spec.texture === 'bolt-sand' ? 'fx-sand-pillar' : null;
+    if (art) this.flashArt(art, x, y, r * 2.3, 380, false);
+    const boom = this.h.scene.add.circle(x, y, r, color, art && this.h.scene.textures.exists(art) ? 0.2 : 0.55).setDepth(8);
     this.h.scene.tweens.add({ targets: boom, alpha: 0, scale: 1.2, duration: 300, onComplete: () => boom.destroy() });
   }
 
@@ -401,6 +405,7 @@ export class BasicAttack {
   /** 분열: 적중 지점에서 작은 탄이 갈라져 나간다(같은 묶음이라 같은 적을 다시 맞히면 50%) */
   private split(b: Bullet, x: number, y: number, main: Enemy, L: BasicLevel, enemies: Enemy[]): void {
     const s = L.split!;
+    if (this.spec.texture === 'bolt-aurora') this.flashArt('fx-aurora-split', x, y, 72);
     for (let i = 0; i < s.count; i++) {
       const angle = b.angle + (i - (s.count - 1) / 2) * 1.0;
       const others = enemies.filter((e) => e.active && e !== main);
@@ -635,6 +640,7 @@ export class BasicAttack {
 
   /** 블룸 꽃 폭발 연출: 섬광 + 두 겹 고리 + 사방으로 흩날리는 꽃잎 */
   private bloomBurst(x: number, y: number, r: number): void {
+    this.flashArt('fx-bloom-burst', x, y, r * 2.3, 420, false);
     const sc = this.h.scene;
     const flash = sc.add.circle(x, y, r * 0.5, 0xfff0f6, 0.85).setDepth(8.5);
     sc.tweens.add({ targets: flash, scale: 2, alpha: 0, duration: 220, onComplete: () => flash.destroy() });
@@ -668,7 +674,9 @@ export class BasicAttack {
       }
       this.bloomBurst(sd.x, sd.y, r);
       if (L.seed?.flower && this.flowerHeals < FLOWER.maxHeals) {
-        const f = this.h.scene.add.image(sd.x, sd.y, 'bolt-seed').setDepth(4).setScale(1.4).setTint(0xf8bbd0);
+        const f = this.h.scene.textures.exists('fx-heal-flower')
+          ? this.h.scene.add.image(sd.x, sd.y, 'fx-heal-flower').setDepth(4).setDisplaySize(70, 70)
+          : this.h.scene.add.image(sd.x, sd.y, 'bolt-seed').setDepth(4).setScale(1.4).setTint(0xf8bbd0);
         this.flowers.push({ x: sd.x, y: sd.y, left: FLOWER.ms, g: f });
       }
       return false;
@@ -691,6 +699,15 @@ export class BasicAttack {
       }
       return true;
     });
+  }
+
+  /** 적중·폭발 순간 그림(21차분 fx-*): 잠깐 커지며 사라짐. 그림이 없으면 아무것도 안 함 */
+  private flashArt(key: string, x: number, y: number, size: number, ms = 260, add = true): void {
+    const sc = this.h.scene;
+    if (!sc.textures.exists(key)) return;
+    const im = sc.add.image(x, y, key).setDepth(8.5).setDisplaySize(size * 0.7, size * 0.7);
+    if (add) im.setBlendMode(Phaser.BlendModes.ADD);
+    sc.tweens.add({ targets: im, displayWidth: size, displayHeight: size, alpha: 0, duration: ms, ease: 'Quad.Out', onComplete: () => im.destroy() });
   }
 
   private tint(): number {
