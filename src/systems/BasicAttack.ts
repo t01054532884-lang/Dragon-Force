@@ -281,7 +281,10 @@ export class BasicAttack {
             b.angle = Phaser.Math.Angle.Between(b.img.x, b.img.y, next.x, next.y);
             b.img.setRotation(b.angle);
             b.life = Math.max(b.life, 600);
-            if (this.spec.texture === 'bolt-prism') this.flashArt('fx-mirror-bounce', b.img.x, b.img.y, 56);
+            if (this.spec.texture === 'bolt-prism') {
+              this.flashArt('fx-mirror-bounce', b.img.x, b.img.y, 56);
+              playSfx(this.h.scene, 'sfx-mirror-ping', { pitch: 1.15, vol: 0.6 });
+            }
             return true;
           }
         }
@@ -640,6 +643,7 @@ export class BasicAttack {
 
   /** 블룸 꽃 폭발 연출: 섬광 + 두 겹 고리 + 사방으로 흩날리는 꽃잎 */
   private bloomBurst(x: number, y: number, r: number): void {
+    playSfx(this.h.scene, 'sfx-bloom-pop', { vol: 0.7 });
     this.flashArt('fx-bloom-burst', x, y, r * 2.3, 420, false);
     const sc = this.h.scene;
     const flash = sc.add.circle(x, y, r * 0.5, 0xfff0f6, 0.85).setDepth(8.5);

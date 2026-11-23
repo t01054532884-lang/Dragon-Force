@@ -128,6 +128,7 @@ export class Signature {
       const ring = this.scene.add.circle(t.x, t.y, r * this.h.stats.areaMult).setStrokeStyle(4, d.color, 0.8).setDepth(DEPTH_GROUND);
       this.scene.tweens.add({ targets: img, angle: 360, duration: d.durationMs!, repeat: 0 });
       this.bombs.push({ x: t.x, y: t.y, r, left: d.durationMs!, each: 0, img, ring });
+      playSfx(this.scene, 'sfx-chrono-tick'); // 3초 째깍 → 땡(폭탄 대기 시간과 같은 길이)
       return;
     }
     if (this.dragonId === 'void') {
@@ -146,7 +147,7 @@ export class Signature {
       const core = this.scene.add.circle(t.x, t.y, 18, 0x000000, 1).setStrokeStyle(4, 0xbfe9ff, 1).setDepth(DEPTH_GROUND + 0.3).setVisible(!art);
       this.scene.tweens.add({ targets: g1, angle: art ? -540 : 360, duration: g.lingerMs });
       this.holes.push({ x: t.x, y: t.y, r, left: g.lingerMs, acc: 0, perTick: per(Math.max(1, n)) / ticks, g: g1, core });
-      playSfx(this.scene, 'sfx-explode', { pitch: 0.6 });
+      playSfx(this.scene, 'sfx-void-hole');
       return;
     }
     if (this.dragonId === 'aurora') {
@@ -156,6 +157,7 @@ export class Signature {
       const len = d.length!;
       const half = d.width! * g.radius;
       this.auroraFx(x, y, ang, len, half);
+      playSfx(this.scene, 'sfx-aurora-sweep');
       const hit = this.inBeam(x, y, ang, len, half);
       this.strike(hit, per(hit.length), ang);
     }
@@ -197,7 +199,7 @@ export class Signature {
         this.strike(t, each);
         b.img.destroy();
         b.ring.destroy();
-        playSfx(this.scene, 'sfx-explode');
+        playSfx(this.scene, 'sfx-chrono-boom');
         return false;
       });
     }
@@ -373,7 +375,6 @@ export class Signature {
             this.strike(t, aoePerTarget(dps, t.length) / waves);
           });
         }
-        playSfx(this.scene, 'sfx-boss-enrage', { pitch: 1.4 });
         break;
       }
       case 'crimson': { // 진홍의 갈증: 주변 베기 + 준 피해의 10%만큼 회복(최대 HP 25%까지)

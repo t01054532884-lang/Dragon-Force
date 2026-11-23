@@ -19,9 +19,14 @@ export const SFX_FILES: string[] = [
   'sfx-wind-blade', 'sfx-fire-ground', 'sfx-sig-ready', 'sfx-gem-big',
   'sfx-boss-enrage', 'sfx-danger-zone', 'sfx-hard-clear', 'sfx-boss-double', 'sfx-elite-split', 'sfx-hard-start',
   'sfx-reward', 'sfx-reward-rare', 'sfx-claim', 'sfx-essence', 'sfx-dragon-unlock', 'sfx-day7', 'sfx-ui-confirm', 'sfx-ui-error',
+  // 소리 요청서 9 — 23종(2026-11-24, 직접 파형 합성: Python NumPy/SciPy·SoundFile, FFmpeg 인코딩, 외부 음원 없음), 출처 docs/SOUND.md
+  'sfx-aurora-shot', 'sfx-mirror-ping', 'sfx-chrono-shot', 'sfx-void-shot', 'sfx-sand-shot', 'sfx-steel-disc', 'sfx-bloom-pop', 'sfx-howl-pulse', 'sfx-crimson-slash',
+  'sfx-aurora-sweep', 'sfx-mirror-clone', 'sfx-chrono-tick', 'sfx-chrono-boom', 'sfx-void-hole', 'sfx-sand-swamp', 'sfx-steel-swords', 'sfx-bloom-thorns', 'sfx-howl-roar', 'sfx-crimson-drain',
+  'sfx-roulette-tick', 'sfx-roulette-win', 'sfx-roulette-jackpot', 'sfx-key-use',
 ];
 /** 보상·화면 소리(로비에서 미리 읽어 상점·보상·드래곤 화면이 같이 쓴다) */
-export const UI_SFX_FILES = ['sfx-reward', 'sfx-reward-rare', 'sfx-claim', 'sfx-essence', 'sfx-dragon-unlock', 'sfx-day7', 'sfx-ui-confirm', 'sfx-ui-error'];
+export const UI_SFX_FILES = ['sfx-reward', 'sfx-reward-rare', 'sfx-claim', 'sfx-essence', 'sfx-dragon-unlock', 'sfx-day7', 'sfx-ui-confirm', 'sfx-ui-error',
+  'sfx-roulette-tick', 'sfx-roulette-win', 'sfx-roulette-jackpot', 'sfx-key-use'];
 /** 상자 개봉 화면에서 미리 읽는 것 */
 export const CHEST_SFX_FILES = SFX_FILES.filter((k) => k.startsWith('sfx-chest') || k.startsWith('sfx-card'));
 /** 전투에서 미리 읽는 것 */
@@ -91,6 +96,30 @@ const RECIPES: Record<string, Recipe> = {
   'sfx-boss-double': { ch: 'battle', gap: 1500, f0: 220, f1: 330, ms: 900, wave: 'square', gain: 0.05, fileVol: 1.3 },
   'sfx-elite-split': { ch: 'battle', gap: 300, f0: 660, f1: 440, ms: 220, wave: 'triangle', gain: 0.04 },
   'sfx-hard-start': { ch: 'ui', gap: 500, f0: 330, f1: 660, ms: 500, wave: 'triangle', gain: 0.05 },
+  // 소리 요청서 9(11/24): 기본 공격음은 같은 소리 최소 간격(gap)으로 동시 재생을 막는다(제작 쪽 요청 "동시 재생 제한")
+  'sfx-aurora-shot': { ch: 'battle', gap: 90, f0: 1600, f1: 2400, ms: 120, wave: 'sine', gain: 0.025 },
+  'sfx-mirror-ping': { ch: 'battle', gap: 70, f0: 2400, f1: 2600, ms: 70, wave: 'sine', gain: 0.02 },
+  'sfx-chrono-shot': { ch: 'battle', gap: 90, f0: 900, f1: 600, ms: 80, wave: 'triangle', gain: 0.025, noise: 0.4 },
+  'sfx-void-shot': { ch: 'battle', gap: 110, f0: 160, f1: 90, ms: 160, wave: 'sine', gain: 0.04 },
+  'sfx-sand-shot': { ch: 'battle', gap: 90, f0: 500, f1: 300, ms: 100, wave: 'triangle', gain: 0.02, noise: 0.8 },
+  'sfx-steel-disc': { ch: 'battle', gap: 110, f0: 700, f1: 1100, ms: 160, wave: 'sawtooth', gain: 0.02 },
+  'sfx-bloom-pop': { ch: 'battle', gap: 80, f0: 500, f1: 900, ms: 100, wave: 'sine', gain: 0.03 },
+  'sfx-howl-pulse': { ch: 'battle', gap: 110, f0: 200, f1: 140, ms: 140, wave: 'sine', gain: 0.035 },
+  'sfx-crimson-slash': { ch: 'battle', gap: 90, f0: 1200, f1: 400, ms: 90, wave: 'sawtooth', gain: 0.02, noise: 0.5 },
+  'sfx-aurora-sweep': { ch: 'battle', gap: 800, f0: 600, f1: 1800, ms: 700, wave: 'sine', gain: 0.04, fileVol: 1.2 },
+  'sfx-mirror-clone': { ch: 'battle', gap: 800, f0: 1800, f1: 2400, ms: 500, wave: 'triangle', gain: 0.035, fileVol: 1.2 },
+  'sfx-chrono-tick': { ch: 'battle', gap: 500, f0: 1500, f1: 1500, ms: 60, wave: 'square', gain: 0.015, fileVol: 1.1 },
+  'sfx-chrono-boom': { ch: 'battle', gap: 200, f0: 220, f1: 80, ms: 400, wave: 'sawtooth', gain: 0.05, noise: 0.6, fileVol: 1.2 },
+  'sfx-void-hole': { ch: 'battle', gap: 800, f0: 90, f1: 60, ms: 900, wave: 'sine', gain: 0.05, fileVol: 1.2 },
+  'sfx-sand-swamp': { ch: 'battle', gap: 800, f0: 300, f1: 150, ms: 700, wave: 'triangle', gain: 0.03, noise: 0.8, fileVol: 1.2 },
+  'sfx-steel-swords': { ch: 'battle', gap: 800, f0: 1400, f1: 900, ms: 600, wave: 'square', gain: 0.025, fileVol: 1.2 },
+  'sfx-bloom-thorns': { ch: 'battle', gap: 800, f0: 300, f1: 600, ms: 500, wave: 'triangle', gain: 0.03, noise: 0.5, fileVol: 1.2 },
+  'sfx-howl-roar': { ch: 'battle', gap: 800, f0: 180, f1: 90, ms: 800, wave: 'sawtooth', gain: 0.05, noise: 0.4, fileVol: 1.3 },
+  'sfx-crimson-drain': { ch: 'battle', gap: 800, f0: 600, f1: 200, ms: 600, wave: 'sawtooth', gain: 0.035, fileVol: 1.2 },
+  'sfx-roulette-tick': { ch: 'ui', gap: 30, f0: 1800, f1: 1800, ms: 30, wave: 'square', gain: 0.015 },
+  'sfx-roulette-win': { ch: 'reward', gap: 300, f0: 880, f1: 1760, ms: 400, wave: 'triangle', gain: 0.05 },
+  'sfx-roulette-jackpot': { ch: 'reward', gap: 800, f0: 523, f1: 2093, ms: 1000, wave: 'triangle', gain: 0.06 },
+  'sfx-key-use': { ch: 'ui', gap: 300, f0: 700, f1: 1400, ms: 150, wave: 'square', gain: 0.03 },
   // 전용 스킬 준비 완료: 짧고 부드러운 딩
   'sfx-sig-ready': { ch: 'ui', gap: 1000, f0: 880, f1: 1175, ms: 180, wave: 'triangle', gain: 0.045 },
 };
@@ -99,9 +128,9 @@ const RECIPES: Record<string, Recipe> = {
 export const BASIC_FIRE_SFX: Record<string, string | undefined> = {
   red: 'sfx-red-fire', blue: 'sfx-ice-shard', yellow: 'sfx-thunder-breath', wind: 'sfx-wing-wind', water: 'sfx-water-blast',
   black: 'sfx-shadow-magic', arcane: 'sfx-shadow-magic',
-  // 신규 9종: 있는 소리 중 가까운 것(전용 소리 파일이 오면 교체)
-  sand: 'sfx-wing-wind', steel: 'sfx-shield', howl: 'sfx-wing-wind', crimson: 'sfx-shadow-magic', mirror: 'sfx-ice-shard',
-  chrono: 'sfx-ice-shard', void: 'sfx-shadow-magic', aurora: 'sfx-shadow-magic',
+  // 신규 9종 전용 소리(소리 요청서 9). 블룸은 던질 때 소리 없이 씨앗이 터질 때 sfx-bloom-pop
+  sand: 'sfx-sand-shot', steel: 'sfx-steel-disc', howl: 'sfx-howl-pulse', crimson: 'sfx-crimson-slash', mirror: 'sfx-mirror-ping',
+  chrono: 'sfx-chrono-shot', void: 'sfx-void-shot', aurora: 'sfx-aurora-shot',
 };
 /** 액티브 스킬 발동음 */
 export const SKILL_SFX: Record<string, string | undefined> = {
@@ -111,7 +140,8 @@ export const SKILL_SFX: Record<string, string | undefined> = {
 export const SIGNATURE_SFX: Record<string, string | undefined> = {
   red: 'sfx-explode', blue: 'sfx-ice-shard', yellow: 'sfx-thunder-breath', white: 'sfx-heal', black: 'sfx-shadow-magic',
   stone: 'sfx-shield', wind: 'sfx-wing-wind', water: 'sfx-water-blast', arcane: 'sfx-shadow-magic',
-  sand: 'sfx-wing-wind', steel: 'sfx-explode', bloom: 'sfx-heal', crimson: 'sfx-heal', mirror: 'sfx-ice-shard',
+  sand: 'sfx-sand-swamp', steel: 'sfx-steel-swords', bloom: 'sfx-bloom-thorns', crimson: 'sfx-crimson-drain', mirror: 'sfx-mirror-clone', howl: 'sfx-howl-roar',
+  // 크로노·보이드·오로라(횟수형)는 Signature.ts가 발동 순간에 직접 낸다(시계 폭탄 째깍·폭발, 블랙홀, 극광)
 };
 
 const lastAt = new Map<string, number>();

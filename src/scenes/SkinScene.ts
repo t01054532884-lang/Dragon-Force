@@ -13,7 +13,7 @@ import { screenFrame, toast, type ScreenFrame } from '../ui/screen';
 import { COLOR, TYPE } from '../ui/theme';
 import { FONT, gameNow, devMode } from '../ui/widgets';
 import { makeSkinTextures, skinIconKey } from '../ui/skinArt';
-import { playSfx } from '../systems/Sfx';
+import { playSfx, preloadSfx } from '../systems/Sfx';
 
 /**
  * 스킨 룰렛(제작자 요청 2026-11-23 밤): 9칸 판(가운데 = 그 주의 대표 망토), 열쇠 1개로 1회, 뽑힌 칸은 다시 안 나옴.
@@ -41,6 +41,7 @@ export class SkinScene extends Phaser.Scene {
 
   preload(): void {
     preloadArt(this);
+    preloadSfx(this, ['sfx-roulette-tick', 'sfx-roulette-win', 'sfx-roulette-jackpot', 'sfx-key-use']); // 로비를 거치지 않고 들어와도
   }
 
   create(): void {
@@ -213,6 +214,7 @@ export class SkinScene extends Phaser.Scene {
     }
     Progress.save(r.progress);
     this.busy = true;
+    playSfx(this, 'sfx-key-use');
     this.animate(r.spin, r.progress.skins.board.picked);
   }
 
@@ -224,6 +226,7 @@ export class SkinScene extends Phaser.Scene {
       if (!this.sys.isActive()) return;
       const got = this.applyServer(res);
       const mine = got.find((g) => g.slot.id === res.spin.slot.id) ?? { slot: res.spin.slot };
+      playSfx(this, 'sfx-key-use');
       this.animate(mine, Progress.load().skins.board.picked);
     } catch (e) {
       this.busy = false;
@@ -246,7 +249,7 @@ export class SkinScene extends Phaser.Scene {
       order.forEach((c) => c.hl.setStrokeStyle(8, 0xffe066, 0));
       const c = order[i % order.length];
       c.hl.setStrokeStyle(8, 0xffe066, 1);
-      playSfx(this, 'sfx-ui-tap');
+      playSfx(this, 'sfx-roulette-tick');
       if (i >= steps) {
         this.time.delayedCall(450, () => this.showResult(spin.slot, spin.essence));
         return;
@@ -269,10 +272,12 @@ export class SkinScene extends Phaser.Scene {
       const d = DRAGONS[essence.dragonId as DragonId];
       items.push({ portrait: essence.dragonId as DragonId, label: `${d.short} 정수`, amount: essence.isNew ? '새 드래곤!' : `조각 +${essence.fragments}`, grade: 'epic' });
     }
+    // 당첨 소리(소리 요청서 9): 스킨이면 팡파르, 아니면 짧은 당첨음 — 보상 창 기본 소리는 끔(겹치지 않게)
+    playSfx(this, skin ? 'sfx-roulette-jackpot' : 'sfx-roulette-win');
     rewardPopup(this, skin ? '스킨 획득!' : '룰렛 보상', items, () => {
       this.busy = false;
       this.refresh();
-    });
+    }, { silent: true });
   }
 
   private buyKey(): void {

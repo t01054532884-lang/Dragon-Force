@@ -81,3 +81,32 @@
 
 ## 소리 설정
 로비 오른쪽 "설정" → 소리(효과음·배경 음악) 켜기/끄기(제작자 결정 2026-11-20, 첫 제출은 이것만). 저장 키 `dragon-force:settings`(진행 저장과 따로), 앱을 다시 켜도 유지. 끄면 파일·합성음 모두 안 남.
+
+## 소리 요청서 9 — 23종 (2026-11-24, `docs/SOUND_REQUEST_9.md`)
+제작: 제작자가 맡긴 생성 도구에서 **외부 음원 없이 파형을 직접 프로그래밍 합성**(Python NumPy/SciPy → SoundFile WAV → FFmpeg/libmp3lame MP3 160kbps), 44.1kHz 모노. 음악·녹음·제3자 효과음 라이브러리 미사용 → 상업 이용 가능(직접 생성). 원본 WAV·제작 기록은 납품 압축 파일(`DragonForce_SFX_23.zip`)에 있음(저장소에는 MP3만).
+
+| 파일 | 제작 | 날짜 |
+|---|---|---|
+| `sfx-aurora-shot.mp3` | 직접 파형 합성 | 2026-11-24 |
+| `sfx-mirror-ping.mp3` | 직접 파형 합성 | 2026-11-24 |
+| `sfx-chrono-shot.mp3` | 직접 파형 합성 | 2026-11-24 |
+| `sfx-void-shot.mp3` | 직접 파형 합성 | 2026-11-24 |
+| `sfx-sand-shot.mp3` | 직접 파형 합성 | 2026-11-24 |
+| `sfx-steel-disc.mp3` | 직접 파형 합성 | 2026-11-24 |
+| `sfx-bloom-pop.mp3` | 직접 파형 합성 | 2026-11-24 |
+| `sfx-howl-pulse.mp3` | 직접 파형 합성 | 2026-11-24 |
+| `sfx-crimson-slash.mp3` | 직접 파형 합성 | 2026-11-24 |
+| `sfx-aurora-sweep.mp3` | 직접 파형 합성 | 2026-11-24 |
+| `sfx-mirror-clone.mp3` | 직접 파형 합성 | 2026-11-24 |
+| `sfx-chrono-tick.mp3` | 직접 파형 합성 | 2026-11-24 |
+| `sfx-chrono-boom.mp3` | 직접 파형 합성 | 2026-11-24 |
+| `sfx-void-hole.mp3` | 직접 파형 합성 | 2026-11-24 |
+| `sfx-sand-swamp.mp3` | 직접 파형 합성 | 2026-11-24 |
+| `sfx-steel-swords.mp3` | 직접 파형 합성 | 2026-11-24 |
+| `sfx-bloom-thorns.mp3` | 직접 파형 합성 | 2026-11-24 |
+| `sfx-howl-roar.mp3` | 직접 파형 합성 | 2026-11-24 |
+| `sfx-crimson-drain.mp3` | 직접 파형 합성 | 2026-11-24 |
+| `sfx-roulette-tick.mp3` | 직접 파형 합성 | 2026-11-24 |
+| `sfx-roulette-win.mp3` | 직접 파형 합성 | 2026-11-24 |
+| `sfx-roulette-jackpot.mp3` | 직접 파형 합성 | 2026-11-24 |
+| `sfx-key-use.mp3` | 직접 파형 합성 | 2026-11-24 |

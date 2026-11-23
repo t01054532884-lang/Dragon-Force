@@ -30,7 +30,7 @@ const DEPTH = 300;
  * 보상 획득 팝업: 배경을 어둡게 → 리본 제목 → 가운데 보상 카드(등급 테두리·수량) → 터치 또는 확인으로 닫기.
  * 여러 개(일괄 수령)는 한 화면에 모아서 보여 준다. 희귀 이상이 있으면 빛과 다른 소리.
  */
-export function rewardPopup(scene: Phaser.Scene, title: string, items: RewardItem[], onClose?: () => void): void {
+export function rewardPopup(scene: Phaser.Scene, title: string, items: RewardItem[], onClose?: () => void, opts: { silent?: boolean } = {}): void {
   const layer: Phaser.GameObjects.GameObject[] = [];
   const add = <T extends Phaser.GameObjects.GameObject>(o: T): T => {
     layer.push(o);
@@ -47,8 +47,10 @@ export function rewardPopup(scene: Phaser.Scene, title: string, items: RewardIte
   const bg = add(scene.add.rectangle(360, 640, 720, fullH(scene), 0x05040a, 0.85).setInteractive());
   bg.on('pointerdown', () => scene.time.delayedCall(250, close));
   const rare = items.some((i) => i.grade && i.grade !== 'common');
-  playSfx(scene, 'sfx-claim');
-  scene.time.delayedCall(120, () => playSfx(scene, rare ? 'sfx-reward-rare' : 'sfx-reward'));
+  if (!opts.silent) {
+    playSfx(scene, 'sfx-claim');
+    scene.time.delayedCall(120, () => playSfx(scene, rare ? 'sfx-reward-rare' : 'sfx-reward'));
+  }
   // 뒤에서 도는 빛줄기
   ensureRays(scene);
   const rays = add(scene.add.image(360, 600, 'fx-unlock-rays').setAlpha(rare ? 0.55 : 0.3).setDisplaySize(900, 900));
