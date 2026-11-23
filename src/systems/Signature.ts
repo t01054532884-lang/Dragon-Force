@@ -9,6 +9,8 @@ import { ART_FILES } from '../ui/art';
 
 /** 기획자 그림이 들어온 효과인지(그림은 비스듬한 시점이라 돌리지 않음) */
 const isArt = (key: string): boolean => !!ART_FILES[key];
+/** 신규 9종 전용 스킬 전투 연출 그림(20차분, public/art/sigfx/sigart-<드래곤>.webp) 키 — 읽혀 있을 때만 */
+const SIGART = (scene: Phaser.Scene, id: string): string | null => (scene.textures.exists(`sigart-${id}`) ? `sigart-${id}` : null);
 
 /** 남는 바닥 효과(불길·냉기·독구름): 일정 간격마다 안의 적에게 피해·상태이상 */
 interface Zone {
@@ -61,7 +63,7 @@ export class Signature {
   private clones: Phaser.GameObjects.Image[] = []; // 만화경 거울 분신
   /** 기본 공격 횟수형(전설 3종): 지금까지 센 기본 공격 수(다 차면 자동 발동 후 0) */
   count = 0;
-  private holes: { x: number; y: number; r: number; left: number; acc: number; perTick: number; g: Phaser.GameObjects.Arc; core: Phaser.GameObjects.Arc }[] = [];
+  private holes: { x: number; y: number; r: number; left: number; acc: number; perTick: number; g: Phaser.GameObjects.Arc | Phaser.GameObjects.Image; core: Phaser.GameObjects.Arc }[] = [];
   private bombs: { x: number; y: number; r: number; left: number; each: number; img: Phaser.GameObjects.Image; ring: Phaser.GameObjects.Arc }[] = [];
   uses = 0;
   /** 이번 사용에서 엘리트·보스에게 넣은 피해(한 번 사용 상한용) */
@@ -135,9 +137,14 @@ export class Signature {
       const r = d.radius! * g.radius;
       const n = this.inCircle(t.x, t.y, r).length;
       const ticks = Math.round(g.lingerMs / 250);
-      const g1 = this.scene.add.circle(t.x, t.y, r * this.h.stats.areaMult, 0x1a0f33, 0.45).setStrokeStyle(5, d.color, 0.9).setDepth(DEPTH_GROUND);
-      const core = this.scene.add.circle(t.x, t.y, 18, 0x000000, 1).setStrokeStyle(4, 0xbfe9ff, 1).setDepth(DEPTH_GROUND + 0.3);
-      this.scene.tweens.add({ targets: g1, angle: 360, duration: g.lingerMs });
+      const art = SIGART(this.scene, 'void');
+      const rr = r * this.h.stats.areaMult;
+      // 그림이 있으면 블랙홀 소용돌이 그림(빛 테두리까지 포함해 반지름보다 조금 크게), 없으면 기존 원
+      const g1 = art
+        ? this.scene.add.image(t.x, t.y, art).setDepth(DEPTH_GROUND).setDisplaySize(rr * 2.3, rr * 2.3).setAlpha(0.95)
+        : this.scene.add.circle(t.x, t.y, rr, 0x1a0f33, 0.45).setStrokeStyle(5, d.color, 0.9).setDepth(DEPTH_GROUND);
+      const core = this.scene.add.circle(t.x, t.y, 18, 0x000000, 1).setStrokeStyle(4, 0xbfe9ff, 1).setDepth(DEPTH_GROUND + 0.3).setVisible(!art);
+      this.scene.tweens.add({ targets: g1, angle: art ? -540 : 360, duration: g.lingerMs });
       this.holes.push({ x: t.x, y: t.y, r, left: g.lingerMs, acc: 0, perTick: per(Math.max(1, n)) / ticks, g: g1, core });
       playSfx(this.scene, 'sfx-explode', { pitch: 0.6 });
       return;
@@ -155,6 +162,17 @@ export class Signature {
   }
 
   private auroraFx(x: number, y: number, ang: number, len: number, half: number): void {
+    const art = SIGART(this.scene, 'aurora');
+    if (art) {
+      // 극광 커튼 그림을 휩쓰는 띠에 맞춰 길게 펼친 뒤 사라짐
+      const im = this.scene.add.image(x + (Math.cos(ang) * len) / 2, y + (Math.sin(ang) * len) / 2, art).setRotation(ang).setDepth(DEPTH_FLASH).setBlendMode(Phaser.BlendModes.ADD);
+      im.setDisplaySize(len, half * 2.6);
+      const sx = im.scaleX;
+      im.setScale(sx * 0.1, im.scaleY);
+      this.scene.tweens.add({ targets: im, scaleX: sx, duration: 260, ease: 'Quad.Out' });
+      this.scene.tweens.add({ targets: im, alpha: 0, duration: 520, delay: 360, onComplete: () => im.destroy() });
+      return;
+    }
     const colors = [0x7cf2c4, 0x7ab8ff, 0xff8de8];
     colors.forEach((c, i) => {
       const off = (i - 1) * half * 0.6;
@@ -175,7 +193,7 @@ export class Signature {
         const dps = this.dps() * this.growth.dmg;
         const each = t.length ? Math.min(dps * this.def.perTargetSec!, (dps * R.aoeTotalCapSec) / t.length) : 0;
         this.dealt.clear();
-        this.burst(b.x, b.y, b.r, this.def.color, null);
+        this.burst(b.x, b.y, b.r, this.def.color, SIGART(this.scene, 'chrono'));
         this.strike(t, each);
         b.img.destroy();
         b.ring.destroy();
@@ -321,7 +339,7 @@ export class Signature {
         break;
       // ── 신규 1묶음 ──
       case 'sand': // 모래 늪: 시전 자리에 남는 지속 피해 + 둔화·약화(머문 적마다 총 DPS × 5초)
-        this.addZone({ x, y, r: rad, left: g.lingerMs, every: 500, perTick: (dps * R.dotSec) / (g.lingerMs / 500), kind: 'sand', follow: false, tex: 'fx-rock-wave' });
+        this.addZone({ x, y, r: rad, left: g.lingerMs, every: 500, perTick: (dps * R.dotSec) / (g.lingerMs / 500), kind: 'sand', follow: false, tex: SIGART(this.scene, 'sand') ?? 'fx-rock-wave' });
         break;
       case 'steel': { // 칼날비: 짧은 시간 검이 연달아 떨어짐(처음 3자루는 엘리트·보스 우선)
         const dur = d.durationMs!;
@@ -332,7 +350,7 @@ export class Signature {
       case 'bloom': { // 가시 정원: 드래곤 둘레에 가시 꽃(다가온 적을 붙잡고 피해, 꽃마다 3번)
         for (let i = 0; i < g.count; i++) {
           const a = (i / g.count) * Math.PI * 2 + Math.PI / 4;
-          this.addZone({ x: x + Math.cos(a) * rad, y: y + Math.sin(a) * rad, r: 1.2 * 50 * g.radius, left: g.lingerMs, every: 250, perTick: dps * 2, kind: 'thorn', follow: false, tex: 'fx-thorn', charges: 3 }, true);
+          this.addZone({ x: x + Math.cos(a) * rad, y: y + Math.sin(a) * rad, r: 1.2 * 50 * g.radius, left: g.lingerMs, every: 250, perTick: dps * 2, kind: 'thorn', follow: false, tex: SIGART(this.scene, 'bloom') ?? 'fx-thorn', charges: 3 }, true);
         }
         break;
       }
@@ -341,8 +359,16 @@ export class Signature {
         for (let w = 0; w < waves; w++) {
           this.later(w * 350, () => {
             const p = this.h.player;
-            const ring = this.scene.add.circle(p.x, p.y, 20).setStrokeStyle(12, d.color, 0.9).setDepth(DEPTH_FLASH);
-            this.scene.tweens.add({ targets: ring, radius: rad * this.h.stats.areaMult, alpha: 0.1, duration: 320, onComplete: () => ring.destroy() });
+            const art = SIGART(this.scene, 'howl');
+            if (art) {
+              // 충격파 그림(고리 중심이 그림 위에서 42%)이 범위 끝까지 커짐
+              const size = rad * this.h.stats.areaMult * 2.15;
+              const im = this.scene.add.image(p.x, p.y, art).setOrigin(0.5, 0.42).setDepth(DEPTH_FLASH).setDisplaySize(40, 40).setBlendMode(Phaser.BlendModes.ADD);
+              this.scene.tweens.add({ targets: im, displayWidth: size, displayHeight: size, alpha: 0.15, duration: 340, ease: 'Quad.Out', onComplete: () => im.destroy() });
+            } else {
+              const ring = this.scene.add.circle(p.x, p.y, 20).setStrokeStyle(12, d.color, 0.9).setDepth(DEPTH_FLASH);
+              this.scene.tweens.add({ targets: ring, radius: rad * this.h.stats.areaMult, alpha: 0.1, duration: 320, onComplete: () => ring.destroy() });
+            }
             const t = this.inCircle(p.x, p.y, rad);
             this.strike(t, aoePerTarget(dps, t.length) / waves);
           });
@@ -351,7 +377,7 @@ export class Signature {
         break;
       }
       case 'crimson': { // 진홍의 갈증: 주변 베기 + 준 피해의 10%만큼 회복(최대 HP 25%까지)
-        this.burst(x, y, rad, d.color, null);
+        this.burst(x, y, rad, d.color, SIGART(this.scene, 'crimson'));
         const t = this.inCircle(x, y, rad);
         const dealt = this.strike(t, aoePerTarget(dps, t.length));
         this.healPct(Math.min(0.25, (dealt * 0.1) / Math.max(1, this.h.stats.maxHp)));
@@ -361,6 +387,13 @@ export class Signature {
         const dur = g.lingerMs;
         const ticks = Math.round(dur / 500);
         this.spawnClones(g.count);
+        const mArt = SIGART(this.scene, 'mirror');
+        if (mArt) {
+          // 만화경 마법진: 분신이 도는 동안 드래곤 발밑에서 천천히 돎(end()에서 사라짐)
+          this.bubble?.destroy();
+          this.bubble = this.scene.add.image(x, y, mArt).setDepth(DEPTH_GROUND + 0.4).setDisplaySize(230, 230).setAlpha(0.75);
+          this.scene.tweens.add({ targets: this.bubble, angle: 360, duration: 6000, repeat: -1 });
+        }
         this.startTicks(dur, 500, (dps * R.singleSec) / (ticks * g.count));
         break;
       }
@@ -487,6 +520,12 @@ export class Signature {
   private swordFx(x: number, y: number): void {
     const img = this.scene.add.image(x, y - 140, 'fx-sword').setDepth(DEPTH_FLASH).setAlpha(0.95);
     this.scene.tweens.add({ targets: img, y, duration: 120, ease: 'Quad.In', onComplete: () => {
+      const sArt = SIGART(this.scene, 'steel');
+      if (sArt) {
+        // 칼날비 착지: 검이 꽂히며 갈라진 땅·불꽃 그림
+        const hit = this.scene.add.image(x, y - 20, sArt).setDepth(DEPTH_FLASH).setDisplaySize(150, 150).setAlpha(0.95);
+        this.scene.tweens.add({ targets: hit, alpha: 0, duration: 380, delay: 80, onComplete: () => hit.destroy() });
+      }
       const ring = this.scene.add.circle(x, y, 1.2 * 50 * this.h.stats.areaMult, 0xc9d0d6, 0.3).setStrokeStyle(3, 0xff8a2a, 0.8).setDepth(DEPTH_FLASH);
       this.scene.tweens.add({ targets: [img, ring], alpha: 0, duration: 260, onComplete: () => (img.destroy(), ring.destroy()) });
     } });
@@ -515,7 +554,7 @@ export class Signature {
     const img = this.scene.add.image(z.x, z.y, z.tex).setDepth(DEPTH_GROUND).setAlpha(0).setTint(z.tex === 'fx-ice-crystal' ? 0xffffff : 0xffffff);
     img.setDisplaySize(z.r * 2, z.r * 2);
     void color;
-    if (z.kind === 'sand') img.setTint(0xe6c38f); // 모래 늪: 바위 파동 그림을 모래색으로
+    if (z.kind === 'sand' && z.tex === 'fx-rock-wave') img.setTint(0xe6c38f); // 모래 늪: 바위 파동 그림을 모래색으로
     this.scene.tweens.add({ targets: img, alpha: z.kind === 'frost' ? 0.45 : z.kind === 'thorn' ? 1 : 0.6, duration: 200 });
     this.zones.push({ ...z, acc: 0, img });
   }
@@ -532,7 +571,7 @@ export class Signature {
         z.y = this.h.player.y;
         z.img.setPosition(z.x, z.y);
       }
-      if (!isArt(z.img.texture.key)) z.img.rotation += (z.kind === 'poison' ? 0.4 : 0.15) * (delta / 1000);
+      if (!isArt(z.img.texture.key) || z.img.texture.key === 'sigart-sand') z.img.rotation += (z.kind === 'poison' ? 0.4 : z.kind === 'sand' ? 0.6 : 0.15) * (delta / 1000);
       z.left -= delta;
       z.acc += delta;
       while (z.acc >= z.every) {

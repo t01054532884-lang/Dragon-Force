@@ -547,13 +547,13 @@ export class BasicAttack {
         rg.delay -= delta;
         return true;
       }
-      // 그림(fx-sound-ring, 19차분)이 있으면 그것을 고리 크기에 맞춰 키움. 그림의 고리 바깥 반지름 = 그림 크기의 30.5%
+      // 그림(fx-sound-ring, 19차분)이 있으면 그것을 고리 크기에 맞춰 키움. 그림의 고리 바깥 반지름 = 그림 크기의 43%(20차분 수정본)
       if (!rg.g) rg.g = this.h.scene.textures.exists('fx-sound-ring')
         ? this.h.scene.add.image(x, y, 'fx-sound-ring').setDepth(8).setBlendMode(Phaser.BlendModes.ADD)
         : this.h.scene.add.circle(x, y, 10).setStrokeStyle(6, 0x8fa8ff, 0.85).setDepth(8);
       rg.r = Math.min(rg.max, rg.r + rg.max * speed * (delta / 1000));
       rg.g.setPosition(x, y).setAlpha(1 - (rg.r / rg.max) * 0.6);
-      if (rg.g instanceof Phaser.GameObjects.Image) rg.g.setDisplaySize(Math.max(8, rg.r) / 0.305, Math.max(8, rg.r) / 0.305);
+      if (rg.g instanceof Phaser.GameObjects.Image) rg.g.setDisplaySize(Math.max(8, rg.r) / 0.43, Math.max(8, rg.r) / 0.43);
       else rg.g.setRadius(rg.r);
       for (const e of this.h.enemies()) {
         if (!e.active || rg.hit.has(e.uid) || Phaser.Math.Distance.Between(x, y, e.x, e.y) > rg.r + e.def.radius) continue;
