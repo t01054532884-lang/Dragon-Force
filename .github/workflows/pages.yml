@@ -6,6 +6,7 @@ name: Deploy web (GitHub Pages)
 on:
   push:
     branches: [main]
+    tags: ['play-*'] # 테스트 설치 버전 굳히기: git tag play-2026.11.24 && git push origin play-2026.11.24
   workflow_dispatch:
 
 permissions:
@@ -22,6 +23,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0 # 테스트 설치 버전(play-* 태그)을 꺼내려면 태그 전체가 필요
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -29,6 +33,21 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+      # 테스트 다운로드(?test=1): play-* 태그마다 그 시점 코드로 빌드해 dist/app/<버전>/에 굳힌다.
+      # 버전 폴더는 태그 코드라 main을 고쳐도 바뀌지 않는다. 저장 칸도 버전마다 따로(VITE_STORE_NS).
+      - name: Build frozen test versions
+        run: |
+          mkdir -p dist/app
+          labels=()
+          for tag in $(git tag -l 'play-*' | sort); do
+            label="${tag#play-}"
+            git worktree add -f "/tmp/$tag" "$tag"
+            (cd "/tmp/$tag" && npm ci --no-audit --no-fund && VITE_STORE_NS="$tag" npx vite build --outDir "$GITHUB_WORKSPACE/dist/app/$label" --emptyOutDir)
+            node scripts/make-install.mjs "dist/app/$label" "$label"
+            labels+=("$label")
+          done
+          node -e 'const v=process.argv.slice(1);require("fs").writeFileSync("dist/app/versions.json",JSON.stringify({latest:v[v.length-1]||"",versions:v}))' "${labels[@]}"
+          cat dist/app/versions.json
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
