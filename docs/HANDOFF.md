@@ -1,6 +1,44 @@
-# 이어서 하기 — 현재 상태 · 남은 일 · 필요한 그림·소리 (2026-11-20)
+# 이어서 하기 — 현재 상태 · 남은 일 · 필요한 그림·소리 (최신 2026-11-24 새벽, 아래 00절)
 
 다른 컴퓨터에서 이 저장소만 받으면 이어서 할 수 있게 정리한 문서. 자세한 근거는 각 단계 문서(`docs/STAGE8.md` 등)에 있다.
+
+## 00. 최신 (2026-11-24 새벽, 집 PC) — 회사에서 여기부터
+**GitHub main = 모든 작업**(테스트 **242개**). 회사 PC: `git pull origin main` → `npm install` → `npm --prefix functions install` → `npm test`.
+
+### 오늘 한 것(커밋 순서)
+| 내용 | 문서 |
+|---|---|
+| 스킨 룰렛 빨간 초기화 타이머("초기화까지 5일 20시간 20분"), 주간 초기화는 지금처럼 | `docs/SKINS.md` |
+| 두 번째 엘리트는 나온 지 **90초** 뒤부터 보스에게 흡수(늦은 보스 시각은 그대로) | `src/data/stages.ts` `eliteAbsorbAfterMs` |
+| 스킨 룰렛 **서버 추첨**(`skinState`·`skinSpin`·`skinAck`, 규칙 `src/data/skinRoulette.ts` 앱·서버 공용), 보유 스킨 칸 루비 1,500 → **500** | `docs/PAYMENTS.md`, `SKINS.md` |
+| 그림 18~24차분: 신규 4종 카드 아이콘, 신규 9종 탄·전용 스킬 연출·진화 효과, 스킨 망토 3·발자국 6·아이콘 9, 장비 오라 3·궤도 받침 4, 룰렛 열쇠·판 배경 | `docs/ART_REQUEST_7.md`, `ART_REQUEST_8.md`, `AI_LOG.md` |
+| 장비 보이기: 몸에 입히기 **폐기** → 4부위 최저 등급 오라 + 장비 아이콘 궤도 | `ART_REQUEST_8.md` |
+| 소리 23개(신규 드래곤 공격·스킬, 룰렛) | `docs/SOUND_REQUEST_9.md`, `SOUND.md` |
+| 출시 일정 구글 시트 갱신(완료 녹색·진행 중 노랑 자동 색), Higgsfield 기획서 반영 | 시트 "드래곤 특공대 출시 일정" |
+
+### 오늘 이어서 할 일(순서)
+1. **사업자등록**(오전) → 영문 증명 → App Store Connect 대한민국 세금 양식 → **유료 앱 계약 '활성'**
+2. 인앱 구입 키(.p8) → RevenueCat 연결 → **상품 17종 등록**(16 + 스킨 열쇠 `skin_key_1` 4,900원)
+3. RevenueCat 비밀 키 2개 → `firebase functions:secrets:set REVENUECAT_SECRET_KEY` / `REVENUECAT_WEBHOOK_AUTH`
+4. **서버 함수 7개 한 번에 배포**: `npx.cmd --yes firebase-tools@latest deploy --only functions --project dragon-force-eb552`
+   - 11/24 새벽 시도: 비밀 값이 없어 중단(함수는 하나도 안 올라감). 집 PC는 Firebase 로그인 됨, 회사 PC는 `npx.cmd --yes firebase-tools@latest login` 먼저.
+   - 이때 Google 기능 4개(Cloud Functions·Cloud Build·Artifact Registry·Firebase Extensions)는 이미 켜졌고, Secret Manager도 켜야 함(배포 오류 안내의 주소). 함수에는 종량제(Blaze) 요금제가 필요할 수 있음(결제 수단 등록은 제작자).
+   - PowerShell에서 `npx`가 막히면(스크립트 실행 정책) `npx.cmd`로.
+5. TestFlight 샌드박스 결제 시험(루비·패키지·패스·스킨 열쇠 → 룰렛 서버 추첨)
+6. 처리방침·약관 확정 → 제출
+
+### 사람 플레이로 확인할 것
+- 두 번째 엘리트 흡수 90초가 적당한지 / 스틸·하울·샌드 10단계 보스 처치 시간
+- 새 소리 음량(너무 크거나 거슬리는 파일 이름만 알려 주면 코드에서 음량 조절)
+- 스틸 칼날비·블룸 가시 정원·크로노 시계 폭발 연출, 움직일 때 남는 발자국(화면 미확인)
+
+### git에 없는 파일(필요하면 집 PC에서 가져가기)
+- `Dragon_Force_Higgsfield_애니메이션_제작_및_게임적용_기획서.html`(폴더 최상위, 기획서 원본 — 내용은 시트·이 문서에 반영)
+- `art-src/`의 오늘 원본 그림(basic4·proj9·sig9·fx6·skins·aurora·roulette·wear) — 가공본은 `public/art/`에 있어 다시 가공할 때만
+- `드래곤 특공대 출시 일정 data.csv`(시트 내보내기로 보임, 제작자 파일이라 손대지 않음)
+
+### 다음 Higgsfield(연결되면)
+`docs/ART_REQUEST_7.md` ⑧ + 시트 Higgsfield 1·2주차 줄: P0 상자 개봉 → 레드 로비·필살기. 180초 전역 필살기는 Higgsfield 3D 연출 뒤(예정, 제작자 확정).
 
 ## 0. 최신 (2026-11-23) — 회사 PC로 옮기기
 - **GitHub main = 모든 작업**(마지막 `86abc27` 결제·로그인). design/ui·release/appstore·예전 묶음(bundle) 브랜치는 모두 main에 합쳐져 있음. 테스트 **226개**.
