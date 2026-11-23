@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DRAGON_ORDER, DRAGONS } from '../src/data/dragons';
 import { applyPerm, permState, PERM_TIERS, ZERO_PERM } from '../src/data/permGrowth';
-import { BOXES, DRAGON_BOX, GOLD_OFFERS, EQUIPMENT_BOX, PROGRESS_REWARDS } from '../src/data/economy';
+import { BOXES, DRAGON_BOX, GOLD_OFFERS, EQUIPMENT_BOX, STAGE_BOX, stageBoxReward } from '../src/data/economy';
 import { RUNE_BOX, RUNE_RULES, runeEffects, runeUpgradeCost } from '../src/data/runes';
 import { equipValue, EQUIP_RULES } from '../src/data/equipment';
 import { combatPower, recommendedCp, cpVerdict } from '../src/data/power';
@@ -9,7 +9,7 @@ import { aoePerTarget, signatureCap, SIGNATURE_RULES, SIGNATURES } from '../src/
 import { SPECIALS } from '../src/data/specials';
 import { loadout } from '../src/systems/Loadout';
 import {
-  claimMission, claimProgressBox, convertToUniversal, defaultProgress, exchangeEssence, fuseItem, openBox, openDragonBoxOnce,
+  claimMission, claimAllStageBoxes, claimStageBox, claimableStageBoxes, sanitize, convertToUniversal, defaultProgress, exchangeEssence, fuseItem, openBox, openDragonBoxOnce,
   addMissionProgress, periodKey, progressPct, settleRun, starUpDragon, toggleLock, upgradeItem, withTx, equipItem, unlockSpecial, upgradeRune, buyGold, sanitize,
   type EquipmentItem, type PlayerProgress,
 } from '../src/systems/Progress';
@@ -130,24 +130,46 @@ describe('6-4 난이도·진행도', () => {
     expect(p.difficulty.easy.cleared).toEqual([1]);
     expect(progressPct(p, 'easy')).toBe(5);
   });
-  it('25% 상자: 달성 전 불가, 받으면 한 번만, 다음 구간 뒤에도 남아 있음', () => {
+  it('단계 상자(2026-11-23): 단계를 깨야 받고, 단계마다 한 번만, 5단계마다 조각', () => {
     let p = defaultProgress();
-    expect(claimProgressBox(p, 'easy', 25)).toMatchObject({ ok: false, reason: 'locked' });
-    for (let s = 1; s <= 10; s++) p = clear(p, s, `s${s}`);
-    expect(progressPct(p, 'easy')).toBe(50);
-    const a = claimProgressBox(p, 'easy', 25); // 50%를 넘긴 뒤에도 25% 상자는 남아 있다
-    expect(a.ok && a.progress.gold).toBe(500);
+    expect(claimStageBox(p, 'easy', 1)).toMatchObject({ ok: false, reason: 'locked' });
+    p = clear(p, 1, 's1');
+    expect(claimableStageBoxes(p, 'easy')).toEqual([1]);
+    const g0 = p.gold;
+    const a = claimStageBox(p, 'easy', 1);
+    expect(a.ok).toBe(true);
     if (!a.ok) return;
-    expect(claimProgressBox(a.progress, 'easy', 25)).toMatchObject({ ok: false, reason: 'claimed' });
-    const b = claimProgressBox(a.progress, 'easy', 50);
-    expect(b.ok && b.progress.dragons.red.fragments).toBe(20);
+    expect(a.progress.gold - g0).toBe(50);
+    expect(a.reward).toEqual({ gold: 50, rubies: 15 });
+    expect(claimStageBox(a.progress, 'easy', 1)).toMatchObject({ ok: false, reason: 'claimed' });
+    expect(stageBoxReward('easy', 5).fragments).toEqual({ dragonId: 'red', count: 5 });
+    // 같은 단계 반복 클리어는 상자 추가 없음
+    expect(claimableStageBoxes(clear(a.progress, 1, 's1b'), 'easy')).toEqual([]);
   });
-  it('쉬움 20개를 모두 깨야 어려움 해금, 100% 보상 루비 300/600/1200', () => {
+  it('단계 상자 모두 받기: 20개 합계 = 루비 300 · 골드 1,000 · 레드 조각 20(쉬움), 어려움은 2배', () => {
+    let p = defaultProgress();
+    for (let s = 1; s <= 20; s++) p = clear(p, s, `s${s}`);
+    const before = { r: p.rubies, g: p.gold, f: p.dragons.red.fragments };
+    const r = claimAllStageBoxes(p, 'easy');
+    expect(r.ok && r.count).toBe(20);
+    if (!r.ok) return;
+    expect(r.reward).toEqual({ gold: 1000, rubies: 300, fragments: { dragonId: 'red', count: 20 } });
+    expect([r.progress.rubies - before.r, r.progress.gold - before.g]).toEqual([300, 1000]);
+    expect(claimableStageBoxes(r.progress, 'easy')).toEqual([]);
+    expect(STAGE_BOX.hard).toEqual({ gold: 100, rubies: 30, fragments: 10 });
+  });
+  it('예전 진행도 상자 기록(25·50·100)은 단계 상자로 잘못 읽지 않음', () => {
+    const raw = JSON.parse(JSON.stringify(defaultProgress()));
+    raw.difficulty.easy = { unlocked: [1, 2], cleared: [1], claimed: [25, 50, 100] };
+    const p = sanitize(raw);
+    expect(p.difficulty.easy.claimed).toEqual([]);
+    expect(claimableStageBoxes(p, 'easy')).toEqual([1]);
+  });
+  it('쉬움 20개를 모두 깨야 어려움 해금', () => {
     let p = defaultProgress();
     expect(p.difficulty.hard.unlocked).toEqual([]);
     for (let s = 1; s <= 20; s++) p = clear(p, s, `s${s}`);
     expect(p.difficulty.hard.unlocked).toEqual([1]);
-    expect([PROGRESS_REWARDS.easy[100].rubies, PROGRESS_REWARDS.hard[100].rubies, PROGRESS_REWARDS.extreme[100].rubies]).toEqual([300, 600, 1200]);
   });
 });
 

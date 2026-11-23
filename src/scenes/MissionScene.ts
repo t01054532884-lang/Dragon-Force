@@ -1,10 +1,10 @@
 import Phaser from 'phaser';
 import { DRAGON_ORDER, releasedDragons, DRAGONS, RARITY_COLOR } from '../data/dragons';
 import {
-  ACHIEVEMENTS, DIFFICULTIES, DIFFICULTY_RELEASED, DIFFICULTY_LABEL, PROGRESS_REWARDS, PROGRESS_STEPS, STAGE_COUNT, type MissionDef, type RewardBundle,
+  ACHIEVEMENTS, DIFFICULTIES, DIFFICULTY_RELEASED, DIFFICULTY_LABEL, STAGE_COUNT, type MissionDef, type RewardBundle,
 } from '../data/economy';
-import { achievementProgress, activeMissions, claimableMissions, missionClaimed, missionProgress, progressPct, Progress, type PlayerProgress } from '../systems/Progress';
-import { bundleItem, rewardPopup, type RewardItem } from '../ui/celebrate';
+import { achievementProgress, activeMissions, claimableMissions, claimableStageBoxes, missionClaimed, missionProgress, progressPct, Progress, type PlayerProgress } from '../systems/Progress';
+import { bundleItem, bundleItems, rewardPopup, type RewardItem } from '../ui/celebrate';
 import { ACTIVITY_DAILY, ACTIVITY_DAILY_MAX, ACTIVITY_WEEKLY, ACTIVITY_WEEKLY_MAX, ATTENDANCE_28, activityRewardIcon, activityRewardText, type ActivityReward, type ActivityTier } from '../data/activity';
 import { activityClaimed, activityPoints, attendanceState, claimableActivity } from '../systems/Activity';
 import { RUNES } from '../data/runes';
@@ -132,21 +132,20 @@ export class MissionScene extends Phaser.Scene {
         const prev = d === 'hard' ? '쉬움' : '어려움';
         this.A(this.add.text(360, y - 22, released ? `${prev} ${STAGE_COUNT}단계를 모두 클리어하면 열립니다` : '다음 업데이트에서 열립니다', { fontFamily: FONT, fontSize: '18px', color: '#8a93a6' }).setOrigin(0.5));
       }
-      PROGRESS_STEPS.forEach((step, k) => {
-        const x = 145 + k * 215;
-        const claimed = dp.claimed.includes(step);
-        const reached = pct >= step;
-        const label = `${step}% · ${(step / 100) * STAGE_COUNT}개\n${claimed ? bundleText(PROGRESS_REWARDS[d][step]) : '받으면 공개'}\n${claimed ? '받음 ✔' : reached ? '눌러서 받기' : '잠김'}`;
-        const b = this.keep(button(this, x, y + 50, 200, 104, label, () => this.claimBox(d, step), { kind: 'growth', size: 17 }));
-        b.setEnabled(open && reached && !claimed);
-      });
+      // 단계 상자(2026-11-23): 단계마다 1개. 받을 수 있는 개수와 모두 받기(보상은 받기 전 비공개)
+      const ready = claimableStageBoxes(p, d).length;
+      this.A(this.add.text(40, y + 6, `받은 상자 ${dp.claimed.length} / ${STAGE_COUNT} · 받을 상자 ${ready}개\n단계를 처음 깰 때마다 상자 1개\n5단계마다 특별 상자`, {
+        fontFamily: FONT, fontSize: '19px', color: ready ? '#7ee2a8' : '#b9c2da', lineSpacing: 6,
+      }));
+      const b = this.keep(button(this, 560, y + 62, 220, 76, ready ? `상자 ${ready}개 받기` : '받을 상자 없음', () => this.claimBox(d), { kind: 'growth', size: 20 }));
+      b.setEnabled(open && ready > 0);
     });
   }
 
-  private claimBox(d: (typeof DIFFICULTIES)[number], step: 25 | 50 | 100): void {
-    const r = Progress.claimProgress(d, step);
-    if (!r.ok) toast(this, r.reason === 'claimed' ? '이미 받았어요' : '아직 달성하지 못했어요', COLOR.danger);
-    if (r.ok) rewardPopup(this, '진행도 보상', [bundleItem(r.reward)]);
+  private claimBox(d: (typeof DIFFICULTIES)[number]): void {
+    const r = Progress.claimAllStageBoxes(d);
+    if (!r.ok) toast(this, '받을 상자가 없어요', COLOR.danger);
+    if (r.ok) rewardPopup(this, `${DIFFICULTY_LABEL[d]} 단계 상자 ${r.count}개`, bundleItems(r.reward));
     this.refresh();
   }
 

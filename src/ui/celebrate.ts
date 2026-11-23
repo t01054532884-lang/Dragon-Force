@@ -155,8 +155,23 @@ export function dragonUnlock(scene: Phaser.Scene, ids: DragonId[], onDone?: () =
   add(ok.root).setAlpha(0);
   add(look.root).setAlpha(0);
   tw({ targets: [ok.root, look.root], alpha: 1, duration: 200, delay: 1800 });
-  // 건너뛰기: 화면을 누르면 모든 등장 효과를 끝 상태로
-  bg.on('pointerdown', () => tweens.forEach((t) => t.isPlaying() && t.complete()));
+  // ✕ 닫기(왼쪽 위 — 오른쪽 위는 토스 닫기 자리): 언제든 바로 나가기(테스터 제보 2026-11-23: 마법진에서 멈춘 것처럼 보임)
+  const close = add(text(scene, 56, 150, '✕', 44, COLOR.text, true, true).setOrigin(0.5));
+  close.setInteractive({ useHandCursor: true }).on('pointerdown', () => finish(false));
+  // 끝 상태(건너뛰기·안전장치 공용). 예전에는 화면을 누르면 tween.complete()를 불렀는데,
+  // 아직 지연 중(시작 전)인 효과는 그 상태로 멈춰 버려 마법진만 남고 이름·버튼이 영영 안 나왔다(테스터 제보: 무한 로딩).
+  // → 효과를 모두 멈추고 끝 값을 직접 넣는다.
+  const showEnd = () => {
+    if (closed) return;
+    tweens.forEach((t) => t.stop());
+    rays.setAlpha(0.4);
+    sigil.setAlpha(0.9).setScale((440 / sigil.width) || 1);
+    por.setAlpha(1).setScale(s0);
+    [newTag, name, meta, box, ok.root, look.root].forEach((o) => o.setAlpha(1));
+  };
+  bg.on('pointerdown', showEnd);
+  // 안전장치: 혹시 효과가 멈춰도 3초 뒤에는 끝 상태(이름·버튼)가 보이게
+  scene.time.delayedCall(3000, showEnd);
 }
 
 /** 금빛 빛줄기(그림이 없을 때 도형) */
@@ -197,6 +212,15 @@ function ensureSigil(scene: Phaser.Scene, key: string, color: number, accent: nu
 }
 
 /** 보상 묶음(골드·루비·조각) → 보상 팝업 한 칸 */
+/** 여러 가지가 든 보상(단계 상자: 골드 + 루비 + 조각)을 칸 여러 개로 */
+export function bundleItems(b: RewardBundle): RewardItem[] {
+  const out: RewardItem[] = [];
+  if (b.gold) out.push(bundleItem({ gold: b.gold }));
+  if (b.rubies) out.push(bundleItem({ rubies: b.rubies }));
+  if (b.fragments) out.push(bundleItem({ fragments: b.fragments }));
+  return out.length ? out : [bundleItem(b)];
+}
+
 export function bundleItem(b: RewardBundle): RewardItem {
   if (b.gold) return { image: 'ui-gold', emoji: '🪙', label: '골드', amount: `+${b.gold.toLocaleString()}` };
   if (b.rubies) return { image: 'ui-ruby', emoji: '💎', label: '루비', amount: `+${b.rubies.toLocaleString()}`, grade: 'epic' };

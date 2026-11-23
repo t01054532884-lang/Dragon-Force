@@ -41,12 +41,21 @@ export const DIFFICULTY_MULT: Record<Difficulty, { hp: number; damage: number }>
 export const STAGE_COUNT = 20; // 진행도 분모는 20 고정(미구현 단계도 분모에 포함)
 
 export type RewardBundle = { gold?: number; rubies?: number; fragments?: { dragonId: DragonId; count: number } };
-export const PROGRESS_REWARDS: Record<Difficulty, Record<25 | 50 | 100, RewardBundle>> = {
-  easy: { 25: { gold: 500 }, 50: { fragments: { dragonId: 'red', count: 20 } }, 100: { rubies: 300 } },
-  hard: { 25: { gold: 1000 }, 50: { fragments: { dragonId: 'red', count: 40 } }, 100: { rubies: 600 } },
-  extreme: { 25: { gold: 2000 }, 50: { fragments: { dragonId: 'red', count: 80 } }, 100: { rubies: 1200 } },
+/**
+ * 단계 상자(제작자 요청 2026-11-23): 난이도별 1~20단계를 각각 처음 깰 때마다 상자 1개(예전 25·50·100% 상자 3개를 대신함).
+ * 상자 하나는 작게 — 20개 합계가 예전 3개 상자 합계와 같도록(골드만 조금 더): 쉬움 루비 300·레드 조각 20·골드 1,000.
+ * 5단계마다(5·10·15·20) 레드 조각이 더 들어 있다. 수치는 임시(제작자 확인 전).
+ */
+export const STAGE_BOX: Record<Difficulty, { gold: number; rubies: number; fragments: number }> = {
+  easy: { gold: 50, rubies: 15, fragments: 5 },
+  hard: { gold: 100, rubies: 30, fragments: 10 },
+  extreme: { gold: 200, rubies: 60, fragments: 20 },
 };
-export const PROGRESS_STEPS = [25, 50, 100] as const;
+export const STAGE_BOX_FRAGMENT_EVERY = 5;
+export function stageBoxReward(d: Difficulty, stage: number): RewardBundle {
+  const b = STAGE_BOX[d];
+  return { gold: b.gold, rubies: b.rubies, ...(stage % STAGE_BOX_FRAGMENT_EVERY === 0 ? { fragments: { dragonId: 'red' as DragonId, count: b.fragments } } : {}) };
+}
 
 // ───────── 루비 상자 (원문 6장 + 제작자 임시) ─────────
 // v1.2 시스템 개편(2026-11-21): 골드 상자 → 룬 상자(골드는 루비로 직접 구매 — GOLD_OFFERS)

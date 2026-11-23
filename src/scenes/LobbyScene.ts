@@ -5,7 +5,7 @@ import { DRAGONS, ELEMENT_LABEL, RARITY_COLOR, RARITY_LABEL } from '../data/drag
 import { DIFFICULTIES, DIFFICULTY_LABEL, DIFFICULTY_RELEASED, STAGE_COUNT, type Difficulty } from '../data/economy';
 import { cpVerdict, recommendedCp } from '../data/power';
 import { hardStage } from '../data/hardStages';
-import { attendedToday, claimableMissions, eventActive, eventState, progressPct, Progress, spinsAvailable } from '../systems/Progress';
+import { attendedToday, claimableMissions, claimableStageBoxes, eventActive, eventState, progressPct, Progress, spinsAvailable } from '../systems/Progress';
 import { loadout } from '../systems/Loadout';
 import { pendingGifts, staminaNow } from '../systems/Mailbox';
 import { STAMINA, formatLeft, nextRegenIn } from '../systems/Stamina';
@@ -19,7 +19,7 @@ import { playMusic, preloadMusic, refreshMusic } from '../systems/Music';
 import { altar, iconTile, plate, tabs, topBar, torch, wingBanner } from '../ui/kit2';
 import { COLOR, css, TYPE } from '../ui/theme';
 import { giftAlert } from '../ui/giftFx';
-import { bundleItem, openSmallChest, rewardPopup } from '../ui/celebrate';
+import { bundleItems, openSmallChest, rewardPopup } from '../ui/celebrate';
 import { openRubyShop } from '../ui/rubyShop';
 import { account, shortId } from '../systems/Account';
 import { cloud, cloudLine } from '../systems/Cloud';
@@ -181,7 +181,7 @@ export class LobbyScene extends Phaser.Scene {
     nameT.setX(360 - lineW / 2);
     infoT.setX(nameT.x + nameT.width + 12);
 
-    // ── 진행도 상자 25·50·100%(제작자 요청 2026-11-22: 드래곤 아래, 미달성 잠금·달성 시 받기, 보상은 받기 전 비공개)
+    // ── 단계 상자(2026-11-23 제작자 요청: 25·50·100% 대신 단계마다, 드래곤 아래, 보상은 받기 전 비공개)
     this.progressChests(p, curDiff);
 
     // (2026-11-23 제작자 결정) 로비의 드래곤 바꾸기 줄은 없앰 — 출격 드래곤은 드래곤 화면의 "출격하기"로만 정하고, 로비는 그 드래곤만 보여 줌.
@@ -460,56 +460,65 @@ export class LobbyScene extends Phaser.Scene {
   }
 
   /**
-   * 진행도 상자 줄: 막대 위 25·50·100% 자리에 상자. 잠김(어둡게 + 자물쇠) / 받기(통통 + !) / 받음(✔).
+   * 단계 상자 판(제작자 요청 2026-11-23): 그 난이도 1~20단계를 하나씩 깰 때마다 상자 1개.
+   * 왼쪽 큰 상자 = 다음에 받을 상자(받을 것이 여러 개면 숫자), 오른쪽 = 20칸 막대(깬 단계 금색·받은 단계 흐리게).
    * 누르면 상자 개봉 연출 → 실제 받은 보상 팝업. 보상 내용은 받기 전까지 보여 주지 않는다.
    */
   private progressChests(p: ReturnType<typeof Progress.load>, diff: Difficulty): void {
-    // 큰 판(2026-11-23: 드래곤 바꾸기 줄이 빠진 자리): 제목 · 진행 막대 · 상자 3개(104px) · 퍼센트
-    const y = 800; // 상자 가운데
-    const x0 = 110;
-    const w = 500;
+    const dp = p.difficulty[diff];
+    const ready = claimableStageBoxes(p, diff);
+    const next = ready[0];
     const pct = progressPct(p, diff);
     plate(this, 360, 786, 680, 184, { r: 26, fill: 0x1d1733 });
-    text(this, 44, 722, '왕국 정복 진행도', TYPE.caption, COLOR.gold, true, true).setOrigin(0, 0.5);
-    text(this, 676, 722, `${DIFFICULTY_LABEL[diff]} ${p.difficulty[diff].cleared.length}/${STAGE_COUNT} · ${pct}%`, TYPE.tiny, COLOR.text, true, true).setOrigin(1, 0.5);
-    this.add.rectangle(x0, y + 18, w, 14, 0x0e0a1c).setOrigin(0, 0.5).setStrokeStyle(3, COLOR.outline);
-    if (pct > 0) this.add.rectangle(x0, y + 18, (w * Math.min(100, pct)) / 100, 10, 0xffd34d).setOrigin(0, 0.5);
-    const TEX: Record<number, string> = { 25: 'chest-gold', 50: 'chest-equipment', 100: 'chest-dragon' };
-    for (const step of [25, 50, 100] as const) {
-      const x = step === 100 ? x0 + w - 6 : x0 + (w * step) / 100;
-      const claimed = p.difficulty[diff].claimed.includes(step);
-      const ready = !claimed && pct >= step && DIFFICULTY_RELEASED[diff];
-      const tex = TEX[step];
-      const im = this.textures.exists(tex) ? this.add.image(x, y - 4, tex).setDisplaySize(108, 108) : this.add.rectangle(x, y - 4, 84, 72, 0x8d6e63);
-      const s0 = im.scaleX;
-      text(this, x, y + 54, claimed ? '받음 ✔' : `${step}%`, 17, claimed ? COLOR.ok : COLOR.text, true, true).setOrigin(0.5);
-      if (!ready && !claimed) {
-        if (im instanceof Phaser.GameObjects.Image) im.setTint(0x8c86a3);
-        text(this, x + 34, y + 14, '🔒', 24, COLOR.text).setOrigin(0.5);
-      }
-      if (claimed) im.setAlpha(0.45);
-      if (ready) {
-        this.tweens.add({ targets: im, scaleX: s0 * 1.12, scaleY: s0 * 1.12, y: y - 16, duration: 520, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
-        const dot = this.add.circle(x + 42, y - 44, 14, COLOR.danger).setStrokeStyle(3, 0xffffff);
-        text(this, dot.x, dot.y, '!', 16, COLOR.text, true).setOrigin(0.5);
-      }
-      im.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
-        if (claimed) return this.toast('이미 받은 상자예요');
-        if (!ready) return this.toast(`왕국 정복 ${step}%를 달성하면 열 수 있어요`);
-        const r = Progress.claimProgress(diff, step);
-        if (!r.ok) return this.toast('아직 받을 수 없어요');
-        this.tweens.killTweensOf(im);
-        openSmallChest(this, im.x, im.y, tex, () =>
-          rewardPopup(this, `진행도 ${step}% 상자`, [bundleItem(r.reward)], () => this.scene.restart()));
-      });
+    text(this, 44, 722, '단계 상자 — 단계를 처음 깰 때마다 1개', TYPE.caption, COLOR.gold, true, true).setOrigin(0, 0.5);
+    text(this, 676, 722, `${DIFFICULTY_LABEL[diff]} ${dp.cleared.length}/${STAGE_COUNT} · ${pct}%`, TYPE.tiny, COLOR.text, true, true).setOrigin(1, 0.5);
+
+    // 20칸 막대
+    const x0 = 200;
+    const cw = 22;
+    const gap = 2;
+    for (let s = 1; s <= STAGE_COUNT; s++) {
+      const x = x0 + (s - 1) * (cw + gap);
+      const cleared = dp.cleared.includes(s);
+      const claimed = dp.claimed.includes(s);
+      const col = claimed ? 0x8a7a3a : cleared ? 0xffd34d : 0x2a2440;
+      this.add.rectangle(x, 790, cw, 30, col).setOrigin(0, 0.5).setStrokeStyle(2, COLOR.outline);
+      if (cleared && !claimed) this.add.circle(x + cw / 2, 768, 4, COLOR.danger);
+      if (s === 1 || s % 5 === 0) text(this, x + cw / 2, 822, String(s), 15, COLOR.textSub, true).setOrigin(0.5);
     }
+    text(this, x0, 852, ready.length ? `받을 상자 ${ready.length}개 · 5단계마다 특별 상자` : next === undefined && dp.cleared.length >= STAGE_COUNT ? '모든 단계 상자를 받았어요' : '다음 단계를 처음 깨면 상자가 생겨요', TYPE.tiny, ready.length ? COLOR.ok : COLOR.textSub, true, true).setOrigin(0, 0.5);
+
+    // 왼쪽 큰 상자
+    const cx = 110;
+    const cy = 800;
+    const special = next !== undefined && next % 5 === 0;
+    const tex = special ? 'chest-dragon' : 'chest-gold';
+    const im = this.textures.exists(tex) ? this.add.image(cx, cy - 6, tex).setDisplaySize(112, 112) : this.add.rectangle(cx, cy - 6, 84, 72, 0x8d6e63);
+    const s0 = im.scaleX;
+    text(this, cx, cy + 56, next !== undefined ? `${next}단계 상자` : '상자 없음', 16, COLOR.text, true, true).setOrigin(0.5);
+    if (next === undefined) {
+      if (im instanceof Phaser.GameObjects.Image) im.setTint(0x8c86a3);
+      text(this, cx + 34, cy + 10, '🔒', 24, COLOR.text).setOrigin(0.5);
+    } else {
+      this.tweens.add({ targets: im, scaleX: s0 * 1.1, scaleY: s0 * 1.1, y: cy - 16, duration: 520, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+      const dot = this.add.circle(cx + 44, cy - 50, 16, COLOR.danger).setStrokeStyle(3, 0xffffff);
+      text(this, dot.x, dot.y, ready.length > 1 ? String(ready.length) : '!', 16, COLOR.text, true).setOrigin(0.5);
+    }
+    im.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+      if (next === undefined) return this.toast('단계를 처음 깨면 상자를 받을 수 있어요');
+      const r = Progress.claimStageBox(diff, next);
+      if (!r.ok) return this.toast('아직 받을 수 없어요');
+      this.tweens.killTweensOf(im);
+      openSmallChest(this, im.x, im.y, tex, () =>
+        rewardPopup(this, `${DIFFICULTY_LABEL[diff]} ${next}단계 상자`, bundleItems(r.reward), () => this.scene.restart()));
+    });
   }
 
   /** 받을 보상이 있으면 보상 버튼에 "!" */
   private hasClaimable(): boolean {
     const p = Progress.load();
     // 진행도 상자 + 받을 수 있는 미션(2026-11-21: 미션 완료도 알림에 포함)
-    return DIFFICULTIES.some((k) => [25, 50, 100].some((s) => progressPct(p, k) >= s && !p.difficulty[k].claimed.includes(s))) || claimableMissions(p, gameNow()).length > 0 || claimableActivity(p, gameNow()) > 0 || !attendanceState(p, gameNow()).claimedToday;
+    return DIFFICULTIES.some((k) => claimableStageBoxes(p, k).length > 0) || claimableMissions(p, gameNow()).length > 0 || claimableActivity(p, gameNow()) > 0 || !attendanceState(p, gameNow()).claimedToday;
   }
 
   /** 개발·심사용: 진행 초기화(두 번 확인) */

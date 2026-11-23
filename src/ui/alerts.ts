@@ -6,7 +6,7 @@ import { getUpgradeCost, PERMANENT_UPGRADES, UPGRADE_TYPES } from '../data/progr
 import { RUNE_RULES, RUNES, runeUpgradeCost } from '../data/runes';
 import { attendanceState, claimableActivity } from '../systems/Activity';
 import { pendingGifts } from '../systems/Mailbox';
-import { claimableMissions, progressPct, universalLimit, type PlayerProgress } from '../systems/Progress';
+import { claimableMissions, claimableStageBoxes, universalLimit, type PlayerProgress } from '../systems/Progress';
 
 /** 드래곤 하나: 보유 → 레벨업·승급 가능, 미보유 → 조각으로 해금 가능 */
 export function dragonCanGrow(p: PlayerProgress, id: DragonId): boolean {
@@ -32,7 +32,7 @@ export function labAlert(p: PlayerProgress): boolean {
 
 /** 로비(전투 탭): 보상 화면에서 받을 것 + 선물함 */
 export function lobbyAlert(p: PlayerProgress, now: number): boolean {
-  const progress = DIFFICULTIES.some((k) => [25, 50, 100].some((s) => progressPct(p, k) >= s && !p.difficulty[k].claimed.includes(s)));
+  const progress = DIFFICULTIES.some((k) => claimableStageBoxes(p, k).length > 0);
   return progress || claimableMissions(p, now).length > 0 || claimableActivity(p, now) > 0 || !attendanceState(p, now).claimedToday || pendingGifts(p.mailbox, now).length > 0;
 }
 

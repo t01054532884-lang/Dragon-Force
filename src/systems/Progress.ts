@@ -29,8 +29,7 @@ import {
   RANDOM_FRAGMENT_RARITY,
   KST_OFFSET_MS,
   MISSIONS,
-  PROGRESS_REWARDS,
-  PROGRESS_STEPS,
+  stageBoxReward,
   RARITIES,
   STAGE_COUNT,
   DIFFICULTY_LABEL,
@@ -93,7 +92,7 @@ export interface DailyAttendance {
 export interface DifficultyProgress {
   unlocked: number[]; // 이 난이도에서 해금된 단계
   cleared: number[]; // 클리어한 서로 다른 단계 ID(진행도)
-  claimed: number[]; // 받은 진행도 상자(25·50·100)
+  claimed: number[]; // 받은 단계 상자(1~20단계, 2026-11-23부터)
   /** 단계별 최고 기록(클리어 시간 ms, 짧을수록 좋음) — 어려움 기획서 9장, 2026-11-21. 예전 저장에는 없음 → 빈 값 */
   best?: Record<string, number>;
 }
@@ -248,7 +247,8 @@ export function sanitize(raw: Record<string, unknown>): PlayerProgress {
     difficulty[k] = {
       unlocked: ints(o.unlocked, 1, STAGE_COUNT),
       cleared: ints(o.cleared, 1, STAGE_COUNT),
-      claimed: ints(o.claimed, 0, 100).filter((n) => (PROGRESS_STEPS as readonly number[]).includes(n)),
+      // 받은 단계 상자(1~20). 예전 진행도 상자 값(25·50·100)은 범위 밖이라 버린다(2026-11-23 단계 상자로 바뀜)
+      claimed: ints(Array.isArray(o.claimed) ? o.claimed.filter((n) => Number.isInteger(n) && n >= 1 && n <= STAGE_COUNT) : [], 1, STAGE_COUNT),
       best: Object.fromEntries(
         Object.entries((o.best ?? {}) as Record<string, unknown>)
           .filter(([s, v]) => Number(s) >= 1 && Number(s) <= STAGE_COUNT && typeof v === 'number' && v > 0 && v < 3_600_000)
@@ -605,13 +605,34 @@ export function claimAchievements(p: PlayerProgress): { progress: PlayerProgress
 // ───────────────────────── 난이도 진행도 상자(25·50·100%) ─────────────────────────
 export const progressPct = (p: PlayerProgress, d: Difficulty) => Math.floor((p.difficulty[d].cleared.length / STAGE_COUNT) * 100);
 
-/** 진행도 상자 받기: 달성했고 아직 안 받은 것만, 계정당 1회 */
-export function claimProgressBox(p: PlayerProgress, d: Difficulty, step: 25 | 50 | 100): Result<{ reward: RewardBundle }> {
+/** 받을 수 있는 단계 상자(깼지만 아직 안 받은 단계, 낮은 단계부터) */
+export const claimableStageBoxes = (p: PlayerProgress, d: Difficulty): number[] =>
+  DIFFICULTY_RELEASED[d] ? p.difficulty[d].cleared.filter((s) => !p.difficulty[d].claimed.includes(s)).sort((a, b) => a - b) : [];
+
+/** 단계 상자 모두 받기: 받은 상자 수와 합친 보상 */
+export function claimAllStageBoxes(p: PlayerProgress, d: Difficulty): Result<{ reward: RewardBundle; count: number }> {
+  const list = claimableStageBoxes(p, d);
+  if (!list.length) return fail('locked');
+  let cur = p;
+  const sum: RewardBundle = {};
+  for (const s of list) {
+    const r = claimStageBox(cur, d, s);
+    if (!r.ok) continue;
+    cur = r.progress;
+    sum.gold = (sum.gold ?? 0) + (r.reward.gold ?? 0);
+    sum.rubies = (sum.rubies ?? 0) + (r.reward.rubies ?? 0);
+    if (r.reward.fragments) sum.fragments = { dragonId: r.reward.fragments.dragonId, count: (sum.fragments?.count ?? 0) + r.reward.fragments.count };
+  }
+  return { ok: true, progress: cur, reward: sum, count: list.length };
+}
+
+/** 단계 상자 받기(제작자 요청 2026-11-23): 그 난이도에서 그 단계를 깼고 아직 안 받았으면, 계정당 단계마다 1회 */
+export function claimStageBox(p: PlayerProgress, d: Difficulty, stage: number): Result<{ reward: RewardBundle }> {
   const dp = p.difficulty[d];
-  if (dp.claimed.includes(step)) return fail('claimed');
-  if (progressPct(p, d) < step) return fail('locked');
-  const reward = PROGRESS_REWARDS[d][step];
-  let next = setDiff(p, d, { ...dp, claimed: [...dp.claimed, step].sort((a, b) => a - b) });
+  if (dp.claimed.includes(stage)) return fail('claimed');
+  if (!dp.cleared.includes(stage) || !DIFFICULTY_RELEASED[d]) return fail('locked');
+  const reward = stageBoxReward(d, stage);
+  let next = setDiff(p, d, { ...dp, claimed: [...dp.claimed, stage].sort((a, b) => a - b) });
   next = { ...next, gold: next.gold + (reward.gold ?? 0), rubies: next.rubies + (reward.rubies ?? 0) };
   if (reward.fragments) next = addFragments(next, reward.fragments.dragonId, reward.fragments.count);
   return { ok: true, progress: next, reward };
@@ -1263,7 +1284,8 @@ export const Progress = {
   selectDifficulty(d: Difficulty): void {
     this.save(selectDifficulty(this.load(), d));
   },
-  claimProgress: (d: Difficulty, step: 25 | 50 | 100) => act((p) => claimProgressBox(p, d, step)),
+  claimStageBox: (d: Difficulty, stage: number) => act((p) => claimStageBox(p, d, stage)),
+  claimAllStageBoxes: (d: Difficulty) => act((p) => claimAllStageBoxes(p, d)),
   claimMission: (id: string, choice?: DragonId, now = Date.now()) => act((p) => claimMission(p, id, now, choice)),
   claimAllMissions: (now = Date.now()) => act((p) => claimAllMissions(p, now)),
   equip: (uid: string) => act((p) => equipItem(p, uid)),
