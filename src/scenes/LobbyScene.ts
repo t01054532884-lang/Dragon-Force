@@ -9,7 +9,7 @@ import { attendedToday, claimableMissions, eventActive, eventState, progressPct,
 import { loadout } from '../systems/Loadout';
 import { pendingGifts, staminaNow } from '../systems/Mailbox';
 import { STAMINA, formatLeft, nextRegenIn } from '../systems/Stamina';
-import { devMode, gameNow } from '../ui/widgets';
+import { devMode, devQuery, gameNow } from '../ui/widgets';
 import { enterBattle } from '../ui/entry';
 import { drawLobbyBackdrop, makeArtPlaceholders, preloadArt } from '../ui/art';
 import { button, modal, navBar, text, type KitButton } from '../ui/kit';
@@ -96,6 +96,8 @@ export class LobbyScene extends Phaser.Scene {
     makeArtPlaceholders(this);
     const dev = devMode();
     const now = gameNow();
+    // 테스터 링크(?dev=1, 웹만): 로비에 올 때마다 루비·골드 20,000 이상 + 만든 단계 전부 열기
+    if (devQuery()) Progress.devBoost(STAGES.map((st) => st.id));
     Progress.syncMail(now, dev); // 운영자 캠페인·지난 최초 클리어 소급 → 선물함, 오래된 선물 정리
     const p = Progress.load();
     const curDiff: Difficulty = this.devDiff ?? p.selectedDifficulty;

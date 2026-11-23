@@ -1218,6 +1218,17 @@ export function backfillClearGifts(p: PlayerProgress, now: number): { progress: 
   return { progress: cur, added };
 }
 
+/** 테스터 링크(?dev=1): 루비·골드 최소 20,000 + 출시된 난이도의 만들어진 단계 전부 해금. 클리어 기록·진행도는 그대로 */
+export const DEV_BOOST = { rubies: 20_000, gold: 20_000 } as const;
+export function devBoost(p: PlayerProgress, builtStages: number[]): PlayerProgress {
+  const difficulty = { ...p.difficulty };
+  for (const d of DIFFICULTIES) {
+    if (!DIFFICULTY_RELEASED[d]) continue;
+    difficulty[d] = { ...difficulty[d], unlocked: [...new Set([...difficulty[d].unlocked, ...builtStages])].sort((a, b) => a - b) };
+  }
+  return { ...p, rubies: Math.max(p.rubies, DEV_BOOST.rubies), gold: Math.max(p.gold, DEV_BOOST.gold), difficulty, unlockedStages: difficulty.easy.unlocked };
+}
+
 export const Progress = {
   load: () => loadProgress(browserStore()),
   // ── 8단계: 행동력·선물함 ──
@@ -1268,7 +1279,9 @@ export const Progress = {
   // ── 상시 활동 점수·28일 출석(2026-11-21, src/systems/Activity.ts) ──
   claimActivity: (kind: 'daily' | 'weekly', at: number, now: number, choice?: DragonId) => act((p) => claimActivity(p, kind, at, now, Math.random, choice)),
   claimDailyAttendance: (now: number, choice?: DragonId) => act((p) => claimDailyAttendance(p, now, Math.random, choice)),
-  /** 개발용(?dev=1): 루비·골드·카드 추가 */
+  devBoost(builtStages: number[]): void {
+    this.save(devBoost(this.load(), builtStages));
+  },
   /**
    * 데모 저장 처음 만들기(?demo=1, 웹 전용 · 진짜 저장과 따로): 루비 30,000 · 골드 300,000 · 개봉권 30,
    * 드래곤 10종 보유(카드 50장씩), 쉬움 1~20단계 열림. 이미 데모 저장이 있으면 그대로(이어서 시험).

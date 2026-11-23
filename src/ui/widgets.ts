@@ -50,6 +50,9 @@ export function makeButton(
 export const devMode = () =>
   PLATFORM === 'web' && (import.meta.env.DEV || DEMO || new URLSearchParams(location.search).get('dev') === '1');
 
+/** 테스터 링크: 웹에서 주소에 ?dev=1을 직접 붙였을 때만(개발 서버여도 안 붙이면 false) — 루비·골드 20,000·전체 단계 */
+export const devQuery = () => PLATFORM === 'web' && new URLSearchParams(location.search).get('dev') === '1';
+
 /**
  * 게임 안 현재 시각. 개발용(?dev=1&now=2026-12-05 또는 2026-12-05T23:59:30)으로 날짜를 바꿔 이벤트·미션을 시험할 수 있다.
  * 날짜만 주면 그날 KST 정오. 배포본(dev 아님)에서는 항상 실제 시각.

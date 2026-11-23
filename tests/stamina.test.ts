@@ -13,6 +13,7 @@ import {
 } from '../src/systems/Stamina';
 
 const MIN = 60_000;
+const R = STAMINA.regenMs;
 const T0 = Date.UTC(2026, 10, 18, 0, 0, 0);
 
 describe('행동력 회복 (기획 v1.4)', () => {
@@ -22,27 +23,28 @@ describe('행동력 회복 (기획 v1.4)', () => {
     expect(nextRegenIn(s, T0 + 999 * MIN)).toBeNull();
   });
 
-  it('가득일 때 사용해 39 이하가 되면 그 순간부터 30분 타이머 시작', () => {
+  it('가득일 때 사용해 39 이하가 되면 그 순간부터 회복 타이머 시작(5분, 테스터 피드백 11/23)', () => {
+    expect(R).toBe(5 * MIN);
     const r = spend(newStamina(T0), 5, T0 + 10 * MIN);
     expect(r.ok).toBe(true);
     expect(r.state.value).toBe(35);
-    expect(nextRegenIn(r.state, T0 + 10 * MIN)).toBe(30 * MIN);
-    expect(regen(r.state, T0 + 39 * MIN).value).toBe(35); // 29분 경과: 아직
-    expect(regen(r.state, T0 + 40 * MIN).value).toBe(36); // 30분 경과: +1
+    expect(nextRegenIn(r.state, T0 + 10 * MIN)).toBe(R);
+    expect(regen(r.state, T0 + 10 * MIN + R - 1).value).toBe(35); // 아직
+    expect(regen(r.state, T0 + 10 * MIN + R).value).toBe(36); // 한 칸 경과: +1
   });
 
   it('앱을 꺼 둔 시간도 회복(경과 시간 기준), 자투리 시간은 다음 회복으로 이어짐', () => {
     const s = { value: 10, regenFrom: T0 };
-    const later = regen(s, T0 + 95 * MIN); // 3틱 + 5분
+    const later = regen(s, T0 + 3 * R + MIN); // 3틱 + 1분
     expect(later.value).toBe(13);
-    expect(nextRegenIn(later, T0 + 95 * MIN)).toBe(25 * MIN);
+    expect(nextRegenIn(later, T0 + 3 * R + MIN)).toBe(R - MIN);
   });
 
-  it('0→40 전부 회복은 20시간', () => {
+  it('0→40 전부 회복은 40칸(5분 × 40 = 3시간 20분)', () => {
     const s = { value: 0, regenFrom: T0 };
-    expect(fullIn(s, T0)).toBe(20 * 60 * MIN);
-    expect(regen(s, T0 + 20 * 60 * MIN - 1).value).toBe(39);
-    expect(regen(s, T0 + 20 * 60 * MIN).value).toBe(40);
+    expect(fullIn(s, T0)).toBe(40 * R);
+    expect(regen(s, T0 + 40 * R - 1).value).toBe(39);
+    expect(regen(s, T0 + 40 * R).value).toBe(40);
   });
 
   it('40을 넘어 회복하지 않고, 가득 차면 타이머 정지', () => {
@@ -109,7 +111,7 @@ describe('선물함 · 최초 클리어 행동력 선물', () => {
 
   it('수령으로 40이 되면 회복 타이머 정지', () => {
     const box = grantClearGift(newGiftBox(), 'easy', 1, '쉬움 1단계', T0).box;
-    const r = claimGift(box, { value: 20, regenFrom: T0 }, 'clear:easy:1', T0 + 10 * MIN);
-    expect(r.ok && nextRegenIn(r.state, T0 + 10 * MIN)).toBeNull();
+    const r = claimGift(box, { value: 20, regenFrom: T0 }, 'clear:easy:1', T0 + MIN);
+    expect(r.ok && nextRegenIn(r.state, T0 + MIN)).toBeNull();
   });
 });

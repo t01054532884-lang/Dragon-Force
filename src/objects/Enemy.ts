@@ -43,6 +43,9 @@ export interface Arena {
 /** 그림 크기 = 반지름 × 3.6 (늑대 반지름 15 → 54px, 보스 52 → 187px — 기획 요청 5: 일반·엘리트·보스가 크기로 구별) */
 const ART_SCALE = 3.6;
 
+/** 부채꼴 탄 사이 최소 각도(rad) — 0.3rad(약 17°)면 6m 거리에서 탄 사이 약 90px(드래곤 판정 지름 약 50px) */
+export const FAN_MIN_GAP = 0.3;
+
 export class Enemy extends Phaser.Physics.Arcade.Image {
   private static nextUid = 0;
   declare body: Phaser.Physics.Arcade.Body;
@@ -531,7 +534,11 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
   private fire(toT: number, count: number, spread: number, speed: number, damage: number, size: number, radial: boolean, repeat: number): EnemyAction[] {
     const angles = radial
       ? Array.from({ length: count }, (_, i) => toT + (i * Math.PI * 2) / count)
-      : Array.from({ length: count }, (_, i) => (count > 1 ? toT - spread / 2 + (spread * i) / (count - 1) : toT));
+      : (() => {
+          // 부채꼴 탄 사이 최소 간격(테스터 피드백 2026-11-23: 2단계 5발 부채꼴이 촘촘해 빠져나갈 틈이 없음)
+          const s = count > 1 ? Math.max(spread, FAN_MIN_GAP * (count - 1)) : 0;
+          return Array.from({ length: count }, (_, i) => (count > 1 ? toT - s / 2 + (s * i) / (count - 1) : toT));
+        })();
     const shots = (): EnemyAction[] => angles.map((angle) => ({ kind: 'shot', x: this.x, y: this.y, angle, speed, damage, size }));
     this.queue.push({ kind: 'hold', ms: TELEGRAPH.projectile, onEnd: shots });
     for (let r = 1; r < repeat; r++) this.queue.push({ kind: 'hold', ms: 450, onEnd: shots });
