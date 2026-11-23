@@ -248,4 +248,34 @@ export function makeDragonTextures(scene: Phaser.Scene): void {
   }
   drawBolts(g);
   g.destroy();
+  applyProjectileArt(scene);
+}
+
+/**
+ * 신규 7종 탄 그림(19차분, public/art/proj/, 256px)이 읽혀 있으면 같은 키(bolt-*)의 도형 그림을 그 그림으로 바꾼다.
+ * 크기: 그림에 빛 꼬리·잔광까지 들어 있어 예전 도형보다 크게 만들어야 본체가 비슷하게 보인다(화면 크기·충돌 판정은 그대로).
+ * 하울 고리·크림슨 베기는 BasicAttack이 fx-sound-ring·fx-crimson-slash를 직접 쓴다.
+ */
+const PROJECTILE_ART: [bolt: string, art: string, size: number][] = [
+  ['bolt-aurora', 'proj-aurora', 44],
+  ['bolt-prism', 'proj-mirror', 40],
+  ['bolt-clock', 'proj-chrono', 46],
+  ['bolt-void', 'proj-void', 42],
+  ['bolt-sand', 'proj-sand', 32],
+  ['bolt-steel', 'proj-steel', 34],
+  ['bolt-seed', 'proj-bloom', 34],
+];
+
+export function applyProjectileArt(scene: Phaser.Scene): void {
+  for (const [bolt, art, size] of PROJECTILE_ART) {
+    if (!scene.textures.exists(art)) continue;
+    const src = scene.textures.get(art).getSourceImage() as CanvasImageSource;
+    if (scene.textures.exists(bolt)) scene.textures.remove(bolt);
+    const tex = scene.textures.createCanvas(bolt, size, size);
+    if (!tex) continue;
+    const ctx = tex.getContext();
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(src, 0, 0, size, size);
+    tex.refresh();
+  }
 }

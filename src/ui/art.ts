@@ -68,7 +68,7 @@ export const ART_FILES: Record<string, string> = {
   // 2차분(2026-11-18 오후, scripts/process_art_batch2.py): 스킬 아이콘 14 · 장비 4슬롯×4등급 · 전투용 탑다운 드래곤 4
   ...Object.fromEntries(SKILL_ICONS.map((k) => [k, `skill/${k}.webp`])),
   // 15차분(scripts/process_art_batch15.py): 드래곤별 기본 공격 카드 아이콘 14종(레드는 skill-basic) · 전용 스킬 시전 연출 4종
-  ...Object.fromEntries(['blue', 'yellow', 'green', 'white', 'black', 'stone', 'wind', 'water', 'arcane', 'sand', 'steel', 'bloom', 'howl', 'crimson'].map((id) => [`basic-${id}`, `skill/basic-${id}.webp`])),
+  ...Object.fromEntries(['blue', 'yellow', 'green', 'white', 'black', 'stone', 'wind', 'water', 'arcane', 'sand', 'steel', 'bloom', 'howl', 'crimson', 'mirror', 'chrono', 'void', 'aurora'].map((id) => [`basic-${id}`, `skill/basic-${id}.webp`])), // 신규 4종은 18차분(11/24)
   ...Object.fromEntries(['blue', 'yellow', 'wind', 'white'].map((id) => [`sigfx-${id}`, `fx/sigfx-${id}.webp`])),
   ...Object.fromEntries(
     (['weapon', 'armor', 'necklace', 'ring'] as const).flatMap((s) => EQUIP_RARITIES.map((r) => [`equip-${s}-${r}`, `equip/equip-${s}-${r}.webp`])),
@@ -114,6 +114,8 @@ export const ART_FILES: Record<string, string> = {
   ...Object.fromEntries(['s', 'm', 'l'].map((k) => [`gold-pack-${k}`, `shop/gold-pack-${k}.webp`])),
   ...Object.fromEntries(['dragon', 'gear', 'rune', 'mega'].map((k) => [`pkg-${k}`, `shop/pkg-${k}.webp`])), // 패키지 그림(16차분)
   ...Object.fromEntries(['free', 'premium', 'royal'].map((k) => [`pass-${k}`, `pass/pass-${k}.webp`])), // 드래곤 패스 상자(17차분)
+  // 19차분(2026-11-24, 그림 요청서 7 ②, scripts/process_art_batch19.py): 신규 9종 기본 공격 탄·고리·베기 256px — dragonArt.applyProjectileArt가 bolt-* 로 바꿔 씀
+  ...Object.fromEntries(['proj-aurora', 'proj-mirror', 'proj-chrono', 'proj-void', 'proj-sand', 'proj-steel', 'proj-bloom', 'fx-sound-ring', 'fx-crimson-slash'].map((k) => [k, `proj/${k}.webp`])),
 };
 
 /** 필요한 그림만 읽는다(키가 ART_FILES에 없거나 이미 읽었으면 건너뜀). 화면별 preload()에서 쓴다 */

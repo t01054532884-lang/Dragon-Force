@@ -52,7 +52,7 @@ interface Ring {
   hit: Set<number>;
   n: number; // 이 고리가 맞힌 적 수(하울 특성)
   stun: boolean;
-  g: Phaser.GameObjects.Arc | null;
+  g: Phaser.GameObjects.Arc | Phaser.GameObjects.Image | null;
 }
 
 /** 블룸 Lv.7 꽃: 드래곤이 닿으면 회복 */
@@ -547,9 +547,14 @@ export class BasicAttack {
         rg.delay -= delta;
         return true;
       }
-      if (!rg.g) rg.g = this.h.scene.add.circle(x, y, 10).setStrokeStyle(6, 0x8fa8ff, 0.85).setDepth(8);
+      // 그림(fx-sound-ring, 19차분)이 있으면 그것을 고리 크기에 맞춰 키움. 그림의 고리 바깥 반지름 = 그림 크기의 30.5%
+      if (!rg.g) rg.g = this.h.scene.textures.exists('fx-sound-ring')
+        ? this.h.scene.add.image(x, y, 'fx-sound-ring').setDepth(8).setBlendMode(Phaser.BlendModes.ADD)
+        : this.h.scene.add.circle(x, y, 10).setStrokeStyle(6, 0x8fa8ff, 0.85).setDepth(8);
       rg.r = Math.min(rg.max, rg.r + rg.max * speed * (delta / 1000));
-      rg.g.setPosition(x, y).setRadius(rg.r).setAlpha(1 - (rg.r / rg.max) * 0.6);
+      rg.g.setPosition(x, y).setAlpha(1 - (rg.r / rg.max) * 0.6);
+      if (rg.g instanceof Phaser.GameObjects.Image) rg.g.setDisplaySize(Math.max(8, rg.r) / 0.305, Math.max(8, rg.r) / 0.305);
+      else rg.g.setRadius(rg.r);
       for (const e of this.h.enemies()) {
         if (!e.active || rg.hit.has(e.uid) || Phaser.Math.Distance.Between(x, y, e.x, e.y) > rg.r + e.def.radius) continue;
         rg.hit.add(e.uid);
@@ -580,9 +585,18 @@ export class BasicAttack {
     const ang = Phaser.Math.Angle.Between(x, y, target.x, target.y);
     const dirs = spin ? [] : m.back ? [ang, ang + Math.PI] : [ang];
     const g = this.h.scene.add.graphics().setDepth(8);
-    g.fillStyle(0xc2185b, 0.35).lineStyle(5, 0xff5c7a, 0.9);
+    // 그림(fx-crimson-slash, 19차분)이 있으면 베는 방향으로 초승달 그림, 부채꼴은 옅게 범위만
+    const art = this.h.scene.textures.exists('fx-crimson-slash');
+    g.fillStyle(0xc2185b, art ? 0.12 : 0.35).lineStyle(art ? 0 : 5, 0xff5c7a, 0.9);
     if (spin) g.strokeCircle(x, y, range).fillCircle(x, y, range);
-    for (const a of dirs) g.slice(x, y, range, a - m.arc / 2, a + m.arc / 2).fillPath().strokePath();
+    for (const a of dirs) {
+      g.slice(x, y, range, a - m.arc / 2, a + m.arc / 2).fillPath();
+      if (!art) g.strokePath();
+      else {
+        const s = this.h.scene.add.image(x + Math.cos(a) * range * 0.55, y + Math.sin(a) * range * 0.55, 'fx-crimson-slash').setDepth(8).setRotation(a).setDisplaySize(range * 1.1, range * 1.1);
+        this.h.scene.tweens.add({ targets: s, alpha: 0, scale: s.scale * 1.15, duration: 220, onComplete: () => s.destroy() });
+      }
+    }
     this.h.scene.tweens.add({ targets: g, alpha: 0, duration: 200, onComplete: () => g.destroy() });
     for (const e of this.h.enemies()) {
       if (!e.active) continue;
