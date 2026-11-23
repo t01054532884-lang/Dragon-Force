@@ -115,6 +115,9 @@ export const ART_FILES: Record<string, string> = {
   ...Object.fromEntries(['dragon', 'gear', 'rune', 'mega'].map((k) => [`pkg-${k}`, `shop/pkg-${k}.webp`])), // 패키지 그림(16차분)
   ...Object.fromEntries(['free', 'premium', 'royal'].map((k) => [`pass-${k}`, `pass/pass-${k}.webp`])), // 드래곤 패스 상자(17차분)
   // 19차분(2026-11-24, 그림 요청서 7 ②, scripts/process_art_batch19.py): 신규 9종 기본 공격 탄·고리·베기 256px — dragonArt.applyProjectileArt가 bolt-* 로 바꿔 씀
+  // 23차분(2026-11-24, scripts/process_art_batch23.py, 요청서 8): 장비 등급 오라 3(512) · 장비 궤도 받침 4(192) — EquipScene.drawAura·drawOrbit
+  ...Object.fromEntries(['rare', 'epic', 'legendary'].map((r) => [`aura-equip-${r}`, `equip/aura-equip-${r}.webp`])),
+  ...Object.fromEntries(['common', 'rare', 'epic', 'legendary'].map((r) => [`equip-orb-${r}`, `equip/equip-orb-${r}.webp`])),
   // 22차분(2026-11-24, scripts/process_art_batch22.py): 스킨 망토 3·발자국 6·아이콘 9 — 키가 있으면 skinArt.ts 도형 그림 대신 씀
   ...Object.fromEntries(['cape-ember-king', 'cape-frost-crown', 'cape-starlight'].flatMap((id) => [[`skin-cape-${id}`, `skin/skin-cape-${id}.webp`], [`skin-icon-${id}`, `skin/skin-icon-${id}.webp`]])),
   ...Object.fromEntries(['flame', 'frost', 'star', 'petal', 'spark', 'shadow'].flatMap((t) => [[`skin-trail-${t}`, `skin/skin-trail-${t}.webp`], [`skin-icon-trail-${t}`, `skin/skin-icon-trail-${t}.webp`]])),
