@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { WINTER_2026 as EV } from '../src/data/events';
+import { WINTER_2026 as EV, WINTER_DRAGON } from '../src/data/events';
+import { DRAGONS } from '../src/data/dragons';
 import {
   claimAttendance, defaultProgress, eventActive, eventRng, eventState, loadProgress, pickRoulette, SAVE_KEY, saveProgress, settleRun, spinRoulette,
   spinsAvailable, type PlayerProgress, type RunRecord, type Store,
@@ -50,11 +51,48 @@ describe('행운 룰렛 진행', () => {
 });
 
 describe('룰렛 추첨', () => {
-  it('설정 확률 합 100%, 루비 기대값 22.3 → 30회 669', () => {
+  it('설정 확률 합 100%, 루비 기대값 19.2 → 30회 576', () => {
     expect(EV.roulette.reduce((a, r) => a + r.weight, 0)).toBe(100);
     const ev = EV.roulette.reduce((a, r) => a + (r.rubies ?? 0) * (r.weight / 100), 0);
-    expect(ev).toBeCloseTo(22.3);
-    expect(ev * 30).toBeCloseTo(669);
+    expect(ev).toBeCloseTo(19.2);
+    expect(ev * 30).toBeCloseTo(576);
+  });
+  it('겨울 축제 드래곤 = 워터(영웅): 정수 2% · 조각 5개 칸 4개(각 5%) · 루비 78%', () => {
+    expect(WINTER_DRAGON).toBe('water');
+    expect(DRAGONS[WINTER_DRAGON].rarity).toBe('epic');
+    const frag = EV.roulette.filter((r) => r.fragments);
+    expect(frag.map((r) => [r.fragments, r.weight])).toEqual([[5, 5], [5, 5], [5, 5], [5, 5]]);
+    expect(EV.roulette.filter((r) => r.dragonEssence).map((r) => r.weight)).toEqual([2]);
+    expect(EV.roulette.filter((r) => r.rubies).reduce((a, r) => a + r.weight, 0)).toBe(78);
+    expect(EV.roulette.some((r) => r.essence)).toBe(false); // 예전 희귀·영웅 정수 상자 칸은 없음
+  });
+  it('조각 칸은 워터 조각 +5, 정수 칸은 없으면 해금·있으면 조각 +50', () => {
+    // 칸마다 그 칸이 나오는 시드를 찾아 돌린다
+    const findSeed = (pred: (id: string) => boolean) => {
+      for (let s = 1; s < 100_000; s++) if (pred(pickRoulette(eventRng(s, 0)()).id)) return s;
+      throw new Error('seed');
+    };
+    const withSeed = (p: PlayerProgress, seed: number) => ({ ...p, events: { ...p.events, [EV.id]: { ...eventState(p), seed } } });
+    const base = battles(defaultProgress(), 5);
+    const fragSeed = findSeed((id) => id.startsWith('frag'));
+    const a = spinRoulette(withSeed(base, fragSeed), DEC5);
+    if (!a.ok) throw new Error(a.reason);
+    expect(a.fragments).toEqual({ dragonId: 'water', count: 5 });
+    expect(a.progress.dragons.water.fragments).toBe(base.dragons.water.fragments + 5);
+    expect(a.progress.rubies).toBe(base.rubies);
+
+    const essSeed = findSeed((id) => id === 'water');
+    const b = spinRoulette(withSeed(base, essSeed), DEC5);
+    if (!b.ok) throw new Error(b.reason);
+    expect(base.dragons.water.unlocked).toBe(false);
+    expect(b.essence).toEqual({ dragonId: 'water', isNew: true, fragments: 0 });
+    expect(b.progress.dragons.water.unlocked).toBe(true);
+
+    const owned = { ...base, dragons: { ...base.dragons, water: { ...base.dragons.water, unlocked: true } } };
+    const c = spinRoulette(withSeed(owned, essSeed), DEC5);
+    if (!c.ok) throw new Error(c.reason);
+    expect(c.essence).toEqual({ dragonId: 'water', isNew: false, fragments: 50 });
+    expect(c.progress.dragons.water.fragments).toBe(owned.dragons.water.fragments + 50);
   });
   it('100만 회: 각 칸이 설정 확률 ±3% 안(난수 경계 검증)', () => {
     const count: Record<string, number> = {};
@@ -147,10 +185,10 @@ describe('크리스마스 출석(7일 반복 100~700)', () => {
 });
 
 describe('이벤트 경제 목표(31일 출석 + 룰렛 30회)', () => {
-  it('출석 11,800 + 누적 1,400 + 추첨 기대 669 = 13,869루비', () => {
+  it('출석 11,800 + 누적 1,400 + 추첨 기대 576 = 13,776루비', () => {
     const ev = EV.roulette.reduce((a, r) => a + (r.rubies ?? 0) * (r.weight / 100), 0) * 30;
     const total = 11_800 + EV.milestones.reduce((a, m) => a + m.rubies, 0) + ev;
-    expect(Math.round(total)).toBe(13_869);
+    expect(Math.round(total)).toBe(13_776);
   });
   it('저장 이어받기: 이벤트 기록이 없는 저장도 그대로 열림', () => {
     const s = mem();

@@ -50,7 +50,6 @@ export class EquipScene extends Phaser.Scene {
     const p = Progress.load();
     this.frame.refresh();
     // v1.2(2026-11-21): 특수 스킬 탭은 연구소 "룬"으로 옮김 → 장비만
-    this.A(text(this, 360, 262, '장비는 모든 드래곤 공통 · 영웅 이상은 추가 능력 · 강화·잠금·합성', TYPE.tiny, COLOR.textSub, true, true).setOrigin(0.5));
     this.drawEquip(p);
   }
 
@@ -157,13 +156,13 @@ export class EquipScene extends Phaser.Scene {
         this.refresh();
       });
     });
-    if (list.length === 0) A(text(this, 360, 820, `${SLOT_LABEL[this.slot]}가 없어요\n상점의 장비 상자에서 얻을 수 있어요`, TYPE.caption, COLOR.textDim, true).setOrigin(0.5).setAlign('center'));
+    if (list.length === 0) A(text(this, 360, 820, `${SLOT_LABEL[this.slot]}가 없어요`, TYPE.caption, COLOR.textDim, true).setOrigin(0.5).setAlign('center'));
 
     // 고른 장비 판: 이름·능력치 + 장착·강화·잠금·합성
     const it = p.equipment.items.find((x) => x.uid === this.selected && equipDef(x.itemId)!.slot === this.slot);
     const pl = A(plate(this, 360, 1028, 664, 176, { r: 22, fill: it ? 0x2b2442 : 0x221d36 }));
     if (!it) {
-      pl.add(text(this, 0, 0, '장비를 누르면 장착 · 강화 · 잠금 · 합성을 할 수 있어요', TYPE.tiny, COLOR.textSub, true).setOrigin(0.5));
+      pl.add(text(this, 0, 0, '장비를 눌러 보세요', TYPE.tiny, COLOR.textSub, true).setOrigin(0.5));
       return;
     }
     const eq = isEquipped(p, it.uid);

@@ -1841,7 +1841,7 @@ export class GameScene extends Phaser.Scene {
     const bank = Progress.load().gold;
 
     const rewardText = (r: Reward) =>
-      r.id === 'event' ? `❄ ${r.text}` : r.cards ? `🃏 ${r.text} +${r.cards.count}장` : r.rubies ? `💎 ${r.text} — 루비 +${r.rubies}` : r.gold ? `🪙 ${r.text} +${r.gold}G` : `🎁 ${r.text}`; // 행동력 선물처럼 골드·루비·카드가 없는 보상은 글자만(예전엔 "+undefinedG")
+      r.id === 'event' ? `❄ ${r.text}` : r.cards ? `🃏 ${r.text} +${r.cards.count}장` : r.rubies ? `🎁 ${r.text} — 루비 +${r.rubies}` : r.gold ? `🪙 ${r.text} +${r.gold}G` : `🎁 ${r.text}`; // 행동력 선물처럼 골드·루비·카드가 없는 보상은 글자만(예전엔 "+undefinedG")
     if (this.runRewards.length) {
       // 카드·업적 보상 내역은 결과 화면 위에 잠깐 띄운다
       const t = this.add
@@ -1948,7 +1948,7 @@ export class GameScene extends Phaser.Scene {
     add(this.add.rectangle(360, ty - 16, 610, 2, COLOR.line));
     T(60, ty + 4, `총 획득${notes.length ? `(${notes.join(' · ')})` : ''}`, 20, COLOR.gold, 0);
     T(664, ty + 4, `${paid ? '+' : ''}${gold.total}G`, 26, COLOR.gold, 1);
-    const extra = [cards ? `🃏 카드 +${cards}장` : '', rubies ? `💎 루비 +${rubies}` : '', `보유 ${bank.toLocaleString()}G`].filter(Boolean).join('  ·  ');
+    const extra = [cards ? `🃏 카드 +${cards}장` : '', rubies ? `루비 +${rubies}` : '', `보유 ${bank.toLocaleString()}G`].filter(Boolean).join('  ·  ');
     T(360, gy + gh / 2 + 30, extra, 19, COLOR.text);
     T(360, gy + gh / 2 + 60, `시드 ${this.seed}`, 14, COLOR.textDim);
 

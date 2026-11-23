@@ -83,7 +83,6 @@ export class LabScene extends Phaser.Scene {
 
   // ───────── 능력치 강화 ─────────
   private drawStats(p: PlayerProgress): void {
-    this.A(text(this, 360, 318, '영구 능력치 강화 · 모든 드래곤 공통 · 다음 전투부터 적용', TYPE.tiny, COLOR.textSub, true, true).setOrigin(0.5));
     UPGRADE_TYPES.forEach((type, i) => {
       const y = 418 + i * 172;
       const def = PERMANENT_UPGRADES[type];
@@ -132,7 +131,7 @@ export class LabScene extends Phaser.Scene {
   /** 룬 15종: 육각 칸 5×3(해금 = 색, 잠김 = 어둡게 + 조각 진행) + 고른 룬 판(효과 현재 → 다음, 해금·강화) */
   private drawRunes(p: PlayerProgress): void {
     const total = RUNES.reduce((a, r) => a + (p.specials[r.id].level ?? 0), 0);
-    this.A(text(this, 360, 318, `해금한 룬은 모든 드래곤에 항상 적용 · 룬 레벨 합계 ${total} / ${RUNES.length * RUNE_RULES.maxLevel}`, TYPE.tiny, COLOR.textSub, true, true).setOrigin(0.5));
+    this.A(text(this, 360, 318, `룬 레벨 합계 ${total} / ${RUNES.length * RUNE_RULES.maxLevel}`, TYPE.tiny, COLOR.textSub, true, true).setOrigin(0.5));
     RUNES.forEach((r, i) => {
       const col = i % 5;
       const row = Math.floor(i / 5);

@@ -146,10 +146,15 @@ export class LobbyScene extends Phaser.Scene {
     const side = (x: number, i: number, icon: string, label: string, onClick: () => void, alert = false) =>
       iconTile(this, x, 312 + i * 100, icon, { size: 76, label, alert, onClick });
     const toMissions = (tab: string) => () => this.scene.start('missions', { tab, only: tab === 'daily' ? 'mission' : tab });
-    side(62, 0, 'ic-cal-star', live ? '이벤트' : '이벤트 12/1', () => this.scene.start('event'), evAlert);
-    side(62, 1, 'ic-mission', '미션', toMissions('daily'), missionAlert);
-    side(62, 2, 'ic-trophy', '업적', toMissions('achievements'));
-    side(62, 3, 'ic-calendar', '출석', toMissions('attendance'), !attendanceState(p, t0).claimedToday);
+    // (2026-11-23 제작자 결정) 이벤트 버튼은 기간 중에만 보인다 — 시작 전 "12/1에 시작합니다"만 있는 화면이
+    // 심사 2.1(미완성)로 보이지 않게. 12/1이 되면 로비에 들어올 때 저절로 나타나고, 끝나면 다시 사라진다.
+    // 개발 모드(?dev=1)에서는 기간 밖에도 보여 시험할 수 있다. 데모(?demo=1)는 출시 화면과 같게 숨긴다.
+    const leftTiles: [string, string, () => void, boolean][] = [];
+    if (live || (dev && !DEMO)) leftTiles.push(['ic-cal-star', live ? '이벤트' : '이벤트(시험)', () => this.scene.start('event'), evAlert]);
+    leftTiles.push(['ic-mission', '미션', toMissions('daily'), missionAlert]);
+    leftTiles.push(['ic-trophy', '업적', toMissions('achievements'), false]);
+    leftTiles.push(['ic-calendar', '출석', toMissions('attendance'), !attendanceState(p, t0).claimedToday]);
+    leftTiles.forEach(([icon, label, onClick, alert], i) => side(62, i, icon, label, onClick, alert));
     side(658, 0, 'ui-mailbox', '우편함', () => this.scene.start('gifts'));
     giftAlert(this, 658, 310, 76, pendingGifts(p.mailbox, now).map((g) => g.id));
     side(658, 1, 'ic-gear', '설정', () => this.openSettings());

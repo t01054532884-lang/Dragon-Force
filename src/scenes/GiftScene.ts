@@ -10,6 +10,9 @@ import { plate, tabs } from '../ui/kit2';
 import { screenFrame, toast, type ScreenFrame } from '../ui/screen';
 import { COLOR, TYPE } from '../ui/theme';
 
+/** 글자 앞 아이콘(루비는 이모지 없이 — 빨간 루비 그림은 따로 그린다) */
+const tag = (k: GiftKind) => (GIFT_LABEL[k].icon ? `${GIFT_LABEL[k].icon} ` : '');
+
 const PER_PAGE = 6;
 const ROW_H = 106;
 const TOP = 296;
@@ -74,7 +77,12 @@ export class GiftScene extends Phaser.Scene {
       h.slice(0, 14).forEach((r, i) => {
         const L = GIFT_LABEL[r.kind];
         const y = 330 + i * 52;
-        add(text(this, 50, y, `${L.icon} ${L.name} ${r.amount.toLocaleString()}${L.unit}`, TYPE.caption, COLOR.text, true, true).setOrigin(0, 0.5));
+        let x = 50;
+        if (r.kind === 'rubies' && this.textures.exists('ui-ruby')) {
+          add(this.add.image(x, y, 'ui-ruby').setDisplaySize(30, 30).setOrigin(0, 0.5));
+          x += 36;
+        }
+        add(text(this, x, y, `${tag(r.kind)}${L.name} ${r.amount.toLocaleString()}${L.unit}`, TYPE.caption, COLOR.text, true, true).setOrigin(0, 0.5));
         add(text(this, 670, y, `${r.title} · ${fmtDate(r.claimedAt)}`, 17, COLOR.textSub, true).setOrigin(1, 0.5));
       });
       if (h.length > 14) add(text(this, 360, 1060, `최근 ${Math.min(h.length, 50)}건까지 보관`, 16, COLOR.textDim, true).setOrigin(0.5));
@@ -85,7 +93,7 @@ export class GiftScene extends Phaser.Scene {
     const pages = Math.max(1, Math.ceil(list.length / PER_PAGE));
     this.page = Math.min(this.page, pages - 1);
     if (!list.length) {
-      add(text(this, 360, 600, '받을 선물이 없어요\n스테이지를 처음 클리어하면 행동력 20이 도착해요', TYPE.caption, COLOR.textDim, true).setOrigin(0.5).setAlign('center').setLineSpacing(10));
+      add(text(this, 360, 600, '받을 선물이 없어요', TYPE.caption, COLOR.textDim, true).setOrigin(0.5).setAlign('center').setLineSpacing(10));
     }
     const st = staminaNow(p, now);
     list.slice(this.page * PER_PAGE, (this.page + 1) * PER_PAGE).forEach((g, i) => {
@@ -123,7 +131,7 @@ export class GiftScene extends Phaser.Scene {
       this.cameras.main.shake(100, 0.002);
     } else {
       const L = GIFT_LABEL[r.gift.kind];
-      toast(this, `${L.icon} ${L.name} ${r.gift.amount.toLocaleString()}${L.unit} 받았어요`, COLOR.ok);
+      toast(this, `${tag(r.gift.kind)}${L.name} ${r.gift.amount.toLocaleString()}${L.unit} 받았어요`, COLOR.ok);
     }
     this.render();
   }
@@ -138,8 +146,8 @@ export class GiftScene extends Phaser.Scene {
     // 종류별 합계
     const sum = new Map<GiftKind, number>();
     for (const g of r.claimed) sum.set(g.kind, (sum.get(g.kind) ?? 0) + g.amount);
-    const lines = GIFT_KINDS.filter((k) => sum.has(k)).map((k) => `${GIFT_LABEL[k].icon} ${GIFT_LABEL[k].name} +${sum.get(k)!.toLocaleString()}${GIFT_LABEL[k].unit}`);
-    const keptLines = r.kept.map((k) => `${GIFT_LABEL[k.gift.kind].icon} ${k.gift.amount}${GIFT_LABEL[k.gift.kind].unit} — ${k.reason === 'wouldExceed' ? `받으면 최대 ${STAMINA.max}를 넘어요` : CLAIM_FAIL_TEXT[k.reason]}`);
+    const lines = GIFT_KINDS.filter((k) => sum.has(k)).map((k) => `${tag(k)}${GIFT_LABEL[k].name} +${sum.get(k)!.toLocaleString()}${GIFT_LABEL[k].unit}`);
+    const keptLines = r.kept.map((k) => `${tag(k.gift.kind)}${k.gift.amount}${GIFT_LABEL[k.gift.kind].unit} — ${k.reason === 'wouldExceed' ? `받으면 최대 ${STAMINA.max}를 넘어요` : CLAIM_FAIL_TEXT[k.reason]}`);
     this.render();
     this.showSummary(r.claimed.length, lines, keptLines);
   }

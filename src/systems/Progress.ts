@@ -44,7 +44,7 @@ import {
 import { EQUIP_RULES, EQUIPS, equipDef, NEXT_RARITY, SLOTS, type Slot } from '../data/equipment';
 import { SPECIAL_IDS, SPECIAL_RULES, type SpecialId } from '../data/specials';
 import { RUNE_BOX, RUNE_RULES, runeUpgradeCost } from '../data/runes';
-import { WINTER_2026, type RouletteReward } from '../data/events';
+import { WINTER_2026, WINTER_DRAGON, type RouletteReward } from '../data/events';
 import { store as platformStore } from '../platform';
 import { claimActivity, claimDailyAttendance } from './Activity';
 
@@ -1097,7 +1097,11 @@ export function pickRoulette(r: number): RouletteReward {
 
 /** 정수 확정 상자: 그 희귀도 드래곤 하나(레드 제외, 균등). 보유 중이면 조각. 소환 천장 카운터는 건드리지 않는다. */
 function grantEssence(p: PlayerProgress, rarity: Rarity, r: number): { progress: PlayerProgress; dragonId: DragonId; isNew: boolean; fragments: number } {
-  const id = pickIn(poolOf(rarity, false), r);
+  return grantDragonEssence(p, pickIn(poolOf(rarity, false), r), rarity);
+}
+
+/** 정해진 드래곤의 정수 1개: 없으면 해금, 있으면 그 등급의 중복 조각(영웅 50). 겨울 축제 드래곤 칸이 쓴다. */
+function grantDragonEssence(p: PlayerProgress, id: DragonId, rarity: Rarity): { progress: PlayerProgress; dragonId: DragonId; isNew: boolean; fragments: number } {
   const d = p.dragons[id];
   const frag = d.unlocked ? ESSENCE.essenceToFragments[rarity] : 0;
   return {
@@ -1111,6 +1115,8 @@ function grantEssence(p: PlayerProgress, rarity: Rarity, r: number): { progress:
 export interface SpinResult {
   reward: RouletteReward;
   essence?: { dragonId: DragonId; isNew: boolean; fragments: number };
+  /** 축제 드래곤 조각 칸 */
+  fragments?: { dragonId: DragonId; count: number };
   milestone?: { spins: number; rubies: number; essence?: { dragonId: DragonId; isNew: boolean; fragments: number } };
 }
 
@@ -1126,6 +1132,15 @@ export function spinRoulette(p: PlayerProgress, now: number): Result<SpinResult>
   if (reward.rubies) next = { ...next, rubies: next.rubies + reward.rubies };
   if (reward.essence) {
     const g = grantEssence(next, reward.essence, rnd());
+    next = g.progress;
+    res.essence = { dragonId: g.dragonId, isNew: g.isNew, fragments: g.fragments };
+  }
+  if (reward.fragments) {
+    next = addFragments(next, WINTER_DRAGON, reward.fragments);
+    res.fragments = { dragonId: WINTER_DRAGON, count: reward.fragments };
+  }
+  if (reward.dragonEssence) {
+    const g = grantDragonEssence(next, WINTER_DRAGON, econRarity(DRAGONS[WINTER_DRAGON].rarity));
     next = g.progress;
     res.essence = { dragonId: g.dragonId, isNew: g.isNew, fragments: g.fragments };
   }

@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { makeTextures } from '../textures';
 import {
-  DRAGON_ORDER, releasedDragons, DRAGONS, ELEMENT_LABEL, GROWTH, RARITY_COLOR, RARITY_LABEL, levelBonus, starBonus, traitMultFor, type DragonId,
+  DRAGON_ORDER, releasedDragons, DRAGONS, ELEMENT_LABEL, GROWTH, RARITY_COLOR, RARITY_LABEL, traitMultFor, type DragonId,
 } from '../data/dragons';
 import { PERM_TIER_LEVELS, PERM_TIERS } from '../data/permGrowth';
 import { SIG_TIER_LEVELS, sigGrowthLines, sigTier, SIGNATURES } from '../data/signature';
@@ -151,12 +151,8 @@ export class DragonsScene extends Phaser.Scene {
     T(214, top + 90, `${'★'.repeat(o.stars)}${'☆'.repeat(GROWTH.maxStars - o.stars)}  영구 Lv.${o.level}/${GROWTH.maxLevel}${o.unlocked ? '' : ' (미보유)'}`, TYPE.tiny, COLOR.gold, true, true);
     // 능력치·전투력: 장비·특수 스킬까지 포함한 실제 출격 값(로비와 같은 계산)
     const lo = loadout(p, d.id);
-    const lb = levelBonus(o.level);
-    const sb = starBonus(o.stars);
-    const pct = (v: number) => `${Math.round(v * 1000) / 10}%`;
     T(214, top + 122, `공격력 ${lo.stats.attack.toFixed(1)} · HP ${Math.round(lo.stats.maxHp)} · 속도 ${Math.round(lo.stats.speed)}`, 17);
     T(214, top + 148, `전투력 ${lo.cp.toLocaleString()}`, TYPE.caption, COLOR.gold, true, true);
-    T(214, top + 174, `레벨 +${pct(lb.attack)}/+${pct(lb.hp)} · 승급 +${pct(sb.attack)}/+${pct(sb.hp)} (공격/HP) · 장비·연구소 포함`, 13, COLOR.textSub, false);
 
     const tm = traitMultFor(d.id, o.stars);
     const traitNote = d.id === 'red' ? (tm > 0 ? ' (활성)' : ' (1~4성 비활성)') : tm > 1 ? ` (승급 강화 ×${tm})` : '';
@@ -206,13 +202,8 @@ export class DragonsScene extends Phaser.Scene {
         this.refresh();
       }, { kind: 'cta', size: TYPE.body, icon: sel ? undefined : 'ic-swords' }));
       selBtn.setEnabled(!sel);
-      const note = d.id === 'red'
-        ? '레드 조각: 진행도 50% 상자·미션·이벤트 · 카드: 스테이지 클리어(최초 2·반복 1)·상자·미션'
-        : `카드: 스테이지 클리어·상자·미션 · 조각: 상자·중복 정수(${ESSENCE.essenceToFragments[econRarity(d.rarity)]}개)`;
-      this.A(text(this, 360, by + 60, note, 13, COLOR.textDim, true).setOrigin(0.5));
     } else {
       const cost = ESSENCE.fragmentsToEssence[econRarity(d.rarity)];
-      this.A(text(this, 360, by - 52, `미보유 — 드래곤·스킬 상자의 정수로 해금, 또는 조각 ${cost}개를 정수 1개로 교환`, 15, COLOR.textSub, true).setOrigin(0.5));
       const b = this.B(button(this, 360, by + 4, 440, 76, `조각 ${o.fragments}/${cost} → 정수로 해금`, () => this.grow('essence'), { kind: 'magic', size: TYPE.caption }));
       b.setEnabled(o.fragments >= cost);
     }
@@ -237,7 +228,6 @@ export class DragonsScene extends Phaser.Scene {
       const lines = Object.entries(sigGrowthLines(d.id, i)).map(([k, v]) => `${k} ${v}`).join(' · ');
       m.body(text(this, -140, y, lines, 15, COLOR.text, true).setOrigin(0, 0.5).setWordWrapWidth(430).setAlign('left'));
     });
-    m.body(text(this, 0, 222, '성장은 드래곤 영구 레벨(카드 + 골드)로 — 새 재화 없음', 15, COLOR.textSub, true).setOrigin(0.5));
     m.body(button(this, 0, 282, 240, 64, '닫기', () => this.closePopup(), { kind: 'secondary', size: TYPE.caption }).root);
     this.popup = m;
   }

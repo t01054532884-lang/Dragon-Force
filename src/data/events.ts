@@ -1,9 +1,28 @@
 import type { Rarity } from './economy';
+import type { DragonId } from './dragons';
 
 // 2026 크리스마스 이벤트 "드래곤의 겨울 축제" (기획 v1.3 3~6장 + 출석 보상 수정, 제작자 2026-11-18).
 // 서버 도입 전 데모용 설정값. 숫자만 바꾸면 화면·추첨·테스트가 함께 바뀐다(확률 안내 화면도 이 표를 그대로 읽는다).
 
-export type RouletteReward = { id: string; label: string; weight: number; rubies?: number; essence?: Exclude<Rarity, 'common' | 'legendary'> };
+/**
+ * 룰렛 칸 하나. rubies = 루비, fragments = 축제 드래곤 조각 n개, dragonEssence = 축제 드래곤 정수(없으면 해금, 있으면 조각),
+ * essence = 그 희귀도 드래곤 중 하나(누적 보상용).
+ */
+export type RouletteReward = {
+  id: string;
+  label: string;
+  weight: number;
+  rubies?: number;
+  fragments?: number;
+  dragonEssence?: boolean;
+  essence?: Exclude<Rarity, 'common' | 'legendary'>;
+};
+
+/**
+ * 겨울 축제 드래곤(제작자 결정 2026-11-23: 겨울 테마 영웅 1종) — 워터 드래곤(영웅·물·하늘빛).
+ * 룰렛에서 정수 2% + 조각 5개 칸 4개(각 5%)로 나온다.
+ */
+export const WINTER_DRAGON: DragonId = 'water';
 
 export const WINTER_2026 = {
   id: 'winter-2026',
@@ -15,14 +34,20 @@ export const WINTER_2026 = {
   battlesPerSpin: 5, // 정상 종료 5판마다 1회
   minBattleMs: 60_000, // 60초 이상 전투
   // 정상 종료 = 클리어·사망·시간 초과. 자발적 포기는 제외
+  // (2026-11-23 제작자 결정) 워터 정수 2% · 워터 조각 5개 칸 4개(각 5%, 합 20%) · 나머지 78%는 루비.
+  // 루비 칸 비율(AI 1차안): 예전 25/25/20/12/8을 78%에 맞게 22/22/17/10/7 → 1회 기대 루비 19.2(예전 22.3).
+  // 판 위 순서대로 그린다 — 조각 칸을 루비 칸 사이사이에 나눠 둠.
   roulette: [
-    { id: 'r10', label: '루비 10', weight: 25, rubies: 10 },
-    { id: 'r20', label: '루비 20', weight: 25, rubies: 20 },
-    { id: 'r30', label: '루비 30', weight: 20, rubies: 30 },
-    { id: 'r40', label: '루비 40', weight: 12, rubies: 40 },
-    { id: 'r50', label: '루비 50', weight: 8, rubies: 50 },
-    { id: 'rare', label: '희귀 드래곤 정수 확정 상자', weight: 8, essence: 'rare' },
-    { id: 'epic', label: '영웅 드래곤 정수 확정 상자', weight: 2, essence: 'epic' },
+    { id: 'r10', label: '루비 10', weight: 22, rubies: 10 },
+    { id: 'frag1', label: '워터 조각 5개', weight: 5, fragments: 5 },
+    { id: 'r20', label: '루비 20', weight: 22, rubies: 20 },
+    { id: 'frag2', label: '워터 조각 5개', weight: 5, fragments: 5 },
+    { id: 'r30', label: '루비 30', weight: 17, rubies: 30 },
+    { id: 'frag3', label: '워터 조각 5개', weight: 5, fragments: 5 },
+    { id: 'r40', label: '루비 40', weight: 10, rubies: 40 },
+    { id: 'frag4', label: '워터 조각 5개', weight: 5, fragments: 5 },
+    { id: 'r50', label: '루비 50', weight: 7, rubies: 50 },
+    { id: 'water', label: '워터 드래곤 정수', weight: 2, dragonEssence: true },
   ] as RouletteReward[],
   /** 룰렛 누적(돌린 횟수) 보상 — 구간마다 1회 */
   milestones: [

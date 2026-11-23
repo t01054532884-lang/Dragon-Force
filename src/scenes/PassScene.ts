@@ -87,7 +87,6 @@ export class PassScene extends Phaser.Scene {
     bar.add(text(this, -232, -22, `현재 Lv. ${lv.level} / ${PASS.levels}`, TYPE.caption, COLOR.text, true, true).setOrigin(0, 0.5));
     bar.add(progressBar(this, -40, 18, 380, 22, lv.maxed ? 1 : lv.inLevel / PASS.pointsPerLevel, COLOR.gold, lv.maxed ? 'MAX' : `${lv.inLevel}P / ${PASS.pointsPerLevel}P`).root);
     bar.add(text(this, 320, 0, lv.maxed ? '모두 달성!' : `다음 보상까지\n${PASS.pointsPerLevel - lv.inLevel}P`, TYPE.tiny, COLOR.gold, true, true).setOrigin(1, 0.5).setAlign('right'));
-    text(this, 360, 512, '⚔ 전투로 패스 포인트(계정 경험치)를 모아요 · 클리어 100P', TYPE.tiny, COLOR.textSub, true).setOrigin(0.5);
 
     // ── 줄 제목
     for (const t of ['free', 'premium', 'royal'] as const) {
@@ -139,7 +138,7 @@ export class PassScene extends Phaser.Scene {
         }).catch(() => {});
     });
     y += 250;
-    text(this, 360, y + 20, `가치(%) = 보상을 상점 가격(루비 1,350 = ₩11,000 · 드래곤 상자 1회 250루비 · 장비·룬 상자 100루비 · 골드 20 = 1루비)으로 환산한 값\n유료 패스는 구매한 시즌에만 적용돼요\n${PAY_NOTICE.replace(/\n/g, ' ')}`, 13, COLOR.textSub, true)
+    text(this, 360, y + 20, `유료 패스는 구매한 시즌에만 적용돼요\n${PAY_NOTICE.replace(/\n/g, ' ')}`, 13, COLOR.textSub, true)
       .setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(660).setLineSpacing(4);
     y += 130;
 

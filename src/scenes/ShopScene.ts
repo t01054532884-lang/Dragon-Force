@@ -495,7 +495,7 @@ export class ShopScene extends Phaser.Scene {
     lines.push(`[룬 상자] 룬 조각 ${RUNE_BOX.bundles.map(([n, w]) => `${n}개 ${w}%`).join(' · ')} (15종 균등) · 보장: 매 ${RUNE_BOX.guaranteeEvery}회째 10개 이상(${RUNE_BOX.guaranteeBundles.map(([n, w]) => `${n}개 ${w}`).join(':')})`);
     lines.push(`[골드 구매] ${GOLD_OFFERS.map((o) => `루비 ${o.rubies.toLocaleString()} → ${o.gold.toLocaleString()}G`).join(' · ')}`);
     lines.push('');
-    lines.push('모든 수치는 출시 전 임시 밸런스 값입니다. 루비는 게임 안 보상으로만 얻으며 현금 결제는 없습니다.');
+    lines.push('루비는 게임 보상과 App Store 구매로 얻을 수 있어요.');
     add(this.add.text(48, 230, lines.join('\n'), { fontFamily: 'sans-serif', fontSize: '18px', color: css(0xe1d5f5), lineSpacing: 9, wordWrap: { width: 624 } }));
   }
 }

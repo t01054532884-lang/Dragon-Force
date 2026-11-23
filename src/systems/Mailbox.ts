@@ -8,7 +8,7 @@ export const GIFT_KINDS: GiftKind[] = ['stamina', 'gold', 'rubies', 'tickets', '
 export const GIFT_LABEL: Record<GiftKind, { name: string; icon: string; unit: string }> = {
   stamina: { name: '행동력', icon: '⚡', unit: '' },
   gold: { name: '골드', icon: '🪙', unit: 'G' },
-  rubies: { name: '루비', icon: '💎', unit: '' },
+  rubies: { name: '루비', icon: '', unit: '' }, // 루비는 이모지 대신 빨간 루비 그림(ui-ruby)으로 — GiftScene
   tickets: { name: '무료 개봉권', icon: '🎟', unit: '장' },
   universalFragments: { name: '범용 조각', icon: '🧩', unit: '개' },
 };

@@ -21,9 +21,9 @@ import { fullH } from '../ui/layout';
 
 const PERIOD_LABEL = { daily: '일일', weekly: '주간', monthly: '월간', event: '이벤트' } as const;
 const bundleText = (b: RewardBundle) =>
-  b.gold ? `🪙 ${b.gold.toLocaleString()}G` : b.rubies ? `💎 루비 ${b.rubies.toLocaleString()}` : b.fragments ? `${DRAGONS[b.fragments.dragonId].short} 조각 ${b.fragments.count}` : '';
+  b.gold ? `🪙 ${b.gold.toLocaleString()}G` : b.rubies ? `루비 ${b.rubies.toLocaleString()}` : b.fragments ? `${DRAGONS[b.fragments.dragonId].short} 조각 ${b.fragments.count}` : '';
 const missionReward = (m: MissionDef) =>
-  [m.reward.gold && `🪙 ${m.reward.gold}G`, m.reward.rubies && `💎 ${m.reward.rubies}`, m.reward.pickCards && `선택 카드 ${m.reward.pickCards}장`, m.reward.randomFragments && `랜덤 조각 ${m.reward.randomFragments}개`]
+  [m.reward.gold && `🪙 ${m.reward.gold}G`, m.reward.rubies && `루비 ${m.reward.rubies}`, m.reward.pickCards && `선택 카드 ${m.reward.pickCards}장`, m.reward.randomFragments && `랜덤 조각 ${m.reward.randomFragments}개`]
     .filter(Boolean)
     .join(' + ');
 
@@ -116,7 +116,6 @@ export class MissionScene extends Phaser.Scene {
   }
 
   private drawProgress(p: PlayerProgress): void {
-    this.A(text(this, 360, 314, `진행도 = 난이도별로 클리어한 서로 다른 단계 ÷ ${STAGE_COUNT} · 같은 단계 반복은 한 번만`, 16, COLOR.textSub, true).setOrigin(0.5));
     // 출시한 난이도만(기획자 요청 1). 미출시 난이도 진행 데이터는 저장에 그대로 남는다
     DIFFICULTIES.filter((d) => DIFFICULTY_RELEASED[d]).forEach((d, i) => {
       const y = 450 + i * 256;
@@ -187,7 +186,6 @@ export class MissionScene extends Phaser.Scene {
       }));
       b.setEnabled(!claimed);
     });
-    this.A(text(this, 360, y0 + list.length * gap - 20, '초기화(한국 시간): 일일 매일 자정 · 주간 월요일 자정 · 월간 매월 1일 자정', 15, COLOR.textSub, true).setOrigin(0.5));
   }
 
   private claimMission(m: MissionDef): void {
@@ -234,7 +232,7 @@ export class MissionScene extends Phaser.Scene {
       { title: '수집', ids: ['collector-3'] },
     ];
     const doneN = prog.filter((a) => a.done).length;
-    this.A(text(this, 40, 330, `달성 ${doneN} / ${prog.length} · 업적 루비는 달성한 판이 끝날 때 자동 지급`, TYPE.tiny, COLOR.textSub, true).setOrigin(0, 0.5));
+    this.A(text(this, 40, 330, `달성 ${doneN} / ${prog.length}`, TYPE.tiny, COLOR.textSub, true).setOrigin(0, 0.5));
     let y = 392;
     for (const c of cats) {
       // 분류 제목이 첫 줄 판에 묻히지 않게(2026-11-23 제보): 제목 아래 여백을 넉넉히 + 밑줄
@@ -346,7 +344,7 @@ export class MissionScene extends Phaser.Scene {
     const now = gameNow();
     const st = attendanceState(p, now);
     const doneInCycle = st.claimedToday ? st.index + 1 : st.index;
-    this.A(text(this, 40, 320, `출석 ${doneInCycle} / ${ATTENDANCE_28.length}일 · 하루 빠져도 이어서 받아요`, TYPE.caption, COLOR.text, true, true).setOrigin(0, 0.5));
+    this.A(text(this, 40, 320, `출석 ${doneInCycle} / ${ATTENDANCE_28.length}일`, TYPE.caption, COLOR.text, true, true).setOrigin(0, 0.5));
     ATTENDANCE_28.forEach((r, i) => {
       const col = i % 7;
       const row = Math.floor(i / 7);

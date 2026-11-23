@@ -25,3 +25,6 @@ ios/App/App/GoogleService-Info.plist
 
 # 개인 환경 값(Firebase 웹 설정 등)
 *.local
+
+# 기획서 원본(제작자 PC에만, 공개 저장소에 올리지 않음)
+드래곤포스_*.html
