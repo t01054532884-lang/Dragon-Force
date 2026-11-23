@@ -8,5 +8,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["src", "../src/data/iap.ts", "../src/data/economy.ts", "../src/data/pass.ts"]
+  "include": ["src", "../src/data/iap.ts", "../src/data/economy.ts", "../src/data/pass.ts", "../src/data/skins.ts", "../src/data/skinRoulette.ts"]
 }

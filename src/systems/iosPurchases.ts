@@ -1,3 +1,4 @@
+import type { ServerSkinState, ServerSpin } from '../data/skinRoulette';
 import { PRODUCT_CATEGORY, PURCHASES_ERROR_CODE, Purchases } from '@revenuecat/purchases-capacitor';
 import { IAP_PRODUCTS, type ServerGrant } from '../data/iap';
 import { cloud } from './Cloud';
@@ -65,6 +66,11 @@ const RevenueCatPurchases: PurchaseProvider = {
   pending: () => cloud.call<ServerGrant[]>('iapSync'),
   ack: async (ids) => {
     await cloud.call('iapAck', { ids });
+  },
+  skinState: () => cloud.call<ServerSkinState>('skinState'),
+  skinSpin: () => cloud.call<ServerSkinState & { spin: ServerSpin }>('skinSpin'),
+  skinAck: async (ids) => {
+    await cloud.call('skinAck', { ids });
   },
 };
 

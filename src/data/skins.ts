@@ -59,8 +59,8 @@ export interface SkinSlot {
 export const SKIN_ROULETTE = {
   keyKrw: 4_900,
   keyProductId: 'skin_key_1', // App Store Connect·RevenueCat 소모성 상품으로 등록(등록 전 확정 필요)
-  /** 이미 가진 스킨이 다시 판에 오면 그 칸은 루비로 대신 */
-  duplicateRubies: 1_500,
+  /** 이미 가진 스킨이 다시 판에 오면 그 칸은 루비로 대신(11/24 제작자: 1,500은 과함 → 열쇠 1개 값어치 루비 410~670 중간인 500) */
+  duplicateRubies: 500,
   capeWeight: 4,
   trailWeight: 8,
   common: [

@@ -3,7 +3,8 @@ import { makeTextures } from '../textures';
 import { DRAGONS, type DragonId } from '../data/dragons';
 import { SKIN_ROULETTE as R, skinDef } from '../data/skins';
 import { Progress } from '../systems/Progress';
-import { boardSlots, nextRotationAt, resetLeftText, skinOdds, slotLabel, spinSkinRoulette, syncSkinBoard, type BoardSlot } from '../systems/Skins';
+import { applyServerSpin, boardSlots, nextRotationAt, resetLeftText, skinOdds, slotLabel, spinSkinRoulette, syncServerSkinState, syncSkinBoard, type BoardSlot, type SkinSpinResult } from '../systems/Skins';
+import type { ServerSkinState } from '../data/skinRoulette';
 import { buyFailText, buyProduct, PAY_NOTICE, purchases } from '../systems/Purchases';
 import { preloadArt } from '../ui/art';
 import { rewardPopup, type RewardItem } from '../ui/celebrate';
@@ -18,6 +19,8 @@ import { playSfx } from '../systems/Sfx';
  * 스킨 룰렛(제작자 요청 2026-11-23 밤): 9칸 판(가운데 = 그 주의 대표 망토), 열쇠 1개로 1회, 뽑힌 칸은 다시 안 나옴.
  * 매주 월요일 0시(KST) 판이 바뀐다(열쇠는 남음). 열쇠는 App Store 결제(4,900원)로만 — 웹·토스는 결제가 없어 로비에 안 보인다.
  * 확률은 "확률" 창에서 지금 판 기준(남은 칸 가중치)으로 보여 준다(확률형 아이템 표시).
+ * 추첨은 서버가 한다(11/24, functions/ skinSpin): 열쇠 수·판·보유 스킨은 서버 기준, 앱은 서버 결과만 지급한다.
+ * 서버가 없는 개발 모드(?dev=1 웹)만 기기에서 뽑는다.
  */
 export class SkinScene extends Phaser.Scene {
   private layer: Phaser.GameObjects.GameObject[] = [];
@@ -51,6 +54,39 @@ export class SkinScene extends Phaser.Scene {
     // 판이 바뀌는 순간 화면에 있으면 다시 그림
     this.time.addEvent({ delay: 1000, loop: true, callback: () => this.tickTimer() });
     this.refresh();
+    if (purchases.available) void this.syncServer();
+  }
+
+  /** 서버 상태 반영: 아직 지급 안 한 추첨을 지급하고(같은 추첨은 한 번만) 열쇠·판·보유 스킨을 서버 기준으로 맞춘다 */
+  private applyServer(st: ServerSkinState): SkinSpinResult[] {
+    const now = gameNow();
+    let p = Progress.load();
+    const done: string[] = [];
+    const got: SkinSpinResult[] = [];
+    for (const s of st.pending) {
+      const r = applyServerSpin(p, s, now);
+      if (r.ok) {
+        p = r.progress;
+        got.push(r.spin);
+      }
+      done.push(s.id); // 성공·이미 받음 모두 처리 끝
+    }
+    p = syncServerSkinState(p, st, now);
+    Progress.save(p);
+    if (done.length) void purchases.skinAck(done).catch((e) => console.warn('룰렛 지급 확인 알림 실패(다음에 다시)', e));
+    return got;
+  }
+
+  private async syncServer(): Promise<void> {
+    try {
+      const st = await purchases.skinState();
+      if (!this.sys.isActive() || this.busy) return;
+      const got = this.applyServer(st);
+      if (got.length) toast(this, '지난 룰렛 보상을 받았어요', COLOR.ok);
+      this.refresh();
+    } catch (e) {
+      console.warn('룰렛 서버 상태 확인 실패', e);
+    }
   }
 
   private A<T extends Phaser.GameObjects.GameObject>(o: T): T {
@@ -161,17 +197,42 @@ export class SkinScene extends Phaser.Scene {
 
   private spin(): void {
     if (this.busy) return;
+    if (purchases.available) return void this.spinServer();
     const now = gameNow();
     const r = spinSkinRoulette(Progress.load(), now);
-    if (r.ok) Progress.save(r.progress);
     if (!r.ok) {
-      if (r.reason === 'keys') return toast(this, purchases.available ? '열쇠가 없어요 — 열쇠를 구매해 주세요' : '열쇠는 App Store 앱에서 구매할 수 있어요', COLOR.textSub);
+      if (r.reason === 'keys') return toast(this, '열쇠는 App Store 앱에서 구매할 수 있어요', COLOR.textSub);
       return toast(this, '이번 판은 모두 받았어요', COLOR.textSub);
     }
+    Progress.save(r.progress);
     this.busy = true;
-    // 남은 칸을 돌며 빛이 지나가다 결과 칸에서 멈춤
-    const order = this.cells.filter((c) => !r.progress.skins.board.picked.includes(c.slot.id) || c.slot.id === r.spin.slot.id);
-    const target = order.findIndex((c) => c.slot.id === r.spin.slot.id);
+    this.animate(r.spin, r.progress.skins.board.picked);
+  }
+
+  /** 서버 추첨: 열쇠 확인·추첨·기록은 서버, 앱은 결과 지급과 연출만 */
+  private async spinServer(): Promise<void> {
+    this.busy = true;
+    try {
+      const res = await purchases.skinSpin();
+      if (!this.sys.isActive()) return;
+      const got = this.applyServer(res);
+      const mine = got.find((g) => g.slot.id === res.spin.slot.id) ?? { slot: res.spin.slot };
+      this.animate(mine, Progress.load().skins.board.picked);
+    } catch (e) {
+      this.busy = false;
+      const msg = String((e as { message?: unknown })?.message ?? '');
+      if (msg === 'keys') return toast(this, '열쇠가 없어요 — 열쇠를 구매해 주세요', COLOR.textSub);
+      if (msg === 'done') return toast(this, '이번 판은 모두 받았어요', COLOR.textSub);
+      console.warn('룰렛 추첨 실패', e);
+      toast(this, '서버에 연결하지 못했어요 — 열쇠는 쓰지 않았어요', COLOR.danger);
+    }
+  }
+
+  /** 남은 칸을 돌며 빛이 지나가다 결과 칸에서 멈춤 */
+  private animate(spin: SkinSpinResult, pickedAfter: readonly string[]): void {
+    const order = this.cells.filter((c) => !pickedAfter.includes(c.slot.id) || c.slot.id === spin.slot.id);
+    const target = Math.max(0, order.findIndex((c) => c.slot.id === spin.slot.id));
+    if (!order.length) return this.showResult(spin.slot, spin.essence);
     const steps = order.length * 2 + target;
     let i = 0;
     const tick = () => {
@@ -180,7 +241,7 @@ export class SkinScene extends Phaser.Scene {
       c.hl.setStrokeStyle(8, 0xffe066, 1);
       playSfx(this, 'sfx-ui-tap');
       if (i >= steps) {
-        this.time.delayedCall(450, () => this.showResult(r.spin.slot, r.spin.essence));
+        this.time.delayedCall(450, () => this.showResult(spin.slot, spin.essence));
         return;
       }
       i++;
@@ -226,6 +287,7 @@ export class SkinScene extends Phaser.Scene {
         if (r.ok) {
           toast(this, '열쇠를 받았어요', COLOR.ok);
           this.refresh();
+          void this.syncServer(); // 남은 열쇠는 서버 기준
           return;
         }
         const msg = buyFailText(r.reason);
@@ -249,6 +311,7 @@ export class SkinScene extends Phaser.Scene {
       `· 매주 월요일 0시(한국 시간)에 새 판으로 바뀝니다. 남은 열쇠는 그대로이고, 받지 못한 칸은 사라집니다.`,
       `· 이미 가진 스킨이 판에 오면 그 칸은 루비 ${R.duplicateRubies.toLocaleString()}로 바뀝니다.`,
       `· 영웅 드래곤 정수: 영웅 드래곤 중 하나(같은 확률). 없으면 해금, 있으면 조각.`,
+      `· 추첨과 열쇠 수는 서버에서 처리합니다(앱 저장을 되돌려도 결과가 바뀌지 않음).`,
       `· 스킨은 꾸미기 전용이며 능력치는 없습니다.`,
     ];
     m.body(this.add.text(-280, -390, lines.join('\n'), { fontFamily: FONT, fontSize: '20px', color: '#ece6ff', lineSpacing: 7, wordWrap: { width: 560 } }).setOrigin(0, 0));

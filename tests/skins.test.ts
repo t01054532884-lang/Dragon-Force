@@ -106,3 +106,30 @@ describe('스킨 룰렛 초기화 타이머 문구', () => {
     expect(resetLeftText(-1)).toBe('0분 0초');
   });
 });
+
+describe('스킨 룰렛 서버 추첨 반영(11/24)', () => {
+  it('보유 스킨 칸은 루비 500, 공용 추첨은 남은 칸에서만', async () => {
+    const { boardSlots: shared, drawSlot } = await import('../src/data/skinRoulette');
+    const T = Date.parse('2026-11-24T03:00:00Z');
+    const slots = shared(['cape-ember-king'], [], T);
+    expect(slots[0]).toMatchObject({ duplicate: true, rubies: 500 });
+    const picked = slots.slice(1).map((s) => s.id);
+    expect(drawSlot(slots, picked, 0.99)?.id).toBe(slots[0].id);
+    expect(drawSlot(slots, slots.map((s) => s.id), 0.5)).toBeNull();
+  });
+  it('같은 서버 추첨은 한 번만 지급하고, 열쇠·판은 서버 상태로 맞춤', async () => {
+    const { applyServerSpin, syncServerSkinState } = await import('../src/systems/Skins');
+    const T = Date.parse('2026-11-24T03:00:00Z');
+    const p0 = defaultProgress();
+    const spin = { id: 'S1', week: weekKey(T), slot: { id: 'ruby-300', weight: 20, rubies: 300 }, essenceRoll: 0.3, at: T };
+    const a = applyServerSpin(p0, spin, T);
+    expect(a.ok && a.progress.rubies - p0.rubies).toBe(300);
+    if (!a.ok) return;
+    expect(a.progress.skins.board.picked).toContain('ruby-300');
+    expect(applyServerSpin(a.progress, spin, T)).toMatchObject({ ok: false, reason: 'duplicate' });
+    const q = syncServerSkinState(a.progress, { keysLeft: 4, owned: ['trail-flame'], board: { week: weekKey(T), picked: ['ruby-300', 'gold-30k'] } }, T);
+    expect(q.skins.keys).toBe(4);
+    expect(q.skins.owned).toContain('trail-flame');
+    expect(q.skins.board.picked).toEqual(['ruby-300', 'gold-30k']);
+  });
+});

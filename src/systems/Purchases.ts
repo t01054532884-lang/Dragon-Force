@@ -1,3 +1,4 @@
+import type { ServerSkinState, ServerSpin } from '../data/skinRoulette';
 import { DEALS, FREE_DAILY_GIFT, PACKAGES, RUBY_PRODUCTS, type PackageDef } from '../data/economy';
 import { iapProduct, passSeasonOf, type IapGrant, type ServerGrant } from '../data/iap';
 import { grantVerifiedPass } from './Pass';
@@ -34,6 +35,12 @@ export interface PurchaseProvider {
   pending(): Promise<ServerGrant[]>;
   /** 서버: 앱에 지급(저장) 끝났음 */
   ack(ids: string[]): Promise<void>;
+  /** 서버 스킨 룰렛: 남은 열쇠·판·아직 지급 안 한 추첨 */
+  skinState(): Promise<ServerSkinState>;
+  /** 서버 스킨 룰렛: 열쇠 1개로 1회 추첨(열쇠 부족·판 완료는 오류 메시지 'keys'·'done') */
+  skinSpin(): Promise<ServerSkinState & { spin: ServerSpin }>;
+  /** 서버 스킨 룰렛: 추첨 지급(저장) 끝났음 */
+  skinAck(ids: string[]): Promise<void>;
 }
 
 /** 결제 없음(웹·토스·데모·서버 설정 전) */
@@ -45,6 +52,13 @@ export const NoPurchases: PurchaseProvider = {
   restore: async () => {},
   pending: async () => [],
   ack: async () => {},
+  skinState: async () => {
+    throw new Error('unavailable');
+  },
+  skinSpin: async () => {
+    throw new Error('unavailable');
+  },
+  skinAck: async () => {},
 };
 
 export let purchases: PurchaseProvider = NoPurchases;
