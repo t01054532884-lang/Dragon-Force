@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import type { DragonId } from '../data/dragons';
 import { ULT_RULES } from '../data/signature';
+import { soundOn, voiceLang } from '../systems/Settings';
 import { text } from './kit';
 import { COLOR } from './theme';
 
@@ -14,6 +15,9 @@ import { COLOR } from './theme';
 
 /** Higgsfield 영상이 들어온 드래곤(public/art/ult/ult-<id>.mp4). 받는 대로 번호를 적는다 */
 export const ULT_VIDEO_READY: DragonId[] = [];
+/** 필살기 소리(효과음 + 외침, public/sfx/ult/ult-<id>-ko.mp3 · -en.mp3)가 들어온 드래곤. 영상은 무음이라 소리는 이 파일 */
+export const ULT_AUDIO_READY: DragonId[] = [];
+const ultAudioKey = (id: DragonId, lang: 'ko' | 'en') => `ult-${id}-${lang}`;
 /** 공통 하늘 배경(public/art/ult/ult-bg.webp)이 들어왔는지 — 대체 연출의 바탕 */
 export const ULT_BG_READY = false;
 
@@ -23,6 +27,9 @@ export const ultVideoKey = (id: DragonId) => `ult-${id}`;
 export function preloadUlt(scene: Phaser.Scene, id: DragonId): void {
   if (ULT_BG_READY && !scene.textures.exists('ult-bg')) scene.load.image('ult-bg', 'art/ult/ult-bg.webp');
   if (ULT_VIDEO_READY.includes(id) && !scene.cache.video.exists(ultVideoKey(id))) scene.load.video(ultVideoKey(id), `art/ult/ult-${id}.mp4`, true);
+  // 설정 언어 것만 읽는다(한국어/English)
+  const lang = voiceLang();
+  if (ULT_AUDIO_READY.includes(id) && !scene.cache.audio.exists(ultAudioKey(id, lang))) scene.load.audio(ultAudioKey(id, lang), `sfx/ult/ult-${id}-${lang}.mp3`);
 }
 
 export interface UltCutsceneOpts {
@@ -52,6 +59,15 @@ export function playUltCutscene(scene: Phaser.Scene, o: UltCutsceneOpts): void {
     objs.push(g);
     return g;
   };
+  // 필살기 소리(효과음 + 외침): 3초 길이, 컷신 시작과 동시에. 파일이 없으면 조용히(전투 효과음은 섬광 때 따로)
+  const aKey = ultAudioKey(o.dragonId, voiceLang());
+  if (soundOn() && !scene.sound.locked && scene.cache.audio.exists(aKey)) {
+    try {
+      scene.sound.play(aKey, { volume: 0.9 });
+    } catch {
+      /* 소리 실패는 무시 */
+    }
+  }
   // 입력 막기(컷신 중 버튼이 눌리지 않게)
   add(scene.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.001).setInteractive());
 

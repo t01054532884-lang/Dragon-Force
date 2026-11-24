@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { getLang } from '../i18n';
 import { drawLobbyBackdrop, makeArtPlaceholders, preloadArt } from '../ui/art';
 import { text } from '../ui/kit';
 import { COLOR, TYPE } from '../ui/theme';
@@ -58,8 +59,10 @@ export class TitleScene extends Phaser.Scene {
       deco.setScale(720 / deco.width);
       this.tweens.add({ targets: deco, y: 690, duration: 2400, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
     }
-    if (this.textures.exists('logo-ko')) {
-      const logo = this.add.image(360, 230, 'logo-ko');
+    // 영어 모드: 영어 로고 그림(logo-en)이 오기 전까지는 한글 로고 대신 글자 로고
+    const logoKey = getLang() === 'en' ? 'logo-en' : 'logo-ko';
+    if (this.textures.exists(logoKey)) {
+      const logo = this.add.image(360, 230, logoKey);
       const base = 620 / logo.width;
       logo.setScale(base * 0.6).setAlpha(0);
       this.tweens.add({ targets: logo, scale: base, alpha: 1, duration: 420, ease: 'Back.Out' });

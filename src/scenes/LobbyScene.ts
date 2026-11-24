@@ -25,7 +25,7 @@ import { account, shortId } from '../systems/Account';
 import { cloud, cloudLine } from '../systems/Cloud';
 import { summaryLine } from '../systems/cloudSync';
 import { attendanceState, claimableActivity } from '../systems/Activity';
-import { DEMO, platform } from '../platform';
+import { DEMO, PLATFORM, platform } from '../platform';
 import { goTab, navTabsWithAlerts } from '../ui/screen';
 import { accountLevel } from '../systems/AccountLevel';
 import { claimablePass, syncPass } from '../systems/Pass';
@@ -392,13 +392,13 @@ export class LobbyScene extends Phaser.Scene {
   private openSettings(): void {
     this.closeSettings();
     const st = loadSettings();
-    const m = modal(this, 600, 700, '설정', { closeOnBackdrop: true, ribbonColor: COLOR.violet });
-    m.body(text(this, -240, -230, '소리', TYPE.heading, COLOR.text, true, true).setOrigin(0, 0.5));
+    const m = modal(this, 600, 820, '설정', { closeOnBackdrop: true, ribbonColor: COLOR.violet });
+    m.body(text(this, -240, -300, '소리', TYPE.heading, COLOR.text, true, true).setOrigin(0, 0.5));
     // 로비 설정은 효과음·배경 음악을 함께 켜고 끈다(따로는 전투 일시정지 화면에서)
     const on = st.sound || st.music;
-    m.body(text(this, -240, -186, `효과음 ${st.sound ? '켜짐' : '꺼짐'} · 배경 음악 ${st.music ? '켜짐' : '꺼짐'}`, TYPE.tiny, COLOR.textSub, true).setOrigin(0, 0.5));
+    m.body(text(this, -240, -256, `효과음 ${st.sound ? '켜짐' : '꺼짐'} · 배경 음악 ${st.music ? '켜짐' : '꺼짐'}`, TYPE.tiny, COLOR.textSub, true).setOrigin(0, 0.5));
     m.body(
-      button(this, 170, -214, 170, 76, on ? '켜짐' : '꺼짐', () => {
+      button(this, 170, -284, 170, 76, on ? '켜짐' : '꺼짐', () => {
         saveSettings({ ...st, sound: !on, music: !on });
         applySound(this.game);
         refreshMusic(this);
@@ -406,9 +406,20 @@ export class LobbyScene extends Phaser.Scene {
         this.openSettings();
       }, { kind: on ? 'growth' : 'secondary', size: TYPE.body }).root,
     );
+    // 언어(2026-11-25): 누를 때마다 한국어 ↔ English — 글자 전체와 필살기 외침이 바뀐다. 모든 화면을 다시 그리려고 새로 불러온다
+    if (PLATFORM !== 'toss') {
+      m.body(text(this, -240, -190, '언어 / Language', TYPE.body, COLOR.text, true, true).setOrigin(0, 0.5));
+      m.body(text(this, -240, -152, '글자와 필살기 목소리', TYPE.tiny, COLOR.textSub, true).setOrigin(0, 0.5));
+      m.body(
+        button(this, 170, -178, 170, 70, st.lang === 'en' ? 'English' : '한국어', () => {
+          saveSettings({ ...st, lang: st.lang === 'en' ? 'ko' : 'en' });
+          setTimeout(() => location.reload(), 150);
+        }, { kind: 'primary', size: TYPE.caption }).root,
+      );
+    }
     // 계정(첫 출시: 게스트 자동 + Apple 연결, 앱 안 계정 삭제 — 애플 심사 5.1.1(v))
     const acc = account.current();
-    m.body(this.add.rectangle(0, -120, 520, 2, COLOR.line));
+    m.body(this.add.rectangle(0, -110, 520, 2, COLOR.line));
     m.body(text(this, -240, -70, '계정', TYPE.heading, COLOR.text, true, true).setOrigin(0, 0.5));
     m.body(text(this, -240, -26, `${acc.provider === 'apple' ? 'Apple 연결됨' : '게스트'} · ${shortId(acc.uid)}`, TYPE.tiny, COLOR.textSub, true).setOrigin(0, 0.5));
     const link = button(this, 170, -50, 220, 76, acc.provider === 'apple' ? '연결됨' : 'Apple로 연결', () => {
@@ -421,13 +432,13 @@ export class LobbyScene extends Phaser.Scene {
         else if (r.reason === 'offline') this.toast('인터넷 연결을 확인해 주세요');
         else if (r.reason === 'failed') this.toast('연결하지 못했어요. 잠시 뒤 다시 시도해 주세요');
       });
-    }, { kind: 'primary', size: TYPE.caption, sub: account.canLinkApple || acc.provider === 'apple' ? undefined : '기기 바꿔도 이어서' });
+    }, { kind: 'primary', size: TYPE.caption }); // 버튼은 "Apple로 연결"만(제작자 11/25: 아래 회색 안내 문구와 겹침)
     link.setEnabled(acc.provider !== 'apple');
     m.body(link.root);
     m.body(text(this, -240, 50, '연결하면 기기를 바꾸거나 앱을 다시 설치해도 이어서 할 수 있어요', 15, COLOR.textDim, true).setOrigin(0, 0.5));
     m.body(text(this, -240, 82, `☁ ${cloudLine()}`, 15, cloud.status === 'error' || cloud.status === 'conflict' ? COLOR.danger : COLOR.textSub, true).setOrigin(0, 0.5));
     m.body(button(this, 0, 140, 300, 66, '계정 삭제', () => this.confirmDelete(), { kind: 'danger', size: TYPE.caption }).root);
-    m.body(button(this, 0, 260, 220, 70, '닫기', () => this.closeSettings(), { kind: 'secondary', size: TYPE.caption }).root);
+    m.body(button(this, 0, 300, 220, 70, '닫기', () => this.closeSettings(), { kind: 'secondary', size: TYPE.caption }).root);
     this.settingsUi = m;
   }
 
