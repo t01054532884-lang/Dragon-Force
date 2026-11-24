@@ -609,6 +609,12 @@
 **확인**: 테스트 242개, 타입 검사, 배포 반영. 봇 측정은 같은 시드도 판마다 크게 흔들려(1단계 217~314초) 평타 효과를 숫자로 말할 수 없음 → **사람 플레이로 체감 확인 필요**.
 **AI 실수**: 문구를 sed로 바꾸다 파일 전체 줄바꿈(CRLF)을 바꿔 2,105줄 변경이 됨 → 되돌리고 한 줄만 고침. 봇 비교 중 앞선 측정이 끝나기 전에 다음 측정을 시작해 결과가 섞임 → 다시 잼.
 
+## TestFlight 첫 빌드 (2026-11-24 오후)
+**내가 판단한 것**: "빌드 올려". Codemagic 로그인, GitHub에서 Codemagic에 Dragon-Force 저장소 접근 허용을 직접 함.
+**AI에게 맡긴 것**: 빌드 설정에 Firebase 값이 없다는 걸 찾음(그대로 올리면 로그인·클라우드 저장이 꺼진 앱) → Firebase 웹 앱 추가, 로컬 `.env.local`과 Codemagic 환경 변수 그룹 `firebase`에 4개 등록, `codemagic.yaml`에 그룹 연결. Codemagic 앱 추가. 첫 빌드가 "프로파일 없음"으로 멈춤 → 제주 앱 방식대로 Apple에서 App Store 배포 프로파일을 만들고 Codemagic으로 가져와 다시 빌드.
+**확인**: Codemagic 빌드 전 단계 통과(테스트·게임 빌드·ipa 1분 47초), App Store Connect 업로드 "UPLOAD SUCCEEDED"(경고 1: 2027년 4월부터 iOS 27 SDK 필요).
+**AI 실수**: 처음 빌드를 프로파일 확인 없이 시작해 한 번 실패(빌드 시간은 안 씀).
+
 ## Firebase 서버 함수 5개 배포 (2026-11-24 오후)
 **내가 판단한 것**: 사업자등록 처리 기다리는 동안 TestFlight·Firebase부터 진행하기로 함. Firebase CLI·App Store Connect 로그인, Secret Manager API 켜기를 직접 함. RevenueCat 비밀 키는 아직 없으니 임시 값으로 만들어 달라고 함.
 **AI에게 맡긴 것**: 함수 빌드 확인, 비밀 값이 필요 없는 함수 5개 + Firestore 규칙만 골라 배포. Firebase가 안 올리는 함수의 비밀 키까지 확인해서 막힘 → 웹훅 인증 값은 무작위로 진짜 값, RevenueCat 비밀 키는 임시 값으로 등록 후 배포. 컨테이너 이미지 1일 자동 정리(요금 방지). TestFlight 빌드 목록 확인.

@@ -19,6 +19,7 @@
 | (11/24 낮) 테스터 피드백: 기본 공격이 **일반 몹에게만 ×1.5**(모든 드래곤, 엘리트·보스 그대로) — 가벼운 몹 2~3대 → 1~2대(계산) | `src/data/basicAttack.ts` `BASIC_VS_NORMAL_MULT`, `docs/BALANCE.md` |
 | (11/24 낮) 단계 상자 **100% 칸 루비 100개**(쉬움·어려움 40칸 = 4,000), 25·50% 칸은 그대로 | `src/data/economy.ts` `STAGE_CLEAR_RUBIES` |
 | (11/24 낮) **어려움 해금 쉬움 20 → 10단계** + 로비 "어려움 모드 해금!" 연출 한 번(도전하기 = 어려움 1단계), 잠긴 탭 문구 "쉬움 10단계를 깨면 열려요" | `docs/HARD.md` 0절, `DIFFICULTY_UNLOCK_AT` |
+| (11/24 오후) **TestFlight 첫 빌드 업로드 성공**(Codemagic 첫 빌드, 커밋 fddf8c9). 준비: Codemagic에 Dragon-Force 앱 추가(GitHub 앱 권한에 저장소 추가) · 환경 변수 그룹 `firebase`(VITE_FIREBASE_* 4개, Firebase 웹 앱 `DragonForceWeb` 새로 만듦) + `codemagic.yaml` `groups: [firebase]` · Apple에 배포 프로파일 "Dragon Force App Store" 만들고 Codemagic으로 가져옴(`dragonforce_appstore_profile`). 결제는 RevenueCat 키가 없어 이 빌드에선 꺼짐 | `codemagic.yaml`, `.env.local`(로컬) |
 | (11/24 오후) **Firebase 서버 함수 5개 배포**(iapCheck·iapAck·skinState·skinSpin·skinAck, 서울) + Firestore 규칙 배포 + 컨테이너 이미지 1일 자동 정리. 비밀 값 2개 등록: `REVENUECAT_WEBHOOK_AUTH`=무작위(진짜 값), `REVENUECAT_SECRET_KEY`=**임시 값**(RevenueCat `sk_…` 받으면 교체). `iapSync`·`rcWebhook`은 아직 안 올림. TestFlight는 빌드 없음 | 아래 4번 |
 | (11/24 낮) 테스터 피드백 2: **패스 칸이 왼쪽 위 1/4만 눌리던 버그** 고침 + 칸 크게 · 쉬움 **1~5단계 적 체력·피해 ×0.85~0.92** · **전장 배치 7종**(원형·사각, 기둥·바위·벽, 단계마다 다르게, 최종보스 단계는 장애물 없음) · 일반 몹 20/30마리 이상이면 25%/40%가 **돌아다님** | `src/data/arenas.ts`, `EARLY_EASE`, `Enemy.ts` `ROAM`, 그림 요청 `docs/ART_REQUEST_9.md` |
 | (11/24 오전) **개인 사업자등록 홈택스 접수**(10:48, 처리 대기 보통 2일): 상호 스쿼드코드(SquadCode) · 간이과세 · 개업일 11/24 · 주업종 722002 모바일 게임 + 부업종 722000 응용 소프트웨어(츄즈핏 대비) · 국세 전자송달. 통신판매업은 간이과세자라 신고 면제로 판단(익산시청 확인 필요) | 시트 3행 · 개발일지 |
@@ -32,7 +33,7 @@
    - 11/24 새벽 시도: 비밀 값이 없어 중단(함수는 하나도 안 올라감). 집 PC는 Firebase 로그인 됨, 회사 PC는 `npx.cmd --yes firebase-tools@latest login` 먼저.
    - 이때 Google 기능 4개(Cloud Functions·Cloud Build·Artifact Registry·Firebase Extensions)는 이미 켜졌고, Secret Manager도 켜야 함(배포 오류 안내의 주소). 함수에는 종량제(Blaze) 요금제가 필요할 수 있음(결제 수단 등록은 제작자).
    - PowerShell에서 `npx`가 막히면(스크립트 실행 정책) `npx.cmd`로.
-5. TestFlight 샌드박스 결제 시험(루비·패키지·패스·스킨 열쇠 → 룰렛 서버 추첨)
+5. (11/24 첫 빌드 올라감) RevenueCat 공개 키 `VITE_REVENUECAT_IOS_KEY`를 Codemagic `firebase` 그룹에 추가 → 다시 빌드 → TestFlight 샌드박스 결제 시험(루비·패키지·패스·스킨 열쇠 → 룰렛 서버 추첨)
 6. 처리방침·약관 확정 → 제출
 
 ### 사람 플레이로 확인할 것
