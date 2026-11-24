@@ -36,7 +36,7 @@ export const SKILL_ICONS = [
  * - enemy: 단계 → 그 단계에서 처음 나오는 적 id 목록. 그림 `public/art/enemy/art-e-<id>.webp`(옆모습, 머리 오른쪽).
  * 셋 다 크기가 커서 처음에 한꺼번에 읽지 않고 그 화면·그 단계에서만 읽는다(아이폰 메모리).
  */
-export const STAGE_ART_READY: { lobby: number[]; floor: number[]; enemy: Record<number, string[]> } = { lobby: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], floor: [], enemy: {} };
+export const STAGE_ART_READY: { lobby: number[]; floor: number[]; enemy: Record<number, string[]> } = { lobby: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], floor: [], enemy: {} };
 /** 단계별 그림처럼 그때그때 읽는 키(preloadArt가 건너뜀) */
 const LAZY_ART = /^(lobby-bg-\d+|floor-s\d+|art-e-)/;
 
