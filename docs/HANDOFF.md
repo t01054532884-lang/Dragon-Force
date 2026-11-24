@@ -18,9 +18,10 @@
 | (11/24 낮) 레벨업 화면 안내에서 "(판이 끝나면 초기화)" 뺌 | `src/scenes/GameScene.ts` |
 | (11/24 낮) 테스터 피드백: 기본 공격이 **일반 몹에게만 ×1.5**(모든 드래곤, 엘리트·보스 그대로) — 가벼운 몹 2~3대 → 1~2대(계산) | `src/data/basicAttack.ts` `BASIC_VS_NORMAL_MULT`, `docs/BALANCE.md` |
 | (11/24 낮) 단계 상자 **100% 칸 루비 100개**(쉬움·어려움 40칸 = 4,000), 25·50% 칸은 그대로 | `src/data/economy.ts` `STAGE_CLEAR_RUBIES` |
+| (11/24 오전) **개인 사업자등록 홈택스 접수**(10:48, 처리 대기 보통 2일): 상호 스쿼드코드(SquadCode) · 간이과세 · 개업일 11/24 · 주업종 722002 모바일 게임 + 부업종 722000 응용 소프트웨어(츄즈핏 대비) · 국세 전자송달. 통신판매업은 간이과세자라 신고 면제로 판단(익산시청 확인 필요) | 시트 3행 · 개발일지 |
 
 ### 오늘 이어서 할 일(순서)
-1. **사업자등록**(오전) → 영문 증명 → App Store Connect 대한민국 세금 양식 → **유료 앱 계약 '활성'**
+1. ~~사업자등록~~ 접수 완료(11/24 10:48) → **처리 완료 문자 오면** 등록증 출력 · 영문 사업자등록증명 발급 → App Store Connect 대한민국 세금 양식 → **유료 앱 계약 '활성'**
 2. 인앱 구입 키(.p8) → RevenueCat 연결 → **상품 17종 등록**(16 + 스킨 열쇠 `skin_key_1` 4,900원)
 3. RevenueCat 비밀 키 2개 → `firebase functions:secrets:set REVENUECAT_SECRET_KEY` / `REVENUECAT_WEBHOOK_AUTH`
 4. **서버 함수 7개 한 번에 배포**: `npx.cmd --yes firebase-tools@latest deploy --only functions --project dragon-force-eb552`
