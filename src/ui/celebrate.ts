@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { DRAGONS, ELEMENT_LABEL, RARITY_COLOR, type DragonId } from '../data/dragons';
-import { SIGNATURES } from '../data/signature';
+import { SIGNATURES, ULT_NAMES, ultEffectText, ultSummary } from '../data/signature';
 import { playSfx } from '../systems/Sfx';
 import { button, text } from './kit';
 import { plate } from './kit2';
@@ -139,10 +139,10 @@ export function dragonUnlock(scene: Phaser.Scene, ids: DragonId[], onDone?: () =
   const box = add(plate(scene, 360, 935, 600, 150, { r: 22 }).setAlpha(0));
   const sigKey = `sig-${id}`;
   const hasSigArt = scene.textures.exists(sigKey);
-  const sigTitle = text(scene, hasSigArt ? 24 : 0, -40, `${hasSigArt ? '' : `${sig.icon} `}전용 스킬 · ${sig.name}`, TYPE.body, COLOR.gold, true, true).setOrigin(0.5);
+  const sigTitle = text(scene, hasSigArt ? 24 : 0, -40, `${hasSigArt ? '' : `${sig.icon} `}필살기 · ${ULT_NAMES[id]}`, TYPE.body, COLOR.gold, true, true).setOrigin(0.5);
   box.add(sigTitle);
   if (hasSigArt) box.add(scene.add.image(24 - sigTitle.width / 2 - 30, -40, sigKey).setDisplaySize(48, 48));
-  box.add(text(scene, 0, 16, sig.detail, 17, COLOR.textSub, true).setOrigin(0.5).setWordWrapWidth(560).setAlign('center'));
+  box.add(text(scene, 0, 16, `${ultSummary(id)}\n${ultEffectText(id)}`, 16, COLOR.textSub, true).setOrigin(0.5).setWordWrapWidth(560).setAlign('center'));
   [newTag, name, meta, box].forEach((o, i) => tw({ targets: o, alpha: 1, duration: 260, delay: 1100 + i * 180 }));
   let closed = false;
   const finish = (go: boolean) => {

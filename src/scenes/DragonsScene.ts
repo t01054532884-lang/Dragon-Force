@@ -4,7 +4,7 @@ import {
   DRAGON_ORDER, releasedDragons, DRAGONS, ELEMENT_LABEL, GROWTH, RARITY_COLOR, RARITY_LABEL, traitMultFor, type DragonId,
 } from '../data/dragons';
 import { PERM_TIER_LEVELS, PERM_TIERS } from '../data/permGrowth';
-import { SIG_TIER_LEVELS, sigGrowthLines, sigTier, SIGNATURES } from '../data/signature';
+import { SIG_TIER_LEVELS, sigGrowthLines, sigTier, SIGNATURES, ULT_NAMES, ultCooldown, ultEffectText, ultSummary } from '../data/signature';
 import { dragonUnlock } from '../ui/celebrate';
 import { econRarity, ESSENCE, UNIVERSAL } from '../data/economy';
 import { Progress, universalLimit } from '../systems/Progress';
@@ -167,7 +167,7 @@ export class DragonsScene extends Phaser.Scene {
     const sigKey = `sig-${d.id}`;
     const hasSigArt = this.textures.exists(sigKey);
     if (hasSigArt) this.A(this.add.image(46 + 15, top + 251, sigKey).setDisplaySize(30, 30));
-    this.A(text(this, hasSigArt ? 84 : 46, top + 240, `전용 스킬${hasSigArt ? '' : ` ${sg.icon}`} ${sg.name} · 성장 ${tier}/3단계 · ${sg.kind === 'counter' ? `기본 공격 ${sg.every}회마다 자동` : '재사용 60초'}`, 17, 0xffcc80, true, true).setOrigin(0, 0));
+    this.A(text(this, hasSigArt ? 84 : 46, top + 240, `필살기${hasSigArt ? '' : ` ${sg.icon}`} ${ULT_NAMES[d.id]} · 성장 ${tier}/3단계 · 재사용 ${ultCooldown(d.id) / 60_000}분`, 17, 0xffcc80, true, true).setOrigin(0, 0));
     this.A(text(this, 46, top + 268, nxt ? `다음 Lv.${next}: ${diff}` : '최고 단계 — 모든 성장 효과 적용 중', 15, nxt ? COLOR.gold : COLOR.ok, true).setOrigin(0, 0).setWordWrapWidth(628).setAlign('left'));
 
     // 성장표·기본 공격·전용 스킬 팝업
@@ -215,8 +215,8 @@ export class DragonsScene extends Phaser.Scene {
     const o = Progress.load().dragons[d.id];
     const sg = SIGNATURES[d.id];
     const tier = o.unlocked ? sigTier(o.level) : -1;
-    const m = modal(this, 660, 700, `${sg.icon} ${sg.name}`, { closeOnBackdrop: true, ribbonColor: COLOR.violet });
-    m.body(text(this, 0, -262, sg.detail, 17, COLOR.text, true).setOrigin(0.5, 0).setWordWrapWidth(600).setAlign('center'));
+    const m = modal(this, 660, 700, `${sg.icon} ${ULT_NAMES[d.id]}`, { closeOnBackdrop: true, ribbonColor: COLOR.violet });
+    m.body(text(this, 0, -270, `${ultSummary(d.id)}\n효과:${ultEffectText(d.id)}`, 16, COLOR.text, true).setOrigin(0.5, 0).setWordWrapWidth(600).setAlign('center'));
     ['기본', ...SIG_TIER_LEVELS.map((l) => `Lv.${l}`)].forEach((label, i) => {
       const y = -150 + i * 92;
       const on = i === tier;

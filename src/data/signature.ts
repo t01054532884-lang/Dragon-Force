@@ -1,5 +1,5 @@
 import { M } from './stats';
-import type { DragonId } from './dragons';
+import { DRAGONS, type DragonId } from './dragons';
 
 // 드래곤 전용 액티브(기획 v1.2 3장 + v1.3 2장).
 // v1.3(제작자 2026-11-18): "공격력 총 5배" 규칙 폐기 → 쓰는 순간의 **현재 기본 공격 DPS**를 기준으로 한다.
@@ -89,6 +89,43 @@ export const SIGNATURES: Record<DragonId, SignatureDef> = {
   void: { name: '중력 붕괴', icon: '🕳️', text: '기본 공격 10회마다 블랙홀로 끌어당김', detail: '자동: 기본 공격 10회마다 적이 많은 곳에 3m 블랙홀 2.5초 — 일반 적을 가운데로 끌어당기며 적마다 총 DPS×4초(엘리트·보스는 끌리지 않음)', kind: 'counter', cooldownMs: 0, every: 10, radius: 3 * M, durationMs: 2500, perTargetSec: 4, color: 0x7c4dff },
   aurora: { name: '극광의 장막', icon: '🌌', text: '기본 공격 20회마다 바라보는 방향으로 극광이 휩쓺', detail: '자동: 기본 공격 20회마다 드래곤이 바라보는 방향 14m·폭 4.4m 극광 휩쓸기, 적마다 DPS×6초', kind: 'counter', cooldownMs: 0, every: 20, length: 14 * M, width: 2.2 * M, perTargetSec: 6, color: 0x7cf2c4 },
   arcane: { name: '마력 폭주', icon: '🔮', text: '짧은 시간 추가 마력탄', detail: `단일: 4초 동안 마력탄 10발, 엘리트·보스 우선, 합계 DPS×${R.singleSec}초`, kind: 'single', cooldownMs: CD, durationMs: 4000, ticks: 10, radius: 11 * M, color: 0xb693ff },
+};
+
+/**
+ * 필살기(2026-11-25 제작자 확정, docs/ULTIMATE.md): 60초 전용 스킬 → 3초 컷신이 나오는 필살기.
+ * - 쿨타임: 일반~영웅 180초, 전설 120초. 전설 3종(크로노·보이드·오로라)의 "기본 공격 N회마다 자동"은 없애고 버튼 필살기로.
+ * - 컷신이 끝나는 순간: 화면에 보이는 **일반 몬스터는 모두 처치**, 엘리트·보스는 D × 등급 배율
+ *   (D = 지금 기본 공격 DPS × 광역 대상당 초 = 60초 스킬 한 번의 대상당 피해) — 일반·희귀 4배, 영웅 5배, 전설 6배(레드는 일반).
+ *   체력이 많으면 살아남는다. 한 번 상한은 60초 스킬 3번 몫(보스 24%·엘리트 75%, 임시 — 봇으로 측정).
+ * - 그 드래곤의 원래 전용 스킬 효과(화상·빙결·회복 등)도 같이 나간다(원래 상한 그대로).
+ */
+export const ULT_RULES = {
+  cooldownMs: 180_000,
+  legendaryCooldownMs: 120_000,
+  mult: { starter: 4, common: 4, rare: 4, epic: 5, legendary: 6 } as Record<string, number>,
+  bossCapPct: 0.24,
+  eliteCapPct: 0.75,
+  cutsceneMs: 3000,
+};
+export const ultCooldown = (id: DragonId): number => (DRAGONS[id].rarity === 'legendary' ? ULT_RULES.legendaryCooldownMs : ULT_RULES.cooldownMs);
+export const ultMult = (id: DragonId): number => ULT_RULES.mult[DRAGONS[id].rarity] ?? 4;
+/** 필살기가 엘리트·보스에게 한 번에 넣는 피해 상한 */
+export const ultCap = (rank: 'normal' | 'elite' | 'boss', maxHp: number): number =>
+  rank === 'boss' ? maxHp * ULT_RULES.bossCapPct : rank === 'elite' ? maxHp * ULT_RULES.eliteCapPct : Infinity;
+/** 화면 설명: "필살기: 3초 연출 뒤 …" 한 줄 */
+export function ultSummary(id: DragonId): string {
+  return `3초 연출 뒤 화면 안 일반 몬스터 모두 처치 · 엘리트·보스 피해 ×${ultMult(id)} · 재사용 ${ultCooldown(id) / 60_000}분`;
+}
+/** 같이 나가는 원래 전용 스킬 효과 설명(전설 3종의 "자동: 기본 공격 N회마다" 표현은 뺌) */
+export function ultEffectText(id: DragonId): string {
+  return SIGNATURES[id].detail.replace(/^자동: 기본 공격 \d+회마다 /, '');
+}
+/** 필살기 이름(시트 "180초 필살기" 1차안) */
+export const ULT_NAMES: Record<DragonId, string> = {
+  red: '불의 파도', blue: '빙하 강림', yellow: '천둥 그물', green: '독의 폭우', sand: '모래 폭풍', steel: '천 개의 검',
+  white: '성광의 기둥', black: '검은 일식', stone: '운석 낙하', bloom: '만개', howl: '천지의 포효',
+  wind: '대폭풍', water: '대해일', crimson: '핏빛 초승달', mirror: '거울 세계',
+  chrono: '시간 정지', void: '사건의 지평선', aurora: '극광 강림', arcane: '마력 유성우',
 };
 
 /** 광역형 한 마리당 피해: 대상당 DPS × 4초, 맞은 적이 많으면 총합 DPS × 24초를 나눈다 */

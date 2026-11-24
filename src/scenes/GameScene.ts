@@ -39,6 +39,7 @@ import { arenaLayout, clampToArena, makeArena, outsideArena, type ArenaGeom } fr
 import { enterBattle } from '../ui/entry';
 import { hardStage, type HardStageDef } from '../data/hardStages';
 import { fullH, offY } from '../ui/layout';
+import { playUltCutscene, preloadUlt } from '../ui/UltCutscene';
 import { capeKey, makeSkinTextures, trailKey } from '../ui/skinArt';
 
 /** 적 투사체(직선탄·추적 구체) */
@@ -69,7 +70,7 @@ function upgradeIcon(u: Upgrade, dragonId: string): string | null {
 /** 카드 종류 색(그림 요청서 3: 기본공격 주황 · 액티브 남보라 · 패시브 청록) */
 const KIND_COLOR = { basic: 0xff8a3d, active: 0x6d5bd0, passive: 0x22b8a8, filler: 0x8a8f9e } as const;
 const KIND_LABEL = { basic: '기본 공격', active: '액티브', passive: '패시브', filler: '보급' } as const;
-type Mode = 'play' | 'choose' | 'paused' | 'clearing' | 'result';
+type Mode = 'play' | 'choose' | 'paused' | 'clearing' | 'result' | 'ult'; // ult = 필살기 컷신 3초(게임 멈춤)
 
 interface Hazard {
   left: number;
@@ -223,6 +224,7 @@ export class GameScene extends Phaser.Scene {
     preloadStageArt(this, this.stage.id); // 이 단계 바닥·적 그림(받은 것만, 그림 요청서 10)
     preloadSfx(this, BATTLE_SFX_FILES); // 전투 효과음(실제 실행 경로에서만 읽음 — 기획 13.2)
     preloadMusic(this, ['bgm-battle', 'bgm-boss']);
+    preloadUlt(this, this.forcedDragon ?? Progress.load().selectedDragonId); // 필살기 영상(받은 드래곤만)·공통 배경
   }
 
   /** 개발 전용(측정 봇): 보유하지 않은 드래곤도 그대로 출격(저장은 건드리지 않음). 배포본에서는 무시 */
@@ -371,6 +373,12 @@ export class GameScene extends Phaser.Scene {
       enemies: () => this.enemies.getChildren() as Enemy[],
       level: (id) => this.upgradeLevels.get(id) ?? 0,
       hit: (e, spec) => this.hitEnemy(e, spec),
+      kill: (e, tag) => {
+        if (!e.active || this.mode !== 'play') return;
+        this.dmgLog[tag] = (this.dmgLog[tag] ?? 0) + Math.max(0, e.hp);
+        this.fx.hit(e.x, e.y, false, PALETTE[this.dragon.id]);
+        if (e.hurt(e.hp + 1)) this.killEnemy(e, tag);
+      },
       fx: this.fx,
       onFire: (angle) => this.onFire(angle),
       heal: (pct) => {
@@ -577,18 +585,41 @@ export class GameScene extends Phaser.Scene {
     this.specialText = this.add.text(30, 222, '', { ...style, fontSize: '20px', color: '#e1bee7', strokeThickness: 4 }).setScrollFactor(0).setDepth(UI_DEPTH);
   }
 
+  /**
+   * 필살기(2026-11-25, docs/ULTIMATE.md): 게임을 멈추고 3초 컷신 → 섬광 순간 다시 움직이며 피해·효과(signature.cast).
+   * 컷신 동안은 물리·게임 시계·쿨타임이 모두 멈춘다(맞지 않음).
+   */
   private castSignature(): void {
-    if (this.mode !== 'play') return;
-    if (this.signature.counter) {
-      this.popText(this.player.x, this.player.y - 70, `기본 공격 ${this.signature.def.every}회마다 자동`, '#c9bfe0');
-      return;
-    }
-    if (this.signature.cast()) {
-      const ss = SIGNATURE_SFX[this.dragon.id];
-      if (ss) playSfx(this, ss);
-      this.stageLog.push({ name: 'signature:cast', at: Math.round(this.elapsed) });
-      this.popText(this.player.x, this.player.y - 70, this.signature.def.name, '#ffffff');
-    }
+    if (this.mode !== 'play' || !this.signature.ready) return;
+    this.mode = 'ult';
+    this.physics.pause();
+    this.time.paused = true;
+    const cam = this.cameras.main;
+    const from = { x: (this.player.x - cam.worldView.x) * cam.zoom, y: (this.player.y - cam.worldView.y) * cam.zoom };
+    const wasVisible = this.skin.visible;
+    this.skin.setVisible(false);
+    const topKey = `top-${this.dragon.id}`;
+    playUltCutscene(this, {
+      dragonId: this.dragon.id,
+      name: this.signature.ultName,
+      color: this.signature.def.color,
+      dragonKey: this.textures.exists(topKey) ? topKey : `dragon-${this.dragon.id}`,
+      from,
+      onHit: () => {
+        if (this.mode !== 'ult') return; // 컷신 중 판이 끝난 경우 등
+        this.mode = 'play';
+        this.physics.resume();
+        this.time.paused = false;
+        this.skin.setVisible(wasVisible);
+        if (this.signature.cast()) {
+          const ss = SIGNATURE_SFX[this.dragon.id];
+          if (ss) playSfx(this, ss);
+          this.cameras.main.shake(260, 0.006);
+          this.stageLog.push({ name: 'signature:cast', at: Math.round(this.elapsed) });
+        }
+      },
+      onDone: () => {},
+    });
   }
 
   /** 전투 중 공격력 배율: 암흑의 계약 룬(HP 50% 이하) */
@@ -732,7 +763,8 @@ export class GameScene extends Phaser.Scene {
     }
     this.sigWasReady = ready;
     this.sigIcon.setAlpha(ready ? 1 : 0.45);
-    this.sigText.setText(ready ? sg.def.name : `${Math.ceil(sg.cooldownLeft / 1000)}초`);
+    const left = Math.ceil(sg.cooldownLeft / 1000);
+    this.sigText.setText(ready ? sg.ultName : left >= 60 ? `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}` : `${left}초`);
     if (!ready) g.lineStyle(6, sg.def.color, 1).beginPath().arc(560, 140, 44, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * sg.charge).strokePath();
     this.specialText.setText(sg.reduce > 0 ? `🛡 ${sg.def.name}` : '');
   }

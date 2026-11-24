@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import type { Enemy } from '../objects/Enemy';
 import { RED_BASIC } from '../data/basicAttack';
-import { aoePerTarget, signatureCap, sigGrowth, SIGNATURE_RULES as R, SIGNATURES, type SigGrowth, type SignatureDef } from '../data/signature';
+import { aoePerTarget, signatureCap, sigGrowth, SIGNATURE_RULES as R, SIGNATURES, ultCap, ultCooldown, ultMult, ULT_NAMES, type SigGrowth, type SignatureDef } from '../data/signature';
 import type { DragonId } from '../data/dragons';
 import type { CombatHost } from './CombatHost';
 import { playSfx } from './Sfx';
@@ -81,36 +81,35 @@ export class Signature {
     readonly tier = 0,
   ) {
     this.def = SIGNATURES[dragonId];
-    this.cooldownMs = this.def.cooldownMs * cdMult;
+    this.cooldownMs = ultCooldown(dragonId) * cdMult; // 필살기(2026-11-25): 180초, 전설 120초
     this.growth = sigGrowth(dragonId, tier);
     makeSigTextures(h.scene);
   }
 
   get ready(): boolean {
-    return !this.counter && this.cd <= 0;
+    return this.cd <= 0;
   }
 
-  /** 기본 공격 횟수형(크로노·보이드·오로라) */
+  /** 필살기 이름(컷신·버튼 표시) */
+  get ultName(): string {
+    return ULT_NAMES[this.dragonId];
+  }
+
+  /**
+   * 기본 공격 횟수형(크로노·보이드·오로라)은 2026-11-25 필살기 개편으로 없어졌다(버튼으로 쓰는 필살기, 120초).
+   * 화면 코드 호환용으로 남김 — 늘 false.
+   */
   get counter(): boolean {
-    return this.def.kind === 'counter';
+    return false;
   }
 
-  /** 0(방금 씀) ~ 1(준비). 횟수형은 센 기본 공격 비율 */
+  /** 0(방금 씀) ~ 1(준비) */
   get charge(): number {
-    if (this.counter) return this.count / this.def.every!;
     return this.cooldownMs > 0 ? 1 - Math.max(0, this.cd) / this.cooldownMs : 1;
   }
 
-  /** 기본 공격 한 묶음마다 게임 장면이 부른다. 횟수형만 세고, 다 차면 자동 발동 후 처음부터 */
-  onVolley(): void {
-    if (!this.counter) return;
-    this.count++;
-    if (this.count < this.def.every!) return;
-    this.count = 0;
-    this.uses++;
-    this.dealt.clear();
-    this.fireCounter();
-  }
+  /** 기본 공격 한 묶음마다 게임 장면이 부른다. 예전 자동 발동(전설 3종)은 없어져 아무것도 하지 않는다 */
+  onVolley(): void {}
 
   /** 전설 3종 고유 공격(피해 = 지금 기본 공격 DPS × 대상당 초, 많이 맞으면 총합 24초를 나눔 — 광역 규칙과 같음) */
   private fireCounter(): void {
@@ -242,8 +241,20 @@ export class Signature {
     return this.h.scene;
   }
 
+  /**
+   * 필살기 발동(컷신이 끝나는 순간 게임 장면이 부른다): 그 드래곤 원래 전용 스킬 효과 + 화면 전체 필살기 피해(ultimateHit).
+   * 전설 3종(예전 자동 스킬)은 원래 고유 공격(시계 폭탄·블랙홀·극광)을 효과로 쓴다.
+   */
   cast(): boolean {
-    if (this.counter || !this.ready) return false; // 횟수형은 버튼으로 쓰지 않음(기본 공격으로 자동)
+    if (!this.ready) return false;
+    if (this.def.kind === 'counter') {
+      this.cd = this.cooldownMs;
+      this.uses++;
+      this.dealt.clear();
+      this.fireCounter();
+      this.ultimateHit();
+      return true;
+    }
     const d = this.def;
     const g = this.growth;
     const dps = this.dps() * g.dmg;
@@ -405,7 +416,28 @@ export class Signature {
         break;
       }
     }
+    this.ultimateHit();
     return true;
+  }
+
+  /**
+   * 필살기 피해(docs/ULTIMATE.md): 화면에 보이는 일반 몬스터는 모두 처치,
+   * 엘리트·보스는 D(= DPS × 광역 대상당 초) × 등급 배율(일반·희귀 4 · 영웅 5 · 전설 6), 한 번 상한(보스 24%·엘리트 75%).
+   */
+  private ultimateHit(): void {
+    const view = this.scene.cameras.main.worldView;
+    const pad = 30;
+    const D = this.dps() * this.growth.dmg * R.aoePerTargetSec * ultMult(this.dragonId);
+    for (const e of this.live()) {
+      if (e.x < view.x - pad || e.x > view.right + pad || e.y < view.y - pad || e.y > view.bottom + pad) continue;
+      if (e.rank === 'normal') {
+        if (this.h.kill) this.h.kill(e, 'signature');
+        else this.h.hit(e, { source: 'active', coef: 0, flat: e.hp * 3 + 1, tag: 'signature' });
+        continue;
+      }
+      const amount = Math.min(D, ultCap(e.rank, e.maxHp));
+      if (amount > 0) this.h.hit(e, { source: 'active', coef: 0, flat: amount, tag: 'signature' });
+    }
   }
 
   update(delta: number): void {
