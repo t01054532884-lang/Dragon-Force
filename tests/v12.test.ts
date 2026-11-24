@@ -227,7 +227,7 @@ describe('6-5 루비 상자·천장', () => {
     expect(sum(DRAGON_BOX.essenceRarity)).toBe(100);
     expect(sum(EQUIPMENT_BOX.rarity)).toBe(100);
     expect(RUNE_BOX.bundles.reduce((a, [, w]) => a + w, 0)).toBe(100);
-    expect(DRAGON_BOX.kind).toEqual({ card: 50, fragment: 35, essence: 15 }); // v1.2: 룬 조각 분리
+    expect(DRAGON_BOX.kind).toEqual({ card: 52, fragment: 37, essence: 11 }); // v1.2: 룬 조각 분리 · 11/25 정수 15 → 11%
   });
   it('루비 부족이면 아무것도 안 바뀜, 10회는 10회 가격 차감·결과 10개', () => {
     expect(openBox({ ...defaultProgress(), rubies: BOXES.dragon.price1 - 1 }, 'dragon', 1)).toMatchObject({ ok: false, reason: 'rubies' });
@@ -242,7 +242,7 @@ describe('6-5 루비 상자·천장', () => {
     expect(r.ok && r.progress.summon.legacyTickets).toBe(13);
     expect(openBox(p, 'rune', 1, 'ticket')).toMatchObject({ ok: false });
   });
-  it('10만 회: 1차 추첨 50/35/15 수렴(룬 조각 없음), 레드 정수·조각 없음, 전설 정수 간격 ≤ 전설 보장(150, 11/25), 희귀 이상 정수 간격 ≤ 10', () => {
+  it('10만 회: 1차 추첨 52/37/11 수렴(11/25, 예전 50/35/15)(룬 조각 없음), 레드 정수·조각 없음, 전설 정수 간격 ≤ 전설 보장(150, 11/25), 희귀 이상 정수 간격 ≤ 10', () => {
     let p = defaultProgress();
     const rnd = seeded(7);
     const kinds: Record<string, number> = {};
