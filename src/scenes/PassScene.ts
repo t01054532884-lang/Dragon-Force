@@ -16,14 +16,16 @@ import { gameNow } from '../ui/widgets';
  * 드래곤 패스 화면(2026-11-23, 제작자 예시 "드래곤 패스 시즌 1"): 시즌 정보 · 패스 레벨 막대 · 무료/프리미엄/로열 30칸 · 일괄 수령 · 구매 카드(가치 %).
  * 칸을 누르면 그 칸만, "일괄 수령"은 받을 수 있는 칸 모두. 유료 줄은 결제 연결 전이라 구매 버튼은 안내만.
  */
+// 칸 크기(2026-11-24 테스터 피드백 "보상받기가 잘 안 눌림"): 레벨 번호를 맨 왼쪽으로 빼고 세 줄을 같은 너비·더 높게.
 const COL: Record<PassTrack, { x: number; w: number; fill: number; head: string; headFill: number }> = {
-  free: { x: 158, w: 252, fill: 0x22305a, head: '무료 패스', headFill: 0x3a4a7a },
-  premium: { x: 446, w: 186, fill: 0x3a2370, head: '프리미엄', headFill: 0x6a3aa8 },
-  royal: { x: 632, w: 170, fill: 0x5a3a14, head: '로열 패스', headFill: 0xc8901e },
+  free: { x: 186, w: 206, fill: 0x22305a, head: '무료 패스', headFill: 0x3a4a7a },
+  premium: { x: 400, w: 206, fill: 0x3a2370, head: '프리미엄', headFill: 0x6a3aa8 },
+  royal: { x: 614, w: 206, fill: 0x5a3a14, head: '로열 패스', headFill: 0xc8901e },
 };
-const LV_X = 316;
-const ROW0 = 640;
-const ROW_GAP = 82;
+const LV_X = 48;
+const CELL_H = 104;
+const ROW0 = 650;
+const ROW_GAP = 120;
 
 const rewardItem = (it: PassItem): RewardItem => ({
   image: it.kind === 'redFrag' ? undefined : PASS_ITEM_ICON[it.kind],
@@ -101,7 +103,7 @@ export class PassScene extends Phaser.Scene {
       const lvN = i + 1;
       const y = ROW0 + i * ROW_GAP;
       const reached = lv.level >= lvN;
-      const hex = this.add.circle(LV_X, y, 26, reached ? 0xc8901e : 0x3a3352).setStrokeStyle(4, reached ? 0xffe39a : 0x6b6488);
+      const hex = this.add.circle(LV_X, y, 30, reached ? 0xc8901e : 0x3a3352).setStrokeStyle(4, reached ? 0xffe39a : 0x6b6488);
       text(this, LV_X, y, String(lvN), TYPE.caption, COLOR.text, true, true).setOrigin(0.5);
       void hex;
       for (const t of ['free', 'premium', 'royal'] as const) this.cell(p, t, lvN, y);
@@ -110,9 +112,9 @@ export class PassScene extends Phaser.Scene {
 
     // ── 일괄 수령
     const n = (['free', 'premium', 'royal'] as const).reduce((s, t) => s + PASS_REWARDS[t].filter((_, i) => cellState(p, t, i + 1) === 'ready').length, 0);
-    const all = button(this, 360, y + 20, 320, 76, n ? `일괄 수령 (${n})` : '받을 보상 없음', () => this.claim(), { kind: 'growth', size: TYPE.body });
+    const all = button(this, 360, y + 24, 420, 92, n ? `일괄 수령 (${n})` : '받을 보상 없음', () => this.claim(), { kind: 'growth', size: TYPE.body });
     all.setEnabled(n > 0);
-    y += 100;
+    y += 116;
 
     // ── 구매 카드: 가치 % 크게(계산값)
     (['premium', 'royal'] as const).forEach((k, i) => {
@@ -152,28 +154,30 @@ export class PassScene extends Phaser.Scene {
     const c = COL[t];
     const it = PASS_REWARDS[t][lv - 1];
     const st = cellState(p, t, lv);
-    const box = plate(this, c.x, y, c.w, 70, { r: 14, fill: c.fill, gold: st === 'ready' });
-    const ix = -c.w / 2 + 34;
-    if (it.kind === 'redFrag') box.add(this.add.image(ix, 0, 'portrait-red').setDisplaySize(52, 52));
-    else if (this.textures.exists(PASS_ITEM_ICON[it.kind])) box.add(this.add.image(ix, 0, PASS_ITEM_ICON[it.kind]).setDisplaySize(46, 46));
-    const tx = ix + 32;
-    const short = t === 'free' ? PASS_ITEM_LABEL[it.kind] : PASS_ITEM_LABEL[it.kind].replace(' 개봉권', '권');
-    box.add(text(this, tx, -13, short, 15, COLOR.text, true, true).setOrigin(0, 0.5));
-    box.add(text(this, tx, 13, it.kind === 'gold' || it.kind === 'rubies' ? it.n.toLocaleString() : `×${it.n}`, 17, COLOR.gold, true, true).setOrigin(0, 0.5));
+    const H = CELL_H;
+    const box = plate(this, c.x, y, c.w, H, { r: 16, fill: c.fill, gold: st === 'ready' });
+    const ix = -c.w / 2 + 40;
+    if (it.kind === 'redFrag') box.add(this.add.image(ix, -6, 'portrait-red').setDisplaySize(64, 64));
+    else if (this.textures.exists(PASS_ITEM_ICON[it.kind])) box.add(this.add.image(ix, -6, PASS_ITEM_ICON[it.kind]).setDisplaySize(60, 60));
+    const tx = ix + 38;
+    const short = PASS_ITEM_LABEL[it.kind].replace(' 개봉권', '권');
+    box.add(text(this, tx, -18, short, 18, COLOR.text, true, true).setOrigin(0, 0.5));
+    box.add(text(this, tx, 12, it.kind === 'gold' || it.kind === 'rubies' ? it.n.toLocaleString() : `×${it.n}`, 22, COLOR.gold, true, true).setOrigin(0, 0.5));
     if (st === 'claimed') {
       box.setAlpha(0.55);
-      box.add(text(this, c.w / 2 - 18, -18, '✔', 24, COLOR.ok, true, true).setOrigin(0.5));
+      box.add(text(this, c.w / 2 - 22, -H / 2 + 22, '✔', 28, COLOR.ok, true, true).setOrigin(0.5));
     } else if (st === 'locked' || st === 'buy') {
-      box.add(text(this, c.w / 2 - 16, -18, '🔒', 18, COLOR.text).setOrigin(0.5));
+      box.add(text(this, c.w / 2 - 20, -H / 2 + 22, '🔒', 22, COLOR.text).setOrigin(0.5));
       if (st === 'locked') box.setAlpha(0.8);
     } else {
-      // 받기 가능: 금 테두리 + 칸 아래 테두리에 걸친 작은 "받기"(좁은 칸에서 이름·수량을 가리지 않게 — 2026-11-23)
-      const tag = plate(this, c.w / 2 - 30, 30, 52, 24, { r: 10, fill: 0x2e9e4a });
-      tag.add(text(this, 0, 0, '받기', 13, COLOR.text, true, true).setOrigin(0.5));
+      // 받기 가능: 금 테두리 + 칸 아래쪽 가운데 "받기"(칸 어디를 눌러도 받아짐)
+      const tag = plate(this, 0, H / 2 - 4, 110, 34, { r: 12, fill: 0x2e9e4a });
+      tag.add(text(this, 0, 0, '받기', 18, COLOR.text, true, true).setOrigin(0.5));
       box.add(tag);
-      this.tweens.add({ targets: tag, scale: 1.1, duration: 500, yoyo: true, repeat: -1 });
+      this.tweens.add({ targets: tag, scale: 1.08, duration: 500, yoyo: true, repeat: -1 });
     }
-    box.setInteractive({ useHandCursor: true, hitArea: new Phaser.Geom.Rectangle(-c.w / 2, -35, c.w, 70), hitAreaCallback: Phaser.Geom.Rectangle.Contains });
+    // 히트 영역은 컨테이너 왼쪽 위(0,0) 기준(Phaser가 displayOrigin을 더함). 전에는 (-w/2,-h/2)로 잡아 칸의 왼쪽 위 1/4만 눌렸다(2026-11-24 수정).
+    box.setInteractive({ useHandCursor: true, hitArea: new Phaser.Geom.Rectangle(0, 0, c.w, H + 14), hitAreaCallback: Phaser.Geom.Rectangle.Contains });
     box.on('pointerup', () => {
       if (st === 'ready') this.claim({ t, lv });
       else if (st === 'buy') toast(this, t === 'royal' ? '로열 패스를 구매하면 받을 수 있어요' : '프리미엄 패스를 구매하면 받을 수 있어요', COLOR.textSub);

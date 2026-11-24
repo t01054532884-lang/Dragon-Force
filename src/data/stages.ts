@@ -126,6 +126,13 @@ export function difficulty(S: number) {
   };
 }
 
+/**
+ * 1~5단계 완화(테스터 피드백 2026-11-24 "1~5단계 난이도를 조금 더 낮춰도 될 것 같다"): 쉬움 모드 적 체력·피해에 곱한다.
+ * 엘리트·보스·일반 몬스터 모두. 6단계부터 1(그대로). 어려움에는 쓰지 않는다(StageDirector).
+ */
+export const EARLY_EASE: Record<number, number> = { 1: 0.85, 2: 0.85, 3: 0.88, 4: 0.9, 5: 0.92 };
+export const earlyEase = (S: number): number => EARLY_EASE[S] ?? 1;
+
 /** 개체별 체력 배율: 엘리트 2는 ×1.15, 일반 보스 ×1.30, 최종보스 ×1.70~2.00 */
 export function rankHpMult(stage: StageData, rank: 'normal' | 'elite1' | 'elite2' | 'boss'): number {
   if (rank === 'elite2') return 1.15;

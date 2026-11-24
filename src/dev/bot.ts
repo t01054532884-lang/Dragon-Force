@@ -149,6 +149,35 @@ function steer(s: Any, opt: BotOpt): void {
   const cd = Math.hypot(cx, cy) || 1;
   vx += (-cy / cd) * 0.7 + (cx / cd) * ((cd - 600) / 600);
   vy += (cx / cd) * 0.7 + (cy / cd) * ((cd - 600) / 600);
+  // 정사각형 전장: 벽·모서리에 몰리면 갇히므로 벽에서 밀어낸다(원형은 위 카이팅이 벽을 따라 돎).
+  // 바로 붙은 적을 피하는 힘이 너무 커서 모서리로 밀려 갇히지 않게, 사각형에서는 그 힘을 3으로 자른다.
+  if (s.arena.shape === 'square') {
+    const F = Math.hypot(vx, vy);
+    if (F > 3) {
+      vx *= 3 / F;
+      vy *= 3 / F;
+    }
+    const lim = s.arena.r - 260;
+    const ox = px - s.arena.x;
+    const oy = py - s.arena.y;
+    if (Math.abs(ox) > lim) vx -= Math.sign(ox) * ((Math.abs(ox) - lim) / 260) * 3;
+    if (Math.abs(oy) > lim) vy -= Math.sign(oy) * ((Math.abs(oy) - lim) / 260) * 3;
+  }
+  // 장애물(2026-11-24 전장 모양): 가까우면 밀려나고 옆으로 돌아간다(사람처럼 기둥·바위를 피해 다님)
+  for (const o of (s.arena.obstacles ?? []) as Any[]) {
+    const qx = o.kind === 'pillar' ? o.x : Math.max(o.x - o.w / 2, Math.min(o.x + o.w / 2, px));
+    const qy = o.kind === 'pillar' ? o.y : Math.max(o.y - o.h / 2, Math.min(o.y + o.h / 2, py));
+    const dx = px - qx;
+    const dy = py - qy;
+    const d = Math.max(1, Math.hypot(dx, dy) - (o.kind === 'pillar' ? o.r : 0));
+    if (d < 170) {
+      const k = (170 - d) / 170;
+      const L0 = Math.hypot(dx, dy) || 1;
+      const side = dx * vy - dy * vx > 0 ? 1 : -1; // 지금 가던 쪽으로 돌아 나감
+      vx += (dx / L0) * k * 2.5 + (-dy / L0) * side * k * 1.5;
+      vy += (dy / L0) * k * 2.5 + (dx / L0) * side * k * 1.5;
+    }
+  }
   const L = Math.hypot(vx, vy);
   if (L > 0.05) s.stickVec.set(vx / L, vy / L);
   else s.stickVec.set(0, 0);

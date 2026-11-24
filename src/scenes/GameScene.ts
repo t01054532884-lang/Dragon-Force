@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { makeTextures } from '../textures';
-import { HIT_CAP, type EnemyKind } from '../data/enemies';
+import { ENEMIES, HIT_CAP, type EnemyKind } from '../data/enemies';
 import { BASE_STATS, M, xpToNext, type RunStats } from '../data/stats';
 import { REWARD, STAGES, type StageData } from '../data/stages';
 import { BASIC_TAGS, compareText, rollOffer, synergyWith, UPGRADES, type Upgrade } from '../data/upgrades';
@@ -35,6 +35,7 @@ import { DIFFICULTY_LABEL, DIFFICULTY_MULT, type Difficulty } from '../data/econ
 import { decideDrop, ITEM_RULES, ITEMS, newDropState, type DropState, type ItemId } from '../data/items';
 import { GEM_MERGE, gemTier, mergeGroups } from '../systems/GemMerge';
 import { chapterOf, SEASON1_FINALE } from '../data/season1';
+import { arenaLayout, clampToArena, hitsObstacle, makeArena, outsideArena, type ArenaGeom } from '../data/arenas';
 import { enterBattle } from '../ui/entry';
 import { HARD_GOLD_MULT, hardStage, type HardStageDef } from '../data/hardStages';
 import { fullH, offY } from '../ui/layout';
@@ -84,7 +85,7 @@ export class GameScene extends Phaser.Scene {
   private keys!: Record<'up' | 'down' | 'left' | 'right' | 'w' | 'a' | 's' | 'd', Phaser.Input.Keyboard.Key>;
   private enemies!: Phaser.Physics.Arcade.Group;
   private gems!: Phaser.Physics.Arcade.Group;
-  private arena = { x: WORLD_SIZE / 2, y: WORLD_SIZE / 2, r: ARENA_R };
+  private arena: ArenaGeom = { x: WORLD_SIZE / 2, y: WORLD_SIZE / 2, r: ARENA_R };
 
   private stage!: StageData;
   private seed = 0;
@@ -263,7 +264,8 @@ export class GameScene extends Phaser.Scene {
     this.choiceQueue = [];
     // 어려움: 단계별 설정(전장 크기·적 배율·엘리트/보스 수·기믹). 쉬움은 기존 그대로
     this.hard = this.difficulty === 'hard' ? hardStage(this.stage.id) : null;
-    this.arena = { x: WORLD_SIZE / 2, y: WORLD_SIZE / 2, r: ARENA_R * (this.hard?.arenaSizeMultiplier ?? 1) };
+    // 전장 모양(2026-11-24): 단계마다 원형/정사각형 + 장애물(src/data/arenas.ts)
+    this.arena = makeArena(WORLD_SIZE / 2, WORLD_SIZE / 2, ARENA_R * (this.hard?.arenaSizeMultiplier ?? 1), arenaLayout(this.stage.id));
     this.dangerZones = [];
     this.bossTexts = [];
     this.bossFrames = [];
@@ -429,19 +431,31 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  /** 원형 투기장: 안쪽은 잿빛 돌바닥, 가장자리는 돌벽, 바깥은 어둠 */
-  /** 원형 투기장. 챕터마다 바닥·벽 색(7단계 5개 챕터 테마). 1단계 잿빛 숲은 기존 그대로 */
+  /** 투기장: 단계마다 원형/정사각형 + 장애물(src/data/arenas.ts). 챕터마다 바닥·벽 색(7단계 5개 챕터 테마). 1단계 잿빛 숲은 기존 그대로 */
   private drawArena(): void {
     const { x, y, r } = this.arena;
     const ch = chapterOf(this.stage.id);
+    const square = this.arena.shape === 'square';
     this.add.rectangle(0, 0, WORLD_SIZE, WORLD_SIZE, 0x0d0f14).setOrigin(0);
     // 1단계 챕터(잿빛 숲)는 기획자 바닥 그림(이음새 없는 512 무늬)이 있으면 그것으로
     const floorKey = ch.id === 1 ? (this.textures.exists('floor-ash') ? 'floor-ash' : 'ground') : `ground-${ch.id}`;
     const floor = this.add.tileSprite(0, 0, WORLD_SIZE, WORLD_SIZE, floorKey).setOrigin(0);
     if (floorKey === 'floor-ash') floor.setTileScale(0.5).setTint(0x9a9aa8); // 캐릭터가 잘 보이게 조금 어둡게
-    const mask = this.make.graphics({}, false).fillStyle(0xffffff).fillCircle(x, y, r);
+    const mg = this.make.graphics({}, false).fillStyle(0xffffff);
+    const mask = square ? mg.fillRect(x - r, y - r, r * 2, r * 2) : mg.fillCircle(x, y, r);
     floor.setMask(mask.createGeometryMask());
+    // 벽 바깥은 어둠으로 덮는다(위 마스크가 Phaser 4에서 바닥을 자르지 못해 바깥에도 바닥이 보였음 — 2026-11-24, 전장 모양이 또렷하게)
+    const dark = this.add.graphics().fillStyle(0x0d0f14, 1);
+    if (square) {
+      const W = WORLD_SIZE;
+      dark.fillRect(0, 0, W, y - r).fillRect(0, y + r, W, W - y - r).fillRect(0, y - r, x - r, r * 2).fillRect(x + r, y - r, W - x - r, r * 2);
+    } else dark.lineStyle(WORLD_SIZE * 1.5, 0x0d0f14, 1).strokeCircle(x, y, r + WORLD_SIZE * 0.75);
     const g = this.add.graphics();
+    if (square) {
+      this.drawSquareWalls(g, ch);
+      this.drawObstacles(ch);
+      return;
+    }
     g.lineStyle(4, ch.line, 0.35).strokeCircle(x, y, r * 0.35).strokeCircle(x, y, r * 0.7); // 바닥 문양
     g.lineStyle(40, ch.wall).strokeCircle(x, y, r + 20); // 벽
     g.lineStyle(6, 0x6d6e78).strokeCircle(x, y, r);
@@ -449,9 +463,65 @@ export class GameScene extends Phaser.Scene {
       const a = (i / 24) * Math.PI * 2;
       g.fillStyle(ch.stone).fillRect(x + Math.cos(a) * (r + 22) - 14, y + Math.sin(a) * (r + 22) - 14, 28, 28); // 벽 돌기둥
     }
+    this.drawObstacles(ch);
+  }
+
+  /** 정사각형 전장: 바닥 문양(사각 두 겹 + 대각선) · 두꺼운 돌벽 · 변마다 돌기둥 */
+  private drawSquareWalls(g: Phaser.GameObjects.Graphics, ch: ReturnType<typeof chapterOf>): void {
+    const { x, y, r } = this.arena;
+    g.lineStyle(4, ch.line, 0.35).strokeRect(x - r * 0.35, y - r * 0.35, r * 0.7, r * 0.7).strokeRect(x - r * 0.7, y - r * 0.7, r * 1.4, r * 1.4);
+    g.lineStyle(3, ch.line, 0.18).lineBetween(x - r * 0.7, y - r * 0.7, x + r * 0.7, y + r * 0.7).lineBetween(x + r * 0.7, y - r * 0.7, x - r * 0.7, y + r * 0.7);
+    g.lineStyle(40, ch.wall).strokeRect(x - r - 20, y - r - 20, r * 2 + 40, r * 2 + 40); // 벽
+    g.lineStyle(6, 0x6d6e78).strokeRect(x - r, y - r, r * 2, r * 2);
+    const n = 6;
+    for (let i = 0; i <= n; i++) {
+      const t = -r - 22 + ((r + 22) * 2 * i) / n;
+      for (const [px, py] of [[x + t, y - r - 22], [x + t, y + r + 22], [x - r - 22, y + t], [x + r + 22, y + t]]) g.fillStyle(ch.stone).fillRect(px - 14, py - 14, 28, 28); // 벽 돌기둥
+    }
+  }
+
+  /**
+   * 장애물: 기획자 그림(obstacle-pillar-챕터·obstacle-rock-챕터, docs/ART_REQUEST_9.md)이 있으면 그 그림, 없으면 챕터 색 돌 도형.
+   * 그림은 장애물 판정 크기에 맞춰 늘린다(판정은 도형 그대로).
+   */
+  private drawObstacles(ch: ReturnType<typeof chapterOf>): void {
+    for (const o of this.arena.obstacles ?? []) {
+      const key = `obstacle-${o.kind}-${ch.id}`;
+      if (o.kind === 'pillar') {
+        if (this.textures.exists(key)) {
+          this.add.image(o.x, o.y - o.r * 0.25, key).setDisplaySize(o.r * 2.3, o.r * 2.3);
+          continue;
+        }
+        const g = this.add.graphics();
+        g.fillStyle(0x000000, 0.35).fillEllipse(o.x + 10, o.y + 14, o.r * 2.2, o.r * 1.6); // 그림자
+        g.fillStyle(COLOR.outline, 1).fillCircle(o.x, o.y, o.r + 4);
+        g.fillStyle(ch.wall, 1).fillCircle(o.x, o.y, o.r);
+        g.fillStyle(ch.stone, 1).fillCircle(o.x, o.y - o.r * 0.18, o.r * 0.82); // 윗면
+        g.fillStyle(0xffffff, 0.12).fillCircle(o.x - o.r * 0.25, o.y - o.r * 0.4, o.r * 0.35);
+        g.lineStyle(4, ch.line, 0.55).strokeCircle(o.x, o.y - o.r * 0.18, o.r * 0.55); // 문양
+      } else {
+        if (this.textures.exists(key)) {
+          // 그림은 가로로 긴 바위 한 장 — 세로 바위는 90° 돌려 쓴다
+          const tall = o.h > o.w;
+          this.add.image(o.x, o.y, key).setRotation(tall ? Math.PI / 2 : 0).setDisplaySize((tall ? o.h : o.w) + 24, (tall ? o.w : o.h) + 24);
+          continue;
+        }
+        const g = this.add.graphics();
+        const [l, t, w, h] = [o.x - o.w / 2, o.y - o.h / 2, o.w, o.h];
+        g.fillStyle(0x000000, 0.35).fillRoundedRect(l + 10, t + 14, w, h, 18); // 그림자
+        g.fillStyle(COLOR.outline, 1).fillRoundedRect(l - 4, t - 4, w + 8, h + 8, 20);
+        g.fillStyle(ch.wall, 1).fillRoundedRect(l, t, w, h, 16);
+        g.fillStyle(ch.stone, 1).fillRoundedRect(l + 6, t + 4, w - 12, h - 16, 12); // 윗면
+        g.fillStyle(0xffffff, 0.1).fillRoundedRect(l + 12, t + 10, (w - 24) * 0.5, Math.min(18, h * 0.2), 8);
+        g.lineStyle(3, ch.line, 0.45);
+        if (w > h) g.lineBetween(l + w * 0.3, t + h * 0.25, l + w * 0.45, t + h * 0.7).lineBetween(l + w * 0.65, t + h * 0.2, l + w * 0.75, t + h * 0.6); // 금
+        else g.lineBetween(l + w * 0.25, t + h * 0.3, l + w * 0.7, t + h * 0.45).lineBetween(l + w * 0.2, t + h * 0.65, l + w * 0.6, t + h * 0.75);
+      }
+    }
   }
 
   private spawnEnemy(kind: EnemyKind, x: number, y: number, hpMult: number): Enemy {
+    ({ x, y } = clampToArena(this.arena, x, y, ENEMIES[kind]?.radius ?? 20)); // 장애물·벽 안에서 나오지 않게
     const e = new Enemy(this, x, y, kind, hpMult);
     this.enemies.add(e);
     return e;
@@ -852,17 +922,16 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  /** 원형 벽 밖으로 나가지 못하게 안쪽으로 되돌린다 */
+  /** 벽 밖·장애물 안으로 들어가지 못하게 되돌린다(장애물은 옆으로 미끄러지게 밀어냄) */
   private keepInArena(o: Phaser.GameObjects.Image, radius: number): void {
-    const dx = o.x - this.arena.x;
-    const dy = o.y - this.arena.y;
-    const d = Math.hypot(dx, dy);
-    const max = this.arena.r - radius;
-    if (d > max) o.setPosition(this.arena.x + (dx / d) * max, this.arena.y + (dy / d) * max);
+    const p = clampToArena(this.arena, o.x, o.y, radius);
+    if (p.x !== o.x || p.y !== o.y) o.setPosition(p.x, p.y);
   }
 
   private updateEnemies(delta: number): void {
     const target = new Phaser.Math.Vector2(this.player.x, this.player.y);
+    // 떠돌이 판단용: 지금 전장의 일반 몬스터 수(src/objects/Enemy.ts ROAM)
+    Enemy.crowd = this.enemies.getChildren().reduce((n, o) => n + ((o as Enemy).active && (o as Enemy).rank === 'normal' ? 1 : 0), 0);
     for (const obj of [...this.enemies.getChildren()]) {
       const e = obj as Enemy;
       if (!e.active) continue;
@@ -910,7 +979,8 @@ export class GameScene extends Phaser.Scene {
         s.img.destroy();
         return false;
       }
-      const out = Phaser.Math.Distance.Between(s.img.x, s.img.y, this.arena.x, this.arena.y) > this.arena.r + 10;
+      // 벽 밖으로 나가거나 장애물에 맞으면 사라진다(장애물 뒤에 숨기 — 2026-11-24)
+      const out = outsideArena(this.arena, s.img.x, s.img.y, 10) || hitsObstacle(this.arena, s.img.x, s.img.y, 4);
       if (s.life <= 0 || out) {
         s.img.destroy();
         return false;
@@ -1510,10 +1580,8 @@ export class GameScene extends Phaser.Scene {
   /** 몬스터가 죽은 자리에 아이템 생성. 투기장 밖이면 안쪽으로 당긴다. persistent = 엘리트 확정 상자 */
   private spawnItem(id: ItemId, x: number, y: number, persistent: boolean): void {
     if (id === 'box' && this.boxCandidates().length === 0) id = 'potion'; // 모든 스킬 만렙이면 물약으로
-    const v = new Phaser.Math.Vector2(x - this.arena.x, y - this.arena.y);
-    const maxR = this.arena.r - 50;
-    if (v.length() > maxR) v.setLength(maxR);
-    const it = this.physics.add.image(this.arena.x + v.x, this.arena.y + v.y, `item-${id}`).setDepth(2.5); // 공격 예고보다 아래
+    ({ x, y } = clampToArena(this.arena, x, y, 50)); // 벽·장애물 안이면 밖으로
+    const it = this.physics.add.image(x, y, `item-${id}`).setDepth(2.5); // 공격 예고보다 아래
     this.items.add(it);
     it.setData({ id, expireAt: persistent ? Infinity : this.elapsed + ITEM_RULES.lifetimeMs });
     this.tweens.add({ targets: it, scale: 1.15, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.InOut' });

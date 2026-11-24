@@ -3,7 +3,8 @@ import { Enemy, type EnemyAction } from '../objects/Enemy';
 import type { EnemyKind } from '../data/enemies';
 import { PATTERN } from '../data/enemies';
 import { M } from '../data/stats';
-import { baseSpawn, difficulty, pace, rankHpMult, TIMELINE, type StageData } from '../data/stages';
+import { baseSpawn, difficulty, earlyEase, pace, rankHpMult, TIMELINE, type StageData } from '../data/stages';
+import { edgePointAt, type ArenaGeom } from '../data/arenas';
 import { HARD_ATTACK_GAP_MS, HARD_PACE, type HardStageDef } from '../data/hardStages';
 
 export type EliteSlotState = 'pending' | 'warning' | 'alive' | 'killed' | 'absorbed';
@@ -13,7 +14,7 @@ export type StagePhase = 'WAVE_1' | 'ELITE_1' | 'WAVE_2' | 'ELITE_2' | 'WAVE_3' 
 export interface DirectorHost {
   rng: Phaser.Math.RandomDataGenerator; // 같은 시드면 같은 생성 결과(재현 가능)
   playerPos(): Phaser.Math.Vector2;
-  arena: { x: number; y: number; r: number };
+  arena: ArenaGeom;
   spawn(kind: EnemyKind, x: number, y: number, hpMult: number): Enemy;
   enemyCount(): number;
   warnSpawn(x: number, y: number, ms: number, color: number): void; // 바닥 표시 + 화면 가장자리 방향 강조
@@ -107,7 +108,9 @@ export class StageDirector {
     this.eliteWarnAt = stage.eliteSpawns.map(() => null);
     this.record.eliteKillMs = stage.eliteSpawns.map(() => null);
     const base = difficulty(stage.id);
-    this.diff = { ...base, hp: base.hp * mult.hp, damage: base.damage * mult.damage };
+    // 1~5단계 완화(쉬움만, 2026-11-24 테스터 피드백) — 어려움은 그대로
+    const ease = hard ? 1 : earlyEase(stage.id);
+    this.diff = { ...base, hp: base.hp * mult.hp * ease, damage: base.damage * mult.damage * ease };
     // 같은 그룹 두 마리가 연달아 큰 공격을 시작하지 않게(어려움만, 쉬움은 기존 그대로)
     Enemy.attackGate = hard ? (e) => this.allowAttack(e) : null;
     h.emit('stage:start', { stage: stage.id, hard: !!hard });
@@ -426,8 +429,8 @@ export class StageDirector {
     const a = this.h.arena;
     const base = Math.atan2(first.y - a.y, first.x - a.x);
     return Array.from({ length: n }, (_, k) => {
-      const ang = base + (k * Math.PI * 2) / n;
-      return new Phaser.Math.Vector2(a.x + Math.cos(ang) * (a.r - 60), a.y + Math.sin(ang) * (a.r - 60));
+      const p = edgePointAt(a, base + (k * Math.PI * 2) / n, 60);
+      return new Phaser.Math.Vector2(p.x, p.y);
     });
   }
 
@@ -486,11 +489,11 @@ export class StageDirector {
     // 좁은 전장(어려움)에서는 플레이어와의 최소 거리를 반지름에 맞춰 줄인다(쉬움 22m 전장은 그대로 7m)
     const minD = Math.min(7 * 50, a.r * 0.32);
     for (let tries = 0; tries < 6; tries++) {
-      const ang = this.h.rng.frac() * Math.PI * 2;
-      const p = new Phaser.Math.Vector2(a.x + Math.cos(ang) * (a.r - 60), a.y + Math.sin(ang) * (a.r - 60));
+      const e = edgePointAt(a, this.h.rng.frac() * Math.PI * 2, 60); // 정사각형 전장은 네 변 위
+      const p = new Phaser.Math.Vector2(e.x, e.y);
       if (Phaser.Math.Distance.Between(p.x, p.y, pl.x, pl.y) > minD) return p;
     }
-    const away = Math.atan2(a.y - pl.y, a.x - pl.x);
-    return new Phaser.Math.Vector2(a.x + Math.cos(away) * (a.r - 60), a.y + Math.sin(away) * (a.r - 60));
+    const away = edgePointAt(a, Math.atan2(a.y - pl.y, a.x - pl.x), 60);
+    return new Phaser.Math.Vector2(away.x, away.y);
   }
 }

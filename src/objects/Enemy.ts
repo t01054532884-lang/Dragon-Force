@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { CC, ENEMIES, HARD_CC_BOSS, PATTERN, type EnemyDef, type EnemyKind, type PatternSpec } from '../data/enemies';
 import { M } from '../data/stats';
+import { clampToArena, randomPointIn, touchingWall, type ArenaGeom } from '../data/arenas';
 
 /** 7단계 공통 패턴 예고시간(ms) — 모든 난이도에서 같다(원문 6장) */
 export const TELEGRAPH = { projectile: 800, charge: 1000, area: 1200, shockwave: 1300, breath: 1500, claw: 900, line: 1000 };
@@ -33,12 +34,15 @@ interface Move {
   onEnd?: () => EnemyAction | EnemyAction[] | null; // 동작이 끝날 때 일어날 일(벽 충돌 충격파 등)
 }
 
-/** 적이 알아야 하는 바깥 정보: 투기장 중심·반지름 */
-export interface Arena {
-  x: number;
-  y: number;
-  r: number;
-}
+/** 적이 알아야 하는 바깥 정보: 투기장 중심·반지름·모양·장애물(src/data/arenas.ts) */
+export type Arena = ArenaGeom;
+
+/**
+ * 떠돌이(테스터 피드백 2026-11-24 "몹이 캐릭터만 따라온다 — 20·30마리 넘으면 맵을 돌아다니는 애들도"):
+ * 전장 일반 몬스터가 20마리 이상이면 25%, 30마리 이상이면 40%가 드래곤을 쫓지 않고 전장을 돌아다닌다(개체마다 정해진 주사위).
+ * 드래곤이 aggro 거리 안으로 오거나 맞으면 그때부터는 끝까지 쫓는다. 엘리트·보스·원거리·소환 몬스터는 그대로.
+ */
+export const ROAM = { at20: 0.25, at30: 0.4, aggro: 4.5 * M, speed: 0.6, retargetMs: [2500, 5000] as [number, number] };
 
 /** 그림 크기 = 반지름 × 3.6 (늑대 반지름 15 → 54px, 보스 52 → 187px — 기획 요청 5: 일반·엘리트·보스가 크기로 구별) */
 const ART_SCALE = 3.6;
@@ -117,6 +121,12 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
   private lifeLeft = Infinity;
   /** 소환형이 부른 졸개(최대 수 확인용) */
   minions: Enemy[] = [];
+  /** 지금 전장의 일반 몬스터 수(장면이 매 프레임 넣는다) — 떠돌이 판단용 */
+  static crowd = 0;
+  /** 떠돌이 주사위(0~1). 1이면 이미 드래곤을 알아챔(다시 떠돌지 않음) */
+  private roamRoll = Enemy.rng();
+  private roamTo: { x: number; y: number } | null = null;
+  private roamLeft = 0;
 
   constructor(scene: Phaser.Scene, x: number, y: number, readonly kind: EnemyKind, hpMult = 1) {
     const def = ENEMIES[kind];
@@ -259,8 +269,7 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
         const v = (m.speed ?? 0) * this.speedMult;
         this.body.setVelocity(Math.cos(m.angle!) * v, Math.sin(m.angle!) * v);
         this.setRotation(m.angle!);
-        const fromCenter = Phaser.Math.Distance.Between(this.x, this.y, arena.x, arena.y);
-        if (m.untilWall && fromCenter > arena.r - this.def.radius - 4) this.moveLeft = 0; // 벽에 부딪힘
+        if (m.untilWall && touchingWall(arena, this.x, this.y, this.def.radius)) this.moveLeft = 0; // 벽·장애물에 부딪힘
       } else {
         this.body.setVelocity(0, 0);
       }
@@ -278,6 +287,10 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
     const dx = target.x - this.x;
     const dy = target.y - this.y;
     const dist = Math.hypot(dx, dy) || 1;
+    if (this.roaming(dist)) {
+      this.roam(delta, arena);
+      return out;
+    }
     let aim = Math.atan2(dy, dx);
     if (this.def.behavior === 'flank' && dist > PATTERN.wolf.flankDist) {
       // uid가 짝수면 왼쪽, 홀수면 오른쪽으로 돌아 들어간다 → 무리가 양옆을 감싼다
@@ -312,6 +325,33 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
       else out.push(...this.choosePattern(target, dist, arena));
     }
     return out;
+  }
+
+  /** 떠돌이인가: 일반 근접 몬스터 · 전장이 붐빔 · 주사위 · 드래곤이 멀리 있음 · 맞은 적 없음 */
+  private roaming(dist: number): boolean {
+    if (this.roamRoll >= 1) return false;
+    if (this.def.rank !== 'normal' || this.def.keep || this.lifeLeft !== Infinity) return false;
+    if (dist < ROAM.aggro || this.hp < this.maxHp) {
+      this.roamRoll = 1; // 알아챘으면 계속 쫓는다
+      return false;
+    }
+    const share = Enemy.crowd >= 30 ? ROAM.at30 : Enemy.crowd >= 20 ? ROAM.at20 : 0;
+    return this.roamRoll < share;
+  }
+
+  /** 전장 안 무작위 목적지로 천천히 걷고, 닿거나 시간이 지나면 새 목적지 */
+  private roam(delta: number, arena: Arena): void {
+    this.roamLeft -= delta;
+    if (!this.roamTo || this.roamLeft <= 0 || Math.hypot(this.roamTo.x - this.x, this.roamTo.y - this.y) < 30) {
+      this.roamTo = randomPointIn(arena, Enemy.rng, this.def.radius + 80);
+      this.roamLeft = ROAM.retargetMs[0] + Enemy.rng() * (ROAM.retargetMs[1] - ROAM.retargetMs[0]);
+    }
+    const a = Math.atan2(this.roamTo.y - this.y, this.roamTo.x - this.x);
+    let speed = this.def.speed * this.speedMult * ROAM.speed;
+    if (this.slowLeft > 0) speed *= 1 - this.slowRatio;
+    if (this.rootLeft > 0) speed = 0;
+    this.body.setVelocity(Math.cos(a) * speed, Math.sin(a) * speed);
+    this.setRotation(a);
   }
 
   private choosePattern(t: Phaser.Math.Vector2, dist: number, arena: Arena): EnemyAction[] {
@@ -502,15 +542,8 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
           ms: 500,
           onEnd: () => {
             const a = Enemy.rng() * Math.PI * 2;
-            let x = this.lastTarget.x + Math.cos(a) * 4.5 * M;
-            let y = this.lastTarget.y + Math.sin(a) * 4.5 * M;
-            const d = Math.hypot(x - arena.x, y - arena.y);
-            const max = arena.r - this.def.radius - 10;
-            if (d > max) {
-              x = arena.x + ((x - arena.x) / d) * max;
-              y = arena.y + ((y - arena.y) / d) * max;
-            }
-            this.setPosition(x, y).setAlpha(1);
+            const p = clampToArena(arena, this.lastTarget.x + Math.cos(a) * 4.5 * M, this.lastTarget.y + Math.sin(a) * 4.5 * M, this.def.radius + 10);
+            this.setPosition(p.x, p.y).setAlpha(1);
             return null;
           },
         }, { kind: 'hold', ms: 300 });
