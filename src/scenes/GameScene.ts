@@ -1430,7 +1430,7 @@ export class GameScene extends Phaser.Scene {
       add(plate(this, 360, 1150, 640, 150, { r: 22, fill: 0x1d3a52 }).setDepth(UI_DEPTH + 11));
       add(ktext(this, 360, 1112, '카드 하나를 골라 이번 판의 스킬을 키워요', TYPE.caption, COLOR.text, true, true).setOrigin(0.5).setDepth(UI_DEPTH + 12));
       add(ktext(this, 360, 1150, '액티브: 자동으로 나가는 공격 기술 · 패시브: 능력치 상승', 18, COLOR.textSub, true, true).setOrigin(0.5).setDepth(UI_DEPTH + 12));
-      add(ktext(this, 360, 1184, '기본 공격: 드래곤의 기본 공격이 강해져요 (판이 끝나면 초기화)', 18, COLOR.textSub, true, true).setOrigin(0.5).setDepth(UI_DEPTH + 12));
+      add(ktext(this, 360, 1184, '기본 공격: 드래곤의 기본 공격이 강해져요', 18, COLOR.textSub, true, true).setOrigin(0.5).setDepth(UI_DEPTH + 12));
     }
     choices.forEach((u, i) => {
       const y = 500 + i * 204;
