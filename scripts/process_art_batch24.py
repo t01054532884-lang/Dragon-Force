@@ -36,8 +36,8 @@ def fit_square(im: Image.Image, size: int, pad: float = 0.02) -> Image.Image:
 
 
 # 밝기 배율: 너무 밝은 배경은 버튼·글자가 묻히지 않게 어둡게, 너무 어두운 배경은 장소가 보이게 밝게.
-# 원본 평균 밝기: 1단계 77 · 11단계 145 · 12단계 182 · 13단계 63 · 14단계 37
-DIM = {'lobby-bg-12': 0.78, 'lobby-bg-14': 1.3}
+# 원본 평균 밝기: 1단계 77 · 11단계 145 · 12단계 182 · 13단계 63 · 14단계 37 · 15단계 31
+DIM = {'lobby-bg-12': 0.78, 'lobby-bg-14': 1.3, 'lobby-bg-15': 1.3}
 
 for src in sorted(SRC_STAGE.glob('lobby-bg-*.png')):
     out = OUT_STAGE / f'{src.stem}.jpg'
