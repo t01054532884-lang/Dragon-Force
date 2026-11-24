@@ -2,10 +2,10 @@ import Phaser from 'phaser';
 import { makeTextures } from '../textures';
 import { STAGES } from '../data/stages';
 import { DRAGONS, ELEMENT_LABEL, RARITY_COLOR, RARITY_LABEL } from '../data/dragons';
-import { DIFFICULTIES, DIFFICULTY_LABEL, DIFFICULTY_RELEASED, STAGE_COUNT, type Difficulty } from '../data/economy';
+import { DIFFICULTIES, DIFFICULTY_LABEL, DIFFICULTY_RELEASED, DIFFICULTY_UNLOCK_AT, STAGE_COUNT, type Difficulty } from '../data/economy';
 import { cpVerdict, recommendedCp } from '../data/power';
 import { hardStage } from '../data/hardStages';
-import { attendedToday, CHEST_TIERS, claimableMissions, claimableStageBoxes, eventActive, eventState, progressPct, Progress, spinsAvailable, stageChestState, stageReach } from '../systems/Progress';
+import { attendedToday, pendingDifficultyUnlock, CHEST_TIERS, claimableMissions, claimableStageBoxes, eventActive, eventState, progressPct, Progress, spinsAvailable, stageChestState, stageReach } from '../systems/Progress';
 import { loadout } from '../systems/Loadout';
 import { pendingGifts, staminaNow } from '../systems/Mailbox';
 import { STAMINA, formatLeft, nextRegenIn } from '../systems/Stamina';
@@ -19,7 +19,7 @@ import { playMusic, preloadMusic, refreshMusic } from '../systems/Music';
 import { altar, iconTile, plate, tabs, topBar, torch, wingBanner } from '../ui/kit2';
 import { COLOR, css, TYPE } from '../ui/theme';
 import { giftAlert } from '../ui/giftFx';
-import { bundleItems, openSmallChest, rewardPopup } from '../ui/celebrate';
+import { bundleItems, difficultyUnlock, openSmallChest, rewardPopup } from '../ui/celebrate';
 import { openRubyShop } from '../ui/rubyShop';
 import { account, shortId } from '../systems/Account';
 import { cloud, cloudLine } from '../systems/Cloud';
@@ -221,7 +221,9 @@ export class LobbyScene extends Phaser.Scene {
       } else if (dev) {
         this.devDiff = k;
       } else {
-        this.toast(DIFFICULTY_RELEASED[k] ? '쉬움을 더 진행하면 열려요' : '다음 업데이트에서 열려요');
+        const prevLabel = DIFFICULTY_LABEL[DIFFICULTIES[DIFFICULTIES.indexOf(k) - 1]];
+        const need = k === 'easy' ? 0 : DIFFICULTY_UNLOCK_AT[k];
+        this.toast(DIFFICULTY_RELEASED[k] ? `${prevLabel} ${need}단계를 깨면 열려요` : '다음 업데이트에서 열려요');
         return;
       }
       this.scene.restart();
@@ -289,13 +291,37 @@ export class LobbyScene extends Phaser.Scene {
     // 클라우드 저장: 이 기기와 서버 기록이 둘 다 바뀌었으면 고르기(자동 덮어쓰기 금지)
     if (cloud.conflict) this.openCloudChoice();
     else {
-      this.maybeAttendancePopup();
+      this.maybeUnlockPopup(() => this.maybeAttendancePopup());
       const watch = () => {
         if (cloud.conflict && this.scene.isActive()) this.openCloudChoice();
       };
       cloud.onChange(watch);
       this.events.once('shutdown', () => cloud.listeners.splice(cloud.listeners.indexOf(watch) >>> 0, 1));
     }
+  }
+
+  /**
+   * 난이도 해금 연출(2026-11-24): 쉬움 10단계를 처음 깨고 로비에 오면 한 번. "도전하기"는 그 난이도 1단계를 고른 로비로.
+   * 연출을 닫은 뒤에 출석 팝업이 이어서 뜬다.
+   */
+  private maybeUnlockPopup(then: () => void): void {
+    const d = DEMO ? null : pendingDifficultyUnlock(Progress.load());
+    if (!d) return then();
+    Progress.markUnlockSeen(d);
+    const prev = DIFFICULTIES[DIFFICULTIES.indexOf(d) - 1];
+    const n = d === 'easy' ? 0 : DIFFICULTY_UNLOCK_AT[d];
+    difficultyUnlock(this, {
+      title: `${DIFFICULTY_LABEL[d]} 모드 해금!`,
+      sub: `${DIFFICULTY_LABEL[prev]} ${n}단계 돌파! 이제 ${DIFFICULTY_LABEL[d]} 1단계에 도전할 수 있어요`,
+      detail: `${DIFFICULTY_LABEL[d]} 1단계 권장 전투력 ${recommendedCp(1, d).toLocaleString()}\n단계마다 새로운 기믹 · 처음 깰 때 루비 보상`,
+      color: d === 'hard' ? 0xff5a4a : 0xb04aff,
+      goLabel: '도전하기',
+    }, () => {
+      Progress.selectDifficulty(d);
+      this.devDiff = null;
+      this.stageId = 1;
+      this.scene.restart();
+    }, then);
   }
 
   /**

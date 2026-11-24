@@ -176,6 +176,75 @@ export function dragonUnlock(scene: Phaser.Scene, ids: DragonId[], onDone?: () =
   scene.time.delayedCall(3000, showEnd);
 }
 
+/**
+ * 난이도 해금 연출(2026-11-24 제작자 요청: 쉬움 10단계를 깨고 로비에 오면 "어려움 모드 해금"이 뜨고 그때부터 어려움 1단계 진행).
+ * 붉은 빛줄기 + 큰 제목 튀어나옴 + 불꽃 조각 + 설명 + 확인/도전 버튼. 화면을 누르면 바로 끝 상태.
+ */
+export function difficultyUnlock(
+  scene: Phaser.Scene,
+  o: { title: string; sub: string; detail: string; color: number; goLabel: string },
+  onGo: () => void,
+  onClose: () => void,
+): void {
+  const layer: Phaser.GameObjects.GameObject[] = [];
+  const add = <T extends Phaser.GameObjects.GameObject>(g: T): T => {
+    layer.push(g);
+    (g as unknown as { setDepth: (n: number) => void }).setDepth(DEPTH + 620); // 출석 팝업(900)보다 위
+    return g;
+  };
+  const tweens: Phaser.Tweens.Tween[] = [];
+  const tw = (cfg: Phaser.Types.Tweens.TweenBuilderConfig) => tweens.push(scene.tweens.add(cfg));
+  playSfx(scene, 'sfx-dragon-unlock');
+  scene.cameras.main.shake(260, 0.006);
+  const bg = add(scene.add.rectangle(360, 640, 720, fullH(scene), 0x05040a, 0.9).setInteractive());
+  ensureRays(scene);
+  const rays = add(scene.add.image(360, 540, 'fx-unlock-rays').setDisplaySize(1100, 1100).setAlpha(0).setTint(o.color).setBlendMode(Phaser.BlendModes.ADD));
+  tw({ targets: rays, alpha: 0.6, duration: 420 });
+  scene.tweens.add({ targets: rays, angle: 360, duration: 12000, repeat: -1 });
+  const ring = add(scene.add.circle(360, 540, 60).setStrokeStyle(10, o.color, 1).setAlpha(0.9));
+  tw({ targets: ring, scale: 6, alpha: 0, duration: 900, ease: 'Cubic.Out' });
+  // 불꽃 조각: 가운데에서 바깥으로 흩어짐
+  for (let i = 0; i < 26; i++) {
+    const a = (i / 26) * Math.PI * 2 + Math.random() * 0.2;
+    const dist = 240 + Math.random() * 180;
+    const spark = add(scene.add.circle(360, 540, 5 + Math.random() * 6, i % 3 ? o.color : 0xffe39a, 1));
+    scene.tweens.add({ targets: spark, x: 360 + Math.cos(a) * dist, y: 540 + Math.sin(a) * dist, alpha: 0, scale: 0.3, duration: 900 + Math.random() * 500, delay: 120, ease: 'Cubic.Out' });
+  }
+  const lock = add(text(scene, 360, 400, '🔓', 110).setOrigin(0.5).setAlpha(0).setScale(0.3));
+  tw({ targets: lock, alpha: 1, scale: 1, duration: 420, delay: 150, ease: 'Back.Out' });
+  const title = add(text(scene, 360, 560, o.title, 64, COLOR.gold, true, true).setOrigin(0.5).setAlpha(0).setScale(2.2));
+  tw({ targets: title, alpha: 1, scale: 1, duration: 420, delay: 420, ease: 'Back.Out' });
+  scene.tweens.add({ targets: title, scale: 1.06, yoyo: true, repeat: -1, duration: 700, delay: 1000, ease: 'Sine.InOut' });
+  const sub = add(text(scene, 360, 650, o.sub, TYPE.body, COLOR.text, true, true).setOrigin(0.5).setAlpha(0));
+  const box = add(plate(scene, 360, 780, 600, 140, { r: 22 }).setAlpha(0));
+  box.add(text(scene, 0, 0, o.detail, TYPE.caption, COLOR.textSub, true).setOrigin(0.5).setAlign('center').setLineSpacing(8).setWordWrapWidth(560));
+  [sub, box].forEach((g, i) => tw({ targets: g, alpha: 1, duration: 260, delay: 900 + i * 180 }));
+  let closed = false;
+  const finish = (go: boolean) => {
+    if (closed) return;
+    closed = true;
+    scene.tweens.add({ targets: layer, alpha: 0, duration: 160, onComplete: () => layer.forEach((g) => g.destroy()) });
+    if (go) onGo();
+    else onClose();
+  };
+  const ok = button(scene, 230, 1000, 250, 80, '확인', () => finish(false), { kind: 'secondary', size: TYPE.body });
+  const go = button(scene, 490, 1000, 250, 80, o.goLabel, () => finish(true), { kind: 'cta', size: TYPE.body });
+  add(ok.root).setAlpha(0);
+  add(go.root).setAlpha(0);
+  tw({ targets: [ok.root, go.root], alpha: 1, duration: 200, delay: 1300 });
+  const showEnd = () => {
+    if (closed) return;
+    tweens.forEach((t) => t.stop());
+    rays.setAlpha(0.6);
+    ring.setAlpha(0);
+    lock.setAlpha(1).setScale(1);
+    title.setAlpha(1);
+    [sub, box, ok.root, go.root].forEach((g) => g.setAlpha(1));
+  };
+  bg.on('pointerdown', showEnd);
+  scene.time.delayedCall(2500, showEnd); // 안전장치(드래곤 해금 연출과 같은 이유)
+}
+
 /** 금빛 빛줄기(그림이 없을 때 도형) */
 function ensureRays(scene: Phaser.Scene): void {
   if (scene.textures.exists('fx-unlock-rays')) return;

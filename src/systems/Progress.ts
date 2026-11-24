@@ -21,6 +21,7 @@ import {
   DAILY_IDS,
   DIFFICULTIES,
   DIFFICULTY_RELEASED,
+  DIFFICULTY_UNLOCK_AT,
   DRAGON_BOX,
   econRarity,
   EQUIPMENT_BOX,
@@ -287,8 +288,9 @@ export function sanitize(raw: Record<string, unknown>): PlayerProgress {
   const legacyUnlocked = ints(raw.unlockedStages, 1, STAGE_COUNT);
   difficulty.easy.unlocked = [...new Set([1, ...difficulty.easy.unlocked, ...legacyUnlocked])].sort((a, b) => a - b);
   // 다음 난이도는 앞 난이도 20개를 모두 깼을 때 1단계가 열린다
-  if (difficulty.easy.cleared.length >= STAGE_COUNT && !difficulty.hard.unlocked.includes(1)) difficulty.hard.unlocked = [1, ...difficulty.hard.unlocked];
-  if (difficulty.hard.cleared.length >= STAGE_COUNT && !difficulty.extreme.unlocked.includes(1)) difficulty.extreme.unlocked = [1, ...difficulty.extreme.unlocked];
+  // (2026-11-24) 어려움은 쉬움 10개(DIFFICULTY_UNLOCK_AT)
+  if (difficulty.easy.cleared.length >= DIFFICULTY_UNLOCK_AT.hard && !difficulty.hard.unlocked.includes(1)) difficulty.hard.unlocked = [1, ...difficulty.hard.unlocked];
+  if (difficulty.hard.cleared.length >= DIFFICULTY_UNLOCK_AT.extreme && !difficulty.extreme.unlocked.includes(1)) difficulty.extreme.unlocked = [1, ...difficulty.extreme.unlocked];
 
   const rs = (raw.summon ?? {}) as Partial<SummonState>;
   const re = (raw.equipment ?? {}) as Partial<PlayerProgress['equipment']>;
@@ -543,9 +545,28 @@ const setDiff = (p: PlayerProgress, d: Difficulty, v: DifficultyProgress): Playe
 
 function openNextDifficulty(p: PlayerProgress): PlayerProgress {
   let r = p;
-  if (r.difficulty.easy.cleared.length >= STAGE_COUNT && !r.difficulty.hard.unlocked.includes(1)) r = setDiff(r, 'hard', { ...r.difficulty.hard, unlocked: [1, ...r.difficulty.hard.unlocked] });
-  if (r.difficulty.hard.cleared.length >= STAGE_COUNT && !r.difficulty.extreme.unlocked.includes(1)) r = setDiff(r, 'extreme', { ...r.difficulty.extreme, unlocked: [1, ...r.difficulty.extreme.unlocked] });
+  if (r.difficulty.easy.cleared.length >= DIFFICULTY_UNLOCK_AT.hard && !r.difficulty.hard.unlocked.includes(1)) r = setDiff(r, 'hard', { ...r.difficulty.hard, unlocked: [1, ...r.difficulty.hard.unlocked] });
+  if (r.difficulty.hard.cleared.length >= DIFFICULTY_UNLOCK_AT.extreme && !r.difficulty.extreme.unlocked.includes(1)) r = setDiff(r, 'extreme', { ...r.difficulty.extreme, unlocked: [1, ...r.difficulty.extreme.unlocked] });
   return r;
+}
+
+/** 로비 "난이도 해금" 연출을 이미 보여 줬다는 일회성 기록(claimed에 남겨 클라우드 저장과 함께 간다) */
+export const unlockSeenKey = (d: Difficulty) => `unlock-seen-${d}`;
+
+/**
+ * 로비에서 해금 연출을 띄울 난이도(2026-11-24). 출시됐고 1단계가 열렸고 아직 연출을 안 봤으며 그 난이도를 한 판도 깨지 않았을 때만.
+ * (이미 어려움을 깨고 있던 예전 저장에는 띄우지 않는다)
+ */
+export function pendingDifficultyUnlock(p: PlayerProgress): Difficulty | null {
+  for (const d of ['hard', 'extreme'] as const) {
+    const dp = p.difficulty[d];
+    if (DIFFICULTY_RELEASED[d] && dp.unlocked.includes(1) && dp.cleared.length === 0 && !p.claimed.includes(unlockSeenKey(d))) return d;
+  }
+  return null;
+}
+
+export function markUnlockSeen(p: PlayerProgress, d: Difficulty): PlayerProgress {
+  return p.claimed.includes(unlockSeenKey(d)) ? p : { ...p, claimed: [...p.claimed, unlockSeenKey(d)] };
 }
 
 const addCards = (p: PlayerProgress, id: DragonId, n: number): PlayerProgress => ({ ...p, dragons: { ...p.dragons, [id]: { ...p.dragons[id], cards: p.dragons[id].cards + n } } });
@@ -1346,6 +1367,9 @@ export const Progress = {
   },
   selectDifficulty(d: Difficulty): void {
     this.save(selectDifficulty(this.load(), d));
+  },
+  markUnlockSeen(d: Difficulty): void {
+    this.save(markUnlockSeen(this.load(), d));
   },
   claimStageBox: (d: Difficulty, stage: number, tier: ChestTier) => act((p) => claimStageBox(p, d, stage, tier)),
   claimAllStageBoxes: (d: Difficulty) => act((p) => claimAllStageBoxes(p, d)),

@@ -33,6 +33,12 @@ export const DIFFICULTY_LABEL: Record<Difficulty, string> = { easy: '쉬움', ha
 /** 첫 출시: 쉬움만 입장(제작자 결정 2026-11-18). 어려움·매우 어려움은 데이터·진행도 저장은 유지하고 "출시 예정"으로만 표시 */
 // 어려움 1~20단계 출시(제작자 기획서 2026-11-21). 매우 어려움은 아직 "출시 예정"
 export const DIFFICULTY_RELEASED: Record<Difficulty, boolean> = { easy: true, hard: true, extreme: false };
+/**
+ * 다음 난이도 1단계가 열리는 조건: 앞 난이도에서 서로 다른 단계 n개 클리어.
+ * 어려움 = 쉬움 10개(제작자 결정 2026-11-24, 예전 20). 쉬움 10단계 권장 전투력 1,550 > 어려움 1단계 1,350.
+ * 매우 어려움은 미출시라 그대로 20.
+ */
+export const DIFFICULTY_UNLOCK_AT: Record<Exclude<Difficulty, 'easy'>, number> = { hard: 10, extreme: 20 };
 export const DIFFICULTY_MULT: Record<Difficulty, { hp: number; damage: number }> = {
   easy: { hp: 1, damage: 1 },
   hard: { hp: 1.5, damage: 1.25 }, // (쓰지 않음) 어려움은 단계별 표 src/data/hardStages.ts가 대신한다(2026-11-21)

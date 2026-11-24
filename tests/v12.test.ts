@@ -10,7 +10,7 @@ import { SPECIALS } from '../src/data/specials';
 import { loadout } from '../src/systems/Loadout';
 import {
   claimMission, claimAllStageBoxes, claimStageBox, claimableStageBoxes, stageChestState, CHEST_TIERS, sanitize, convertToUniversal, defaultProgress, exchangeEssence, fuseItem, openBox, openDragonBoxOnce,
-  addMissionProgress, periodKey, progressPct, settleRun, starUpDragon, toggleLock, upgradeItem, withTx, equipItem, unlockSpecial, upgradeRune, buyGold, sanitize,
+  addMissionProgress, periodKey, progressPct, settleRun, starUpDragon, toggleLock, upgradeItem, withTx, equipItem, unlockSpecial, upgradeRune, buyGold, sanitize, pendingDifficultyUnlock, markUnlockSeen,
   type EquipmentItem, type PlayerProgress,
 } from '../src/systems/Progress';
 
@@ -185,11 +185,31 @@ describe('6-4 난이도·진행도', () => {
     expect(p.difficulty.easy.chests).toEqual([21, 22, 23]);
     expect(claimableStageBoxes(p, 'easy')).toEqual([{ stage: 1, tier: 1 }, { stage: 1, tier: 2 }, { stage: 1, tier: 3 }]);
   });
-  it('쉬움 20개를 모두 깨야 어려움 해금', () => {
+  it('쉬움 10개를 깨면 어려움 해금(2026-11-24, 예전 20개)', () => {
     let p = defaultProgress();
     expect(p.difficulty.hard.unlocked).toEqual([]);
-    for (let s = 1; s <= 20; s++) p = clear(p, s, `s${s}`);
+    for (let s = 1; s <= 9; s++) p = clear(p, s, `s${s}`);
+    expect(p.difficulty.hard.unlocked).toEqual([]);
+    p = clear(p, 10, 's10');
     expect(p.difficulty.hard.unlocked).toEqual([1]);
+    expect(p.difficulty.extreme.unlocked).toEqual([]); // 매우 어려움은 그대로 어려움 20개
+  });
+  it('어려움 해금 연출: 한 번만, 이미 어려움을 깬 예전 저장에는 안 띄움', () => {
+    let p = defaultProgress();
+    expect(pendingDifficultyUnlock(p)).toBeNull();
+    for (let s = 1; s <= 10; s++) p = clear(p, s, `s${s}`);
+    expect(pendingDifficultyUnlock(p)).toBe('hard');
+    const seen = markUnlockSeen(p, 'hard');
+    expect(pendingDifficultyUnlock(seen)).toBeNull();
+    expect(pendingDifficultyUnlock(sanitize(JSON.parse(JSON.stringify(seen))))).toBeNull(); // 저장·불러오기 뒤에도
+    const old = { ...p, difficulty: { ...p.difficulty, hard: { ...p.difficulty.hard, cleared: [1] } } };
+    expect(pendingDifficultyUnlock(old)).toBeNull();
+  });
+  it('예전 저장: 쉬움 10개 이상 깬 기록은 불러올 때 어려움 1단계가 열림', () => {
+    const raw = JSON.parse(JSON.stringify(defaultProgress()));
+    raw.difficulty.easy.cleared = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+    raw.difficulty.easy.unlocked = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
+    expect(sanitize(raw).difficulty.hard.unlocked).toEqual([1]);
   });
 });
 
