@@ -19,6 +19,7 @@
 | (11/24 낮) 테스터 피드백: 기본 공격이 **일반 몹에게만 ×1.5**(모든 드래곤, 엘리트·보스 그대로) — 가벼운 몹 2~3대 → 1~2대(계산) | `src/data/basicAttack.ts` `BASIC_VS_NORMAL_MULT`, `docs/BALANCE.md` |
 | (11/24 낮) 단계 상자 **100% 칸 루비 100개**(쉬움·어려움 40칸 = 4,000), 25·50% 칸은 그대로 | `src/data/economy.ts` `STAGE_CLEAR_RUBIES` |
 | (11/24 낮) **어려움 해금 쉬움 20 → 10단계** + 로비 "어려움 모드 해금!" 연출 한 번(도전하기 = 어려움 1단계), 잠긴 탭 문구 "쉬움 10단계를 깨면 열려요" | `docs/HARD.md` 0절, `DIFFICULTY_UNLOCK_AT` |
+| (11/24 오후) **그림 요청서 10**: 단계별 로비 배경 20 · 전투 바닥 20 · 전장 테두리 10 · 2~20단계 몬스터 120(지금 전부 도형). 20단계 직접 들어가 점검한 표 포함. 코드 준비: 받은 번호만 `STAGE_ART_READY`에 적으면 로비 배경(단계 고르면)·바닥·몬스터가 바뀜, 단계별 그림은 그 단계에서만 읽음(아이폰 메모리) | `docs/ART_REQUEST_10.md`, `src/ui/art.ts` |
 | (11/24 오후) 클리어·결과 화면 위에 잠깐 뜨던 **보라색 보상 내역 글자 뺌**(보상 지급·결과 화면 카드·루비 합계는 그대로) | `src/scenes/GameScene.ts` |
 | (11/24 오후) **아래쪽 검은 띠 없앰**(제작자: 아이폰 15 Pro TestFlight에서 위아래 띠 → 다른 게임처럼 아래만 채우기). 게임 화면을 홈 바 밑까지 늘리고, 하단 메뉴 바탕·선택 칸·배경·덮개만 끝까지, 버튼은 홈 바 위. 위쪽(다이내믹 아일랜드)은 그대로 비움. 토스는 그대로. 개발 서버에서 `?safe=59,34`로 아이폰 안전 영역 흉내 | `src/platform/index.ts` `extendedBottomPx`, `src/ui/layout.ts` `safeBottom`, `navBar` |
 | (11/24 오후) **TestFlight 첫 빌드 업로드 성공**(Codemagic 첫 빌드, 커밋 fddf8c9). 준비: Codemagic에 Dragon-Force 앱 추가(GitHub 앱 권한에 저장소 추가) · 환경 변수 그룹 `firebase`(VITE_FIREBASE_* 4개, Firebase 웹 앱 `DragonForceWeb` 새로 만듦) + `codemagic.yaml` `groups: [firebase]` · Apple에 배포 프로파일 "Dragon Force App Store" 만들고 Codemagic으로 가져옴(`dragonforce_appstore_profile`). 결제는 RevenueCat 키가 없어 이 빌드에선 꺼짐 | `codemagic.yaml`, `.env.local`(로컬) |

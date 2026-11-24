@@ -11,7 +11,7 @@ import { BASIC_VS_NORMAL_MULT } from '../data/basicAttack';
 import { BattleFx, FX, PALETTE } from '../fx/BattleFx';
 import { BASIC_FIRE_SFX, BATTLE_SFX_FILES, playSfx, preloadSfx, SIGNATURE_SFX } from '../systems/Sfx';
 import { playMusic, preloadMusic, refreshMusic, stopMusic } from '../systems/Music';
-import { preloadArt } from '../ui/art';
+import { preloadArt, preloadStageArt } from '../ui/art';
 import { badge, button as kitButton, ribbon, text as ktext } from '../ui/kit';
 import { plate } from '../ui/kit2';
 import { COLOR, TYPE } from '../ui/theme';
@@ -220,6 +220,7 @@ export class GameScene extends Phaser.Scene {
 
   preload(): void {
     preloadArt(this); // 탑다운 드래곤 그림(로비에서 이미 읽었으면 건너뜀)
+    preloadStageArt(this, this.stage.id); // 이 단계 바닥·적 그림(받은 것만, 그림 요청서 10)
     preloadSfx(this, BATTLE_SFX_FILES); // 전투 효과음(실제 실행 경로에서만 읽음 — 기획 13.2)
     preloadMusic(this, ['bgm-battle', 'bgm-boss']);
   }
@@ -438,9 +439,11 @@ export class GameScene extends Phaser.Scene {
     const square = this.arena.shape === 'square';
     this.add.rectangle(0, 0, WORLD_SIZE, WORLD_SIZE, 0x0d0f14).setOrigin(0);
     // 1단계 챕터(잿빛 숲)는 기획자 바닥 그림(이음새 없는 512 무늬)이 있으면 그것으로
-    const floorKey = ch.id === 1 ? (this.textures.exists('floor-ash') ? 'floor-ash' : 'ground') : `ground-${ch.id}`;
+    // 단계별 바닥(그림 요청서 10 ②)이 있으면 그것, 없으면 챕터 바닥
+    const stageFloor = `floor-s${this.stage.id}`;
+    const floorKey = this.textures.exists(stageFloor) ? stageFloor : ch.id === 1 ? (this.textures.exists('floor-ash') ? 'floor-ash' : 'ground') : `ground-${ch.id}`;
     const floor = this.add.tileSprite(0, 0, WORLD_SIZE, WORLD_SIZE, floorKey).setOrigin(0);
-    if (floorKey === 'floor-ash') floor.setTileScale(0.5).setTint(0x9a9aa8); // 캐릭터가 잘 보이게 조금 어둡게
+    if (floorKey === 'floor-ash' || floorKey === stageFloor) floor.setTileScale(0.5).setTint(0x9a9aa8); // 캐릭터가 잘 보이게 조금 어둡게
     const mg = this.make.graphics({}, false).fillStyle(0xffffff);
     const mask = square ? mg.fillRect(x - r, y - r, r * 2, r * 2) : mg.fillCircle(x, y, r);
     floor.setMask(mask.createGeometryMask());

@@ -29,8 +29,22 @@ export const SKILL_ICONS = [
  * 2026-11-18 기획자 그림(GPT 이미지): 로비 배경, 상자 3종, 재화 6종, 드래곤 초상 10종(아틀라스), 스킬 아이콘 14, 장비 16, 탑다운 드래곤 4.
  * 아직 없음: passive-greed, 탑다운 드래곤 2종(스톤·워터). 적 5·보스 초상 3·바닥·날갯짓 프레임은 art-src에 받았고 가공 전.
  */
+/**
+ * 단계별 그림(그림 요청서 10, 2026-11-24): 받은 것만 번호·id를 적는다. 적으면 ART_FILES에 들어가고, 없으면 예전 그림·도형 그대로.
+ * - lobby: 로비 드래곤 뒤 배경 `public/art/stage/lobby-bg-<단계>.jpg`(1080×1920). 그 단계를 고르면 바뀐다.
+ * - floor: 전투 바닥 `public/art/stage/floor-s<단계>.webp`(512 이음새 없는 무늬). 없으면 챕터 바닥.
+ * - enemy: 단계 → 그 단계에서 처음 나오는 적 id 목록. 그림 `public/art/enemy/art-e-<id>.webp`(옆모습, 머리 오른쪽).
+ * 셋 다 크기가 커서 처음에 한꺼번에 읽지 않고 그 화면·그 단계에서만 읽는다(아이폰 메모리).
+ */
+export const STAGE_ART_READY: { lobby: number[]; floor: number[]; enemy: Record<number, string[]> } = { lobby: [], floor: [], enemy: {} };
+/** 단계별 그림처럼 그때그때 읽는 키(preloadArt가 건너뜀) */
+const LAZY_ART = /^(lobby-bg-\d+|floor-s\d+|art-e-)/;
+
 export const ART_FILES: Record<string, string> = {
   'lobby-bg': 'lobby-bg.jpg',
+  ...Object.fromEntries(STAGE_ART_READY.lobby.map((n) => [`lobby-bg-${n}`, `stage/lobby-bg-${n}.jpg`])),
+  ...Object.fromEntries(STAGE_ART_READY.floor.map((n) => [`floor-s${n}`, `stage/floor-s${n}.webp`])),
+  ...Object.fromEntries(Object.values(STAGE_ART_READY.enemy).flat().map((id) => [`art-e-${id}`, `enemy/art-e-${id}.webp`])),
   'chest-equipment': 'chest-equipment.webp',
   'chest-dragon': 'chest-dragon.webp',
   'chest-gold': 'chest-gold.webp',
@@ -147,8 +161,14 @@ export const CHEST_LAYER_KEYS = [
 
 export function preloadArt(scene: Phaser.Scene): void {
   for (const [key, file] of Object.entries(ART_FILES)) {
+    if (LAZY_ART.test(key)) continue; // 단계별 그림은 그 단계에서만(preloadStageArt)
     if (file && !scene.textures.exists(key)) scene.load.image(key, `art/${file}`);
   }
+}
+
+/** 전투 preload: 이 단계의 바닥·적 그림만 읽는다(받은 것만) */
+export function preloadStageArt(scene: Phaser.Scene, stageId: number): void {
+  preloadKeys(scene, [`floor-s${stageId}`, ...(STAGE_ART_READY.enemy[stageId] ?? []).map((id) => `art-e-${id}`)]);
 }
 
 /** 실제 그림이 없는 키만 도형 임시 그림을 만든다 */
@@ -319,9 +339,24 @@ export function drawScreenBackdrop(scene: Phaser.Scene): Phaser.GameObjects.Grap
 }
 
 /** 로비 배경 임시 그림: 보랏빛→어두운 남색 그라데이션 + 용암 지평선 + 별 */
-export function drawLobbyBackdrop(scene: Phaser.Scene): Phaser.GameObjects.GameObject {
+export function drawLobbyBackdrop(scene: Phaser.Scene, stageId?: number): Phaser.GameObjects.GameObject {
   // 세로가 긴 화면: 비율을 지킨 채 높이에 맞춰 키움(양옆은 조금 잘림 — 빈 띠 대신)
-  if (scene.textures.exists('lobby-bg')) return scene.add.image(360, 640, 'lobby-bg').setDisplaySize((720 * fullH(scene)) / 1280, fullH(scene));
+  const fit = (img: Phaser.GameObjects.Image) => img.setDisplaySize((720 * fullH(scene)) / 1280, fullH(scene));
+  // 단계별 배경(그림 요청서 10): 받은 단계면 그 그림. 처음이면 공통 배경을 먼저 보이고 다 읽히면 바꿔 끼운다.
+  const stageKey = stageId && ART_FILES[`lobby-bg-${stageId}`] ? `lobby-bg-${stageId}` : '';
+  if (stageKey) {
+    // 다른 단계 배경은 메모리에서 내린다(1080×1920 한 장이 약 8MB)
+    for (const k of scene.textures.getTextureKeys()) if (/^lobby-bg-\d+$/.test(k) && k !== stageKey) scene.textures.remove(k);
+    if (scene.textures.exists(stageKey)) return fit(scene.add.image(360, 640, stageKey));
+    const img = fit(scene.add.image(360, 640, scene.textures.exists('lobby-bg') ? 'lobby-bg' : '__DEFAULT'));
+    scene.load.image(stageKey, `art/${ART_FILES[stageKey]}`);
+    scene.load.once(`filecomplete-image-${stageKey}`, () => {
+      if (img.active) fit(img.setTexture(stageKey));
+    });
+    scene.load.start();
+    return img;
+  }
+  if (scene.textures.exists('lobby-bg')) return fit(scene.add.image(360, 640, 'lobby-bg'));
   const g = scene.add.graphics();
   const steps = 32;
   for (let i = 0; i < steps; i++) {

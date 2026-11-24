@@ -108,7 +108,7 @@ export class LobbyScene extends Phaser.Scene {
     const dp = p.difficulty[curDiff];
     if (!dp.unlocked.includes(this.stageId)) this.stageId = Math.max(1, ...dp.unlocked.filter((s) => STAGES.some((st) => st.id === s)));
 
-    drawLobbyBackdrop(this);
+    drawLobbyBackdrop(this, this.stageId); // 단계별 배경(받은 단계만, 그림 요청서 10)
     playMusic(this, 'bgm-lobby'); // 메뉴 화면끼리는 같은 곡을 끊지 않고 이어 감
     const d = DRAGONS[p.selectedDragonId];
     const o = p.dragons[d.id];
