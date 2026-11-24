@@ -31,13 +31,13 @@ import { loadout } from '../systems/Loadout';
 import { Signature } from '../systems/Signature';
 import { sigTier } from '../data/signature';
 import type { RuneEffects } from '../data/runes';
-import { DIFFICULTY_LABEL, DIFFICULTY_MULT, type Difficulty } from '../data/economy';
+import { DIFFICULTY_LABEL, DIFFICULTY_MULT, DIFFICULTY_REWARD, type Difficulty } from '../data/economy';
 import { decideDrop, ITEM_RULES, ITEMS, newDropState, type DropState, type ItemId } from '../data/items';
 import { GEM_MERGE, gemTier, mergeGroups } from '../systems/GemMerge';
 import { chapterOf, SEASON1_FINALE } from '../data/season1';
-import { arenaLayout, clampToArena, hitsObstacle, makeArena, outsideArena, type ArenaGeom } from '../data/arenas';
+import { arenaLayout, clampToArena, makeArena, outsideArena, type ArenaGeom } from '../data/arenas';
 import { enterBattle } from '../ui/entry';
-import { HARD_GOLD_MULT, hardStage, type HardStageDef } from '../data/hardStages';
+import { hardStage, type HardStageDef } from '../data/hardStages';
 import { fullH, offY } from '../ui/layout';
 import { capeKey, makeSkinTextures, trailKey } from '../ui/skinArt';
 
@@ -982,8 +982,8 @@ export class GameScene extends Phaser.Scene {
         s.img.destroy();
         return false;
       }
-      // 벽 밖으로 나가거나 장애물에 맞으면 사라진다(장애물 뒤에 숨기 — 2026-11-24)
-      const out = outsideArena(this.arena, s.img.x, s.img.y, 10) || hitsObstacle(this.arena, s.img.x, s.img.y, 4);
+      // 벽 밖으로 나가면 사라진다. 장애물은 드래곤 공격처럼 그대로 지나간다(11/24 엄폐 → 테스터 피드백으로 11/25 통일)
+      const out = outsideArena(this.arena, s.img.x, s.img.y, 10);
       if (s.life <= 0 || out) {
         s.img.destroy();
         return false;
@@ -1903,7 +1903,7 @@ export class GameScene extends Phaser.Scene {
       eliteKills: this.eliteKills,
       bossKilled: this.director.record.bossKillMs != null,
       treasureGold: this.treasureGold,
-      goldMult: this.hard ? HARD_GOLD_MULT : 1,
+      goldMult: DIFFICULTY_REWARD[this.difficulty].gold, // 어려울수록 더(쉬움 1 · 어려움 1.5 · 매우 어려움 2)
       coinGold: this.coinGold,
     };
   }
@@ -2026,7 +2026,7 @@ export class GameScene extends Phaser.Scene {
     const shown = rows.filter(([label, g], i) => i < 2 || g > 0 || label === '');
     const notes = [
       gold.stageMult !== 1 ? `단계 ×${gold.stageMult}` : '',
-      this.hard ? `어려움 ×${HARD_GOLD_MULT}` : '',
+      DIFFICULTY_REWARD[this.difficulty].gold !== 1 ? `${DIFFICULTY_LABEL[this.difficulty]} ×${DIFFICULTY_REWARD[this.difficulty].gold}` : '',
       gold.resultMult === 1 ? '' : gold.resultMult === 0 ? '30초 전 포기 0%' : '실패 50%',
     ].filter(Boolean);
     const gh = 96 + shown.length * 32;

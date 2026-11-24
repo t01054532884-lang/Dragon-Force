@@ -28,6 +28,21 @@ export const CLEAR_CARDS = { first: 2, repeat: 1, maxLevelGold: 100 };
 
 // ───────── 난이도·진행도 (원문 4장, 난이도 배율은 AI 1차안 — 제작자 승인 2026-11-18) ─────────
 export type Difficulty = 'easy' | 'hard' | 'extreme';
+
+/**
+ * 난이도별 클리어 보상(제작자 원칙 2026-11-25: 어려울수록 보상이 커야 한다 — 어려움 > 쉬움, 매우 어려움 > 어려움).
+ * 같은 단계 번호끼리 비교해 모든 칸이 쉬움 ≤ 어려움 ≤ 매우 어려움이 되게 한곳에 모은다(수치는 임시, AI 1차안).
+ * - gold: 전투 골드 배율(어려움 1.5는 예전 HARD_GOLD_MULT 그대로)
+ * - clearRubies: 단계 상자 100% 칸 루비(쉬움 100은 11/24 결정 그대로)
+ * - cards: 출격 드래곤 카드(최초·반복 클리어)
+ * - stamina: 최초 클리어 행동력 선물
+ * 단계 상자 25·50% 칸 골드·루비·조각은 STAGE_BOX(1 : 2 : 4), 어려움 최초 클리어 루비는 hardStages.ts(쉬움엔 없음).
+ */
+export const DIFFICULTY_REWARD: Record<Difficulty, { gold: number; clearRubies: number; cards: { first: number; repeat: number }; stamina: number }> = {
+  easy: { gold: 1, clearRubies: 100, cards: { first: 2, repeat: 1 }, stamina: 20 },
+  hard: { gold: 1.5, clearRubies: 150, cards: { first: 3, repeat: 2 }, stamina: 30 },
+  extreme: { gold: 2, clearRubies: 200, cards: { first: 4, repeat: 3 }, stamina: 40 },
+};
 export const DIFFICULTIES: Difficulty[] = ['easy', 'hard', 'extreme'];
 export const DIFFICULTY_LABEL: Record<Difficulty, string> = { easy: '쉬움', hard: '어려움', extreme: '매우 어려움' };
 /** 첫 출시: 쉬움만 입장(제작자 결정 2026-11-18). 어려움·매우 어려움은 데이터·진행도 저장은 유지하고 "출시 예정"으로만 표시 */
@@ -59,7 +74,7 @@ export const STAGE_BOX: Record<Difficulty, { gold: number; rubies: number; fragm
 };
 export const STAGE_BOX_FRAGMENT_EVERY = 5;
 /** 100% 칸(단계 클리어) 루비는 난이도와 상관없이 100개(제작자 결정 2026-11-24: 초반 루비가 너무 적다는 테스터 피드백 → 쉬움 20 + 어려움 20 = 4,000개). 25·50% 칸은 그대로 */
-export const STAGE_CLEAR_RUBIES = 100;
+export const STAGE_CLEAR_RUBIES = 100; // 쉬움 값. 난이도별은 DIFFICULTY_REWARD.clearRubies(11/25)
 /** 한 단계 상자 몫을 25·50·100% 세 칸으로 나눔(2026-11-23 밤): 골드 30%·30%·40%, 루비 ⅓씩, 조각은 100% 칸에. 단계 합계는 그대로 */
 export const STAGE_CHEST_SPLIT = { gold: [0.3, 0.3, 0.4], rubies: [1 / 3, 1 / 3, 1 / 3] };
 export function stageBoxReward(d: Difficulty, stage: number, tier: 1 | 2 | 3 = 3): RewardBundle {
@@ -68,7 +83,7 @@ export function stageBoxReward(d: Difficulty, stage: number, tier: 1 | 2 | 3 = 3
   const part = (total: number, ratios: number[]) => (tier === 3 ? total - Math.round(total * ratios[0]) - Math.round(total * ratios[1]) : Math.round(total * ratios[tier - 1]));
   return {
     gold: part(b.gold, STAGE_CHEST_SPLIT.gold),
-    rubies: tier === 3 ? STAGE_CLEAR_RUBIES : part(b.rubies, STAGE_CHEST_SPLIT.rubies),
+    rubies: tier === 3 ? DIFFICULTY_REWARD[d].clearRubies : part(b.rubies, STAGE_CHEST_SPLIT.rubies),
     ...(tier === 3 && stage % STAGE_BOX_FRAGMENT_EVERY === 0 ? { fragments: { dragonId: 'red' as DragonId, count: b.fragments } } : {}),
   };
 }

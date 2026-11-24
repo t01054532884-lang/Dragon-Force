@@ -98,15 +98,27 @@ describe('선물함 · 최초 클리어 행동력 선물', () => {
     if (!again.ok) expect(again.reason).toBe('claimed');
   });
 
-  it('받으면 40을 넘는 경우 받지 않고 선물함에 그대로 둠(일부 수령 없음)', () => {
+  it('선물로는 40을 넘겨 받을 수 있고, 받으면 100을 넘는 경우만 받지 않고 그대로 둠(일부 수령 없음, 11/25)', () => {
     const box = grantClearGift(newGiftBox(), 'easy', 1, '쉬움 1단계', T0).box;
-    const r = claimGift(box, { value: 21, regenFrom: T0 }, 'clear:easy:1', T0);
+    const over40 = claimGift(box, { value: 35, regenFrom: T0 }, 'clear:easy:1', T0);
+    expect(over40.ok && over40.state.value).toBe(55);
+    const r = claimGift(box, { value: 81, regenFrom: T0 }, 'clear:easy:1', T0);
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.reason).toBe('wouldExceed');
     expect(unclaimedCount(r.box)).toBe(1);
-    expect(r.state.value).toBe(21);
-    const ok = claimGift(box, { value: 20, regenFrom: T0 }, 'clear:easy:1', T0);
-    expect(ok.ok && ok.state.value).toBe(40);
+    expect(r.state.value).toBe(81);
+    const ok = claimGift(box, { value: 80, regenFrom: T0 }, 'clear:easy:1', T0);
+    expect(ok.ok && ok.state.value).toBe(STAMINA.hold);
+  });
+
+  it('40을 넘는 동안은 시간 회복이 멈추고, 써서 40 아래로 내려가면 그때부터 다시 회복', () => {
+    const s = { value: 60, regenFrom: T0 };
+    expect(regen(s, T0 + 10 * R).value).toBe(60);
+    expect(nextRegenIn(s, T0 + 10 * R)).toBeNull();
+    const a = spend(regen(s, T0 + 10 * R), 5, T0 + 10 * R).state; // 55: 아직 40 이상
+    expect(regen(a, T0 + 20 * R).value).toBe(55);
+    const b = spend(regen({ value: 42, regenFrom: T0 }, T0), 5, T0).state; // 37: 지금부터 회복
+    expect(regen(b, T0 + R).value).toBe(38);
   });
 
   it('수령으로 40이 되면 회복 타이머 정지', () => {

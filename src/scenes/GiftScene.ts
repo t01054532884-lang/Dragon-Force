@@ -99,7 +99,7 @@ export class GiftScene extends Phaser.Scene {
     list.slice(this.page * PER_PAGE, (this.page + 1) * PER_PAGE).forEach((g, i) => {
       const y = TOP + 50 + i * ROW_H;
       const L = GIFT_LABEL[g.kind];
-      const over = g.kind === 'stamina' && st.value + g.amount > STAMINA.max;
+      const over = g.kind === 'stamina' && st.value + g.amount > STAMINA.hold;
       const row = add(plate(this, 360, y, 664, ROW_H - 10, { r: 20, gold: g.sender === 'operator' }));
       const icon = g.kind === 'stamina' ? 'ui-energy' : g.kind === 'rubies' ? 'ui-ruby' : g.kind === 'gold' ? 'ui-gold' : g.kind === 'tickets' ? 'ui-ticket' : '';
       if (icon && this.textures.exists(icon)) row.add(this.add.image(-282, 0, icon).setDisplaySize(64, 64));
@@ -108,7 +108,7 @@ export class GiftScene extends Phaser.Scene {
       row.add(amt);
       row.add(text(this, -238 + amt.width + 12, -24, clip(g.title, 16), 18, COLOR.gold, true, true).setOrigin(0, 0.5));
       row.add(text(this, -238, 6, g.body ? clip(g.body, 26) : g.source, 16, COLOR.textSub, true).setOrigin(0, 0.5));
-      row.add(text(this, -238, 30, over ? `행동력 ${st.value} + ${g.amount} > ${STAMINA.max} — 사용 후 받을 수 있어요` : expiryText(g, now), 14, over ? COLOR.danger : COLOR.textDim, true).setOrigin(0, 0.5));
+      row.add(text(this, -238, 30, over ? `행동력은 ${STAMINA.hold}을 초과할 수 없어요 — 사용 후 받을 수 있어요` : expiryText(g, now), 14, over ? COLOR.danger : COLOR.textDim, true).setOrigin(0, 0.5));
       const b = button(this, 600, y - 4, 112, 62, '받기', () => this.claimOne(g.id), { kind: 'growth', size: TYPE.caption });
       add(b.root);
       b.setEnabled(!over);
@@ -147,7 +147,7 @@ export class GiftScene extends Phaser.Scene {
     const sum = new Map<GiftKind, number>();
     for (const g of r.claimed) sum.set(g.kind, (sum.get(g.kind) ?? 0) + g.amount);
     const lines = GIFT_KINDS.filter((k) => sum.has(k)).map((k) => `${tag(k)}${GIFT_LABEL[k].name} +${sum.get(k)!.toLocaleString()}${GIFT_LABEL[k].unit}`);
-    const keptLines = r.kept.map((k) => `${tag(k.gift.kind)}${k.gift.amount}${GIFT_LABEL[k.gift.kind].unit} — ${k.reason === 'wouldExceed' ? `받으면 최대 ${STAMINA.max}를 넘어요` : CLAIM_FAIL_TEXT[k.reason]}`);
+    const keptLines = r.kept.map((k) => `${tag(k.gift.kind)}${k.gift.amount}${GIFT_LABEL[k.gift.kind].unit} — ${CLAIM_FAIL_TEXT[k.reason]}`);
     this.render();
     this.showSummary(r.claimed.length, lines, keptLines);
   }

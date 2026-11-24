@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { CC, ENEMIES, HARD_CC_BOSS, PATTERN, type EnemyDef, type EnemyKind, type PatternSpec } from '../data/enemies';
 import { M } from '../data/stats';
-import { clampToArena, randomPointIn, touchingWall, type ArenaGeom } from '../data/arenas';
+import { clampToArena, randomPointIn, steerAround, touchingWall, type ArenaGeom } from '../data/arenas';
 
 /** 7단계 공통 패턴 예고시간(ms) — 모든 난이도에서 같다(원문 6장) */
 export const TELEGRAPH = { projectile: 800, charge: 1000, area: 1200, shockwave: 1300, breath: 1500, claw: 900, line: 1000 };
@@ -314,6 +314,7 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
       vx = Math.cos(a) * s;
       vy = Math.sin(a) * s;
     }
+    ({ vx, vy } = steerAround(arena, this.x, this.y, vx, vy, this.def.radius, this.uid % 2 === 0 ? 1 : -1, dist)); // 장애물 뒤에서 멈추지 않게
     this.body.setVelocity(vx, vy);
     this.setRotation(aim);
 
@@ -350,7 +351,8 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
     let speed = this.def.speed * this.speedMult * ROAM.speed;
     if (this.slowLeft > 0) speed *= 1 - this.slowRatio;
     if (this.rootLeft > 0) speed = 0;
-    this.body.setVelocity(Math.cos(a) * speed, Math.sin(a) * speed);
+    const v = steerAround(arena, this.x, this.y, Math.cos(a) * speed, Math.sin(a) * speed, this.def.radius, this.uid % 2 === 0 ? 1 : -1, Math.hypot(this.roamTo.x - this.x, this.roamTo.y - this.y));
+    this.body.setVelocity(v.vx, v.vy);
     this.setRotation(a);
   }
 

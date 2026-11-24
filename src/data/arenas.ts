@@ -1,7 +1,9 @@
 /**
  * 전장 모양(테스터 피드백 2026-11-24 "맵이 전부 원형이라 단조롭다 — 정사각형도, 장애물 있는 맵도"):
  * 단계마다 원형/정사각형 + 장애물(돌기둥·바위·벽) 배치를 고른다. 좌표는 전장 반지름(r) 비율이라 어려움의 좁은 전장에도 같은 모양으로 줄어든다.
- * 장애물은 드래곤·몬스터의 이동만 막고, 적 투사체는 장애물에 맞으면 사라진다(엄폐). 드래곤의 공격은 그대로 지나간다.
+ * 장애물은 드래곤·몬스터의 이동만 막고, 공격(드래곤·적 투사체 모두)은 그대로 지나간다.
+ * (11/24엔 적 투사체만 막혔는데 테스터가 "드래곤 공격은 통과하고 적 공격만 막힌다"고 어색해해 11/25 통일)
+ * 몬스터는 장애물 앞에서 멈추지 않고 옆으로 돌아 나온다(steerAround).
  * 5·10·15·20단계(최종보스)는 돌진 패턴이 많아 장애물 없이 둔다.
  * 피해야 할 자리: 드래곤 시작(0, +0.4) · 보스 등장(0, −0.55) · 보스 2마리(±0.45, −0.35).
  */
@@ -113,6 +115,120 @@ export function clampToArena(a: ArenaGeom, x: number, y: number, rad: number): {
     }
   }
   return { x, y };
+}
+
+/** 선분 (x0,y0)→(x1,y1)이 사각형(중심 cx,cy, 반폭 hx,hy) 안을 지나면 들어가는 지점 비율(0~1), 아니면 null */
+function segRect(x0: number, y0: number, x1: number, y1: number, cx: number, cy: number, hx: number, hy: number): number | null {
+  let t0 = 0;
+  let t1 = 1;
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  for (const [p, q] of [[-dx, x0 - (cx - hx)], [dx, cx + hx - x0], [-dy, y0 - (cy - hy)], [dy, cy + hy - y0]] as [number, number][]) {
+    if (Math.abs(p) < 1e-9) {
+      if (q < 0) return null;
+    } else {
+      const r = q / p;
+      if (p < 0) t0 = Math.max(t0, r);
+      else t1 = Math.min(t1, r);
+      if (t0 > t1) return null;
+    }
+  }
+  return t0;
+}
+
+/** 선분이 원(중심 cx,cy, 반지름 R)을 지나면 들어가는 지점 비율, 아니면 null */
+function segCircle(x0: number, y0: number, x1: number, y1: number, cx: number, cy: number, R: number): number | null {
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  const fx = x0 - cx;
+  const fy = y0 - cy;
+  const A = dx * dx + dy * dy;
+  const B = 2 * (fx * dx + fy * dy);
+  const C = fx * fx + fy * fy - R * R;
+  if (C <= 0) return 0; // 이미 안쪽(밀려나는 중)
+  const disc = B * B - 4 * A * C;
+  if (disc < 0 || A < 1e-9) return null;
+  const t = (-B - Math.sqrt(disc)) / (2 * A);
+  return t >= 0 && t <= 1 ? t : null;
+}
+
+/**
+ * 장애물 돌아가기(테스터 피드백 2026-11-25: 드래곤을 쫓던 몬스터가 벽 뒤에서 멈춰 있음).
+ * 가려는 길(지금 자리 → 가려는 방향으로 reach만큼)이 가까운 장애물에 막히면 중간 목표로 방향을 바꾼다(속력은 그대로).
+ * - 바위·벽: 모서리 4곳 중 "지금 자리 → 모서리 → 원래 목표" 거리가 가장 짧은(지금 자리에서 곧장 갈 수 있는) 모서리.
+ * - 기둥: 옆으로 스쳐 지나가는 접점 방향(목표가 왼쪽이면 왼쪽으로).
+ * 거의 정면이라 양쪽이 같으면 side(몬스터마다 정해진 쪽)를 따른다. 중간 목표는 자리만으로 정해져 제자리 왕복이 없다.
+ */
+export function steerAround(a: ArenaGeom, x: number, y: number, vx: number, vy: number, rad: number, side = 1, reach = 600): { vx: number; vy: number } {
+  const speed = Math.hypot(vx, vy);
+  if (speed < 1e-3 || !a.obstacles?.length) return { vx, vy };
+  const ux = vx / speed;
+  const uy = vy / speed;
+  const len = Math.max(rad * 2, reach);
+  const gx = x + ux * len;
+  const gy = y + uy * len;
+  const near = rad + 160; // 이 거리 안의 장애물만 돌아간다(멀리 있는 건 다가가며 판단)
+  let best: { t: number; o: Obstacle } | null = null;
+  for (const o of a.obstacles) {
+    let t: number | null;
+    if (o.kind === 'pillar') {
+      if (Math.hypot(x - o.x, y - o.y) - o.r > near) continue;
+      t = segCircle(x, y, gx, gy, o.x, o.y, o.r + rad + 2);
+    } else {
+      if (Math.max(Math.abs(x - o.x) - o.w / 2, Math.abs(y - o.y) - o.h / 2) > near) continue;
+      t = segRect(x, y, gx, gy, o.x, o.y, o.w / 2 + rad + 2, o.h / 2 + rad + 2);
+    }
+    if (t !== null && (!best || t < best.t)) best = { t, o };
+  }
+  if (!best) return { vx, vy };
+  const o = best.o;
+  const cross = (px: number, py: number) => ux * (py - y) - uy * (px - x); // 양수 = 목표 방향 기준 왼쪽(화면 기준 시계 반대)
+  let wx: number;
+  let wy: number;
+  if (o.kind === 'rock') {
+    const m = rad + 14;
+    const hx = o.w / 2 + m;
+    const hy = o.h / 2 + m;
+    const ih = o.w / 2 + rad + 1;
+    const iv = o.h / 2 + rad + 1;
+    const clear = (x0: number, y0: number, x1: number, y1: number) => segRect(x0, y0, x1, y1, o.x, o.y, ih, iv) === null;
+    const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([sx, sy]) => ({ x: o.x + sx * hx, y: o.y + sy * hy }));
+    // 모서리에서 목표까지: 곧장 가면 그 거리, 막히면 이웃 모서리를 하나 더 거친 거리(바위 하나는 모서리 2개면 돈다)
+    const toGoal = (i: number) => {
+      const c = corners[i];
+      if (clear(c.x, c.y, gx, gy)) return Math.hypot(gx - c.x, gy - c.y);
+      return Math.min(...[corners[(i + 1) % 4], corners[(i + 3) % 4]].map((n) => Math.hypot(n.x - c.x, n.y - c.y) + Math.hypot(gx - n.x, gy - n.y)));
+    };
+    let pick: { c: number; x: number; y: number } | null = null;
+    corners.forEach((c, i) => {
+      if (Math.hypot(c.x - x, c.y - y) < 8) return; // 이미 와 있는 모서리
+      if (!clear(x, y, c.x, c.y)) return; // 곧장 못 가는 모서리
+      if (outsideArena(a, c.x, c.y, -rad)) return; // 바깥 벽에 붙은 바위: 그쪽 모서리로는 못 지나감
+      const cost = Math.hypot(c.x - x, c.y - y) + toGoal(i) - Math.sign(cross(c.x, c.y)) * side * 0.5;
+      if (!pick || cost < pick.c) pick = { c: cost, x: c.x, y: c.y };
+    });
+    if (!pick) {
+      // 모서리가 다 가려짐(벽에 붙음): 벽을 따라 가까운 끝으로
+      const alongY = Math.abs(x - o.x) - o.w / 2 > Math.abs(y - o.y) - o.h / 2;
+      pick = alongY ? { c: 0, x, y: o.y + (y >= o.y ? hy : -hy) } : { c: 0, x: o.x + (x >= o.x ? hx : -hx), y };
+    }
+    wx = pick.x - x;
+    wy = pick.y - y;
+  } else {
+    const R = o.r + rad + 10;
+    const dx = o.x - x;
+    const dy = o.y - y;
+    const d = Math.hypot(dx, dy) || 1;
+    let s = Math.sign(cross(o.x, o.y)) || side; // 기둥이 왼쪽이면 오른쪽으로
+    if (Math.abs(cross(o.x, o.y)) < 4) s = side;
+    const base = Math.atan2(dy, dx);
+    const off = d > R ? Math.asin(R / d) : Math.PI / 2;
+    const ang = base - s * off;
+    wx = Math.cos(ang);
+    wy = Math.sin(ang);
+  }
+  const k = speed / (Math.hypot(wx, wy) || 1);
+  return { vx: wx * k, vy: wy * k };
 }
 
 /** 점이 장애물 안인가(반지름 rad만큼 넓혀서) */

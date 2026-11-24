@@ -47,7 +47,8 @@ let attendancePopupShown = '';
  * 기능·조건·수치는 예전 로비와 같다(그림과 배치만 바뀜).
  */
 export class LobbyScene extends Phaser.Scene {
-  private stageId = 1;
+  /** 0 = 앱을 막 켬 → 가장 최근에 열린(가장 높은) 단계로 시작(제작자 피드백 2026-11-25: 껐다 켜면 1단계로 돌아가 있었음) */
+  private stageId = 0;
   /** 개발용(?dev=1)으로 잠긴 난이도를 고른 경우(저장하지 않는 시험 플레이) */
   private devDiff: Difficulty | null = null;
   private exitLayer: Phaser.GameObjects.GameObject[] = [];
@@ -106,7 +107,7 @@ export class LobbyScene extends Phaser.Scene {
     const p = Progress.load();
     const curDiff: Difficulty = this.devDiff ?? p.selectedDifficulty;
     const dp = p.difficulty[curDiff];
-    if (!dp.unlocked.includes(this.stageId)) this.stageId = Math.max(1, ...dp.unlocked.filter((s) => STAGES.some((st) => st.id === s)));
+    if (this.stageId === 0 || !dp.unlocked.includes(this.stageId)) this.stageId = Math.max(1, ...dp.unlocked.filter((s) => STAGES.some((st) => st.id === s)));
 
     drawLobbyBackdrop(this, this.stageId); // 단계별 배경(받은 단계만, 그림 요청서 10)
     playMusic(this, 'bgm-lobby'); // 메뉴 화면끼리는 같은 곡을 끊지 않고 이어 감
@@ -313,7 +314,7 @@ export class LobbyScene extends Phaser.Scene {
     difficultyUnlock(this, {
       title: `${DIFFICULTY_LABEL[d]} 모드 해금!`,
       sub: `${DIFFICULTY_LABEL[prev]} ${n}단계 돌파! 이제 ${DIFFICULTY_LABEL[d]} 1단계에 도전할 수 있어요`,
-      detail: `${DIFFICULTY_LABEL[d]} 1단계 권장 전투력 ${recommendedCp(1, d).toLocaleString()}\n단계마다 새로운 기믹 · 처음 깰 때 루비 보상`,
+      detail: `${DIFFICULTY_LABEL[d]} 1단계 권장 전투력 ${recommendedCp(1, d).toLocaleString()}`, // 부가 설명 줄("단계마다 새로운 기믹 · 처음 깰 때 루비 보상")은 뺌(제작자 11/25)
       color: d === 'hard' ? 0xff5a4a : 0xb04aff,
       goLabel: '도전하기',
     }, () => {

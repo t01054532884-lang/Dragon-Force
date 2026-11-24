@@ -1,4 +1,5 @@
 import { STAMINA, regen, spend, newStamina, type StaminaState } from './Stamina';
+import { DIFFICULTY_REWARD, type Difficulty } from '../data/economy';
 
 // 선물함(8단계 v1.0 4장 · 기획 v1.4) — 순수 함수. 시각 now를 인자로 받아 테스트·서버 이전이 쉽다.
 // 서버가 생기면 같은 규칙을 Cloud Functions로 옮기고, 앱은 "요청 → 결과 표시"만 하면 된다(docs/STAGE8.md).
@@ -72,7 +73,7 @@ export function addGift<P extends WalletLike>(p: P, g: Gift): { added: boolean; 
 /** 스테이지·난이도별 최초 클리어 → 행동력 20 선물(만료 없음) */
 export function grantClearGift<P extends WalletLike>(p: P, difficulty: string, stageId: number, label: string, now: number): { added: boolean; progress: P } {
   return addGift(p, {
-    id: `clear:${difficulty}:${stageId}`, kind: 'stamina', amount: STAMINA.clearGift, title: '행동력 충전 선물',
+    id: `clear:${difficulty}:${stageId}`, kind: 'stamina', amount: DIFFICULTY_REWARD[difficulty as Difficulty]?.stamina ?? STAMINA.clearGift, title: '행동력 충전 선물',
     source: `${label} 최초 클리어`, sender: 'system', createdAt: now, expiresAt: null,
   });
 }
@@ -98,14 +99,14 @@ export const CLAIM_FAIL_TEXT: Record<ClaimFail, string> = {
   notFound: '선물을 찾을 수 없어요',
   claimed: '이미 받은 선물이에요',
   expired: '기간이 지난 선물이에요',
-  wouldExceed: `행동력이 ${STAMINA.max - STAMINA.clearGift} 이하일 때 받을 수 있어요`,
+  wouldExceed: `행동력은 ${STAMINA.hold}을 초과할 수 없어요`,
 };
 
-/** 한 개 받을 수 있는지(행동력은 받은 뒤 최대 40을 넘으면 보류 — 일부만 받기 없음) */
+/** 한 개 받을 수 있는지(행동력은 받은 뒤 보유 최대 100을 넘으면 보류 — 일부만 받기 없음. 40 초과는 됨) */
 function check(p: WalletLike, g: Gift, now: number): ClaimFail | null {
   if (g.claimedAt) return 'claimed';
   if (isExpired(g, now)) return 'expired';
-  if (g.kind === 'stamina' && regen(p.stamina, now).value + g.amount > STAMINA.max) return 'wouldExceed';
+  if (g.kind === 'stamina' && regen(p.stamina, now).value + g.amount > STAMINA.hold) return 'wouldExceed';
   return null;
 }
 
@@ -234,7 +235,7 @@ export function sanitizeStamina(raw: unknown, now: number): StaminaState {
   const s = (raw ?? {}) as Partial<StaminaState>;
   if (typeof s.value !== 'number') return newStamina(now);
   const regenFrom = Number(s.regenFrom);
-  return { value: int(s.value, 0, 999, STAMINA.max), regenFrom: Number.isFinite(regenFrom) ? Math.min(regenFrom, now) : now };
+  return { value: int(s.value, 0, STAMINA.hold, STAMINA.max), regenFrom: Number.isFinite(regenFrom) ? Math.min(regenFrom, now) : now };
 }
 
 export function sanitizeMailbox(raw: unknown): MailboxState {

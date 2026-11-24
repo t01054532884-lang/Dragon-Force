@@ -3,7 +3,8 @@
 // 게임 저장(Progress)에 붙이는 건 v1.2가 main에 합쳐진 뒤. 지금은 디자인 시안에서만 사용.
 
 export const STAMINA = {
-  max: 40, // 최대 행동력(자연 회복 상한)
+  max: 40, // 자연 회복 상한 — 이 이상이면 시간 회복이 멈춘다
+  hold: 100, // 들고 있을 수 있는 최대(선물로 40을 넘겨 받을 수 있음, 제작자 2026-11-25)
   regenMs: 5 * 60_000, // 5분마다 1개 → 0→40 전부 3시간 20분(테스터 피드백 2026-11-23: 30분 → 5분)
   entryCost: 5, // 스테이지 1회 입장 비용 — 임시값(기획 v1.4 "임시 5 추천", 최종은 밸런스로 확정)
   clearGift: 20, // 스테이지·난이도별 최초 클리어 보상(선물함으로)
@@ -88,7 +89,8 @@ export function grantClearGift(box: GiftBox, difficulty: string, stageId: number
 export type ClaimFail = 'notFound' | 'claimed' | 'wouldExceed';
 
 /**
- * 선물 수령. 받은 뒤 최대(40)를 넘으면 받지 않고 선물함에 그대로 둔다(일부만 받기 없음).
+ * 선물 수령. 받은 뒤 보유 최대(100)를 넘으면 받지 않고 선물함에 그대로 둔다(일부만 받기 없음).
+ * 40을 넘겨 받는 것은 된다(그동안은 시간 회복이 멈춤 — regen).
  * 받으면 claimedAt을 기록(목록에서 '수령 완료'). 선물함의 행동력은 최대 계산에 들어가지 않는다.
  */
 export function claimGift(
@@ -101,7 +103,7 @@ export function claimGift(
   const g = box.gifts.find((x) => x.id === giftId);
   if (!g) return { ok: false, reason: 'notFound', box, state: r };
   if (g.claimedAt) return { ok: false, reason: 'claimed', box, state: r };
-  if (r.value + g.amount > STAMINA.max) return { ok: false, reason: 'wouldExceed', box, state: r };
+  if (r.value + g.amount > STAMINA.hold) return { ok: false, reason: 'wouldExceed', box, state: r };
   const value = r.value + g.amount;
   const state = { value, regenFrom: value >= STAMINA.max ? now : r.regenFrom };
   return { ok: true, state, box: { ...box, gifts: box.gifts.map((x) => (x.id === giftId ? { ...x, claimedAt: now } : x)) } };

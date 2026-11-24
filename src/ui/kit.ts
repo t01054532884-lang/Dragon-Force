@@ -301,7 +301,16 @@ export function modal(scene: Phaser.Scene, w: number, h: number, title: string, 
     box.destroy();
   };
   if (opts.closeOnBackdrop) dim.on('pointerdown', close);
-  return { box, close, body: (o: Phaser.GameObjects.GameObject) => box.add(o) };
+  // 안에 넣는 버튼도 화면 고정으로: 컨테이너의 scrollFactor(0)는 그리기에만 적용되고 누르는 판정은 자식 값을 써서,
+  // 카메라가 내려간 화면(세로가 긴 휴대폰의 선물함 등)에서 확인 버튼 판정이 아래로 밀려 안 눌렸다(2026-11-25 제보).
+  return { box, close, body: (o: Phaser.GameObjects.GameObject) => (box.add(o), pinToScreen(o), box) };
+}
+
+/** 컨테이너 안쪽까지 화면 고정(scrollFactor 0) — 누르는 판정이 그림과 같은 자리에 오게 */
+export function pinToScreen(o: Phaser.GameObjects.GameObject): void {
+  const g = o as Phaser.GameObjects.GameObject & { setScrollFactor?: (x: number, y?: number) => unknown; list?: Phaser.GameObjects.GameObject[] };
+  g.setScrollFactor?.(0, 0);
+  g.list?.forEach(pinToScreen);
 }
 
 /** 슬롯 칸(장비·특수 스킬): 빈 칸은 +, 채워지면 등급 색 */

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DRAGON_ORDER, DRAGONS } from '../src/data/dragons';
 import { applyPerm, permState, PERM_TIERS, ZERO_PERM } from '../src/data/permGrowth';
-import { BOXES, DRAGON_BOX, GOLD_OFFERS, EQUIPMENT_BOX, STAGE_BOX, STAGE_CLEAR_RUBIES, stageBoxReward } from '../src/data/economy';
+import { BOXES, DIFFICULTY_REWARD, DRAGON_BOX, GOLD_OFFERS, EQUIPMENT_BOX, STAGE_BOX, STAGE_CLEAR_RUBIES, stageBoxReward } from '../src/data/economy';
 import { RUNE_BOX, RUNE_RULES, runeEffects, runeUpgradeCost } from '../src/data/runes';
 import { equipValue, EQUIP_RULES } from '../src/data/equipment';
 import { combatPower, recommendedCp, cpVerdict } from '../src/data/power';
@@ -162,7 +162,8 @@ describe('6-4 난이도·진행도', () => {
     const sum = CHEST_TIERS.map((t) => stageBoxReward('easy', 5, t));
     expect(sum.reduce((s, r) => s + (r.gold ?? 0), 0)).toBe(50);
     expect(sum.map((r) => r.rubies)).toEqual([5, 5, STAGE_CLEAR_RUBIES]);
-    expect(stageBoxReward('hard', 1, 3).rubies).toBe(100);
+    // 어려울수록 100% 칸 루비도 많게(제작자 원칙 11/25): 쉬움 100 < 어려움 150 < 매우 어려움 200
+    expect([stageBoxReward('easy', 1, 3).rubies, stageBoxReward('hard', 1, 3).rubies, stageBoxReward('extreme', 1, 3).rubies]).toEqual([100, 150, 200]);
     expect(sum.map((r) => r.fragments?.count ?? 0)).toEqual([0, 0, 5]);
   });
   it('단계 상자 모두 받기: 20단계 × 3칸 합계 = 루비 2,200(100% 칸 100 × 20 + 25·50% 칸 200) · 골드 1,000 · 레드 조각 20(쉬움), 어려움은 2배', () => {
@@ -473,5 +474,24 @@ describe('6-9 주기 보상(KST)', () => {
       p = c.progress;
     }
     expect(p.missions.dailyDone).toEqual(['2026-11-18']);
+  });
+});
+
+describe('난이도별 보상(제작자 원칙 2026-11-25: 어려울수록 더)', () => {
+  it('같은 단계면 모든 보상 칸이 쉬움 < 어려움 < 매우 어려움', () => {
+    const order = ['easy', 'hard', 'extreme'] as const;
+    const cols = (f: (d: (typeof order)[number]) => number) => order.map(f);
+    const up = (xs: number[]) => xs.every((x, i) => i === 0 || x > xs[i - 1]);
+    expect(up(cols((d) => DIFFICULTY_REWARD[d].gold))).toBe(true);
+    expect(up(cols((d) => DIFFICULTY_REWARD[d].clearRubies))).toBe(true);
+    expect(up(cols((d) => DIFFICULTY_REWARD[d].cards.first))).toBe(true);
+    expect(up(cols((d) => DIFFICULTY_REWARD[d].cards.repeat))).toBe(true);
+    expect(up(cols((d) => DIFFICULTY_REWARD[d].stamina))).toBe(true);
+    for (const tier of [1, 2, 3] as const) {
+      expect(up(cols((d) => stageBoxReward(d, 5, tier).gold ?? 0))).toBe(true);
+      expect(up(cols((d) => stageBoxReward(d, 5, tier).rubies ?? 0))).toBe(true);
+    }
+    expect(up(cols((d) => stageBoxReward(d, 5, 3).fragments?.count ?? 0))).toBe(true);
+    expect(DIFFICULTY_REWARD.easy).toMatchObject({ gold: 1, clearRubies: STAGE_CLEAR_RUBIES, cards: { first: 2, repeat: 1 }, stamina: 20 }); // 쉬움은 그대로
   });
 });

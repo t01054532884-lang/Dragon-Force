@@ -44,8 +44,14 @@ export async function initPlatform(storageKeys: string[]): Promise<void> {
   } catch (e) {
     console.warn('플랫폼 초기화 일부 실패', e);
   }
+  // iOS 앱은 켜자마자 안전 영역(env safe-area-inset-*)이 0으로 읽힐 때가 있다 → 그때 시작하면 화면이 노치·다이내믹 아일랜드 밑까지
+  // 꽉 차서 머리줄·체력 막대가 가려졌다(테스터 제보 2026-11-25). 위쪽 값이 잡힐 때까지 최대 1.5초 기다렸다가 화면 크기를 정한다.
+  if (impl.id === 'ios') {
+    for (let t = 0; t < 1500 && impl.insets().top <= 0; t += 50) await new Promise((r) => setTimeout(r, 50));
+  }
   applyInsets();
   impl.onInsetsChange(applyInsets);
+  impl.onResume(applyInsets);
 }
 
 export function insets(): Insets {

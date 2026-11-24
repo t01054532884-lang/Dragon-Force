@@ -119,6 +119,6 @@ export const hardStage = (stageId: number): HardStageDef => HARD_STAGES[Math.max
 export const HARD_PACE = { waveKills: 1.3, bossHp: 1.25, eliteHp: 1.15 };
 
 /** 어려움 반복 클리어 골드 배율(원문 "일반 대비 약 1.5배") — 최초 클리어 보상은 따로 */
-export const HARD_GOLD_MULT = 1.5;
+export const HARD_GOLD_MULT = 1.5; // = DIFFICULTY_REWARD.hard.gold(economy.ts)
 /** 같은 그룹(엘리트끼리·보스끼리) 두 마리가 연달아 공격을 시작하는 최소 간격(ms) — 예고가 겹쳐 안전지대가 사라지지 않게(AI 1차안) */
 export const HARD_ATTACK_GAP_MS = 1600;

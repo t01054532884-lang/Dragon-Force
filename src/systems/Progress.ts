@@ -18,6 +18,7 @@ import {
   ACHIEVEMENTS,
   BOXES,
   CLEAR_CARDS,
+  DIFFICULTY_REWARD,
   DAILY_IDS,
   DIFFICULTIES,
   DIFFICULTY_RELEASED,
@@ -631,7 +632,7 @@ export function settleRun(
       const gift = grantClearGift(next, diff, run.stageId, `${DIFFICULTY_LABEL[diff]} ${run.stageId}단계`, now);
       if (gift.added) {
         next = gift.progress;
-        rewards.push({ id: `clear:${diff}:${run.stageId}`, text: `행동력 ${STAMINA.clearGift} → 선물함` });
+        rewards.push({ id: `clear:${diff}:${run.stageId}`, text: `행동력 ${DIFFICULTY_REWARD[diff].stamina} → 선물함` });
       }
       // 출격 드래곤 카드(제작자 임시 규칙 2026-11-18): 골드 정산과 별개
       const did = run.dragonId ?? next.selectedDragonId;
@@ -639,7 +640,7 @@ export function settleRun(
         next = { ...next, gold: next.gold + CLEAR_CARDS.maxLevelGold };
         rewards.push({ id: `card-${runId}`, text: `${DRAGONS[did].short} Lv.40 — 카드 대신`, gold: CLEAR_CARDS.maxLevelGold });
       } else {
-        const n = first ? CLEAR_CARDS.first : CLEAR_CARDS.repeat;
+        const n = first ? DIFFICULTY_REWARD[diff].cards.first : DIFFICULTY_REWARD[diff].cards.repeat; // 어려울수록 더(11/25)
         next = addCards(next, did, n);
         rewards.push({ id: `card-${runId}`, text: `${DRAGONS[did].short} 카드(${first ? '최초 클리어' : '반복 클리어'})`, cards: { dragonId: did, count: n } });
       }

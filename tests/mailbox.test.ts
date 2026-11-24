@@ -35,16 +35,16 @@ describe('선물함 — 최초 클리어 선물', () => {
 });
 
 describe('선물함 — 수령', () => {
-  it('개별 수령: 행동력은 받은 뒤 40을 넘으면 보류, 21 이상이면 20짜리 못 받음', () => {
-    let p = addGift(withStamina(defaultProgress(T0), 21), gift('s', 'stamina', 20)).progress;
+  it('개별 수령: 행동력은 받은 뒤 100을 넘으면 보류, 81 이상이면 20짜리 못 받음(40 초과는 됨, 11/25)', () => {
+    let p = addGift(withStamina(defaultProgress(T0), 81), gift('s', 'stamina', 20)).progress;
     expect(claimOne(p, 's', T0)).toMatchObject({ ok: false, reason: 'wouldExceed' });
-    p = withStamina(p, 20);
+    p = withStamina(p, 80);
     const r = claimOne(p, 's', T0);
-    expect(r.ok && r.progress.stamina.value).toBe(40);
+    expect(r.ok && r.progress.stamina.value).toBe(100);
     expect(r.ok && claimOne(r.progress, 's', T0)).toMatchObject({ ok: false, reason: 'claimed' });
   });
-  it('기획서 예: 25/40에 행동력 20 두 개 + 루비 + 골드 → 모두 받기는 루비·골드만, 행동력 둘은 남김', () => {
-    let p = withStamina(defaultProgress(T0), 25);
+  it('85/40에 행동력 20 두 개 + 루비 + 골드 → 모두 받기는 루비·골드만, 행동력 둘은 남김(100 초과)', () => {
+    let p = withStamina(defaultProgress(T0), 85);
     for (const g of [gift('s1', 'stamina', 20, T0), gift('s2', 'stamina', 20, T0 + 1), gift('r', 'rubies', 1000, T0 + 2), gift('g', 'gold', 500, T0 + 3)]) p = addGift(p, g).progress;
     const r = claimAll(p, T0);
     expect(r.claimed.map((g) => g.id)).toEqual(['r', 'g']);
@@ -52,11 +52,11 @@ describe('선물함 — 수령', () => {
     expect(r.progress.rubies).toBe(1000);
     expect(r.progress.gold).toBe(500);
     expect(pendingCount(r.progress.mailbox, T0)).toBe(2);
-    // 행동력을 써서 20 이하가 되면 하나 받을 수 있음
-    const spent = spendStamina(r.progress, 5, T0).progress; // 20
+    // 행동력을 써서 80 이하가 되면 하나 받을 수 있음
+    const spent = spendStamina(r.progress, 5, T0).progress; // 80
     const r2 = claimAll(spent, T0);
     expect(r2.claimed.map((g) => g.id)).toEqual(['s1']);
-    expect(r2.progress.stamina.value).toBe(40);
+    expect(r2.progress.stamina.value).toBe(100);
     expect(pendingCount(r2.progress.mailbox, T0)).toBe(1);
   });
   it('모두 받기를 두 번 눌러도 중복 지급 없음', () => {
