@@ -19,13 +19,15 @@
 | (11/24 낮) 테스터 피드백: 기본 공격이 **일반 몹에게만 ×1.5**(모든 드래곤, 엘리트·보스 그대로) — 가벼운 몹 2~3대 → 1~2대(계산) | `src/data/basicAttack.ts` `BASIC_VS_NORMAL_MULT`, `docs/BALANCE.md` |
 | (11/24 낮) 단계 상자 **100% 칸 루비 100개**(쉬움·어려움 40칸 = 4,000), 25·50% 칸은 그대로 | `src/data/economy.ts` `STAGE_CLEAR_RUBIES` |
 | (11/24 낮) **어려움 해금 쉬움 20 → 10단계** + 로비 "어려움 모드 해금!" 연출 한 번(도전하기 = 어려움 1단계), 잠긴 탭 문구 "쉬움 10단계를 깨면 열려요" | `docs/HARD.md` 0절, `DIFFICULTY_UNLOCK_AT` |
+| (11/24 오후) **Firebase 서버 함수 5개 배포**(iapCheck·iapAck·skinState·skinSpin·skinAck, 서울) + Firestore 규칙 배포 + 컨테이너 이미지 1일 자동 정리. 비밀 값 2개 등록: `REVENUECAT_WEBHOOK_AUTH`=무작위(진짜 값), `REVENUECAT_SECRET_KEY`=**임시 값**(RevenueCat `sk_…` 받으면 교체). `iapSync`·`rcWebhook`은 아직 안 올림. TestFlight는 빌드 없음 | 아래 4번 |
 | (11/24 오전) **개인 사업자등록 홈택스 접수**(10:48, 처리 대기 보통 2일): 상호 스쿼드코드(SquadCode) · 간이과세 · 개업일 11/24 · 주업종 722002 모바일 게임 + 부업종 722000 응용 소프트웨어(츄즈핏 대비) · 국세 전자송달. 통신판매업은 간이과세자라 신고 면제로 판단(익산시청 확인 필요) | 시트 3행 · 개발일지 |
 
 ### 오늘 이어서 할 일(순서)
 1. ~~사업자등록~~ 접수 완료(11/24 10:48) → **처리 완료 문자 오면** 등록증 출력 · 영문 사업자등록증명 발급 → App Store Connect 대한민국 세금 양식 → **유료 앱 계약 '활성'**
 2. 인앱 구입 키(.p8) → RevenueCat 연결 → **상품 17종 등록**(16 + 스킨 열쇠 `skin_key_1` 4,900원)
-3. RevenueCat 비밀 키 2개 → `firebase functions:secrets:set REVENUECAT_SECRET_KEY` / `REVENUECAT_WEBHOOK_AUTH`
+3. RevenueCat 비밀 키 → `npx.cmd --yes firebase-tools@latest functions:secrets:set REVENUECAT_SECRET_KEY --project dragon-force-eb552`로 **임시 값을 진짜 `sk_…`로 교체**(11/24 임시 값 넣음). `REVENUECAT_WEBHOOK_AUTH`는 11/24에 무작위 값 등록 완료 — RevenueCat 웹훅 Authorization 칸에 넣을 값은 `functions:secrets:access REVENUECAT_WEBHOOK_AUTH`로 확인
 4. **서버 함수 7개 한 번에 배포**: `npx.cmd --yes firebase-tools@latest deploy --only functions --project dragon-force-eb552`
+   - 11/24 오후: 비밀 값이 필요 없는 5개는 이미 배포됨. 남은 건 `iapSync`·`rcWebhook`(진짜 키 넣은 뒤 위 명령으로 7개 다시 배포하면 됨). Secret Manager·Blaze 켜짐.
    - 11/24 새벽 시도: 비밀 값이 없어 중단(함수는 하나도 안 올라감). 집 PC는 Firebase 로그인 됨, 회사 PC는 `npx.cmd --yes firebase-tools@latest login` 먼저.
    - 이때 Google 기능 4개(Cloud Functions·Cloud Build·Artifact Registry·Firebase Extensions)는 이미 켜졌고, Secret Manager도 켜야 함(배포 오류 안내의 주소). 함수에는 종량제(Blaze) 요금제가 필요할 수 있음(결제 수단 등록은 제작자).
    - PowerShell에서 `npx`가 막히면(스크립트 실행 정책) `npx.cmd`로.
