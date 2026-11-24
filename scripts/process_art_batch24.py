@@ -5,7 +5,7 @@ art-src/enemies/art-e-<id>.png → public/art/enemy/art-e-<id>.webp (일반 256 
 있는 원본만 처리한다(다시 돌려도 됨). 처리한 뒤 src/ui/art.ts STAGE_ART_READY에 번호·id를 적는다."""
 import sys
 from pathlib import Path
-from PIL import Image
+from PIL import Image, ImageEnhance
 
 ROOT = Path(__file__).resolve().parent.parent
 SRC_STAGE = ROOT / 'art-src' / 'stage'
@@ -35,9 +35,15 @@ def fit_square(im: Image.Image, size: int, pad: float = 0.02) -> Image.Image:
     return canvas.resize((size, size), Image.LANCZOS)
 
 
+# 너무 밝은 배경은 버튼·글자가 묻히지 않게 조금 어둡게(밝기 배율). 평균 밝기: 1단계 77 · 11단계 145 · 12단계 182(원본)
+DIM = {'lobby-bg-12': 0.78}
+
 for src in sorted(SRC_STAGE.glob('lobby-bg-*.png')):
     out = OUT_STAGE / f'{src.stem}.jpg'
-    cover(Image.open(src), 1080, 1920).save(out, 'JPEG', quality=85, optimize=True, progressive=True)
+    im = cover(Image.open(src), 1080, 1920)
+    if src.stem in DIM:
+        im = ImageEnhance.Brightness(im).enhance(DIM[src.stem])
+    im.save(out, 'JPEG', quality=85, optimize=True, progressive=True)
     print(out.name, out.stat().st_size)
 
 for src in sorted(SRC_STAGE.glob('floor-s*.png')):
