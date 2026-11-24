@@ -86,6 +86,34 @@ AI가 20단계를 하나씩 들어가 확인한 결과(개발 서버, 아이폰 
 | `lobby-bg-19.png` | 19 용의 제단 | 거대한 용 두개골과 용 석상이 둘러싼 고대 제단 산정, 금빛 불꽃 화로 | 용 비늘 무늬 고대 석판 | 금색·짙은 적갈색 |
 | `lobby-bg-20.png` | 20 봉인의 중심 | 거대한 봉인 마법진이 하늘에 떠 빛나는 성역의 중심, 쇠사슬로 묶인 거대한 문 | 마법진 선이 희미하게 빛나는 흰 석판 | 흰금색·청록 마력 빛 |
 
+### ①-3 상세: 3단계 버려진 사냥터 (2026-11-24 다시 요청)
+**문제**: 생성 결과가 계속 2단계(가시덩굴 길)처럼 덩굴·꽃·초록 아치 중심으로 나옴.
+**해결 요령**
+1. **새 대화**에서 시작하고, **2단계 그림은 첨부하지 않는다**(비슷하게 따라 그림). 화풍 참고는 **1단계 그림(`lobby-bg-1`) 한 장만** 첨부하고 "화풍만 참고, 장소·구도는 따라 하지 말 것"이라고 쓴다.
+2. 아래 문장을 **통째로** 붙인다(물체를 왼쪽·오른쪽·뒤로 자리까지 정해 줌).
+3. 그래도 덩굴이 나오면 같은 대화에서: "덩굴·꽃·초록 잎을 전부 지우고, 나무는 잎 없는 마른 나무로만 다시 그려 줘."
+
+**붙일 문장(한국어)**
+> 모바일 게임 로비 배경 일러스트를 1080×1920 세로 비율로 한 장 그려 줘. 첨부 그림은 **화풍(굵은 검은 외곽선, 셀 셰이딩 2D 카툰)만** 참고하고, 장소와 구도는 따라 하지 마.
+> 장소: **버려진 사냥꾼 야영지(사냥터)**. 해 질 무렵, 보랏빛 안개가 땅 위에 낮게 깔려 있다.
+> - **왼쪽(앞~중간)**: 반쯤 무너져 기울어진 **나무 망루**(통나무 기둥 4개, 지붕 판자가 떨어져 나감, 사다리가 부러져 걸쳐 있음).
+> - **오른쪽(앞~중간)**: 찢어져 주저앉은 **사냥꾼 천막** 잔해(낡은 갈색 천, 부러진 막대), 그 옆에 **나무통·꺼진 모닥불 자리·걸어 둔 낡은 가죽**.
+> - **양옆 가장자리**: **부서진 나무 울타리**(뾰족한 말뚝이 군데군데 쓰러짐), 울타리에 **녹슨 쇠 덫(이빨 달린 곰덫)**과 밧줄 올가미가 걸려 있음.
+> - **뒤쪽(먼 배경)**: 잎이 하나도 없는 **검고 마른 나무** 몇 그루, 가장 큰 나무 가지에 **까마귀 3~4마리**가 앉아 있음. 그 뒤로 어두운 숲 실루엣과 보랏빛 하늘, 희미한 달.
+> - **화면 정중앙(위에서 45% 높이)은 비워 둬** — 게임에서 드래곤이 서 있을 자리. 큰 물체는 양옆과 뒤쪽에만.
+> - **아래쪽 40%**: 물체 없이 넓고 평평한 **낙엽 덮인 흙바닥**, 군데군데 부러진 나무판·작은 뼈 조각·발자국만.
+> 색: 어두운 갈색·회갈색 나무, **보라 안개**, 짙은 남보라 하늘. **초록색은 거의 쓰지 마.**
+> **절대 넣지 말 것: 덩굴, 가시덩굴, 꽃, 초록 잎이 무성한 나무, 아치 모양 터널**, 사람·동물(까마귀 제외)·몬스터, 글자, UI.
+> 전체적으로 약간 어둡게(위에 버튼이 올라가므로).
+
+**영어로 할 때(한국어로 계속 비슷하게 나오면)**
+> Vertical 9:16 (1080×1920) mobile game lobby background. Match only the art style of the attached image (thick black outlines, cel-shaded 2D cartoon); do not copy its place or layout.
+> Scene: an **abandoned hunters' camp at dusk**, low **purple fog** over the ground.
+> LEFT: a half-collapsed, leaning **wooden watchtower** (4 log posts, missing roof planks, broken ladder). RIGHT: a torn, sagging **hunter's tent** (old brown canvas, snapped poles) with barrels, a cold campfire ring and hanging old hides. EDGES: **broken wooden palisade fence** with fallen stakes, **rusty bear traps** and rope snares hanging on it. BACK: a few **dead leafless black trees**, **3–4 crows** perched on the biggest branch, dark forest silhouette, purple sky, faint moon.
+> Keep the **exact center (about 45% from the top) empty** for a character. **Bottom 40%: wide flat dirt ground covered with fallen leaves**, only scattered broken planks, small bones and footprints.
+> Palette: dark browns, grey-brown wood, purple fog, deep indigo sky, **almost no green**.
+> **Do NOT include: vines, thorny vines, flowers, lush green foliage, arch-shaped tunnels**, people, animals other than crows, monsters, text, UI. Slightly dark overall.
+
 ## ② 전투 바닥 20장 `floor-s<단계>.png` (2순위)
 **게임에서**: 전투 중 드래곤·몬스터 밑에 깔리는 바닥. **같은 그림을 반복해서 깐다(이음새 없는 타일)**. 화면에 보이는 크기는 원본의 절반(256px 단위로 반복)이고, 게임이 캐릭터가 잘 보이도록 조금 더 어둡게 덮는다.
 **①의 아래 바닥과 같은 재질**이어야 로비 → 전투가 이어져 보인다.
