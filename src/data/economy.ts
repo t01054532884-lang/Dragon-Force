@@ -52,6 +52,8 @@ export const STAGE_BOX: Record<Difficulty, { gold: number; rubies: number; fragm
   extreme: { gold: 200, rubies: 60, fragments: 20 },
 };
 export const STAGE_BOX_FRAGMENT_EVERY = 5;
+/** 100% 칸(단계 클리어) 루비는 난이도와 상관없이 100개(제작자 결정 2026-11-24: 초반 루비가 너무 적다는 테스터 피드백 → 쉬움 20 + 어려움 20 = 4,000개). 25·50% 칸은 그대로 */
+export const STAGE_CLEAR_RUBIES = 100;
 /** 한 단계 상자 몫을 25·50·100% 세 칸으로 나눔(2026-11-23 밤): 골드 30%·30%·40%, 루비 ⅓씩, 조각은 100% 칸에. 단계 합계는 그대로 */
 export const STAGE_CHEST_SPLIT = { gold: [0.3, 0.3, 0.4], rubies: [1 / 3, 1 / 3, 1 / 3] };
 export function stageBoxReward(d: Difficulty, stage: number, tier: 1 | 2 | 3 = 3): RewardBundle {
@@ -60,7 +62,7 @@ export function stageBoxReward(d: Difficulty, stage: number, tier: 1 | 2 | 3 = 3
   const part = (total: number, ratios: number[]) => (tier === 3 ? total - Math.round(total * ratios[0]) - Math.round(total * ratios[1]) : Math.round(total * ratios[tier - 1]));
   return {
     gold: part(b.gold, STAGE_CHEST_SPLIT.gold),
-    rubies: part(b.rubies, STAGE_CHEST_SPLIT.rubies),
+    rubies: tier === 3 ? STAGE_CLEAR_RUBIES : part(b.rubies, STAGE_CHEST_SPLIT.rubies),
     ...(tier === 3 && stage % STAGE_BOX_FRAGMENT_EVERY === 0 ? { fragments: { dragonId: 'red' as DragonId, count: b.fragments } } : {}),
   };
 }

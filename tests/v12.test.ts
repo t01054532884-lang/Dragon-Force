@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DRAGON_ORDER, DRAGONS } from '../src/data/dragons';
 import { applyPerm, permState, PERM_TIERS, ZERO_PERM } from '../src/data/permGrowth';
-import { BOXES, DRAGON_BOX, GOLD_OFFERS, EQUIPMENT_BOX, STAGE_BOX, stageBoxReward } from '../src/data/economy';
+import { BOXES, DRAGON_BOX, GOLD_OFFERS, EQUIPMENT_BOX, STAGE_BOX, STAGE_CLEAR_RUBIES, stageBoxReward } from '../src/data/economy';
 import { RUNE_BOX, RUNE_RULES, runeEffects, runeUpgradeCost } from '../src/data/runes';
 import { equipValue, EQUIP_RULES } from '../src/data/equipment';
 import { combatPower, recommendedCp, cpVerdict } from '../src/data/power';
@@ -158,21 +158,22 @@ describe('6-4 난이도·진행도', () => {
     const again = clear(clear(all.progress, 2, 's2'), 1, 's1b');
     expect(CHEST_TIERS.map((t) => stageChestState(again, 'easy', 1, t))).toEqual(['opened', 'opened', 'opened']);
     expect(claimableStageBoxes(again, 'easy').every((c) => c.stage === 2)).toBe(true);
-    // 세 칸 합 = 예전 단계 상자 1개 몫, 조각은 5단계마다 100% 칸에
+    // 세 칸 합: 골드는 예전 단계 상자 1개 몫, 루비는 25·50% 칸 5개씩 + 100% 칸 100개(2026-11-24), 조각은 5단계마다 100% 칸에
     const sum = CHEST_TIERS.map((t) => stageBoxReward('easy', 5, t));
     expect(sum.reduce((s, r) => s + (r.gold ?? 0), 0)).toBe(50);
-    expect(sum.reduce((s, r) => s + (r.rubies ?? 0), 0)).toBe(15);
+    expect(sum.map((r) => r.rubies)).toEqual([5, 5, STAGE_CLEAR_RUBIES]);
+    expect(stageBoxReward('hard', 1, 3).rubies).toBe(100);
     expect(sum.map((r) => r.fragments?.count ?? 0)).toEqual([0, 0, 5]);
   });
-  it('단계 상자 모두 받기: 20단계 × 3칸 합계 = 루비 300 · 골드 1,000 · 레드 조각 20(쉬움), 어려움은 2배', () => {
+  it('단계 상자 모두 받기: 20단계 × 3칸 합계 = 루비 2,200(100% 칸 100 × 20 + 25·50% 칸 200) · 골드 1,000 · 레드 조각 20(쉬움), 어려움은 2배', () => {
     let p = defaultProgress();
     for (let s = 1; s <= 20; s++) p = clear(p, s, `s${s}`);
     const before = { r: p.rubies, g: p.gold, f: p.dragons.red.fragments };
     const r = claimAllStageBoxes(p, 'easy');
     expect(r.ok && r.count).toBe(60);
     if (!r.ok) return;
-    expect(r.reward).toEqual({ gold: 1000, rubies: 300, fragments: { dragonId: 'red', count: 20 } });
-    expect([r.progress.rubies - before.r, r.progress.gold - before.g]).toEqual([300, 1000]);
+    expect(r.reward).toEqual({ gold: 1000, rubies: 2200, fragments: { dragonId: 'red', count: 20 } });
+    expect([r.progress.rubies - before.r, r.progress.gold - before.g]).toEqual([2200, 1000]);
     expect(claimableStageBoxes(r.progress, 'easy')).toEqual([]);
     expect(STAGE_BOX.hard).toEqual({ gold: 100, rubies: 30, fragments: 10 });
   });

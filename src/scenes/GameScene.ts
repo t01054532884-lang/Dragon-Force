@@ -7,6 +7,7 @@ import { BASIC_TAGS, compareText, rollOffer, synergyWith, UPGRADES, type Upgrade
 import { Enemy, type EnemyAction } from '../objects/Enemy';
 import { Skills } from '../systems/Skills';
 import { BasicAttack, NO_TRAITS } from '../systems/BasicAttack';
+import { BASIC_VS_NORMAL_MULT } from '../data/basicAttack';
 import { BattleFx, FX, PALETTE } from '../fx/BattleFx';
 import { BASIC_FIRE_SFX, BATTLE_SFX_FILES, playSfx, preloadSfx, SIGNATURE_SFX } from '../systems/Sfx';
 import { playMusic, preloadMusic, refreshMusic, stopMusic } from '../systems/Music';
@@ -1198,6 +1199,7 @@ export class GameScene extends Phaser.Scene {
       if (spec.source === 'basic' && e.hp <= e.maxHp * 0.3) add += this.basicTraits.executeBonus; // 블랙: HP 30% 이하(특성 + 영구 성장)
     }
     let m = (1 + add) * e.vulnMult * this.attackMult();
+    if (spec.source === 'basic' && e.rank === 'normal') m *= BASIC_VS_NORMAL_MULT; // 평타 체감(2026-11-24)
     if (spec.tag === 'burn' && this.runes.burn > 0) m *= 1 + this.runes.burn; // 화염의 인장 룬
     return m;
   }
