@@ -63,7 +63,7 @@ export const SKILL = {
     slowMs: () => 2000,
   },
   lightning: {
-    interval: (lv: number) => 2300 - lv * 150,
+    interval: (lv: number) => 2500 - lv * 150, // 테스터 피드백(2026-11-25: 쿨타임이 짧다) 2300 → 2500 — Lv.1 2.15 → 2.35초, Lv.5 1.55 → 1.75초(약 +10~13%)
     chains: (lv: number) => 2 + lv, // 첫 대상 + 튀는 횟수
     jump: () => 4 * M, // 다음 적으로 튈 수 있는 거리
     coef: (lv: number) => 1.0 + lv * 0.5,
@@ -71,7 +71,7 @@ export const SKILL = {
   meteor: {
     interval: (lv: number) => 5200 - lv * 500,
     count: (lv: number) => (lv >= 4 ? 2 : 1),
-    radius: (lv: number) => 2 * M + lv * 15,
+    radius: (lv: number) => 1.8 * M + lv * 12, // 테스터 피드백(2026-11-25: 범위가 넓다) 2m+15px/Lv → 1.8m+12px/Lv — Lv.1 2.3 → 2.0m, Lv.5 3.5 → 3.0m(약 −11~14%)
     coef: (lv: number) => 2.5 + lv * 1.2,
     warnMs: () => 700, // 떨어지기 전 경고 원 표시 시간
   },
