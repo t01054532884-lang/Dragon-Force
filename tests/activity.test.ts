@@ -12,7 +12,7 @@ const rnd = () => 0.1;
 function doneAllDaily(p: PlayerProgress, now: number): PlayerProgress {
   let cur = addMissionProgress(p, { sorties: 1, clears: 1, normalKills: 300, eliteKills: 3, growth: 1 }, now);
   for (const m of MISSIONS.filter((x) => x.period === 'daily')) {
-    const r = claimMission(cur, m.id, now, 'red');
+    const r = claimMission(cur, m.id, now);
     expect(r.ok, m.id).toBe(true);
     if (r.ok) cur = r.progress;
   }
@@ -40,9 +40,9 @@ describe('활동 점수', () => {
     expect(claimActivity(r.progress, 'daily', 40, NOW, rnd)).toMatchObject({ ok: false, reason: 'claimed' });
     // 다음 날은 새로(점수도 다시 모아야)
     expect(claimActivity(r.progress, 'daily', 40, NOW + DAY, rnd)).toMatchObject({ ok: false, reason: 'progress' });
-    // 카드 선택 상자는 드래곤을 골라야
-    expect(claimActivity(p, 'daily', 60, NOW, rnd)).toMatchObject({ ok: false, reason: 'choice' });
-    const c = claimActivity(p, 'daily', 60, NOW, rnd, 'red');
+    // 카드 상자는 고르지 않고 보유 드래곤 중 무작위(2026-11-25) — 처음엔 레드만 있으니 레드
+    const c = claimActivity(p, 'daily', 60, NOW, rnd);
+    expect(c.ok && c.cardDragon).toBe('red');
     expect(c.ok && c.progress.dragons.red.cards - p.dragons.red.cards).toBe(2);
   });
   it('출격(30초 이상)·성장 미션이 진행된다', () => {
@@ -57,11 +57,11 @@ describe('28일 출석', () => {
     let p = { ...defaultProgress(0), dragons: defaultProgress(0).dragons };
     let t = NOW;
     for (let i = 0; i < 30; i++) {
-      const r = claimDailyAttendance(p, t, rnd, 'red');
+      const r = claimDailyAttendance(p, t, rnd);
       expect(r.ok, `day ${i + 1}`).toBe(true);
       if (!r.ok) return;
       expect(r.day).toBe((i % 28) + 1);
-      expect(claimDailyAttendance(r.progress, t, rnd, 'red')).toMatchObject({ ok: false, reason: 'claimed' });
+      expect(claimDailyAttendance(r.progress, t, rnd)).toMatchObject({ ok: false, reason: 'claimed' });
       p = r.progress;
       t += (i % 3 === 0 ? 2 : 1) * DAY; // 가끔 하루 빠져도 진행은 이어짐
     }
@@ -72,7 +72,7 @@ describe('28일 출석', () => {
     let p = defaultProgress(0);
     let t = NOW;
     for (let i = 0; i < 22; i++) {
-      const r = claimDailyAttendance(p, t, rnd, 'red');
+      const r = claimDailyAttendance(p, t, rnd);
       if (r.ok) p = r.progress;
       t += DAY;
     }

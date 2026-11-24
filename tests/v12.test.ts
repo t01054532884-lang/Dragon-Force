@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { DRAGON_ORDER, DRAGONS } from '../src/data/dragons';
 import { applyPerm, permState, PERM_TIERS, ZERO_PERM } from '../src/data/permGrowth';
-import { BOXES, DIFFICULTY_REWARD, DRAGON_BOX, GOLD_OFFERS, EQUIPMENT_BOX, STAGE_BOX, STAGE_CLEAR_RUBIES, stageBoxReward } from '../src/data/economy';
+import { BOXES, DIFFICULTY_REWARD, DRAGON_BOX, GOLD_OFFERS, EQUIPMENT_BOX, RANDOM_CARD_RARITY, STAGE_BOX, STAGE_CLEAR_RUBIES, stageBoxReward } from '../src/data/economy';
+import { randomCardDragon } from '../src/systems/Activity';
 import { RUNE_BOX, RUNE_RULES, runeEffects, runeUpgradeCost } from '../src/data/runes';
 import { equipValue, EQUIP_RULES } from '../src/data/equipment';
 import { combatPower, recommendedCp, cpVerdict } from '../src/data/power';
@@ -99,7 +100,7 @@ describe('6-3 정수·조각·카드', () => {
   });
   it('중복 정수 → 조각 20/30/50/80', () => {
     // 전설 보장 직전 상태에서 전설 4종(아케인·크로노·보이드·오로라, 2026-11-23 밤 출시) 모두 보유 → 전설 정수는 조각 80
-    let p = { ...defaultProgress(), summon: { tenPity: 0, legendaryPity: 89, legacyTickets: 0, totalOpens: 0 } };
+    let p = { ...defaultProgress(), summon: { tenPity: 0, legendaryPity: DRAGON_BOX.legendaryGuarantee - 1, legacyTickets: 0, totalOpens: 0 } };
     for (const id of ['arcane', 'chrono', 'void', 'aurora'] as const) p = own(p, id);
     const r = openDragonBoxOnce(p, seeded(1));
     expect(r.result).toMatchObject({ kind: 'essence', isNew: false, fragments: 80, guaranteed: 'legendary' });
@@ -241,7 +242,7 @@ describe('6-5 루비 상자·천장', () => {
     expect(r.ok && r.progress.summon.legacyTickets).toBe(13);
     expect(openBox(p, 'rune', 1, 'ticket')).toMatchObject({ ok: false });
   });
-  it('10만 회: 1차 추첨 50/35/15 수렴(룬 조각 없음), 레드 정수·조각 없음, 전설 정수 간격 ≤ 90, 희귀 이상 정수 간격 ≤ 10', () => {
+  it('10만 회: 1차 추첨 50/35/15 수렴(룬 조각 없음), 레드 정수·조각 없음, 전설 정수 간격 ≤ 전설 보장(150, 11/25), 희귀 이상 정수 간격 ≤ 10', () => {
     let p = defaultProgress();
     const rnd = seeded(7);
     const kinds: Record<string, number> = {};
@@ -269,16 +270,16 @@ describe('6-5 루비 상자·천장', () => {
         sinceRare = 0;
       }
     }
-    expect(maxLeg).toBeLessThanOrEqual(90);
+    expect(maxLeg).toBeLessThanOrEqual(DRAGON_BOX.legendaryGuarantee);
     expect(maxRare).toBeLessThanOrEqual(10);
     // 보장이 정수 비율을 끌어올리므로 카드·조각은 원래 비율보다 조금 낮다. 룬 조각은 드래곤 상자에서 안 나옴
     expect(kinds.card / N).toBeGreaterThan(0.4);
     expect(kinds.fragment / N).toBeGreaterThan(0.28);
     expect(kinds.special ?? 0).toBe(0);
-    expect(legEss).toBeGreaterThan(N / 90);
+    expect(legEss).toBeGreaterThan(N / DRAGON_BOX.legendaryGuarantee); // 천장 덕분에 적어도 150회에 1번(11/25 전엔 90회)
   });
-  it('10회 보장과 90회 천장이 겹치면 전설 하나만(추가 지급 없음)', () => {
-    const p = { ...defaultProgress(), summon: { tenPity: 9, legendaryPity: 89, legacyTickets: 0, totalOpens: 0 } };
+  it('10회 보장과 전설 천장이 겹치면 전설 하나만(추가 지급 없음)', () => {
+    const p = { ...defaultProgress(), summon: { tenPity: 9, legendaryPity: DRAGON_BOX.legendaryGuarantee - 1, legacyTickets: 0, totalOpens: 0 } };
     const r = openDragonBoxOnce(p, seeded(9));
     expect(r.result).toMatchObject({ kind: 'essence', rarity: 'legendary', guaranteed: 'legendary' });
     expect(r.progress.summon).toMatchObject({ tenPity: 0, legendaryPity: 0, totalOpens: 1 });
@@ -444,17 +445,17 @@ describe('6-9 주기 보상(KST)', () => {
     expect(periodKey(weekly, KST('2026-11-23T00:00:00'))).toBe('w2026-11-23');
     expect(periodKey({ id: 'm', period: 'monthly' }, KST('2026-12-01T00:00:00'))).toBe('2026-12');
   });
-  it('일일 클리어 미션: 진행 → 선택 카드 1장, 같은 날 한 번만, 다음 날 다시', () => {
+  it('일일 클리어 미션: 진행 → 카드 1장(보유 드래곤 중 무작위, 11/25), 같은 날 한 번만, 다음 날 다시', () => {
     const now = KST('2026-11-18T12:00:00');
     const run = { stageId: 1, cleared: true, elapsedMs: 480_000, normalKills: 10, eliteKills: 0, dragonId: 'red' as const };
     const p = settleRun(defaultProgress(), 'r1', 0, 2, run, now).progress;
-    expect(claimMission(p, 'd-clear', now)).toMatchObject({ ok: false, reason: 'choice' });
-    const a = claimMission(p, 'd-clear', now, 'red');
+    const a = claimMission(p, 'd-clear', now);
+    expect(a.ok && a.cardDragon).toBe('red'); // 처음엔 레드만 보유
     expect(a.ok && a.progress.dragons.red.cards).toBe(2 + 1);
     if (!a.ok) return;
-    expect(claimMission(a.progress, 'd-clear', now, 'red')).toMatchObject({ ok: false, reason: 'claimed' });
+    expect(claimMission(a.progress, 'd-clear', now)).toMatchObject({ ok: false, reason: 'claimed' });
     const tomorrow = KST('2026-11-19T00:00:01');
-    expect(claimMission(a.progress, 'd-clear', tomorrow, 'red')).toMatchObject({ ok: false, reason: 'progress' });
+    expect(claimMission(a.progress, 'd-clear', tomorrow)).toMatchObject({ ok: false, reason: 'progress' });
   });
   it('일일 미션을 모두 받은 날만 월간 "20일" 진행에 들어감', () => {
     const now = KST('2026-11-18T12:00:00');
@@ -463,7 +464,7 @@ describe('6-9 주기 보상(KST)', () => {
     const a = claimMission(p, 'd-kills', now);
     if (!a.ok) throw new Error();
     expect(a.progress.missions.dailyDone).toEqual([]);
-    const b = claimMission(a.progress, 'd-clear', now, 'red');
+    const b = claimMission(a.progress, 'd-clear', now);
     if (!b.ok) throw new Error();
     p = b.progress;
     expect(p.missions.dailyDone).toEqual([]); // 2026-11-21: 일일 미션 5개를 모두 받아야
@@ -493,5 +494,31 @@ describe('난이도별 보상(제작자 원칙 2026-11-25: 어려울수록 더)'
     }
     expect(up(cols((d) => stageBoxReward(d, 5, 3).fragments?.count ?? 0))).toBe(true);
     expect(DIFFICULTY_REWARD.easy).toMatchObject({ gold: 1, clearRubies: STAGE_CLEAR_RUBIES, cards: { first: 2, repeat: 1 }, stamina: 20 }); // 쉬움은 그대로
+  });
+});
+
+describe('카드 보상 무작위·드래곤 확률(2026-11-25 테스터 피드백)', () => {
+  it('카드 보상은 보유 드래곤 중에서만, 높은 등급일수록 드물게', () => {
+    let p = defaultProgress();
+    for (const id of ['blue', 'white', 'wind', 'aurora'] as const) p = own(p, id); // 일반 2(레드·블루)·희귀·영웅·전설 각 1
+    const rnd = seeded(3);
+    const n: Record<string, number> = {};
+    for (let i = 0; i < 20_000; i++) {
+      const id = randomCardDragon(p, rnd);
+      n[id] = (n[id] ?? 0) + 1;
+    }
+    expect(Object.keys(n).sort()).toEqual(['aurora', 'blue', 'red', 'white', 'wind']); // 가진 것만
+    const share = (id: string) => (n[id] ?? 0) / 20_000;
+    expect(share('red') + share('blue')).toBeCloseTo(RANDOM_CARD_RARITY.common / 100, 1);
+    expect(share('aurora')).toBeLessThan(0.01);
+    expect(share('wind')).toBeLessThan(0.04);
+    expect(randomCardDragon(defaultProgress(), rnd)).toBe('red'); // 레드만 있으면 레드
+  });
+  it('드래곤 상자 영웅·전설 정수 확률을 낮춤(예전 7%·1% → 3.5%·0.5%), 합 100', () => {
+    expect(DRAGON_BOX.essenceRarity.epic).toBeLessThan(7);
+    expect(DRAGON_BOX.essenceRarity.legendary).toBeLessThan(1);
+    expect(Object.values(DRAGON_BOX.essenceRarity).reduce((a, b) => a + b, 0)).toBeCloseTo(100, 6);
+    const g = DRAGON_BOX.guaranteeWeights;
+    expect(g.legendary / (g.rare + g.epic + g.legendary)).toBeLessThan(1 / 30); // 10회 보장의 전설 비율도 낮춤
   });
 });

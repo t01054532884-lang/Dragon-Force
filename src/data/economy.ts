@@ -109,10 +109,11 @@ export const BOXES: Record<BoxId, BoxDef> = {
 export const DRAGON_BOX = {
   // v1.2: 룬(옛 특수 스킬) 조각은 룬 상자로 분리 → 그 20%를 카드 +10 · 조각 +10으로(정수 15%·보장 규칙은 그대로)
   kind: { card: 50, fragment: 35, essence: 15 },
-  essenceRarity: { common: 70, rare: 22, epic: 7, legendary: 1 } as Record<Rarity, number>, // 원문
+  // 테스터 피드백(2026-11-25: 오로라가 너무 빨리 나옴) → 영웅·전설을 낮춤. 예전 원문 70/22/7/1, 10회 보장 22:7:1, 전설 보장 90회. 수치는 임시
+  essenceRarity: { common: 76, rare: 20, epic: 3.5, legendary: 0.5 } as Record<Rarity, number>,
   rareGuarantee: 10, // 매 10회째 희귀 이상 정수(원문)
-  legendaryGuarantee: 90, // 90회째 전설 정수(원문, 10회 보장보다 우선)
-  guaranteeWeights: { rare: 22, epic: 7, legendary: 1 }, // 10회 보장의 희귀:영웅:전설(원문)
+  legendaryGuarantee: 150, // 150회째 전설 정수(10회 보장보다 우선) — 예전 90
+  guaranteeWeights: { rare: 85, epic: 13, legendary: 2 }, // 10회 보장의 희귀:영웅:전설 — 예전 22:7:1
   // 카드·조각을 줄 드래곤: 희귀도를 정수와 같은 70/22/7/1로 뽑고 그 안에서 균등(AI 1차안).
   // 카드는 레드(일반 취급) 포함, 조각·정수는 레드 제외(원문: 레드는 소환 제외, 조각은 진행도·이벤트·미션).
   cardCount: { common: 3, rare: 2, epic: 2, legendary: 1 } as Record<Rarity, number>, // AI 1차안
@@ -151,6 +152,12 @@ export type MissionReward = { gold?: number; rubies?: number; pickCards?: number
  * 등급을 먼저 뽑고 그 등급 안에서 출시된 드래곤 중 균등(레드는 일반에 포함). 수치는 AI 1차안.
  */
 export const RANDOM_FRAGMENT_RARITY: Record<Rarity, number> = { common: 60, rare: 28, epic: 10, legendary: 2 };
+/**
+ * 카드 보상(미션·활동 상자·출석의 "드래곤 카드 N장")은 고르지 않고 무작위(제작자 2026-11-25: 고르게 하면 높은 등급만 고르게 됨).
+ * 내가 가진 드래곤 중에서, 등급을 이 비중으로 먼저 뽑고(가진 등급만으로 다시 나눔) 그 등급 안에서 균등. 레드는 일반.
+ * 높은 등급일수록 크게 낮춤 — 수치는 임시(AI 1차안).
+ */
+export const RANDOM_CARD_RARITY: Record<Rarity, number> = { common: 85, rare: 12, epic: 2.5, legendary: 0.5 };
 export interface MissionDef {
   id: string;
   period: Period;

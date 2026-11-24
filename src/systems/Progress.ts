@@ -48,7 +48,7 @@ import { RUNE_BOX, RUNE_RULES, runeUpgradeCost } from '../data/runes';
 import { WINTER_2026, WINTER_DRAGON, type RouletteReward } from '../data/events';
 import { skinDef } from '../data/skins';
 import { store as platformStore } from '../platform';
-import { claimActivity, claimDailyAttendance } from './Activity';
+import { claimActivity, claimDailyAttendance, randomCardDragon } from './Activity';
 
 // 계정 진행 저장. JSON 한 덩어리로 저장한다.
 // 실제 저장 위치는 플랫폼마다 다르다(src/platform): 웹 localStorage · iOS Preferences · 토스 SDK Storage.
@@ -1088,20 +1088,19 @@ export function randomFragmentDragon(rng: () => number = Math.random): DragonId 
 }
 
 /**
- * 미션 보상 받기. 선택 카드는 받을 보유 드래곤(choice)을 함께 넘긴다. 랜덤 조각은 등급 확률로 자동 지급(고르지 않음).
+ * 미션 보상 받기. 카드는 보유 드래곤 중 무작위(randomCardDragon, 2026-11-25), 랜덤 조각은 등급 확률로 자동 지급 — 고르는 것 없음.
  * 같은 기간에 한 번만. 일일 미션을 모두 받으면 그날이 "일일 미션 완료한 날"로 기록된다(월간 미션).
  */
-export function claimMission(p: PlayerProgress, missionId: string, now: number, choice?: DragonId, rng: () => number = Math.random): Result<{ reward: MissionDef['reward']; fragmentDragon?: DragonId }> {
+export function claimMission(p: PlayerProgress, missionId: string, now: number, rng: () => number = Math.random): Result<{ reward: MissionDef['reward']; fragmentDragon?: DragonId; cardDragon?: DragonId }> {
   const m = activeMissions(now).find((x) => x.id === missionId);
   if (!m) return fail('missing');
   const key = mKey(m, now);
   if (p.missions.claimed.includes(key)) return fail('claimed');
   if (missionProgress(p, m, now) < m.goal) return fail('progress');
   const rw = m.reward;
-  if (rw.pickCards && !choice) return fail('choice');
-  if (rw.pickCards && choice && !p.dragons[choice].unlocked) return fail('choice');
   let next: PlayerProgress = { ...p, gold: p.gold + (rw.gold ?? 0), rubies: p.rubies + (rw.rubies ?? 0) };
-  if (rw.pickCards && choice) next = addCards(next, choice, rw.pickCards);
+  const cardDragon = rw.pickCards ? randomCardDragon(p, rng) : undefined;
+  if (rw.pickCards && cardDragon) next = addCards(next, cardDragon, rw.pickCards);
   const fragmentDragon = rw.randomFragments ? randomFragmentDragon(rng) : undefined;
   if (rw.randomFragments && fragmentDragon) next = addFragments(next, fragmentDragon, rw.randomFragments);
   const claimed = [...next.missions.claimed, key].slice(-400);
@@ -1109,7 +1108,7 @@ export function claimMission(p: PlayerProgress, missionId: string, now: number, 
   const today = ymd(kstDate(now));
   if (m.period === 'daily' && DAILY_IDS.every((id) => claimed.includes(`${id}@${today}`)) && !dailyDone.includes(today)) dailyDone = [...dailyDone, today].slice(-62);
   next = { ...next, missions: { ...next.missions, claimed, dailyDone } };
-  return { ok: true, progress: next, reward: rw, fragmentDragon };
+  return { ok: true, progress: next, reward: rw, fragmentDragon, cardDragon };
 }
 
 /** 받을 수 있는 미션(선택 보상 포함) */
@@ -1118,28 +1117,26 @@ export function claimableMissions(p: PlayerProgress, now: number): MissionDef[] 
 }
 
 /**
- * 미션 모두 받기(2026-11-21 기획서 9.3): 골드·루비·랜덤 조각 미션을 한 번에. 선택 카드 미션은 드래곤을 골라야 해서 남긴다.
+ * 미션 모두 받기(2026-11-21 기획서 9.3): 완료한 미션을 한 번에(카드도 2026-11-25부터 무작위라 같이 받음). left는 늘 0(호환용).
  * 한 미션씩 claimMission을 그대로 거치므로 중복 지급 규칙(기간당 1회)도 같다.
  */
-export function claimAllMissions(p: PlayerProgress, now: number, rng: () => number = Math.random): Result<{ got: MissionDef[]; left: number; fragments: { dragonId: DragonId; count: number }[] }> {
+export function claimAllMissions(p: PlayerProgress, now: number, rng: () => number = Math.random): Result<{ got: MissionDef[]; left: number; fragments: { dragonId: DragonId; count: number }[]; cards: { dragonId: DragonId; count: number }[] }> {
   let cur = p;
   const got: MissionDef[] = [];
   const fragments: { dragonId: DragonId; count: number }[] = [];
-  let left = 0;
+  const cards: { dragonId: DragonId; count: number }[] = [];
+  const left = 0;
   for (const m of claimableMissions(p, now)) {
-    if (m.reward.pickCards) {
-      left++;
-      continue;
-    }
-    const r = claimMission(cur, m.id, now, undefined, rng);
+    const r = claimMission(cur, m.id, now, rng);
     if (r.ok) {
       cur = r.progress;
       got.push(m);
       if (r.fragmentDragon) fragments.push({ dragonId: r.fragmentDragon, count: m.reward.randomFragments ?? 0 });
+      if (r.cardDragon) cards.push({ dragonId: r.cardDragon, count: m.reward.pickCards ?? 0 });
     }
   }
   if (!got.length) return fail('none');
-  return { ok: true, progress: cur, got, left, fragments };
+  return { ok: true, progress: cur, got, left, fragments, cards };
 }
 
 /** 업적 진행(화면 표시용): 현재 값·목표·완료 여부 */
@@ -1374,7 +1371,7 @@ export const Progress = {
   },
   claimStageBox: (d: Difficulty, stage: number, tier: ChestTier) => act((p) => claimStageBox(p, d, stage, tier)),
   claimAllStageBoxes: (d: Difficulty) => act((p) => claimAllStageBoxes(p, d)),
-  claimMission: (id: string, choice?: DragonId, now = Date.now()) => act((p) => claimMission(p, id, now, choice)),
+  claimMission: (id: string, now = Date.now()) => act((p) => claimMission(p, id, now)),
   claimAllMissions: (now = Date.now()) => act((p) => claimAllMissions(p, now)),
   equip: (uid: string) => act((p) => equipItem(p, uid)),
   unequip: (slot: Slot) => act((p) => unequipSlot(p, slot)),
@@ -1387,8 +1384,8 @@ export const Progress = {
   spin: (now: number) => act((p) => spinRoulette(p, now)),
   attend: (now: number) => act((p) => claimAttendance(p, now)),
   // ── 상시 활동 점수·28일 출석(2026-11-21, src/systems/Activity.ts) ──
-  claimActivity: (kind: 'daily' | 'weekly', at: number, now: number, choice?: DragonId) => act((p) => claimActivity(p, kind, at, now, Math.random, choice)),
-  claimDailyAttendance: (now: number, choice?: DragonId) => act((p) => claimDailyAttendance(p, now, Math.random, choice)),
+  claimActivity: (kind: 'daily' | 'weekly', at: number, now: number) => act((p) => claimActivity(p, kind, at, now, Math.random)),
+  claimDailyAttendance: (now: number) => act((p) => claimDailyAttendance(p, now, Math.random)),
   devBoost(builtStages: number[]): void {
     this.save(devBoost(this.load(), builtStages));
   },

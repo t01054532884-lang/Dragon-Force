@@ -28,15 +28,16 @@ describe('전용 스킬 성장(2026-11-21 기획서 3.4)', () => {
 });
 
 describe('미션 모두 받기·업적 진행(2026-11-21 기획서 9·11장)', () => {
-  it('골드·루비·랜덤 조각 미션은 한 번에 받고, 선택 카드 미션은 남긴다', () => {
+  it('완료한 미션을 한 번에 받는다(카드도 무작위라 같이, 2026-11-25)', () => {
     let p = defaultProgress(NOW);
     p = addMissionProgress(p, { clears: 10, normalKills: 300, eliteKills: 15 }, NOW);
     expect(claimableMissions(p, NOW).map((m) => m.id).sort()).toEqual(['d-clear', 'd-elite', 'd-kills', 'w-clear', 'w-elite'].sort()); // 2026-11-21 일일 미션 5개(엘리트 3마리 포함)
     const r = claimAllMissions(p, NOW);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(r.got.map((m) => m.id).sort()).toEqual(['d-elite', 'd-kills', 'w-elite']); // 골드·루비·활동 점수 + 랜덤 조각(2026-11-22)
-    expect(r.left).toBe(2); // 선택 카드 미션(d-clear·w-clear)
+    expect(r.got.map((m) => m.id).sort()).toEqual(['d-clear', 'd-elite', 'd-kills', 'w-clear', 'w-elite']);
+    expect(r.left).toBe(0);
+    expect(r.cards).toEqual([{ dragonId: 'red', count: 1 }, { dragonId: 'red', count: 5 }]); // 레드만 보유 → 레드
     expect(r.fragments).toHaveLength(1);
     expect(r.progress.dragons[r.fragments[0].dragonId].fragments).toBe(p.dragons[r.fragments[0].dragonId].fragments + 10);
     expect(r.progress.gold).toBe(p.gold + 300);

@@ -1,8 +1,8 @@
 import {
   ACTIVITY_DAILY, ACTIVITY_DAILY_MAX, ACTIVITY_POINTS_PER_DAILY, ACTIVITY_WEEKLY, ACTIVITY_WEEKLY_MAX, ATTENDANCE_28, type ActivityReward,
 } from '../data/activity';
-import type { DragonId } from '../data/dragons';
-import { KST_OFFSET_MS, MISSIONS } from '../data/economy';
+import { DRAGONS, releasedDragons, type DragonId } from '../data/dragons';
+import { KST_OFFSET_MS, MISSIONS, RANDOM_CARD_RARITY, RARITIES, econRarity } from '../data/economy';
 import { SPECIAL_IDS } from '../data/specials';
 import type { Fail, PlayerProgress, Result } from './Progress';
 
@@ -51,11 +51,25 @@ export function claimableActivity(p: PlayerProgress, now: number): number {
   return n('daily', ACTIVITY_DAILY) + n('weekly', ACTIVITY_WEEKLY);
 }
 
-/** 보상 지급(카드 선택은 보유 드래곤만, 룬 조각은 무작위 1종) */
-export function grantActivityReward(p: PlayerProgress, r: ActivityReward, rnd: () => number, choice?: DragonId): Result<{ runeId?: string }> {
-  if (r.pickCards && (!choice || !p.dragons[choice]?.unlocked)) return fail('choice');
+/**
+ * 카드 보상 받을 드래곤(2026-11-25: 고르지 않고 무작위): 보유 드래곤 중 등급 비중(RANDOM_CARD_RARITY, 가진 등급만으로 다시 나눔) → 그 등급 안에서 균등.
+ * 레드만 있으면 레드.
+ */
+export function randomCardDragon(p: PlayerProgress, rnd: () => number): DragonId {
+  const owned = releasedDragons().filter((id) => p.dragons[id]?.unlocked);
+  if (!owned.length) return 'red';
+  const groups = RARITIES.map((r) => ({ r, ids: owned.filter((id) => econRarity(DRAGONS[id].rarity) === r) })).filter((g) => g.ids.length);
+  const total = groups.reduce((a, g) => a + RANDOM_CARD_RARITY[g.r], 0);
+  let x = rnd() * total;
+  const g = groups.find((gr) => (x -= RANDOM_CARD_RARITY[gr.r]) < 0) ?? groups[groups.length - 1];
+  return g.ids[Math.min(g.ids.length - 1, Math.floor(rnd() * g.ids.length))];
+}
+
+/** 보상 지급(카드는 보유 드래곤 중 무작위, 룬 조각은 무작위 1종) */
+export function grantActivityReward(p: PlayerProgress, r: ActivityReward, rnd: () => number): Result<{ runeId?: string; cardDragon?: DragonId }> {
   let next: PlayerProgress = { ...p, gold: p.gold + (r.gold ?? 0), rubies: p.rubies + (r.rubies ?? 0) };
-  if (r.pickCards && choice) next = { ...next, dragons: { ...next.dragons, [choice]: { ...next.dragons[choice], cards: next.dragons[choice].cards + r.pickCards } } };
+  const cardDragon = r.pickCards ? randomCardDragon(p, rnd) : undefined;
+  if (r.pickCards && cardDragon) next = { ...next, dragons: { ...next.dragons, [cardDragon]: { ...next.dragons[cardDragon], cards: next.dragons[cardDragon].cards + r.pickCards } } };
   let runeId: string | undefined;
   if (r.runeFragments) {
     const id = SPECIAL_IDS[Math.min(SPECIAL_IDS.length - 1, Math.floor(rnd() * SPECIAL_IDS.length))];
@@ -74,21 +88,21 @@ export function grantActivityReward(p: PlayerProgress, r: ActivityReward, rnd: (
       },
     };
   }
-  return { ok: true, progress: next, runeId };
+  return { ok: true, progress: next, runeId, cardDragon };
 }
 
 /** 활동 상자 받기: 점수가 됐고 이번 기간에 안 받았을 때 한 번 */
 export function claimActivity(
-  p: PlayerProgress, kind: 'daily' | 'weekly', at: number, now: number, rnd: () => number, choice?: DragonId,
-): Result<{ reward: ActivityReward; runeId?: string }> {
+  p: PlayerProgress, kind: 'daily' | 'weekly', at: number, now: number, rnd: () => number,
+): Result<{ reward: ActivityReward; runeId?: string; cardDragon?: DragonId }> {
   const tier = (kind === 'daily' ? ACTIVITY_DAILY : ACTIVITY_WEEKLY).find((t) => t.at === at);
   if (!tier) return fail('missing');
   if (activityClaimed(p, kind, at, now)) return fail('claimed');
   if (activityPoints(p, now)[kind] < at) return fail('progress');
-  const g = grantActivityReward(p, tier.reward, rnd, choice);
+  const g = grantActivityReward(p, tier.reward, rnd);
   if (!g.ok) return g;
   const claimed = [...g.progress.missions.claimed, tierKey(kind, at, now)].slice(-400);
-  return { ok: true, progress: { ...g.progress, missions: { ...g.progress.missions, claimed } }, reward: tier.reward, runeId: g.runeId };
+  return { ok: true, progress: { ...g.progress, missions: { ...g.progress.missions, claimed } }, reward: tier.reward, runeId: g.runeId, cardDragon: g.cardDragon };
 }
 
 /** 오늘 출석 상태: 받을 칸(0~27), 오늘 이미 받았는지 */
@@ -99,12 +113,12 @@ export function attendanceState(p: PlayerProgress, now: number): { index: number
 }
 
 /** 출석 받기: 하루 한 번(KST), 연속이 아니라 받은 날 수로 진행, 28일차 다음은 1일차 */
-export function claimDailyAttendance(p: PlayerProgress, now: number, rnd: () => number, choice?: DragonId): Result<{ day: number; reward: ActivityReward; runeId?: string }> {
+export function claimDailyAttendance(p: PlayerProgress, now: number, rnd: () => number): Result<{ day: number; reward: ActivityReward; runeId?: string; cardDragon?: DragonId }> {
   const today = todayKey(now);
   if (p.attendance.last === today) return fail('claimed');
   const idx = p.attendance.count % ATTENDANCE_28.length;
   const reward = ATTENDANCE_28[idx];
-  const g = grantActivityReward(p, reward, rnd, choice);
+  const g = grantActivityReward(p, reward, rnd);
   if (!g.ok) return g;
-  return { ok: true, progress: { ...g.progress, attendance: { count: p.attendance.count + 1, last: today } }, day: idx + 1, reward, runeId: g.runeId };
+  return { ok: true, progress: { ...g.progress, attendance: { count: p.attendance.count + 1, last: today } }, day: idx + 1, reward, runeId: g.runeId, cardDragon: g.cardDragon };
 }

@@ -486,7 +486,7 @@ export class ShopScene extends Phaser.Scene {
       const p = (B.kind.essence / kTotal) * (B.essenceRarity[r] / rTotal);
       lines.push(`  정수 ${RARITY_LABEL[r]} ${B.essenceRarity[r]}% → 상자 전체 ${pct(p)} (${ids.map((id) => DRAGONS[id].short).join('·')} 각 ${pct(p / ids.length)})`);
     }
-    lines.push(`  전설 정수의 상자 전체 확률은 ${pct((B.kind.essence / kTotal) * (B.essenceRarity.legendary / rTotal))} (정수 15% × 전설 1%)`);
+    lines.push(`  전설 정수의 상자 전체 확률은 ${pct((B.kind.essence / kTotal) * (B.essenceRarity.legendary / rTotal))} (정수 ${B.kind.essence}% × 전설 ${B.essenceRarity.legendary}%)`);
     lines.push(`  보장: 매 ${B.rareGuarantee}회째 희귀 이상 정수(희귀:영웅:전설 = ${B.guaranteeWeights.rare}:${B.guaranteeWeights.epic}:${B.guaranteeWeights.legendary}), ${B.legendaryGuarantee}회째 전설 정수 — 그 회차 결과를 대신함`);
     lines.push(`  카드: 일반 ${B.cardCount.common}·희귀 ${B.cardCount.rare}·영웅 ${B.cardCount.epic}·전설 ${B.cardCount.legendary}장(레드 포함) · 조각: ${B.fragmentCount.common}/${B.fragmentCount.rare}/${B.fragmentCount.epic}/${B.fragmentCount.legendary}개`);
     lines.push(`  중복 정수 → 조각 ${ESSENCE.essenceToFragments.common}/${ESSENCE.essenceToFragments.rare}/${ESSENCE.essenceToFragments.epic}/${ESSENCE.essenceToFragments.legendary} · 레드는 정수·조각 대상 아님`);

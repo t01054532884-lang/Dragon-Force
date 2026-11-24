@@ -82,7 +82,7 @@ export function activityRewardText(r: ActivityReward): string {
   const parts: string[] = [];
   if (r.rubies) parts.push(`루비 ${r.rubies.toLocaleString()}`);
   if (r.gold) parts.push(`골드 ${r.gold.toLocaleString()}`);
-  if (r.pickCards) parts.push(`드래곤 카드 선택 ${r.pickCards}`);
+  if (r.pickCards) parts.push(`드래곤 카드 ${r.pickCards}장(보유 드래곤 중 랜덤)`);
   if (r.runeFragments) parts.push(`룬 조각 ${r.runeFragments}`);
   for (const k of ['dragon', 'equipment', 'rune'] as const) if (r.tickets?.[k]) parts.push(`${TICKET_NAME[k]} 개봉권 ${r.tickets[k]}`);
   return parts.join(' + ');
