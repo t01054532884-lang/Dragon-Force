@@ -1941,17 +1941,7 @@ export class GameScene extends Phaser.Scene {
     this.stageLog.push({ name: 'run:settled', at: Math.round(this.elapsed), data: { ...gold, paid } });
     const bank = Progress.load().gold;
 
-    const rewardText = (r: Reward) =>
-      r.id === 'event' ? `❄ ${r.text}` : r.cards ? `🃏 ${r.text} +${r.cards.count}장` : r.rubies ? `🎁 ${r.text} — 루비 +${r.rubies}` : r.gold ? `🪙 ${r.text} +${r.gold}G` : `🎁 ${r.text}`; // 행동력 선물처럼 골드·루비·카드가 없는 보상은 글자만(예전엔 "+undefinedG")
-    if (this.runRewards.length) {
-      // 카드·업적 보상 내역은 결과 화면 위에 잠깐 띄운다
-      const t = this.add
-        .text(360, 560 + offY(this), this.runRewards.map(rewardText).join('\n'), {
-          fontFamily: 'sans-serif', fontSize: '28px', fontStyle: 'bold', color: '#e1bee7', align: 'center', stroke: '#000', strokeThickness: 6, lineSpacing: 8,
-        })
-        .setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH + 120);
-      this.tweens.add({ targets: t, alpha: 0, delay: 2600, duration: 600, onComplete: () => t.destroy() });
-    }
+    // (2026-11-24 제작자 요청) 결과 화면 위에 잠깐 뜨던 보라색 보상 내역 글자는 뺌 — 보상은 그대로 지급, 카드·루비 합계는 결과 화면에 표시
     // ── 결과 화면(종합 개선 기획서 v1.1 3장): 정보 한 판 → 성장 목표 한 줄 → 피해 상위 3 → 작은 골드 정산 ──
     const mmss = (ms: number) => `${String(Math.floor(ms / 60000)).padStart(2, '0')}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`;
     const secTxt = (ms: number | null | undefined) => (ms == null ? '—' : `${Math.round(ms / 1000)}초`);
