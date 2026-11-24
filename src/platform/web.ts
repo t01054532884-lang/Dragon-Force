@@ -10,6 +10,11 @@ export function cssSafeArea(): Insets {
   const v = (x: string) => parseFloat(x) || 0;
   const r = { top: v(s.paddingTop), right: v(s.paddingRight), bottom: v(s.paddingBottom), left: v(s.paddingLeft) };
   probe.remove();
+  // 개발 서버 전용: 주소에 ?safe=59,34 → 위·아래 안전 영역을 흉내(아이폰 15 Pro 세로 59/34pt). PC 브라우저로 홈 바 처리를 확인하려고(2026-11-24)
+  if (import.meta.env.DEV && typeof location !== 'undefined') {
+    const m = new URLSearchParams(location.search).get('safe')?.split(',').map(Number);
+    if (m && m.length === 2 && m.every((n) => n >= 0)) return { ...r, top: m[0], bottom: m[1] };
+  }
   return r;
 }
 

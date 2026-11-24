@@ -52,12 +52,24 @@ export function insets(): Insets {
   return impl.insets();
 }
 
-/** 게임 화면(#game)을 안전 영역 안쪽에 둔다 → Phaser 캔버스가 노치·홈바·토스 닫기 버튼과 겹치지 않음 */
+let extBottom = 0;
+/**
+ * 게임 화면이 홈 바 밑까지 늘어난 높이(CSS px). 이 자리에는 배경·하단 메뉴 바탕만 그리고 버튼은 두지 않는다(src/ui/layout.ts safeBottom).
+ * 토스는 0(닫기 버튼 줄 등 앱인토스가 주는 영역을 그대로 비움).
+ */
+export const extendedBottomPx = (): number => extBottom;
+
+/**
+ * 게임 화면(#game)을 안전 영역 안쪽에 둔다 → Phaser 캔버스가 노치·토스 닫기 버튼과 겹치지 않음.
+ * (2026-11-24 제작자 요청: 아래쪽 검은 띠 없애기) 웹·iOS는 아래만 홈 바 밑까지 늘린다 — 하단 메뉴 바탕이 화면 끝까지 칠해지고 버튼은 홈 바 위.
+ */
 function applyInsets(): void {
   const el = document.getElementById('game');
   if (!el) return;
   const i = impl.insets();
-  Object.assign(el.style, { position: 'absolute', top: `${i.top}px`, right: `${i.right}px`, bottom: `${i.bottom}px`, left: `${i.left}px`, width: 'auto', height: 'auto' });
+  extBottom = impl.id === 'toss' ? 0 : i.bottom;
+  const bottom = i.bottom - extBottom;
+  Object.assign(el.style, { position: 'absolute', top: `${i.top}px`, right: `${i.right}px`, bottom: `${bottom}px`, left: `${i.left}px`, width: 'auto', height: 'auto' });
 }
 
 export const platform = {

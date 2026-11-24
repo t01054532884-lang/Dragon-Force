@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { BUTTON, COLOR, css, FONT_FAMILY, RADIUS, STROKE, tint, TYPE, type ButtonKind } from './theme';
-import { fullH, offY } from './layout';
+import { fullH, offY, safeBottom } from './layout';
 
 // UI 부품(디자인 시스템). 기존 src/ui/widgets.ts는 그대로 두고, 화면을 새 디자인으로 바꿀 때 이 부품으로 옮긴다.
 // 모든 부품은 Container 하나로 돌려줘서 위치 이동·표시 끄기·지우기가 한 번에 된다.
@@ -330,9 +330,10 @@ export function navBar(scene: Phaser.Scene, tabs: { key: string; label: string; 
   const h = 128;
   const y = 1280 - h / 2;
   const tw = 720 / tabs.length;
+  const sb = safeBottom(scene); // 홈 바 밑 여분: 바탕·선택 칸만 화면 끝까지(2026-11-24)
   const g = scene.add.graphics();
-  g.fillStyle(COLOR.outline, 1).fillRect(0, y - h / 2 - 4, 720, h + 4);
-  g.fillStyle(0x1f2538, 1).fillRect(0, y - h / 2, 720, h);
+  g.fillStyle(COLOR.outline, 1).fillRect(0, y - h / 2 - 4, 720, h + 4 + sb);
+  g.fillStyle(0x1f2538, 1).fillRect(0, y - h / 2, 720, h + sb);
   const root = scene.add.container(0, 0, [g]);
   tabs.forEach((t, i) => {
     const cx = tw * i + tw / 2;
@@ -340,8 +341,8 @@ export function navBar(scene: Phaser.Scene, tabs: { key: string; label: string; 
     if (i > 0) root.add(scene.add.rectangle(tw * i, y, 3, h - 30, COLOR.outline));
     if (on) {
       const s = scene.add.graphics();
-      s.fillStyle(COLOR.outline, 1).fillRoundedRect(cx - tw / 2 + 4, y - h / 2 - 22, tw - 8, h + 18, 18);
-      s.fillStyle(COLOR.cta, 1).fillRoundedRect(cx - tw / 2 + 8, y - h / 2 - 18, tw - 16, h + 10, 16);
+      s.fillStyle(COLOR.outline, 1).fillRoundedRect(cx - tw / 2 + 4, y - h / 2 - 22, tw - 8, h + 18 + sb, 18);
+      s.fillStyle(COLOR.cta, 1).fillRoundedRect(cx - tw / 2 + 8, y - h / 2 - 18, tw - 16, h + 10 + sb, 16);
       s.fillStyle(0xffffff, 0.3).fillRoundedRect(cx - tw / 2 + 14, y - h / 2 - 12, tw - 28, 26, 10);
       root.add(s);
     }
