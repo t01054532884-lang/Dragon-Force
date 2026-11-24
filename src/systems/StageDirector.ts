@@ -274,7 +274,7 @@ export class StageDirector {
       if (boss.phase === 1 && boss.hp <= boss.maxHp * (boss.def.phaseAt ?? PATTERN.graymane.phaseAt)) {
         boss.phase = 2;
         boss.resetPattern(1000);
-        this.h.banner(`${boss.def.name} — ${boss.def.behavior === 'graymane' ? '분노한 울부짖음' : '강화 패턴!'}`, '#ff8a65');
+        this.h.banner(`${boss.def.name} — 보스 2페이즈!`, '#ff8a65'); // 문구(제작자 2026-11-25): "변신!"은 촌스러움 → "보스 2페이즈!"
         this.h.emit('boss:phase-change', { phase: 2, at: elapsed });
       }
       // 제한시간 30초 전 격노
