@@ -68,7 +68,7 @@ export const OBSTACLE_ART_READY: Record<number, ('pillar' | 'rock' | 'zone')[]> 
   1: ['pillar'], 2: ['pillar', 'rock'], 3: ['pillar'], 4: ['pillar', 'rock'], 5: ['pillar'], 6: ['pillar'], 7: ['rock'], 8: ['pillar'], 9: ['pillar', 'rock'], 10: ['pillar'], 11: ['pillar', 'zone'], 12: ['pillar', 'rock'], 13: ['pillar'], 14: ['pillar', 'zone'], 15: ['pillar'], 16: ['pillar', 'rock'], 17: ['pillar', 'rock'], 18: ['pillar'], 19: ['pillar'], 20: ['pillar'],
 };
 /** 단계별 그림처럼 그때그때 읽는 키(preloadArt가 건너뜀) */
-const LAZY_ART = /^(lobby-bg-\d+|floor-s\d+|art-e-|obstacle-(pillar|rock)-s\d+|zone-s\d+)/;
+export const LAZY_ART = /^(lobby-bg-\d+|floor-s\d+|art-e-|obstacle-(pillar|rock)-s\d+|zone-s\d+)/;
 /** 'zone'은 장애물이 깔아 두는 장판 그림(거미줄·눈더미) `arena/zone-s<단계>.webp` */
 const obstacleArtKey = (k: 'pillar' | 'rock' | 'zone', s: number | string) => (k === 'zone' ? `zone-s${s}` : `obstacle-${k}-s${s}`);
 

@@ -11,7 +11,8 @@ import { BASIC_VS_NORMAL_MULT } from '../data/basicAttack';
 import { BattleFx, FX, PALETTE } from '../fx/BattleFx';
 import { BASIC_FIRE_SFX, BATTLE_SFX_FILES, playSfx, preloadSfx, SIGNATURE_SFX } from '../systems/Sfx';
 import { playMusic, preloadMusic, refreshMusic, stopMusic } from '../systems/Music';
-import { preloadArt, preloadStageArt } from '../ui/art';
+import { preloadStageArt } from '../ui/art';
+import { preloadBattleArt, releaseLobbyArt } from '../ui/artMemory';
 import { badge, button as kitButton, ribbon, text as ktext } from '../ui/kit';
 import { plate } from '../ui/kit2';
 import { COLOR, TYPE } from '../ui/theme';
@@ -226,7 +227,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   preload(): void {
-    preloadArt(this); // 탑다운 드래곤 그림(로비에서 이미 읽었으면 건너뜀)
+    // 전투에서 쓰는 그림 중 없는 것만(로비 전용 큰 그림은 건너뜀 — 다시 도전할 때 내린 그림을 또 읽지 않게, artMemory.ts)
+    preloadBattleArt(this, this.forcedDragon ?? Progress.load().selectedDragonId);
     preloadStageArt(this, this.stage.id); // 이 단계 바닥·적 그림(받은 것만, 그림 요청서 10)
     preloadSfx(this, BATTLE_SFX_FILES); // 전투 효과음(실제 실행 경로에서만 읽음 — 기획 13.2)
     preloadMusic(this, ['bgm-battle', 'bgm-boss']);
@@ -323,6 +325,7 @@ export class GameScene extends Phaser.Scene {
     this.time.paused = false;
     if (!this.textures.exists('dragon-red')) makeTextures(this);
     if (!this.textures.exists('gem-large')) makeGemTextures(this);
+    releaseLobbyArt(this, this.dragon.id); // 전투에서 안 쓰는 로비 그림을 GPU에서 내림(돌아가면 로비가 다시 읽음)
 
     this.drawArena();
     this.setupObstacleHazards(); // 단계 테마 장애물 기믹(동상 고드름 등)
