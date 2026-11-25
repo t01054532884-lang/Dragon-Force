@@ -13,7 +13,7 @@ import { progressBar } from '../ui/kit';
 import { playSfx } from '../systems/Sfx';
 import { FONT, gameNow } from '../ui/widgets';
 import { preloadArt } from '../ui/art';
-import { button, text, type KitButton } from '../ui/kit';
+import { badge, button, text, type KitButton } from '../ui/kit';
 import { plate, tabs } from '../ui/kit2';
 import { popWord, screenFrame, toast, type ScreenFrame } from '../ui/screen';
 import { COLOR, TYPE } from '../ui/theme';
@@ -302,30 +302,64 @@ export class MissionScene extends Phaser.Scene {
   }
 
   /**
-   * 출석 탭(상시 28일, 2026-11-21): 7칸 × 4줄. 연속이 아니라 받은 날 수로 진행, 28일차 다음은 1일차.
+   * 출석 탭(상시 28일, 2026-11-21): 연속이 아니라 받은 날 수로 진행, 28일차 다음은 1일차.
    * 날마다 보상이 다르고(골드·루비·카드·룬 조각·드래곤/장비/룬 상자 개봉권), 7일마다 큰 보상.
+   * 화면(2026-11-25 제작자: "한 화면에 다 담아 너무 작다"): 1주씩 묶어 칸을 크게(한 줄 4칸) — 한 화면에 2주,
+   * 위아래로 끌어(마우스 휠도) 15~28일을 본다. 처음엔 오늘이 있는 주가 보이게.
    */
   private drawAttendance(p: PlayerProgress): void {
     const now = gameNow();
     const st = attendanceState(p, now);
     const doneInCycle = st.claimedToday ? st.index + 1 : st.index;
     this.A(text(this, 40, 320, `출석 ${doneInCycle} / ${ATTENDANCE_28.length}일`, TYPE.caption, COLOR.text, true, true).setOrigin(0, 0.5));
-    ATTENDANCE_28.forEach((r, i) => {
-      const col = i % 7;
-      const row = Math.floor(i / 7);
-      const x = 360 + (col - 3) * 94;
-      const y = 438 + row * 166;
-      const got = i < doneInCycle;
-      const today = !st.claimedToday && i === st.index;
-      const big = (i + 1) % 7 === 0;
-      this.A(plate(this, x, y, 88, 154, { r: 14, gold: today || big, fill: got ? 0x1a1626 : big ? 0x3a2a5a : undefined }));
-      this.A(text(this, x, y - 58, `${i + 1}일`, 15, today ? COLOR.gold : COLOR.textSub, true, true).setOrigin(0.5));
-      const ic = activityRewardIcon(r);
-      if (this.textures.exists(ic.image)) this.A(this.add.image(x, y - 6, ic.image).setDisplaySize(52, 52).setAlpha(got ? 0.35 : 1));
-      else this.A(text(this, x, y - 6, ic.emoji, 30).setOrigin(0.5).setAlpha(got ? 0.35 : 1));
-      this.A(text(this, x, y + 44, ic.amount, 14, got ? COLOR.textDim : COLOR.text, true, true).setOrigin(0.5));
-      if (got) this.A(text(this, x + 26, y - 32, '✔', 22, COLOR.ok, true, true).setOrigin(0.5));
-    });
+    this.A(text(this, 680, 320, '위아래로 밀어 보기', 16, COLOR.textDim, true).setOrigin(1, 0.5));
+    const top = 346;
+    const viewH = 660;
+    const CW = 150;
+    const CH = 126;
+    const weekH = 44 + 2 * (CH + 8) + 14; // 주 제목 + 2줄(4칸·3칸) + 간격
+    const box = this.A(this.add.container(0, top));
+    const weeks = Math.ceil(ATTENDANCE_28.length / 7);
+    for (let w = 0; w < weeks; w++) {
+      const wy = w * weekH;
+      box.add(text(this, 44, wy + 20, `${w + 1}주차 (${w * 7 + 1}~${w * 7 + 7}일)`, 18, COLOR.gold, true, true).setOrigin(0, 0.5));
+      for (let k = 0; k < 7; k++) {
+        const i = w * 7 + k;
+        const r = ATTENDANCE_28[i];
+        if (!r) break;
+        const col = k < 4 ? k : k - 4;
+        const perRow = k < 4 ? 4 : 3;
+        const x = 360 + (col - (perRow - 1) / 2) * (CW + 12);
+        const y = wy + 44 + CH / 2 + (k < 4 ? 0 : CH + 8);
+        const got = i < doneInCycle;
+        const today = !st.claimedToday && i === st.index;
+        const big = (i + 1) % 7 === 0;
+        box.add(plate(this, x, y, CW, CH, { r: 16, gold: today || big, fill: got ? 0x1a1626 : big ? 0x3a2a5a : undefined }));
+        box.add(text(this, x - CW / 2 + 14, y - CH / 2 + 18, `${i + 1}일`, 17, today ? COLOR.gold : COLOR.textSub, true, true).setOrigin(0, 0.5));
+        const ic = activityRewardIcon(r);
+        if (this.textures.exists(ic.image)) box.add(this.add.image(x, y - 2, ic.image).setDisplaySize(62, 62).setAlpha(got ? 0.35 : 1));
+        else box.add(text(this, x, y - 2, ic.emoji, 40).setOrigin(0.5).setAlpha(got ? 0.35 : 1));
+        box.add(text(this, x, y + CH / 2 - 22, ic.amount, 18, got ? COLOR.textDim : COLOR.text, true, true).setOrigin(0.5));
+        if (got) box.add(text(this, x + CW / 2 - 22, y - CH / 2 + 20, '✔', 26, COLOR.ok, true, true).setOrigin(0.5));
+        if (today) box.add(badge(this, x, y - CH / 2 - 2, '오늘', COLOR.ok));
+      }
+    }
+    // 보이는 칸만(가림막) + 끌기·휠로 스크롤
+    const maskG = this.make.graphics({}, false).fillStyle(0xffffff).fillRect(0, top, 720, viewH);
+    box.enableFilters();
+    box.filters?.external.addMask(maskG, false, this.cameras.main); // Phaser 4 필터 마스크(src/ui/scroll.ts와 같은 방식)
+    const minY = top - Math.max(0, weeks * weekH - viewH);
+    const clamp = (y: number) => Phaser.Math.Clamp(y, minY, top);
+    box.y = clamp(top - Math.floor(st.index / 7) * weekH);
+    const hit = this.A(this.add.zone(360, top + viewH / 2, 720, viewH).setInteractive());
+    let dragFrom: number | null = null;
+    let boxFrom = box.y;
+    hit.on('pointerdown', (ptr: Phaser.Input.Pointer) => { dragFrom = ptr.y; boxFrom = box.y; });
+    // 끌기 처리는 이 영역에서만(화면을 다시 그릴 때마다 장면 전체에 처리기가 쌓이지 않게)
+    hit.on('pointermove', (ptr: Phaser.Input.Pointer) => { if (dragFrom !== null && ptr.isDown) box.y = clamp(boxFrom + (ptr.y - dragFrom)); });
+    hit.on('pointerup', () => { dragFrom = null; });
+    hit.on('pointerout', () => { dragFrom = null; });
+    hit.on('wheel', (_p: unknown, _dx: number, dy: number) => { box.y = clamp(box.y - dy * 0.8); });
     const shown = st.claimedToday ? `내일 보상: ${activityRewardText(ATTENDANCE_28[(st.index + 1) % ATTENDANCE_28.length])}` : `오늘 보상: ${activityRewardText(ATTENDANCE_28[st.index])}`;
     this.A(text(this, 360, 1040, shown, 17, COLOR.textSub, true).setOrigin(0.5));
     const b = this.keep(button(this, 360, 1100, 360, 68, st.claimedToday ? '내일 또 만나요' : '오늘 출석 받기', () => this.claimAttendance(), { kind: st.claimedToday ? 'secondary' : 'growth', size: TYPE.body }));
