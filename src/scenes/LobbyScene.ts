@@ -380,21 +380,27 @@ export class LobbyScene extends Phaser.Scene {
   private openPassMenu(): void {
     const p = Progress.load();
     const m = modal(this, 640, 560, '패스', { closeOnBackdrop: true, ribbonColor: COLOR.gold, depth: 900 });
-    const row = (y: number, icon: string, title: string, sub: string, alert: boolean, go: () => void) => {
+    // free: 지금 받을 수 있는 무료 칸 수 — 있으면 가치 줄 아래에 초록 안내(2026-11-26 제작자: 유료라고 생각해 안 누를 수 있어서)
+    const row = (y: number, icon: string, title: string, sub: string, alert: boolean, free: number, go: () => void) => {
       const g = this.add.graphics();
       g.fillStyle(0x2b2442, 1).fillRoundedRect(-280, y - 80, 560, 160, 20);
       g.lineStyle(3, COLOR.gold, 0.9).strokeRoundedRect(-280, y - 80, 560, 160, 20);
       m.body(g);
       if (this.textures.exists(icon)) m.body(this.add.image(-200, y, icon).setDisplaySize(124, 124));
-      m.body(text(this, -120, y - 26, title, TYPE.heading, COLOR.gold, true, true).setOrigin(0, 0.5));
-      m.body(text(this, -120, y + 18, sub, TYPE.tiny, COLOR.text, true, true).setOrigin(0, 0.5));
+      m.body(text(this, -120, y - (free ? 40 : 26), title, TYPE.heading, COLOR.gold, true, true).setOrigin(0, 0.5));
+      m.body(text(this, -120, y + (free ? 2 : 18), sub, TYPE.tiny, COLOR.text, true, true).setOrigin(0, 0.5));
+      if (free) {
+        const note = text(this, -120, y + 40, `🎁 무료 보상 ${free}개가 기다리고 있어요!`, 18, COLOR.ok, true, true).setOrigin(0, 0.5);
+        m.body(note);
+        this.tweens.add({ targets: note, alpha: 0.55, duration: 700, yoyo: true, repeat: -1 });
+      }
       if (alert) m.body(text(this, 250, y - 56, '!', 30, COLOR.danger, true, true).setOrigin(0.5));
       const hit = this.add.rectangle(0, y, 560, 160, 0xffffff, 0.001).setInteractive({ useHandCursor: true });
       hit.on('pointerup', () => { m.close(); go(); });
       m.body(hit);
     };
-    row(-100, this.textures.exists('pass-royal') ? 'pass-royal' : 'ic-crown', '드래곤 패스', `28일 시즌 · 최대 ${passValuePct('royal').toLocaleString()}% 가치`, claimablePass(syncPass(p, gameNow())).length > 0, () => this.scene.start('pass'));
-    row(90, this.textures.exists('ruby-pack-5') ? 'ruby-pack-5' : 'ui-ruby', '루비 패스', `계정 레벨 보상 · ${rubyPassValuePct().toLocaleString()}% 가치`, claimableRubyPass(p).length > 0, () => this.scene.start('rubypass'));
+    row(-100, this.textures.exists('pass-royal') ? 'pass-royal' : 'ic-crown', '드래곤 패스', `28일 시즌 · 최대 ${passValuePct('royal').toLocaleString()}% 가치`, claimablePass(syncPass(p, gameNow())).length > 0, claimablePass(syncPass(p, gameNow())).filter((c) => c.t === 'free').length, () => this.scene.start('pass'));
+    row(90, this.textures.exists('ruby-pack-5') ? 'ruby-pack-5' : 'ui-ruby', '루비 패스', `계정 레벨 보상 · ${rubyPassValuePct().toLocaleString()}% 가치`, claimableRubyPass(p).length > 0, claimableRubyPass(p).filter((c) => c.t === 'free').length, () => this.scene.start('rubypass'));
   }
 
   /**
