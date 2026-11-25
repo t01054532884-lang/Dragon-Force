@@ -5,7 +5,7 @@ import { Progress } from '../systems/Progress';
 import { loadout } from '../systems/Loadout';
 import { staminaNow } from '../systems/Mailbox';
 import { STAMINA, formatLeft, nextRegenIn } from '../systems/Stamina';
-import { drawScreenBackdrop, makeArtPlaceholders } from './art';
+import { ART_FILES, drawScreenBackdrop, makeArtPlaceholders } from './art';
 import { navBar, ribbon, text } from './kit';
 import { topBar } from './kit2';
 import { COLOR, TYPE } from './theme';
@@ -14,7 +14,27 @@ import { playMusic } from '../systems/Music';
 import { openRubyShop } from './rubyShop';
 import { playSfx } from '../systems/Sfx';
 import { navAlerts } from './alerts';
-import { offY } from './layout';
+import { fullH, offY } from './layout';
+
+/**
+ * 화면 배경 그림(2026-11-25 Higgsfield, `public/art/bg/scrbg-<화면>.webp` 720×1280): 단색 바탕 위에 깔고
+ * 어두운 막을 덮어 글씨·판이 잘 읽히게. 메모리(아이폰): 처음 읽을 때 따로 읽고, 다른 화면 배경은 내려서 한 장만 남긴다.
+ * 전투에서는 artMemory가 내린다.
+ */
+function screenBackground(scene: Phaser.Scene, key: string): void {
+  if (!ART_FILES[key]) return;
+  const put = () => {
+    if (!scene.sys.isActive() || !scene.textures.exists(key)) return;
+    const h = fullH(scene);
+    scene.add.image(360, -offY(scene) + h / 2, key).setDisplaySize((720 * h) / 1280, h).setDepth(-10);
+    scene.add.rectangle(360, -offY(scene) + h / 2, 720, h, COLOR.bg, 0.5).setDepth(-9);
+  };
+  for (const k of scene.textures.getTextureKeys()) if (k.startsWith('scrbg-') && k !== key) scene.textures.remove(k);
+  if (scene.textures.exists(key)) return put();
+  scene.load.image(key, `art/${ART_FILES[key]}`);
+  scene.load.once(`filecomplete-image-${key}`, put);
+  scene.load.start();
+}
 
 // 로비 밖 화면 공통 틀(8단계 v2.0 C): 로비와 같은 머리줄(출격 드래곤·행동력·골드·루비·전투력) + 금색 리본 제목 + 하단 탭.
 // 화면마다 따로 그리던 제목·재화 줄·"로비로" 버튼을 이 틀 하나로 바꾼다 → 색·위치·동작이 모든 화면에서 같다.
@@ -51,9 +71,10 @@ export interface ScreenFrame {
  * 공통 틀 그리기. nav = 선택된 하단 탭 키(탭에 없는 화면은 ''), ribbonColor = 제목 리본 색.
  * 행동력 게이지는 1초마다 갱신, + 는 선물함(결제 없음 — 로비와 같음).
  */
-export function screenFrame(scene: Phaser.Scene, opts: { title: string; nav: string; ribbonColor?: number; banner?: string }): ScreenFrame {
+export function screenFrame(scene: Phaser.Scene, opts: { title: string; nav: string; ribbonColor?: number; banner?: string; bg?: string }): ScreenFrame {
   makeArtPlaceholders(scene);
-  drawScreenBackdrop(scene);
+  drawScreenBackdrop(scene).setDepth(-20);
+  screenBackground(scene, opts.bg ?? `scrbg-${scene.scene.key}`);
   playMusic(scene, 'bgm-lobby'); // 전투에서 돌아온 경우 로비 곡으로(이미 나오고 있으면 그대로)
   let bar: ReturnType<typeof topBar> | null = null;
   let barRoot: Phaser.GameObjects.Container | null = null;

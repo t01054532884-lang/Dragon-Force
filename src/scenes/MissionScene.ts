@@ -67,7 +67,7 @@ export class MissionScene extends Phaser.Scene {
 
   create(): void {
     this.layer = [];
-    this.frame = screenFrame(this, { title: this.only ? ONLY_TITLE[this.only] : '보상', nav: '' });
+    this.frame = screenFrame(this, { title: this.only ? ONLY_TITLE[this.only] : '보상', nav: '', bg: this.only === 'attendance' ? 'scrbg-attendance' : this.only === 'achievements' ? 'scrbg-achievements' : 'scrbg-missions' });
     this.input.keyboard?.on('keydown-ESC', () => this.scene.start('lobby'));
     this.refresh();
     if (this.autoClaim && this.tab === 'attendance' && !attendanceState(Progress.load(), gameNow()).claimedToday) this.time.delayedCall(250, () => this.claimAttendance());
