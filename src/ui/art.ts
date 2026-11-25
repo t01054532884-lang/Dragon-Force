@@ -36,7 +36,12 @@ export const SKILL_ICONS = [
  * - enemy: 단계 → 그 단계에서 처음 나오는 적 id 목록. 그림 `public/art/enemy/art-e-<id>.webp`(옆모습, 머리 오른쪽).
  * 셋 다 크기가 커서 처음에 한꺼번에 읽지 않고 그 화면·그 단계에서만 읽는다(아이폰 메모리).
  */
-export const STAGE_ART_READY: { lobby: number[]; floor: number[]; enemy: Record<number, string[]> } = { lobby: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], floor: [], enemy: {} };
+export const STAGE_ART_READY: { lobby: number[]; floor: number[]; enemy: Record<number, string[]> } = { lobby: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], floor: [], enemy: {
+  // 2~20단계 보스 19종(2026-11-25, Higgsfield GPT Image 2.6 · 기준 그림 art-graymane, 원본 art-src/enemies/hf/)
+  2: ['thornhorn_treant'], 3: ['moonshadow_devourer'], 4: ['morkan'], 5: ['verkan'], 6: ['dravan'], 7: ['graum'], 8: ['valterion'],
+  9: ['air'], 10: ['kardion'], 11: ['seria'], 12: ['valkir'], 13: ['morte'], 14: ['nox'], 15: ['bargan'], 16: ['ardeon'],
+  17: ['auren'], 18: ['lumiel'], 19: ['serkan'], 20: ['eirgon'],
+} };
 /** 단계별 그림처럼 그때그때 읽는 키(preloadArt가 건너뜀) */
 const LAZY_ART = /^(lobby-bg-\d+|floor-s\d+|art-e-)/;
 

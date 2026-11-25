@@ -342,7 +342,7 @@ export class StageDirector {
     this.spawnEscorts(elapsed);
     this.record.bossSpawnAt = elapsed;
     this.phase = 'BOSS';
-    const esc = this.escorts.length ? ` + 호위 엘리트 ${this.escorts.length}` : '';
+    const esc = this.escorts.length ? `\n+ 호위 엘리트 ${this.escorts.length}` : ''; // 한 줄이면 긴 보스 이름에서 화면 밖으로 넘침
     this.h.banner(`보스 — ${this.bosses[0].def.name}${n > 1 ? ' ×2' : ''}${esc}`, '#ff1744');
     this.h.emit('boss:spawn', { at: elapsed, count: n, escorts: this.escorts.length });
   }
