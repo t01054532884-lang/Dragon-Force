@@ -37,27 +37,27 @@ export const SKILL_ICONS = [
  * 셋 다 크기가 커서 처음에 한꺼번에 읽지 않고 그 화면·그 단계에서만 읽는다(아이폰 메모리).
  */
 export const STAGE_ART_READY: { lobby: number[]; floor: number[]; enemy: Record<number, string[]> } = { lobby: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], floor: [], enemy: {
-  // 2~20단계 보스 19종 + 엘리트 38종(2026-11-25, Higgsfield GPT Image 2.6 · 기준 그림 art-graymane, 원본 art-src/enemies/hf/)
-  // 보스 512px · 엘리트 384px. 각 단계: [보스, 엘리트1, 엘리트2]
-  2: ['thornhorn_treant', 'thorn_boar', 'vine_hunter'],
-  3: ['moonshadow_devourer', 'shadow_panther', 'cursed_hunter'],
-  4: ['morkan', 'spore_queen', 'oak_giant'],
-  5: ['verkan', 'flame_charger', 'lava_golem'],
-  6: ['dravan', 'berserker_captain', 'order_commander'],
-  7: ['graum', 'forge_beast', 'iron_giant'],
-  8: ['valterion', 'wall_breaker', 'flame_executioner'],
-  9: ['air', 'ice_wolf_king', 'frost_mage'],
-  10: ['kardion', 'spider_queen', 'ice_giant'],
-  11: ['seria', 'tundra_beast', 'storm_shaman'],
-  12: ['valkir', 'palace_guard', 'ice_judge'],
-  13: ['morte', 'wraith_knight', 'curse_priest'],
-  14: ['nox', 'dark_executioner', 'shadow_priest'],
-  15: ['bargan', 'black_knight_captain', 'soul_devourer'],
-  16: ['ardeon', 'palace_executioner', 'dark_witch_king'],
-  17: ['auren', 'ancient_lancer', 'mana_giant'],
-  18: ['lumiel', 'star_executioner', 'dimension_warden'],
-  19: ['serkan', 'dragon_apostle', 'ancient_captain'],
-  20: ['eirgon', 'seal_warden', 'sanctum_executioner'],
+  // 2~20단계 몬스터 전부(2026-11-25, Higgsfield GPT Image 2.6 · 기준 그림 art-graymane, 원본 art-src/enemies/hf/):
+  // 보스 19(512px) · 엘리트 38(384px) · 일반·소환물 63(256px). 각 단계: [보스, 엘리트 2, 일반 3, 소환물] — 게임 데이터(생성표·소환)에서 뽑은 목록
+  2: ['thornhorn_treant', 'thorn_boar', 'vine_hunter', 'thorn_bug', 'vine_sprite', 'forest_archer', 'vine_sprout'],
+  3: ['moonshadow_devourer', 'shadow_panther', 'cursed_hunter', 'rabid_wolf', 'crow', 'wraith_hunter'],
+  4: ['morkan', 'spore_queen', 'oak_giant', 'rotten_spirit', 'oak_guard', 'spore_beast', 'oak_sprite', 'spore_mite'],
+  5: ['verkan', 'flame_charger', 'lava_golem', 'fire_imp', 'flame_bat', 'iron_soldier'],
+  6: ['dravan', 'berserker_captain', 'order_commander', 'spearman', 'shield_knight', 'flame_archer'],
+  7: ['graum', 'forge_beast', 'iron_giant', 'lava_slime', 'smith_wraith', 'lava_thrower'],
+  8: ['valterion', 'wall_breaker', 'flame_executioner', 'blast_imp', 'black_knight', 'fire_mage'],
+  9: ['air', 'ice_wolf_king', 'frost_mage', 'snow_wolf', 'ice_bat', 'snow_spirit'],
+  10: ['kardion', 'spider_queen', 'ice_giant', 'crystal_spider', 'crystal_bat', 'ice_golem'],
+  11: ['seria', 'tundra_beast', 'storm_shaman', 'storm_spirit', 'ice_spearman', 'tundra_hunter', 'frost_clone'],
+  12: ['valkir', 'palace_guard', 'ice_judge', 'frost_wraith', 'ice_knight', 'freeze_mage'],
+  13: ['morte', 'wraith_knight', 'curse_priest', 'wraith_soldier', 'black_crow', 'cursed_citizen'],
+  14: ['nox', 'dark_executioner', 'shadow_priest', 'dark_cultist', 'shadow_hunter', 'curse_caster', 'curse_imp'],
+  15: ['bargan', 'black_knight_captain', 'soul_devourer', 'soul_soldier', 'black_knight', 'curse_golem', 'wraith_cavalry'],
+  16: ['ardeon', 'palace_executioner', 'dark_witch_king', 'palace_wraith', 'cursed_guard', 'dark_mage', 'ardeon_clone'],
+  17: ['auren', 'ancient_lancer', 'mana_giant', 'gold_beetle', 'ancient_guard', 'mana_spirit'],
+  18: ['lumiel', 'star_executioner', 'dimension_warden', 'star_spirit', 'space_stalker', 'mana_archer'],
+  19: ['serkan', 'dragon_apostle', 'ancient_captain', 'dragon_soul', 'ancient_merc', 'mana_guard'],
+  20: ['eirgon', 'seal_warden', 'sanctum_executioner', 'ancient_spirit', 'mana_golem', 'seal_guard'],
 } };
 /** 단계별 그림처럼 그때그때 읽는 키(preloadArt가 건너뜀) */
 const LAZY_ART = /^(lobby-bg-\d+|floor-s\d+|art-e-)/;
