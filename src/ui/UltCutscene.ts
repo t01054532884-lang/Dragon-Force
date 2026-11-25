@@ -59,9 +59,9 @@ const ultSfxKey = (id: DragonId) => `ult-${id}-sfx`;
  * motion(2026-11-25 제작자 결정 — 비슷한 4쌍을 움직임부터 다르게): 없으면 위→아래 쓸기(sweep).
  * vortex 가운데 소용돌이(워터) · rift 가운데서 바깥으로 갈라짐(샌드) · circle 마법진 + 빛기둥(아케인) · enclose 양옆에서 조여 옴(블랙)
  */
-type FxMotion = 'sweep' | 'vortex' | 'rift' | 'circle' | 'enclose';
+type FxMotion = 'sweep' | 'vortex' | 'rift' | 'circle' | 'enclose' | 'flame';
 const ULT_FX: Partial<Record<DragonId, { add: boolean; motion?: FxMotion }>> = {
-  red: { add: true }, blue: { add: true }, yellow: { add: true }, green: { add: false }, sand: { add: true, motion: 'rift' }, steel: { add: false },
+  red: { add: true, motion: 'flame' }, blue: { add: true }, yellow: { add: true }, green: { add: false }, sand: { add: true, motion: 'rift' }, steel: { add: false },
   white: { add: true }, black: { add: false, motion: 'enclose' }, stone: { add: false }, bloom: { add: false }, howl: { add: true }, wind: { add: true },
   water: { add: false, motion: 'vortex' }, crimson: { add: true }, mirror: { add: true }, chrono: { add: true }, void: { add: false }, aurora: { add: true }, arcane: { add: true, motion: 'circle' },
 };
@@ -88,6 +88,7 @@ export function playUltSweep(scene: Phaser.Scene, id: DragonId, color: number, d
     if (motion === 'vortex') fxVortex(scene, key, color, add, W, H, fix);
     else if (motion === 'rift') fxRift(scene, key, color, add, W, H, fix);
     else if (motion === 'circle') fxCircle(scene, key, color, add, W, H, fix);
+    else if (motion === 'flame') fxFlameWave(scene, key, color, add, W, H, fix);
     else fxEnclose(scene, key, color, add, W, H, fix);
     return;
   }
@@ -134,6 +135,54 @@ type Fix = <G extends Phaser.GameObjects.GameObject>(g: G) => G;
 function fxTint(scene: Phaser.Scene, color: number, alpha: number, W: number, H: number, fix: Fix, delay = 0, hold = 300): void {
   const r = fix(scene.add.rectangle(W / 2, H / 2, W, H, color, 1).setAlpha(0));
   scene.tweens.add({ targets: r, alpha, delay, duration: 220, yoyo: true, hold, onComplete: () => r.destroy() });
+}
+
+/**
+ * 레드 불의 파도(제작자 2026-11-25: "너무 단면적, 모션이 있었으면"): 불의 파도 두 겹이 출렁이며(좌우 흔들림·높이 맥동) 내려오고,
+ * 파도가 지나간 자리마다 불기둥이 솟았다 꺼지며, 화면이 붉게 달아오르고 흔들린다.
+ */
+function fxFlameWave(scene: Phaser.Scene, key: string, color: number, add: boolean, W: number, H: number, fix: Fix): void {
+  const DUR = 900;
+  fxTint(scene, 0xff5a1a, 0.3, W, H, fix, 0, DUR);
+  scene.cameras.main.shake(DUR, 0.006);
+  // 두 겹 파도: 뒤 겹은 작고 어둡게 조금 늦게, 앞 겹은 크게 — 각각 좌우로 흔들리고 높이가 맥동
+  [{ s: 1.0, delay: 140, alpha: 0.55, sway: 26 }, { s: 1.3, delay: 0, alpha: 1, sway: 40 }].forEach((L, i) => {
+    const im = fix(scene.add.image(W / 2, 0, key));
+    if (add) im.setBlendMode(Phaser.BlendModes.ADD);
+    const sc = (W * L.s) / im.width;
+    im.setScale(sc).setAlpha(L.alpha);
+    const h = im.displayHeight;
+    im.setY(-h / 2);
+    scene.tweens.add({ targets: im, y: H + h * 0.2, delay: L.delay, duration: DUR, ease: 'Sine.In' });
+    scene.tweens.add({ targets: im, x: { from: W / 2 - L.sway, to: W / 2 + L.sway }, duration: 220 + i * 40, yoyo: true, repeat: 3, ease: 'Sine.InOut' });
+    scene.tweens.add({ targets: im, scaleY: sc * 1.18, duration: 160 + i * 30, yoyo: true, repeat: 4, ease: 'Sine.InOut' });
+    scene.tweens.add({ targets: im, alpha: 0, delay: L.delay + DUR - 220, duration: 380, onComplete: () => im.destroy() });
+  });
+  // 지나간 자리의 불길 막
+  const glow = fix(scene.add.rectangle(W / 2, 0, W, 1, color, 0.32).setOrigin(0.5, 0).setBlendMode(Phaser.BlendModes.ADD));
+  scene.tweens.add({ targets: glow, displayHeight: H, duration: DUR, ease: 'Sine.In' });
+  scene.tweens.add({ targets: glow, alpha: 0, delay: DUR, duration: 700, onComplete: () => glow.destroy() });
+  // 불기둥: 파도가 지나가는 순간 그 높이에서 솟구쳤다 꺼짐(바깥 주황 + 안쪽 노랑)
+  for (let i = 0; i < 16; i++) {
+    const x = Phaser.Math.Between(20, W - 20), y = Phaser.Math.Between(Math.round(H * 0.15), H - 30);
+    // 파도(Sine.In)가 그 높이를 지나는 순간: 1 − cos(p·π/2) = y/H 를 p로 푼 값
+    const delay = (Math.acos(1 - Math.min(1, y / H)) / (Math.PI / 2)) * DUR;
+    const hgt = Phaser.Math.Between(110, 220);
+    const outer = fix(scene.add.ellipse(x, y, 46, hgt, color, 0.85).setOrigin(0.5, 1).setBlendMode(Phaser.BlendModes.ADD));
+    const inner = fix(scene.add.ellipse(x, y, 18, hgt * 0.7, 0xfff1a8, 0.95).setOrigin(0.5, 1).setBlendMode(Phaser.BlendModes.ADD));
+    for (const o of [outer, inner]) {
+      o.setScale(0.6, 0).setAlpha(0);
+      scene.tweens.add({ targets: o, scaleY: 1, scaleX: 1, alpha: 1, delay, duration: 160, ease: 'Back.Out' });
+      scene.tweens.add({ targets: o, scaleY: 0.2, scaleX: 0.3, alpha: 0, y: y - hgt * 0.4, delay: delay + 260, duration: 380, ease: 'Quad.In', onComplete: () => o.destroy() });
+    }
+  }
+  // 불씨
+  for (let i = 0; i < 40; i++) {
+    const y = Phaser.Math.Between(80, H - 40);
+    const e = fix(scene.add.circle(Phaser.Math.Between(10, W - 10), y, Phaser.Math.Between(3, 7), i % 3 === 0 ? 0xfff1a8 : color, 0.95));
+    e.setAlpha(0).setBlendMode(Phaser.BlendModes.ADD);
+    scene.tweens.add({ targets: e, alpha: { from: 1, to: 0 }, y: y - Phaser.Math.Between(80, 200), x: e.x + Phaser.Math.Between(-30, 30), delay: (y / H) * DUR, duration: Phaser.Math.Between(600, 1000), ease: 'Quad.Out', onComplete: () => e.destroy() });
+  }
 }
 
 /** 워터 심해의 격류: 가운데에 소용돌이가 돌며 커졌다가 안쪽으로 빨려 들어가 사라짐 + 물방울이 가운데로 끌려감 */
