@@ -41,13 +41,19 @@ const et = (n: number): PassItem => ({ kind: 'equipTicket', n });
 const rt = (n: number): PassItem => ({ kind: 'runeTicket', n });
 
 /**
- * 조각 칸 수량(제작자 2026-11-25): 범용 조각을 없애고 레드·범용 칸 모두 랜덤 조각으로, 줄마다 레벨 순서대로
- * 5 · 5 · 10 · 10 · 20 · 20 · 30 · 30 …(두 칸마다 올라감, 30에서 멈춤).
+ * 조각 칸 수량(제작자 2026-11-25): 범용 조각을 없애고 레드·범용 칸 모두 랜덤 조각으로, 줄마다 레벨 순서대로 두 칸마다 올라감.
+ * - 무료: 5 · 5 · 10 · 10 · 20 · 20 · 30(제작자 안 그대로)
+ * - 유료(프리미엄·로열): 30 · 30 · 40 · 40 · 50 · 50 · 60 — 제작자 요청 "가치 1,000%대가 되게 조각 수량을 늘리자"(프리미엄 조각 칸이 4개뿐이라
+ *   무료와 같은 사다리로는 930%에 그쳐 유료 줄만 크게). 결과 프리미엄 1,000% · 로열 1,510%(passValuePct 계산값).
  */
-export const PASS_FRAG_STEPS = [5, 5, 10, 10, 20, 20, 30];
-const escalateFrags = (row: PassItem[]): PassItem[] => {
+export const PASS_FRAG_STEPS: Record<PassTrack, number[]> = {
+  free: [5, 5, 10, 10, 20, 20, 30],
+  premium: [30, 30, 40, 40, 50, 50, 60],
+  royal: [30, 30, 40, 40, 50, 50, 60],
+};
+const escalateFrags = (row: PassItem[], steps: number[]): PassItem[] => {
   let k = 0;
-  return row.map((it) => (it.kind === 'randFrag' || it.kind === 'uniFrag' || it.kind === 'redFrag' ? { kind: 'randFrag', n: PASS_FRAG_STEPS[Math.min(k++, PASS_FRAG_STEPS.length - 1)] } : it));
+  return row.map((it) => (it.kind === 'randFrag' || it.kind === 'uniFrag' || it.kind === 'redFrag' ? { kind: 'randFrag', n: steps[Math.min(k++, steps.length - 1)] } : it));
 };
 
 /** 레벨 1~30의 보상(인덱스 0 = Lv.1). 조각 칸 수량은 escalateFrags가 다시 정한다(아래 표의 숫자는 예전 값) */
@@ -69,9 +75,9 @@ const RAW_REWARDS: Record<PassTrack, PassItem[]> = {
   ],
 };
 export const PASS_REWARDS: Record<PassTrack, PassItem[]> = {
-  free: escalateFrags(RAW_REWARDS.free),
-  premium: escalateFrags(RAW_REWARDS.premium),
-  royal: escalateFrags(RAW_REWARDS.royal),
+  free: escalateFrags(RAW_REWARDS.free, PASS_FRAG_STEPS.free),
+  premium: escalateFrags(RAW_REWARDS.premium, PASS_FRAG_STEPS.premium),
+  royal: escalateFrags(RAW_REWARDS.royal, PASS_FRAG_STEPS.royal),
 };
 
 /**

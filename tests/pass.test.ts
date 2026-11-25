@@ -12,8 +12,8 @@ describe('드래곤 패스', () => {
     expect(seasonOf(T0)).toBe(1);
     expect(seasonOf(T0 + 28 * 86_400_000)).toBe(2);
   });
-  it('가치 표시는 계산값: 프리미엄 ≥ 800%(조각 칸 5~30 랜덤으로 바뀐 뒤 910%) · 로열 > 프리미엄', () => {
-    expect(passValuePct('premium')).toBeGreaterThanOrEqual(800);
+  it('가치 표시는 계산값: 프리미엄 ≥ 1000%(유료 줄 조각 30~60, 2026-11-25) · 로열 > 프리미엄', () => {
+    expect(passValuePct('premium')).toBeGreaterThanOrEqual(1000);
     expect(passValuePct('royal')).toBeGreaterThan(passValuePct('premium'));
   });
   it('시즌 시작 때 계정 경험치가 출발점 — 예전 기록은 패스 포인트가 아님', () => {

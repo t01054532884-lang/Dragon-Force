@@ -86,7 +86,14 @@ export class DragonsScene extends Phaser.Scene {
     const list = releasedDragons(); // 출시된 드래곤만(신규는 출시 스위치가 켜질 때까지 숨김)
     const owned = list.filter((id) => p.dragons[id].unlocked).length;
     this.A(text(this, 30, 246, `보유 ${owned} / ${list.length}`, TYPE.tiny, COLOR.text, true, true).setOrigin(0, 0.5));
-    this.A(text(this, 690, 246, `범용 조각 ${p.universalFragments}`, TYPE.tiny, COLOR.textSub, true, true).setOrigin(1, 0.5));
+    // 범용 조각(제작자 2026-11-25: 어디서 확인·교환하는지 티가 나게) — 누르면 설명 + 5성 드래곤 남은 조각 교환 창. 교환할 게 있으면 "!" 표시
+    const canConvert = this.convertible(p).length > 0;
+    const uniBtn = this.B(button(this, 590, 246, 210, 50, `🧩 범용 조각 ${p.universalFragments}`, () => this.universalPopup(), { kind: canConvert ? 'growth' : 'secondary', size: TYPE.tiny }));
+    if (canConvert) {
+      const dot = this.A(badge(this, 690, 226, '!', COLOR.ruby));
+      this.tweens.add({ targets: dot, scale: 1.15, duration: 500, yoyo: true, repeat: -1 });
+    }
+    void uniBtn;
 
     // 초상 타일 5×2 한 쪽 — 10종을 넘으면 쪽 넘기기
     const pages = Math.max(1, Math.ceil(list.length / PER_PAGE));
@@ -263,6 +270,49 @@ export class DragonsScene extends Phaser.Scene {
       m.body(text(this, -296, -236 + i * 66, `Lv.${i + 1}  ${L.text}`, 16, i === 6 ? COLOR.gold : COLOR.text, true).setOrigin(0, 0).setWordWrapWidth(592).setAlign('left'));
     });
     m.body(button(this, 0, 262, 240, 64, '닫기', () => this.closePopup(), { kind: 'secondary', size: TYPE.caption }).root);
+    this.popup = m;
+  }
+
+  /** 범용 조각으로 바꿀 수 있는 드래곤: 5성(최대 승급) + 남은 조각이 교환 비율 이상 */
+  private convertible(p: ReturnType<typeof Progress.load>): DragonId[] {
+    return releasedDragons().filter((id) => {
+      const o = p.dragons[id];
+      return o.unlocked && o.stars >= GROWTH.maxStars && o.fragments >= UNIVERSAL.rate[econRarity(DRAGONS[id].rarity)];
+    });
+  }
+
+  /** 범용 조각 안내 + 교환 창 */
+  private universalPopup(): void {
+    this.closePopup();
+    const p = Progress.load();
+    const R = UNIVERSAL.rate;
+    const m = modal(this, 660, 760, `🧩 범용 조각 ${p.universalFragments}개`, { closeOnBackdrop: true, ribbonColor: COLOR.violet });
+    m.body(text(this, 0, -300, [
+      '어느 드래곤 승급에나 쓰는 조각이에요.',
+      '· 얻는 법: 5성(최대 승급) 드래곤의 남은 조각을 교환',
+      `   일반 ${R.common}:1 · 희귀 ${R.rare}:1 · 영웅 ${R.epic}:1 · 전설 ${R.legendary}:1`,
+      '· 쓰는 법: 승급할 때 조각이 모자라면 자동으로 채워요',
+      `   (전설은 필요량의 ${Math.round(UNIVERSAL.legendaryMaxShare * 100)}%까지) — 승급 버튼에 "+범용 N"으로 표시`,
+    ].join('\n'), 17, COLOR.text, true).setOrigin(0.5, 0).setAlign('left').setLineSpacing(8));
+    const list = this.convertible(p);
+    if (!list.length) {
+      m.body(text(this, 0, 40, '지금 교환할 수 있는 드래곤이 없어요\n(5성을 달성한 뒤 남는 조각부터 교환돼요)', 17, COLOR.textSub, true).setOrigin(0.5).setAlign('center').setLineSpacing(6));
+    }
+    list.slice(0, 4).forEach((id, i) => {
+      const o = p.dragons[id];
+      const rate = R[econRarity(DRAGONS[id].rarity)];
+      const y = -40 + i * 86;
+      m.body(this.add.rectangle(0, y, 600, 74, 0x221d36).setStrokeStyle(2, COLOR.line));
+      if (this.textures.exists(`portrait-${id}`)) m.body(this.add.image(-262, y, `portrait-${id}`).setDisplaySize(58, 58));
+      m.body(text(this, -220, y, `${DRAGONS[id].short} 조각 ${o.fragments} → 범용 ${Math.floor(o.fragments / rate)}`, 18, COLOR.text, true, true).setOrigin(0, 0.5));
+      m.body(button(this, 220, y, 140, 56, '교환', () => {
+        const r = Progress.toUniversal(id);
+        if (r.ok) toast(this, `범용 조각 +${r.gained}`, COLOR.ok);
+        this.refresh();
+        this.universalPopup();
+      }, { kind: 'growth', size: TYPE.caption }).root);
+    });
+    m.body(button(this, 0, 320, 240, 64, '닫기', () => this.closePopup(), { kind: 'secondary', size: TYPE.caption }).root);
     this.popup = m;
   }
 
