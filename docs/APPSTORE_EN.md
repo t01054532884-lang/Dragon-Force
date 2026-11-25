@@ -12,7 +12,7 @@ App Store Connect → 앱 → 배포 → 오른쪽 위 언어 메뉴에서 **Eng
 | 키워드 Keywords | 100자 | `dragon,roguelike,survivor,action,shooter,fantasy,boss,idle,auto,one hand,rpg,monster,arcade` (93자) |
 | 지원 URL | | https://t01054532884-lang.github.io/Dragon-Force/support-en.html |
 | 개인정보처리방침 URL | | https://t01054532884-lang.github.io/Dragon-Force/privacy-en.html |
-| 저작권 | | `© 2026 [상호 SquadCode 또는 이름]` |
+| 저작권 | | `© 2026 SquadCode` |
 
 - 이름: "Dragon Force"만 쓰면 같은 이름의 앱·상표와 겹칠 수 있다(유튜브도 'DragonForce' 이름을 막았음). 그래서 `: Survivor`를 붙였다. 한국어 이름 "드래곤 특공대"와 따로 정할 수 있다. 다른 게임 이름은 이름·키워드에 넣지 않는다(심사 2.3.7).
 - 키워드는 이름·부제에 이미 있는 낱말(dragon·survivor·roguelike)을 다시 넣어도 점수가 오르지 않으니, 자리가 모자라면 그것부터 뺀다.

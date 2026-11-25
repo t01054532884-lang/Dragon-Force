@@ -19,7 +19,7 @@
 
 | 남은 것 | 누가 | 상태 |
 |---|---|---|
-| 처리방침·약관 영어판 | AI | ✅ 초안 `docs/legal/privacy-en.html`·`terms-en.html`. 설정 화면에 "개인정보처리방침·이용약관" 버튼(영어 모드면 -en 페이지). **[ ] 칸 채운 뒤 4개 파일을 `public/`으로 옮겨야 버튼 주소가 열림** |
+| 처리방침·약관 영어판 | AI | ✅ 초안 `docs/legal/privacy-en.html`·`terms-en.html`. 설정 화면에 "개인정보처리방침·이용약관" 버튼(영어 모드면 -en 페이지). 11/25 사업자 값 채워 `public/`에 공개(시행 2026-11-25, 주소는 공개 안 함) |
 | 고객 지원 페이지 영어판 | AI | ✅ `public/support-en.html`(한국어판도 서버·Apple 연결 기준으로 고침) |
 | App Store 영어 페이지 문구 | AI | ✅ `docs/APPSTORE_EN.md`(이름·부제·설명·키워드·심사 메모·영양 라벨) → 제작자가 App Store Connect에 붙여 넣기 |
 | 영어 스크린샷 | AI | 제출 때 영어 모드 실제 화면 캡처(그림 담당 필요 없음) |
