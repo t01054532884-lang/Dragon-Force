@@ -30,8 +30,8 @@
 ## 2. 제작자가 할 일 (순서대로 — AI가 대신할 수 없음)
 1. **App Store Connect → 비즈니스(계약)**: 유료 앱 계약 동의 + 세금(W-8BEN 등) + 은행 계좌. "활성"이 돼야 결제가 동작.
 2. **App Store Connect → 사용자 및 액세스 → 통합 → 인앱 구입**: 인앱 구입 키(.p8) 만들기 → 키 ID·발급자 ID와 함께 **RevenueCat → 프로젝트 → Apps → App Store 앱 추가**(번들 ID `com.dragonforce.app`)에 올림. 같은 화면의 "App Store Connect API" 키도 넣으면 상품 가져오기가 편해짐.
-3. **App Store Connect → 앱 → 수익화 → 인앱 구입**: 아래 3절 17종 등록(유형 **소모품**, 상품 ID 그대로, 가격·한국어 이름·설명·심사용 스크린샷). 등록 후 "제출 준비 완료".
-4. **RevenueCat → Products**: App Store에서 17종 가져오기(Import). 오퍼링·자격(entitlement)은 쓰지 않아도 됨(코드가 상품 ID로 직접 삼).
+3. **App Store Connect → 앱 → 수익화 → 인앱 구입**: **18종 등록 — 최신 등록표는 `docs/IAP_REGISTER.md`**(이름·설명 한/영, 유형: 17종 소모품 + 루비 패스 비소모품). 예전 안내: 아래 3절 17종 등록(유형 **소모품**, 상품 ID 그대로, 가격·한국어 이름·설명·심사용 스크린샷). 등록 후 "제출 준비 완료".
+4. **RevenueCat → Products**: App Store에서 18종 가져오기(Import). 오퍼링·자격(entitlement)은 쓰지 않아도 됨(코드가 상품 ID로 직접 삼).
 5. **RevenueCat → API keys**: ① App Store용 **공개 키**(`appl_…`) → `VITE_REVENUECAT_IOS_KEY` ② **비밀 키**(`sk_…`, v1) → 서버 비밀 값. 비밀 키는 채팅·저장소에 붙이지 말 것.
 6. **Firebase 웹 앱 설정 4개** → `.env.local`(`.env.firebase.example` 복사) + Codemagic 환경 변수(아래 5개 모두 같은 이름).
    `VITE_FIREBASE_API_KEY` · `VITE_FIREBASE_AUTH_DOMAIN` · `VITE_FIREBASE_PROJECT_ID` · `VITE_FIREBASE_APP_ID` · `VITE_REVENUECAT_IOS_KEY`
@@ -42,11 +42,11 @@
    firebase functions:secrets:set REVENUECAT_WEBHOOK_AUTH    # 아무 긴 무작위 문자열
    firebase deploy --only functions,firestore:rules
    ```
-8. **RevenueCat → Integrations → Webhooks**: URL `https://asia-northeast3-dragon-force-eb552.cloudfunctions.net/rcWebhook`, Authorization 헤더 = 7의 `REVENUECAT_WEBHOOK_AUTH` 값.
+8. **RevenueCat → Integrations → Webhooks**: URL `https://rcwebhook-3ovvizgaya-du.a.run.app`(2026-11-26 배포 때 나온 주소, 예전 `https://asia-northeast3-dragon-force-eb552.cloudfunctions.net/rcWebhook`), Authorization 헤더 = 7의 `REVENUECAT_WEBHOOK_AUTH` 값.
 9. **Firebase 콘솔 → Authentication → 설정 → 승인된 도메인**은 그대로(iOS는 기본 Apple 창이라 필요 없음). Apple 제공업체는 이미 켜짐(11/20).
 10. Codemagic 빌드 → TestFlight → **샌드박스 테스터**(App Store Connect → 사용자 및 액세스 → 샌드박스)로 시험(6절).
 
-## 3. App Store Connect 상품 등록표 (17종, 모두 소모품)
+## 3. App Store Connect 상품 등록표 (18종 — 최신은 `docs/IAP_REGISTER.md`, 루비 패스만 비소모품)
 가격은 기획 값. App Store 가격 등급에 같은 금액이 없으면 가장 가까운 등급을 고르고 알려 주면 코드 표시 가격(`krw`)도 맞춤(앱 화면은 스토어 실제 가격을 우선 표시).
 
 | # | 상품 ID | 이름 | 기획 가격 | 지급 | 구매 제한 |
@@ -68,6 +68,7 @@
 | 15 | `pass_premium_s` | 드래곤 패스 프리미엄 | ₩9,900 | 이번 시즌 프리미엄 줄 | 시즌당 1 |
 | 16 | `pass_royal_s` | 드래곤 패스 로열 | ₩19,000 | 이번 시즌 프리미엄+로열 줄 | 시즌당 1 |
 | 17 | `skin_key_1` | 스킨 룰렛 열쇠 | ₩4,900 | 스킨 룰렛 열쇠 1개 | 없음 (2026-11-23 밤 추가, `docs/SKINS.md`) |
+| 18 | `ruby_pass_1` | 루비 패스 | ₩25,000 | 루비 패스 유료 줄(계정 레벨 1~30, 합 15,350루비) | 계정당 1 (2026-11-26, **비소모품** 권장) |
 
 - 표의 원본은 코드(`src/data/economy.ts` `RUBY_PRODUCTS`·`PACKAGES`·`DEALS`, `src/data/pass.ts` `PASS`). **상품 ID는 한 번 등록하면 바꿀 수 없음.**
 - 패스·특혜를 "소모품"으로 둔 이유: 시즌·기간마다 다시 사는 상품이라 "비소모품"(한 번 사면 영구)과 맞지 않음. 한정 패키지 3종도 계정당 1회를 서버 장부로 지키므로 소모품으로 통일.
