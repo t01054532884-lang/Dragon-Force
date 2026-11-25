@@ -26,7 +26,7 @@ App Store 제출(다른 세션, `main`)과 섞이지 않게 **`google-play` 브�
 - [x] Capacitor 안드로이드 프로젝트(`android/`, targetSdk 36) · 세로 고정 · 전체 화면 · 앱 아이콘(적응형 포함) · 시작 화면(어두운 바탕 + 로고) · versionName 1.0.0
 - [x] Codemagic 안드로이드 워크플로 `android-play`(`codemagic.yaml`): 테스트 → 게임 빌드 → versionCode = 빌드 번호+100 → 서명된 AAB. Play 자동 업로드는 서비스 계정을 넣은 뒤 주석 해제
 - [x] **업로드 키(.jks)** 만들기(2026-11-26, 제작자 PC `C:\Users\t0105\dragon-force-keys\` — 저장소·OneDrive 밖, 별칭 `dragonforce-upload`, 비밀번호는 같은 폴더 `KEY-INFO.txt`에만)
-- [ ] 업로드 키를 Codemagic "Android keystores"에 참조 이름 `dragonforce_upload`로 등록(키 파일·비밀번호는 잃어버리지 않게 따로 보관, 저장소·채팅에 올리지 않음). Play App Signing을 쓰면 업로드 키를 잃어버려도 재설정 가능
+- [x] (2026-11-26 등록 완료, 개인 계정 · 만료 2054-04-13) 업로드 키를 Codemagic "Android keystores"에 참조 이름 `dragonforce_upload`로 등록(키 파일·비밀번호는 잃어버리지 않게 따로 보관, 저장소·채팅에 올리지 않음). Play App Signing을 쓰면 업로드 키를 잃어버려도 재설정 가능
 - [ ] 실제 안드로이드 기기에서 확인: 위쪽 카메라 구멍·아래 내비게이션 바와 겹침, 뒤로가기, 소리, 백그라운드 정지
 
 ## 3. 결제(계정·판매자 프로필 뒤, 제작자 + AI)
