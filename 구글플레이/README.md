@@ -30,7 +30,7 @@ App Store 제출(다른 세션, `main`)과 섞이지 않게 **`google-play` 브�
 - [ ] 실제 안드로이드 기기에서 확인: 위쪽 카메라 구멍·아래 내비게이션 바와 겹침, 뒤로가기, 소리, 백그라운드 정지
 
 ## 3. 결제(계정·판매자 프로필 뒤, 제작자 + AI)
-- [ ] Play Console에 인앱 상품 17종(소모품) — 상품 ID는 iOS와 같게(`src/data/iap.ts`)
+- [ ] Play Console에 인앱 상품 18종(소모품 17 + 루비 패스 `ruby_pass_1` 비소모품 1) — 상품 ID·가격은 iOS와 같게(main `docs/IAP_REGISTER.md`, `src/data/iap.ts`)
 - [ ] RevenueCat에 Android 앱 추가 → Google Play 서비스 계정 JSON 연결 → **공개 키**를 Codemagic 환경 변수 `VITE_REVENUECAT_ANDROID_KEY`에(비밀 키는 채팅·저장소에 붙이지 않기)
 - [ ] 내부 테스트 트랙에서 테스트 결제(라이선스 테스터 계정)
 
