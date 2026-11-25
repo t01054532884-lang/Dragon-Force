@@ -17,8 +17,29 @@ import { COLOR } from './theme';
  * Higgsfield 영상이 들어온 드래곤(public/art/ult/ult-<id>.mp4, scripts/process_art_ult.py)과 쓸 구간(초).
  * 영상 소리(날갯짓·포효·불·폭발 — 언어 상관없음)가 효과음이다. 영상 구간 길이에 따라 컷신이 길어진다(레드 약 4초).
  * 레드(2026-11-25): Seedance 2.5 4초 — 0.6초(화면에 다 들어온 뒤)부터 3.9초(불의 파도가 화면을 덮음)까지.
+ * 나머지 18종(2026-11-25 밤): 같은 배경·같은 흐름(왼쪽 위에서 날아듦 → 필살기가 화면을 덮음), 영상마다 장면을 보고 구간을 맞춤.
  */
-export const ULT_VIDEO: Partial<Record<DragonId, { from: number; to: number }>> = { red: { from: 0.6, to: 3.9 } };
+export const ULT_VIDEO: Partial<Record<DragonId, { from: number; to: number }>> = {
+  red: { from: 0.6, to: 3.9 },
+  blue: { from: 0.6, to: 3.9 },
+  yellow: { from: 0.6, to: 3.9 },
+  green: { from: 0.6, to: 3.9 },
+  sand: { from: 0.6, to: 3.9 },
+  steel: { from: 0.6, to: 3.9 },
+  white: { from: 0.6, to: 3.9 },
+  black: { from: 0.6, to: 3.9 },
+  stone: { from: 0.6, to: 3.9 },
+  bloom: { from: 0.6, to: 3.9 },
+  howl: { from: 0.6, to: 3.9 },
+  wind: { from: 0.6, to: 3.9 },
+  water: { from: 0.6, to: 3.9 },
+  crimson: { from: 0.6, to: 3.9 },
+  mirror: { from: 0.9, to: 3.9 }, // 0.6초엔 드래곤이 아직 반쯤 화면 밖
+  chrono: { from: 0.6, to: 3.9 },
+  void: { from: 0.6, to: 3.9 },
+  aurora: { from: 0.6, to: 3.9 },
+  arcane: { from: 0.6, to: 3.9 },
+};
 export const ULT_VIDEO_READY = Object.keys(ULT_VIDEO) as DragonId[];
 /** 필살기 외침 목소리(public/sfx/ult/ult-<id>-ko.mp3 · -en.mp3)가 들어온 드래곤. 효과음은 영상 소리, 이 파일은 언어별 외침 */
 export const ULT_AUDIO_READY: DragonId[] = [];
@@ -30,8 +51,16 @@ export const ultVideoKey = (id: DragonId) => `ult-${id}`;
 /** 영상 소리: 같은 mp4를 소리로 한 번 더 읽는다(Web Audio — 첫 터치로 풀린 소리 장치라 아이폰에서도 확실히 남). 영상 자체는 무음 재생 */
 const ultSfxKey = (id: DragonId) => `ult-${id}-sfx`;
 
-/** 섬광 뒤 전장 효과 그림(public/art/ult/ult-fx-<id>.webp, Higgsfield) — 화면 전체를 위→아래로 쓸고 지나감. 레드: 불의 파도 */
-export const ULT_FX_READY: DragonId[] = ['red'];
+/**
+ * 섬광 뒤 전장 효과 그림(public/art/ult/ult-fx-<id>.webp, Higgsfield) — 화면 전체를 위→아래로 쓸고 지나감. 레드: 불의 파도.
+ * add: 밝은 빛 계열은 더하기(빛나 보임), 어두운 색이 중요한 것(그림자·블랙홀·바위·덩굴·모래)은 보통 섞기 — 더하기면 어두운 부분이 사라진다.
+ */
+const ULT_FX: Partial<Record<DragonId, { add: boolean }>> = {
+  red: { add: true }, blue: { add: true }, yellow: { add: true }, green: { add: false }, sand: { add: false }, steel: { add: false },
+  white: { add: true }, black: { add: false }, stone: { add: false }, bloom: { add: false }, howl: { add: true }, wind: { add: true },
+  water: { add: false }, crimson: { add: true }, mirror: { add: true }, chrono: { add: true }, void: { add: false }, aurora: { add: true }, arcane: { add: true },
+};
+export const ULT_FX_READY = Object.keys(ULT_FX) as DragonId[];
 const ultFxKey = (id: DragonId) => `ult-fx-${id}`;
 
 /**
@@ -57,7 +86,8 @@ export function playUltSweep(scene: Phaser.Scene, id: DragonId, color: number, d
   let wave: Phaser.GameObjects.Image | Phaser.GameObjects.Rectangle;
   if (scene.textures.exists(key)) {
     const im = scene.add.image(W / 2, 0, key);
-    im.setScale((W * 1.25) / im.width).setBlendMode(Phaser.BlendModes.ADD);
+    im.setScale((W * 1.25) / im.width);
+    if (ULT_FX[id]?.add) im.setBlendMode(Phaser.BlendModes.ADD);
     wave = im;
   } else {
     wave = scene.add.rectangle(W / 2, 0, W * 1.2, 260, color, 0.8);
@@ -226,21 +256,24 @@ export function playUltCutscene(scene: Phaser.Scene, o: UltCutsceneOpts): void {
       banner.setAlpha(0);
       sfx?.stop(); // 넘기면 영상 소리도 끊고 섬광 때 전투 효과음만
     }
+    // 자연스러운 복귀(제작자 11/25 "3D 컷신 유지, 자연스럽게"): 하얗게 다 덮지 않고 밝게 번쩍인 뒤,
+    // 영상 마지막 장면이 멈춘 채 전장 위로 녹아 사라진다 — 그 아래에서 이미 전장 효과(같은 색 파도)가 쓸고 지나가는 중.
     scene.tweens.add({
       targets: flash,
-      fillAlpha: 1,
+      fillAlpha: 0.7,
       duration: 160,
       onComplete: () => {
-        scene2.setVisible(false);
-        dim.setVisible(false);
         fly.setVisible(false);
-        if (video) video.stop();
+        if (video) video.pause();
         o.onHit();
+        scene.tweens.add({ targets: [scene2, banner], alpha: 0, duration: 480, ease: 'Sine.In' });
+        scene.tweens.add({ targets: dim, fillAlpha: 0, duration: 380 });
         scene.tweens.add({
           targets: flash,
           fillAlpha: 0,
-          duration: 340,
+          duration: 480,
           onComplete: () => {
+            if (video) video.stop();
             objs.forEach((g) => g.destroy());
             // 영상 소리는 끝까지(폭발 꼬리) 울리고 스스로 정리
             if (sfx?.isPlaying) sfx.once('complete', () => sfx?.destroy());

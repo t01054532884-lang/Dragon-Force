@@ -249,6 +249,8 @@ export class GameScene extends Phaser.Scene {
   create(): void {
     // scene.restart() 때 필드가 이전 판 값을 들고 있으므로 전부 다시 초기화한다(완료 기준: 재도전 시 정상 초기화).
     this.rng = new Phaser.Math.RandomDataGenerator([String(this.seed)]);
+    this.popPool = []; // 떠오르는 글자 모음(이전 판 것은 장면이 끝날 때 이미 지워짐)
+    this.popLive = 0;
     // 출격 드래곤 확인 → 연구소·드래곤 레벨·승급을 판 시작 때 한 번만 적용해 고정(전투 중에는 바뀌지 않음)
     const prog = Progress.load();
     const did = this.forcedDragon && (prog.dragons[this.forcedDragon]?.unlocked || this.anyDragon) ? this.forcedDragon : prog.selectedDragonId;
@@ -1466,7 +1468,7 @@ export class GameScene extends Phaser.Scene {
       this.fx.hit(enemy.x, enemy.y, crit, PALETTE[this.dragon.id]);
       playSfx(this, crit ? 'sfx-crit' : 'sfx-hit', { pitch: 0.9 + Math.random() * 0.2 });
     }
-    if (crit) this.popText(enemy.x + (Math.random() - 0.5) * 16, enemy.y - 20, `★${Math.round(amount)}`, '#ffd34d', 31);
+    if (crit) this.popText(enemy.x + (Math.random() - 0.5) * 16, enemy.y - 20, `★${Math.round(amount)}`, '#ffd34d', 31, true);
     if (spec.source === 'basic' && this.gear.lifesteal > 0) this.gearLifesteal(amount);
     if (enemy.hurt(amount)) {
       this.killEnemy(enemy, tag);
@@ -1513,10 +1515,32 @@ export class GameScene extends Phaser.Scene {
     return m;
   }
 
-  private popText(x: number, y: number, text: string, color: string, size = 26): void {
-    const t = this.add.text(x, y, text, { fontFamily: 'sans-serif', fontSize: `${size}px`, fontStyle: 'bold', color, stroke: '#000', strokeThickness: 4 }).setOrigin(0.5).setDepth(50);
+  /**
+   * 떠오르는 글자(치명타 숫자·회복·알림). 최적화(2026-11-25): 글자 하나마다 새 Text를 만들고 지우면
+   * 매번 캔버스·GPU 텍스처가 새로 생겨 후반 치명타가 몰릴 때 휴대폰에서 끊김 → 다 쓴 글자를 모아 두고 다시 쓴다(최대 24개).
+   * 치명타 숫자는 동시에 12개까지만(넘으면 건너뜀 — 숫자가 너무 겹치면 어차피 읽을 수 없음).
+   */
+  private popPool: Phaser.GameObjects.Text[] = [];
+  private popLive = 0;
+  private popText(x: number, y: number, text: string, color: string, size = 26, optional = false): void {
+    if (optional && this.popLive >= 12) return;
+    const style = { fontFamily: 'sans-serif', fontSize: `${size}px`, fontStyle: 'bold', color, stroke: '#000', strokeThickness: 4 };
+    const t = this.popPool.pop() ?? this.add.text(0, 0, '', style).setOrigin(0.5).setDepth(50);
+    t.setStyle(style).setText(text).setPosition(x, y).setAlpha(1).setVisible(true).setActive(true);
+    this.popLive++;
     // 떠오름 18~28px · 450~650ms(기획 7.3)
-    this.tweens.add({ targets: t, y: y - 26, alpha: 0, duration: 560, ease: 'Quad.Out', onComplete: () => t.destroy() });
+    this.tweens.add({
+      targets: t,
+      y: y - 26,
+      alpha: 0,
+      duration: 560,
+      ease: 'Quad.Out',
+      onComplete: () => {
+        this.popLive--;
+        if (this.popPool.length < 24) this.popPool.push(t.setVisible(false).setActive(false));
+        else t.destroy();
+      },
+    });
   }
 
   /** 기본 공격 한 묶음 발사: 발사점 섬광 + 그림 층 반동(좌표·충돌체는 그대로) + 발사음 1번 */
