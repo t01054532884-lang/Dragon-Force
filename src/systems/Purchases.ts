@@ -1,4 +1,5 @@
 import type { ServerSkinState, ServerSpin } from '../data/skinRoulette';
+import { PLATFORM } from '../platform';
 import { DEALS, FREE_DAILY_GIFT, PACKAGES, RUBY_PRODUCTS, type PackageDef } from '../data/economy';
 import { iapProduct, passSeasonOf, type IapGrant, type ServerGrant } from '../data/iap';
 import { grantVerifiedPass } from './Pass';
@@ -209,7 +210,7 @@ export async function restoreAll(): Promise<Delivered | null> {
 
 /** 결제 전 안내(상점·루비 충전·패스 화면 공통, 전자상거래법 청약철회 고지 — 법률 검토 전 초안, docs/legal/) */
 export const PAY_NOTICE =
-  '결제·환불은 App Store 정책을 따라요 · 미성년자는 보호자 동의 후 구매해 주세요\n' +
+  (PLATFORM === 'android' ? '결제·환불은 Google Play 정책을 따라요' : '결제·환불은 App Store 정책을 따라요') + ' · 미성년자는 보호자 동의 후 구매해 주세요\n' +
   '받은 유료 상품을 쓰지 않았다면 7일 안에 청약철회를 요청할 수 있고,\n쓰거나 연 상품은 철회가 제한돼요 · 유료 상품은 결제 서버 확인 뒤 지급돼요';
 
 /** 화면 안내 문구 */

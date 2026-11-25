@@ -37,6 +37,7 @@ export const onStoreWrite = (cb: (key: string) => void) => writeListeners.push(c
 export async function initPlatform(storageKeys: string[]): Promise<void> {
   if (PLATFORM === 'toss') impl = (await import('./toss')).tossPlatform;
   else if (PLATFORM === 'ios') impl = (await import('./ios')).iosPlatform;
+  else if (PLATFORM === 'android') impl = (await import('./android')).androidPlatform;
   try {
     await impl.init();
     const loaded = await impl.loadStore(storageKeys.map(mapKey));

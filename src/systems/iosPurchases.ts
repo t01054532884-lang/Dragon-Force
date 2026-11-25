@@ -4,7 +4,7 @@ import { IAP_PRODUCTS, type ServerGrant } from '../data/iap';
 import { cloud } from './Cloud';
 import { deliverPending, setPurchaseProvider, type CheckResult, type PurchaseProvider, type StoreProduct } from './Purchases';
 
-// iOS 결제(RevenueCat Capacitor SDK + Firebase 서버 함수) — docs/PAYMENTS.md.
+// iOS·안드로이드 결제(RevenueCat Capacitor SDK + Firebase 서버 함수) — docs/PAYMENTS.md. 안드로이드도 이 파일 그대로(2026-11-26).
 // RevenueCat 앱 사용자 ID = Firebase UID → 서버가 같은 UID로 RevenueCat에 거래를 물어본다(앱이 보낸 영수증·금액은 믿지 않음).
 // Cloud.ts가 Firebase 로그인을 마친 뒤에만 불러온다(그래서 cloud.uid가 항상 있다).
 

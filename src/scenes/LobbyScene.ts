@@ -542,8 +542,11 @@ export class LobbyScene extends Phaser.Scene {
       });
     }, { kind: 'primary', size: TYPE.caption }); // 버튼은 "Apple로 연결"만(제작자 11/25: 아래 회색 안내 문구와 겹침)
     link.setEnabled(acc.provider !== 'apple');
-    m.body(link.root);
-    m.body(text(this, -240, 50, '연결하면 기기를 바꾸거나 앱을 다시 설치해도 이어서 할 수 있어요', 15, COLOR.textDim, true).setOrigin(0, 0.5));
+    // Apple 연결은 iOS에서만(안드로이드·웹은 버튼 없음 — 안드로이드는 Google 로그인을 붙이기 전까지 기기 저장 + 게스트 클라우드)
+    if (account.canLinkApple || devMode()) {
+      m.body(link.root);
+      m.body(text(this, -240, 50, '연결하면 기기를 바꾸거나 앱을 다시 설치해도 이어서 할 수 있어요', 15, COLOR.textDim, true).setOrigin(0, 0.5));
+    } else link.root.destroy();
     m.body(text(this, -240, 82, `☁ ${cloudLine()}`, 15, cloud.status === 'error' || cloud.status === 'conflict' ? COLOR.danger : COLOR.textSub, true).setOrigin(0, 0.5));
     m.body(button(this, 0, 140, 300, 66, '계정 삭제', () => this.confirmDelete(), { kind: 'danger', size: TYPE.caption }).root);
     // 처리방침·약관(애플 심사 5.1.1(i): 앱 안에서 처리방침을 열 수 있어야 함). 영어 모드면 -en 페이지. 토스는 외부 링크 금지라 뺌

@@ -48,3 +48,45 @@ workflows:
       app_store_connect:
         auth: integration
         submit_to_testflight: false # 업로드만. 심사 제출은 제작자가 App Store Connect에서 직접
+
+  # ── 안드로이드(Google Play, 2026-11-26 — google-play 브랜치, 구글플레이/README.md) ──
+  # 처음 한 번 할 일(제작자, Codemagic 웹):
+  #   1. Team settings → Code signing identities → Android keystores 에 업로드 키(.jks)와 비밀번호·별칭 등록,
+  #      참조 이름을 dragonforce_upload 로. (키 파일·비밀번호는 저장소·채팅에 올리지 않는다)
+  #   2. 환경 변수 그룹 firebase 에 RevenueCat 안드로이드 공개 키 VITE_REVENUECAT_ANDROID_KEY 추가(결제 켤 때)
+  #   3. (선택) Play Console 서비스 계정 JSON 을 그룹 google_play 의 GCLOUD_SERVICE_ACCOUNT_CREDENTIALS 로 등록하면
+  #      아래 publishing 주석을 풀어 내부 테스트 트랙에 자동 업로드. 새 앱의 첫 번째 AAB는 Play Console에서 직접 올려야 한다.
+  android-play:
+    name: Android Google Play
+    max_build_duration: 60
+    instance_type: linux_x2
+    environment:
+      groups:
+        - firebase
+      android_signing:
+        - dragonforce_upload
+      node: 22
+      java: 21
+    scripts:
+      - name: npm 설치
+        script: npm ci
+      - name: 테스트
+        script: npm test
+      - name: 게임 빌드(안드로이드용) + Capacitor 동기화
+        script: npm run build:android
+      - name: 빌드 번호(versionCode) = Codemagic 빌드 번호 + 100
+        script: |
+          NEXT=$((BUILD_NUMBER + 100))
+          sed -i "s/versionCode [0-9]*/versionCode $NEXT/" android/app/build.gradle
+          echo "versionCode $NEXT"
+      - name: 서명된 AAB 빌드
+        script: |
+          cd android
+          chmod +x gradlew
+          ./gradlew bundleRelease
+    artifacts:
+      - android/app/build/outputs/bundle/release/*.aab
+    # publishing:
+    #   google_play:
+    #     credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
+    #     track: internal

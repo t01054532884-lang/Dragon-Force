@@ -142,9 +142,10 @@ async function connect(): Promise<void> {
   platform.onResume(() => void sync());
   window.addEventListener('online', () => void sync());
   await sync();
-  // 결제: iOS 앱 + RevenueCat 키가 있을 때만(웹·토스는 결제 없음). 앱이 꺼져 못 받은 지급이 있으면 지금 받는다
-  const rcKey = env.VITE_REVENUECAT_IOS_KEY as string | undefined;
-  if (PLATFORM === 'ios' && rcKey) {
+  // 결제: iOS·안드로이드 앱 + 그 플랫폼 RevenueCat 공개 키가 있을 때만(웹·토스는 결제 없음). 앱이 꺼져 못 받은 지급이 있으면 지금 받는다
+  // 안드로이드(2026-11-26 Google Play): 같은 RevenueCat SDK·같은 서버 함수, 키만 VITE_REVENUECAT_ANDROID_KEY
+  const rcKey = (PLATFORM === 'android' ? env.VITE_REVENUECAT_ANDROID_KEY : env.VITE_REVENUECAT_IOS_KEY) as string | undefined;
+  if ((PLATFORM === 'ios' || PLATFORM === 'android') && rcKey) {
     void import('./iosPurchases')
       .then((m) => m.installIosPurchases(rcKey))
       .catch((e) => console.warn('결제 준비 실패', e));
