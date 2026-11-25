@@ -20,7 +20,7 @@ SQUARE = {
     'ruby-pack-1': 'shop', 'ruby-pack-2': 'shop', 'ruby-pack-3': 'shop', 'ruby-pack-4': 'shop', 'ruby-pack-5': 'shop',
     'mail-open': 'ui', 'pass-pedestal': 'ui',
 }
-WIDE = {'res-victory': 'ui', 'res-defeat': 'ui', 'rubypass-hero': 'ui', 'lvup-crest': 'ui'}  # + 2026-11-26 루비 패스 머리 그림 · 레벨 축하 문장
+WIDE = {'res-victory': 'ui', 'res-defeat': 'ui', 'rubypass-hero': 'ui', 'lvup-crest': 'ui', 'rune-reward-pop': 'ui'}  # + 2026-11-26 루비 패스 머리 그림 · 레벨 축하 문장
 
 
 def crop(im):

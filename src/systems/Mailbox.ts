@@ -4,14 +4,15 @@ import { DIFFICULTY_REWARD, type Difficulty } from '../data/economy';
 // 선물함(8단계 v1.0 4장 · 기획 v1.4) — 순수 함수. 시각 now를 인자로 받아 테스트·서버 이전이 쉽다.
 // 서버가 생기면 같은 규칙을 Cloud Functions로 옮기고, 앱은 "요청 → 결과 표시"만 하면 된다(docs/STAGE8.md).
 
-export type GiftKind = 'stamina' | 'gold' | 'rubies' | 'tickets' | 'universalFragments';
-export const GIFT_KINDS: GiftKind[] = ['stamina', 'gold', 'rubies', 'tickets', 'universalFragments'];
+export type GiftKind = 'stamina' | 'gold' | 'rubies' | 'tickets' | 'universalFragments' | 'runeTickets';
+export const GIFT_KINDS: GiftKind[] = ['stamina', 'gold', 'rubies', 'tickets', 'universalFragments', 'runeTickets'];
 export const GIFT_LABEL: Record<GiftKind, { name: string; icon: string; unit: string }> = {
   stamina: { name: '행동력', icon: '⚡', unit: '' },
   gold: { name: '골드', icon: '🪙', unit: 'G' },
   rubies: { name: '루비', icon: '', unit: '' }, // 루비는 이모지 대신 빨간 루비 그림(ui-ruby)으로 — GiftScene
   tickets: { name: '무료 개봉권', icon: '🎟', unit: '장' },
   universalFragments: { name: '범용 조각', icon: '🧩', unit: '개' },
+  runeTickets: { name: '룬 상자 개봉권', icon: '🎟', unit: '회' }, // 2026-11-26 10·20단계 클리어 보상
 };
 
 export interface Gift {
@@ -59,7 +60,7 @@ export interface WalletLike {
   gold: number;
   rubies: number;
   universalFragments: number;
-  summon: { legacyTickets: number };
+  summon: { legacyTickets: number; runeTickets?: number };
   stamina: StaminaState;
   mailbox: MailboxState;
 }
@@ -75,6 +76,23 @@ export function grantClearGift<P extends WalletLike>(p: P, difficulty: string, s
   return addGift(p, {
     id: `clear:${difficulty}:${stageId}`, kind: 'stamina', amount: DIFFICULTY_REWARD[difficulty as Difficulty]?.stamina ?? STAMINA.clearGift, title: '행동력 충전 선물',
     source: `${label} 최초 클리어`, sender: 'system', createdAt: now, expiresAt: null,
+  });
+}
+
+/**
+ * 10·20단계 클리어 보상(제작자 2026-11-26: "룬 해금이 생각보다 어렵다"): 쉬움·어려움 10·20단계를 처음 깨면 룬 상자 10회권을 선물함에.
+ * id `rune10:<난이도>:<단계>` — 한 번만. 로비가 이 id를 보고 축하 팝업을 한 번 띄운다.
+ */
+export const RUNE_MILESTONES: { difficulty: string; stageId: number }[] = [
+  { difficulty: 'easy', stageId: 10 }, { difficulty: 'easy', stageId: 20 }, { difficulty: 'hard', stageId: 10 }, { difficulty: 'hard', stageId: 20 },
+];
+export const RUNE_MILESTONE_TICKETS = 10;
+export const runeGiftId = (difficulty: string, stageId: number) => `rune10:${difficulty}:${stageId}`;
+export function grantRuneMilestoneGift<P extends WalletLike>(p: P, difficulty: string, stageId: number, label: string, now: number): { added: boolean; progress: P } {
+  if (!RUNE_MILESTONES.some((m) => m.difficulty === difficulty && m.stageId === stageId)) return { added: false, progress: p };
+  return addGift(p, {
+    id: runeGiftId(difficulty, stageId), kind: 'runeTickets', amount: RUNE_MILESTONE_TICKETS, title: '룬 상자 10회권',
+    body: `${label} 클리어 축하 선물`, source: `${label} 클리어 보상`, sender: 'system', createdAt: now, expiresAt: null,
   });
 }
 
@@ -125,6 +143,9 @@ function apply<P extends WalletLike>(p: P, g: Gift, now: number): P {
       break;
     case 'rubies':
       q = { ...q, rubies: q.rubies + g.amount };
+      break;
+    case 'runeTickets':
+      q = { ...q, summon: { ...q.summon, runeTickets: (q.summon.runeTickets ?? 0) + g.amount } };
       break;
     case 'tickets':
       q = { ...q, summon: { ...q.summon, legacyTickets: q.summon.legacyTickets + g.amount } };

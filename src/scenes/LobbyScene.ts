@@ -15,6 +15,7 @@ import { drawLobbyBackdrop, makeArtPlaceholders, preloadArt } from '../ui/art';
 import { button, modal, navBar, text, type KitButton } from '../ui/kit';
 import { applySound, loadSettings, markTip, saveSettings, tipSeen } from '../systems/Settings';
 import { PACKAGES } from '../data/economy';
+import { RUNE_MILESTONES, RUNE_MILESTONE_TICKETS, runeGiftId } from '../systems/Mailbox';
 import { passValuePct } from '../data/pass';
 import { playSfx, preloadSfx, UI_SFX_FILES } from '../systems/Sfx';
 import { playMusic, preloadMusic, refreshMusic } from '../systems/Music';
@@ -301,7 +302,7 @@ export class LobbyScene extends Phaser.Scene {
     // 클라우드 저장: 이 기기와 서버 기록이 둘 다 바뀌었으면 고르기(자동 덮어쓰기 금지)
     if (cloud.conflict) this.openCloudChoice();
     else {
-      this.maybeUnlockPopup(() => this.maybeLevelPromo(() => this.maybeAttendancePopup()));
+      this.maybeUnlockPopup(() => this.maybeRuneGiftPopup(() => this.maybeLevelPromo(() => this.maybeAttendancePopup())));
       const watch = () => {
         if (cloud.conflict && this.scene.isActive()) this.openCloudChoice();
       };
@@ -374,6 +375,34 @@ export class LobbyScene extends Phaser.Scene {
     card(215, ['pkg-dragon', 'pkg-gear', 'pkg-rune'][PACKAGES.indexOf(pk)] ?? 'pkg-dragon', pk.name, `₩${pk.krw.toLocaleString()}`, '계정당 1회 한정', () => this.scene.start('shop', { focus: 'package' }), 'growth');
     m.body(button(this, 0, 340, 260, 64, '닫기', () => m.close(), { kind: 'secondary', size: TYPE.caption }).root);
     m.box.once('destroy', then); // 닫으면 이어서 출석 팝업
+  }
+
+  /**
+   * 10·20단계 클리어 축하(2026-11-26 제작자): 쉬움·어려움 10·20단계를 처음 깨서 룬 상자 10회권이 선물함에 들어갔으면 한 번.
+   * 여러 개가 한꺼번이면(소급 지급) 한 창에 모아서. "선물함 가기"는 선물함으로.
+   */
+  private maybeRuneGiftPopup(then: () => void): void {
+    if (DEMO) return then();
+    const p = Progress.load();
+    const LABEL: Record<string, string> = { easy: '쉬움', hard: '어려움' };
+    const due = RUNE_MILESTONES.filter((m) => p.mailbox.granted.includes(runeGiftId(m.difficulty, m.stageId)) && !tipSeen(`rune-pop-${runeGiftId(m.difficulty, m.stageId)}`));
+    if (!due.length) return then();
+    for (const m of due) markTip(`rune-pop-${runeGiftId(m.difficulty, m.stageId)}`);
+    const names = due.map((m) => `${LABEL[m.difficulty] ?? m.difficulty} ${m.stageId}단계`);
+    const total = due.length * RUNE_MILESTONE_TICKETS;
+    playSfx(this, 'sfx-reward-rare');
+    const m = modal(this, 660, 760, `${names[names.length - 1]} 클리어!`, { closeOnBackdrop: true, ribbonColor: 0x7b3fe4, depth: 900 });
+    if (this.textures.exists('rune-reward-pop')) {
+      const im = this.add.image(0, -150, 'rune-reward-pop');
+      im.setScale(Math.min(560 / im.width, 340 / im.height));
+      m.body(im);
+      this.tweens.add({ targets: im, scale: im.scale * 1.04, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+    }
+    m.body(text(this, 0, 60, '축하드립니다! 🎉', TYPE.title, COLOR.gold, true, true).setOrigin(0.5));
+    m.body(text(this, 0, 128, `${names.join(' · ')} 클리어 보상으로\n룬 상자 ${total}회권을 선물함에 넣어드렸어요!`, TYPE.caption, COLOR.text, true, true).setOrigin(0.5).setAlign('center').setLineSpacing(6));
+    m.body(button(this, -140, 270, 240, 72, '닫기', () => m.close(), { kind: 'secondary', size: TYPE.caption }).root);
+    m.body(button(this, 140, 270, 240, 72, '선물함 가기', () => { m.close(); this.scene.start('gifts'); }, { kind: 'growth', size: TYPE.caption }).root);
+    m.box.once('destroy', then);
   }
 
   /** 로비 "패스" → 드래곤 패스 / 루비 패스 고르기(2026-11-26 제작자) */

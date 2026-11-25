@@ -101,7 +101,7 @@ export class GiftScene extends Phaser.Scene {
       const L = GIFT_LABEL[g.kind];
       const over = g.kind === 'stamina' && st.value + g.amount > STAMINA.hold;
       const row = add(plate(this, 360, y, 664, ROW_H - 10, { r: 20, gold: g.sender === 'operator' }));
-      const icon = g.kind === 'stamina' ? 'ui-energy' : g.kind === 'rubies' ? 'ui-ruby' : g.kind === 'gold' ? 'ui-gold' : g.kind === 'tickets' ? 'ui-ticket' : '';
+      const icon = g.kind === 'stamina' ? 'ui-energy' : g.kind === 'rubies' ? 'ui-ruby' : g.kind === 'gold' ? 'ui-gold' : g.kind === 'tickets' ? 'ui-ticket' : g.kind === 'runeTickets' ? 'ui-ticket-rune' : '';
       if (icon && this.textures.exists(icon)) row.add(this.add.image(-282, 0, icon).setDisplaySize(64, 64));
       else row.add(text(this, -282, 0, L.icon, 34).setOrigin(0.5));
       const amt = text(this, -238, -24, `${g.amount.toLocaleString()}${L.unit}`, TYPE.body, COLOR.text, true, true).setOrigin(0, 0.5);

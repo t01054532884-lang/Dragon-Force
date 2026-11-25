@@ -1,7 +1,7 @@
 import { hardStage } from '../data/hardStages';
 import { newStamina, type StaminaState } from './Stamina';
 import {
-  newMailbox, sanitizeMailbox, sanitizeStamina, grantClearGift, claimOne, claimAll, spendStamina, syncCampaigns, pruneMailbox,
+  newMailbox, sanitizeMailbox, sanitizeStamina, grantClearGift, grantRuneMilestoneGift, claimOne, claimAll, spendStamina, syncCampaigns, pruneMailbox,
   type MailboxState,
 } from './Mailbox';
 import { activeCampaigns } from '../data/campaigns';
@@ -645,6 +645,12 @@ export function settleRun(
       if (gift.added) {
         next = gift.progress;
         rewards.push({ id: `clear:${diff}:${run.stageId}`, text: `행동력 ${DIFFICULTY_REWARD[diff].stamina} → 선물함` });
+      }
+      // 10·20단계 클리어 → 룬 상자 10회권을 선물함으로(2026-11-26 제작자, 로비에서 축하 팝업)
+      const rune = grantRuneMilestoneGift(next, diff, run.stageId, `${DIFFICULTY_LABEL[diff]} ${run.stageId}단계`, now);
+      if (rune.added) {
+        next = rune.progress;
+        rewards.push({ id: `rune10:${diff}:${run.stageId}`, text: '룬 상자 10회권 → 선물함' });
       }
       // 출격 드래곤 카드(제작자 임시 규칙 2026-11-18): 골드 정산과 별개
       const did = run.dragonId ?? next.selectedDragonId;
@@ -1345,6 +1351,10 @@ export function backfillClearGifts(p: PlayerProgress, now: number): { progress: 
       const r = grantClearGift(cur, d, st, `${DIFFICULTY_LABEL[d]} ${st}단계`, now);
       if (r.added) added++;
       cur = r.progress;
+      // 이미 10·20단계를 깬 계정도 룬 상자 10회권을 받는다(2026-11-26)
+      const rr = grantRuneMilestoneGift(cur, d, st, `${DIFFICULTY_LABEL[d]} ${st}단계`, now);
+      if (rr.added) added++;
+      cur = rr.progress;
     }
   }
   return { progress: cur, added };

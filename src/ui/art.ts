@@ -182,6 +182,7 @@ export const ART_FILES: Record<string, string> = {
   'res-defeat': 'ui/res-defeat.webp',
   'rubypass-hero': 'ui/rubypass-hero.webp',
   'lvup-crest': 'ui/lvup-crest.webp',
+  'rune-reward-pop': 'ui/rune-reward-pop.webp',
   ...Object.fromEntries(['dragon', 'gear', 'rune', 'mega'].map((k) => [`pkg-${k}`, `shop/pkg-${k}.webp`])), // 패키지 그림(16차분)
   ...Object.fromEntries(['free', 'premium', 'royal'].map((k) => [`pass-${k}`, `pass/pass-${k}.webp`])), // 드래곤 패스 상자(17차분)
   // 19차분(2026-11-24, 그림 요청서 7 ②, scripts/process_art_batch19.py): 신규 9종 기본 공격 탄·고리·베기 256px — dragonArt.applyProjectileArt가 bolt-* 로 바꿔 씀
