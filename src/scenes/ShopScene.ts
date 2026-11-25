@@ -17,6 +17,7 @@ import { equipDef, SLOT_ICON, SLOT_LABEL } from '../data/equipment';
 import { specialDef } from '../data/specials';
 import { poolOf, Progress, type BoxResult, type Reward } from '../systems/Progress';
 import { devMode } from '../ui/widgets';
+import { getLang, tr } from '../i18n';
 import { ChestOpening } from '../ui/ChestOpening';
 import { dragonUnlock } from '../ui/celebrate';
 import { CHEST_SFX_FILES, playSfx, preloadSfx } from '../systems/Sfx';
@@ -503,22 +504,43 @@ export class ShopScene extends Phaser.Scene {
     const rTotal = Object.values(B.essenceRarity).reduce((a, b) => a + b, 0);
     const pct = (v: number) => `${(v * 100).toFixed(v * 100 < 1 ? 3 : 2).replace(/\.?0+$/, '')}%`;
     const lines: string[] = [];
-    lines.push(`[드래곤·스킬 상자] 1차: 카드 ${B.kind.card}% · 조각 ${B.kind.fragment}% · 정수 ${B.kind.essence}%`);
-    for (const r of RARITIES) {
-      const ids = poolOf(r, false);
-      const p = (B.kind.essence / kTotal) * (B.essenceRarity[r] / rTotal);
-      lines.push(`  정수 ${RARITY_LABEL[r]} ${B.essenceRarity[r]}% → 상자 전체 ${pct(p)} (${ids.map((id) => DRAGONS[id].short).join('·')} 각 ${pct(p / ids.length)})`);
+    if (getLang() === 'en') {
+      // 확률 공개는 심사에서 꼭 보는 화면이라 영어 문장을 조각 번역 대신 직접 쓴다(2026-11-26)
+      const RL: Record<string, string> = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' };
+      lines.push(`[Dragon & Skill Chest] Step 1: Cards ${B.kind.card}% · Shards ${B.kind.fragment}% · Essence ${B.kind.essence}%`);
+      for (const r of RARITIES) {
+        const ids = poolOf(r, false);
+        const p = (B.kind.essence / kTotal) * (B.essenceRarity[r] / rTotal);
+        lines.push(`  ${RL[r]} Essence ${B.essenceRarity[r]}% → ${pct(p)} of all pulls (${ids.map((id) => tr(DRAGONS[id].short)).join('·')}, ${pct(p / ids.length)} each)`);
+      }
+      lines.push(`  Legendary Essence overall chance: ${pct((B.kind.essence / kTotal) * (B.essenceRarity.legendary / rTotal))} (Essence ${B.kind.essence}% × Legendary ${B.essenceRarity.legendary}%)`);
+      lines.push(`  Guarantee: every ${B.rareGuarantee}th pull is Rare+ Essence (Rare:Epic:Legendary = ${B.guaranteeWeights.rare}:${B.guaranteeWeights.epic}:${B.guaranteeWeights.legendary}); the ${B.legendaryGuarantee}th pull is Legendary Essence — replaces that pull's result`);
+      lines.push(`  Cards: Common ${B.cardCount.common} · Rare ${B.cardCount.rare} · Epic ${B.cardCount.epic} · Legendary ${B.cardCount.legendary} (incl. Red) · Shards: ${B.fragmentCount.common}/${B.fragmentCount.rare}/${B.fragmentCount.epic}/${B.fragmentCount.legendary}`);
+      lines.push(`  Duplicate Essence → Shards ${ESSENCE.essenceToFragments.common}/${ESSENCE.essenceToFragments.rare}/${ESSENCE.essenceToFragments.epic}/${ESSENCE.essenceToFragments.legendary} · Red has no Essence or Shards`);
+      lines.push('');
+      lines.push(`[Gear Chest] Common ${EQUIPMENT_BOX.rarity.common}% · Rare ${EQUIPMENT_BOX.rarity.rare}% · Epic ${EQUIPMENT_BOX.rarity.epic}% · Legendary ${EQUIPMENT_BOX.rarity.legendary}% · 8 gear types, equal chance`);
+      lines.push(`[Rune Chest] Rune Shards ${RUNE_BOX.bundles.map(([n, w]) => `x${n} ${w}%`).join(' · ')} (15 runes, equal chance) · Guarantee: every ${RUNE_BOX.guaranteeEvery}th pull gives x10 or more (${RUNE_BOX.guaranteeBundles.map(([n, w]) => `x${n} ${w}`).join(':')})`);
+      lines.push(`[Buy Gold] ${GOLD_OFFERS.map((o) => `${o.rubies.toLocaleString()} Rubies → ${o.gold.toLocaleString()}G`).join(' · ')}`);
+      lines.push('');
+      lines.push('Rubies can be earned in-game or purchased on the App Store.');
+    } else {
+      lines.push(`[드래곤·스킬 상자] 1차: 카드 ${B.kind.card}% · 조각 ${B.kind.fragment}% · 정수 ${B.kind.essence}%`);
+      for (const r of RARITIES) {
+        const ids = poolOf(r, false);
+        const p = (B.kind.essence / kTotal) * (B.essenceRarity[r] / rTotal);
+        lines.push(`  정수 ${RARITY_LABEL[r]} ${B.essenceRarity[r]}% → 상자 전체 ${pct(p)} (${ids.map((id) => DRAGONS[id].short).join('·')} 각 ${pct(p / ids.length)})`);
+      }
+      lines.push(`  전설 정수의 상자 전체 확률은 ${pct((B.kind.essence / kTotal) * (B.essenceRarity.legendary / rTotal))} (정수 ${B.kind.essence}% × 전설 ${B.essenceRarity.legendary}%)`);
+      lines.push(`  보장: 매 ${B.rareGuarantee}회째 희귀 이상 정수(희귀:영웅:전설 = ${B.guaranteeWeights.rare}:${B.guaranteeWeights.epic}:${B.guaranteeWeights.legendary}), ${B.legendaryGuarantee}회째 전설 정수 — 그 회차 결과를 대신함`);
+      lines.push(`  카드: 일반 ${B.cardCount.common}·희귀 ${B.cardCount.rare}·영웅 ${B.cardCount.epic}·전설 ${B.cardCount.legendary}장(레드 포함) · 조각: ${B.fragmentCount.common}/${B.fragmentCount.rare}/${B.fragmentCount.epic}/${B.fragmentCount.legendary}개`);
+      lines.push(`  중복 정수 → 조각 ${ESSENCE.essenceToFragments.common}/${ESSENCE.essenceToFragments.rare}/${ESSENCE.essenceToFragments.epic}/${ESSENCE.essenceToFragments.legendary} · 레드는 정수·조각 대상 아님`);
+      lines.push('');
+      lines.push(`[장비 상자] 일반 ${EQUIPMENT_BOX.rarity.common}% · 희귀 ${EQUIPMENT_BOX.rarity.rare}% · 영웅 ${EQUIPMENT_BOX.rarity.epic}% · 전설 ${EQUIPMENT_BOX.rarity.legendary}% · 장비 8종 균등`);
+      lines.push(`[룬 상자] 룬 조각 ${RUNE_BOX.bundles.map(([n, w]) => `${n}개 ${w}%`).join(' · ')} (15종 균등) · 보장: 매 ${RUNE_BOX.guaranteeEvery}회째 10개 이상(${RUNE_BOX.guaranteeBundles.map(([n, w]) => `${n}개 ${w}`).join(':')})`);
+      lines.push(`[골드 구매] ${GOLD_OFFERS.map((o) => `루비 ${o.rubies.toLocaleString()} → ${o.gold.toLocaleString()}G`).join(' · ')}`);
+      lines.push('');
+      lines.push('루비는 게임 보상과 App Store 구매로 얻을 수 있어요.');
     }
-    lines.push(`  전설 정수의 상자 전체 확률은 ${pct((B.kind.essence / kTotal) * (B.essenceRarity.legendary / rTotal))} (정수 ${B.kind.essence}% × 전설 ${B.essenceRarity.legendary}%)`);
-    lines.push(`  보장: 매 ${B.rareGuarantee}회째 희귀 이상 정수(희귀:영웅:전설 = ${B.guaranteeWeights.rare}:${B.guaranteeWeights.epic}:${B.guaranteeWeights.legendary}), ${B.legendaryGuarantee}회째 전설 정수 — 그 회차 결과를 대신함`);
-    lines.push(`  카드: 일반 ${B.cardCount.common}·희귀 ${B.cardCount.rare}·영웅 ${B.cardCount.epic}·전설 ${B.cardCount.legendary}장(레드 포함) · 조각: ${B.fragmentCount.common}/${B.fragmentCount.rare}/${B.fragmentCount.epic}/${B.fragmentCount.legendary}개`);
-    lines.push(`  중복 정수 → 조각 ${ESSENCE.essenceToFragments.common}/${ESSENCE.essenceToFragments.rare}/${ESSENCE.essenceToFragments.epic}/${ESSENCE.essenceToFragments.legendary} · 레드는 정수·조각 대상 아님`);
-    lines.push('');
-    lines.push(`[장비 상자] 일반 ${EQUIPMENT_BOX.rarity.common}% · 희귀 ${EQUIPMENT_BOX.rarity.rare}% · 영웅 ${EQUIPMENT_BOX.rarity.epic}% · 전설 ${EQUIPMENT_BOX.rarity.legendary}% · 장비 8종 균등`);
-    lines.push(`[룬 상자] 룬 조각 ${RUNE_BOX.bundles.map(([n, w]) => `${n}개 ${w}%`).join(' · ')} (15종 균등) · 보장: 매 ${RUNE_BOX.guaranteeEvery}회째 10개 이상(${RUNE_BOX.guaranteeBundles.map(([n, w]) => `${n}개 ${w}`).join(':')})`);
-    lines.push(`[골드 구매] ${GOLD_OFFERS.map((o) => `루비 ${o.rubies.toLocaleString()} → ${o.gold.toLocaleString()}G`).join(' · ')}`);
-    lines.push('');
-    lines.push('루비는 게임 보상과 App Store 구매로 얻을 수 있어요.');
     add(this.add.text(48, 230, lines.join('\n'), { fontFamily: 'sans-serif', fontSize: '18px', color: css(0xe1d5f5), lineSpacing: 9, wordWrap: { width: 624 } }));
   }
 }

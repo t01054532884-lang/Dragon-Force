@@ -16,7 +16,7 @@ import { DEMO, initPlatform, platform } from './platform';
 import { Progress } from './systems/Progress';
 import { STORAGE_KEYS } from './systems/Progress';
 import { applySound, loadSettings, SETTINGS_KEY } from './systems/Settings';
-import { installTextTranslation, setLang } from './i18n';
+import { installTextFit, installTextTranslation, setLang } from './i18n';
 import { ACCOUNT_KEY, account } from './systems/Account';
 import { cloud } from './systems/Cloud';
 import { CLOUD_KEY } from './systems/cloudSync';
@@ -74,6 +74,7 @@ async function boot(): Promise<void> {
 
   // 개발 중에만 브라우저 콘솔에서 게임 상태를 볼 수 있게 열어 둔다(배포본에는 빠짐).
   applySound(game); // 저장된 소리 설정(끔이면 처음부터 음소거)
+  installTextFit(game, BASE_W); // 영어일 때 화면 밖으로 나가는 글자를 줄여 맞춤
   if (import.meta.env.DEV) {
     (window as unknown as { __game: Phaser.Game }).__game = game;
     void import('./dev/bot').then((m) => m.installBot(game)); // 자동 전투 측정 봇(개발 전용)

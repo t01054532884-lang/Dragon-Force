@@ -12,6 +12,7 @@ import { button, modal, text, type KitButton } from '../ui/kit';
 import { screenFrame, toast, type ScreenFrame } from '../ui/screen';
 import { COLOR, TYPE } from '../ui/theme';
 import { FONT, gameNow, devMode } from '../ui/widgets';
+import { tr } from '../i18n';
 import { makeSkinTextures, skinIconKey } from '../ui/skinArt';
 import { playSfx, preloadSfx } from '../systems/Sfx';
 
@@ -315,7 +316,7 @@ export class SkinScene extends Phaser.Scene {
     const m = modal(this, 640, 900, '스킨 룰렛 확률', { closeOnBackdrop: true, ribbonColor: 0x7b3fe4 });
     const lines = [
       '다음 1회 확률(지금 판 기준)',
-      ...odds.map((o) => `${o.picked ? '✓ ' : '· '}${slotLabel(o.slot)}${o.slot.center ? ' (대표)' : ''}  ${o.picked ? '받았어요' : `${o.pct.toFixed(2)}%`}`),
+      ...odds.map((o) => `${o.picked ? '✓ ' : '· '}${tr(slotLabel(o.slot))}${o.slot.center ? tr(' (대표)') : ''}  ${o.picked ? '받았어요' : `${o.pct.toFixed(2)}%`}`),
       '',
       `규칙`,
       `· 열쇠 1개(${R.keyKrw.toLocaleString()}원)로 1회. 뽑힌 칸은 다시 나오지 않고, 남은 칸의 가중치로 확률을 다시 나눕니다.`,

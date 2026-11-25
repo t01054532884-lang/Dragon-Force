@@ -57,8 +57,10 @@ function build(): void {
           if (parts[i].length > probe.length) probe = parts[i];
         } else {
           order.push(Number(parts[i]));
-          src += '([\\s\\S]*?)';
-          srcG += '([\\s\\S]*)';
+          // 자리 바로 뒤가 한국어 글자("{0}장")면 자리 값이 한국어 글자로 끝나면 안 된다(저장 → "저 Cards" 깨짐 방지, 2026-11-26)
+          const tight = /^[가-힣]/.test(parts[i + 1] ?? '');
+          src += tight ? '([\\s\\S]*?[^가-힣])' : '([\\s\\S]*?)';
+          srcG += tight ? '([\\s\\S]*[^가-힣])' : '([\\s\\S]*)';
         }
       }
       src += '$';
@@ -126,6 +128,11 @@ function translate(s: string): string {
     const core = s.trim();
     if (core !== s && EN[core] !== undefined) out = lead + EN[core] + tail;
   }
+  // 여러 줄 문장은 틀보다 줄 나누기를 먼저(틀의 자리가 여러 줄을 삼켜 반만 번역되는 것 방지, 2026-11-26)
+  if (out === undefined && s.includes('\n')) {
+    const whole = viaTemplate(s);
+    out = whole != null && !KO.test(whole) ? whole : s.split('\n').map(translate).join('\n');
+  }
   if (out === undefined) out = viaTemplate(s) ?? undefined;
   if (out === undefined) {
     for (const sep of SEPS) {
@@ -138,7 +145,13 @@ function translate(s: string): string {
   if (out === undefined) {
     // 마지막: 아는 낱말(이름·용어)만 바꾸고, 숫자 뒤 단위(초·분·일·개…)를 영어로
     let t = s;
-    for (const [k, v] of words!) if (t.includes(k)) t = t.split(k).join(v);
+    for (const [k, v] of words!) {
+      if (!t.includes(k)) continue;
+      // 낱말은 다른 한국어 낱말·숫자 안에서 바꾸지 않는다(저장 → "저 Cards", 루비 300 → "30 Rubies0" 같은 깨짐 방지, 2026-11-26)
+      const pre = (k.length === 1 && KO.test(k)) || /^[0-9]/.test(k) ? '(?<![0-9가-힣])' : '';
+      const post = /[0-9가-힣]$/.test(k) ? (/[0-9]$/.test(k) ? '(?![0-9,.])' : k.length === 1 ? '(?![가-힣])' : '') : '';
+      t = pre || post ? t.replace(new RegExp(`${pre}${esc(k)}${post}`, 'g'), v) : t.split(k).join(v);
+    }
     out = units(t);
   }
   if (cache.size > 6000) cache.clear();
@@ -163,7 +176,62 @@ export function installTextTranslation(P: typeof Phaser): void {
   proto.__i18n = true;
   const orig = proto.setText;
   proto.setText = function (this: unknown, v: string | string[]) {
-    if (lang === 'en' && v != null) v = Array.isArray(v) ? v.map((x) => translate(String(x))) : translate(String(v));
+    if (lang === 'en' && v != null) {
+      v = Array.isArray(v) ? v.map((x) => translate(String(x))) : translate(String(v));
+      const t = this as FitText;
+      if (t.__fitBase != null) t.setFontSize(t.__fitBase); // 전에 줄였던 글자는 원래 크기로 돌린 뒤 다시 잰다
+      fitDirty.set(t, performance.now());
+    }
     return orig.call(this, v);
   };
+}
+
+/**
+ * 영어 글자 맞춤(2026-11-26, TestFlight에서 영어 계정 삭제 창 문장이 화면 밖으로 잘림).
+ * 영어는 한국어보다 길어서 화면 가장자리를 넘는 글자가 생긴다. 영어 모드에서 글자가 바뀌고 0.4초 뒤(창이 튀어나오는 연출이 끝난 뒤)
+ * 화면(가로 720) 양 끝 8px 안에 들어오는지 재고, 넘으면 글자 크기를 그만큼 줄인다(최소 원래의 55%). 한국어 모드는 아무것도 안 한다.
+ */
+type FitText = Phaser.GameObjects.Text & { __fitBase?: number };
+const fitDirty = new Map<FitText, number>();
+const FIT_MARGIN = 8;
+const FIT_DELAY_MS = 400;
+const FIT_MIN = 0.55;
+
+export function installTextFit(game: Phaser.Game, screenW: number): void {
+  game.events.on('poststep', () => {
+    if (lang !== 'en' || !fitDirty.size) return;
+    const now = performance.now();
+    for (const [t, at] of fitDirty) {
+      if (now - at < FIT_DELAY_MS) continue;
+      fitDirty.delete(t);
+      if (!t.active || !t.scene || !t.text) continue;
+      fitOne(t, screenW);
+    }
+  });
+}
+
+function fitOne(t: FitText, W: number): void {
+  let b: Phaser.Geom.Rectangle;
+  try {
+    b = t.getBounds();
+  } catch {
+    return;
+  }
+  if (b.width < 4) return;
+  const lo = FIT_MARGIN;
+  const hi = W - FIT_MARGIN;
+  if (b.x >= lo && b.right <= hi) return;
+  const ox = t.originX;
+  const anchor = b.x + ox * b.width;
+  if (anchor < 0 || anchor > W) return; // 화면 밖에서 미끄러져 들어오는 글자 등은 건드리지 않는다
+  let maxW = Infinity;
+  if (ox > 0) maxW = Math.min(maxW, (anchor - lo) / ox);
+  if (ox < 1) maxW = Math.min(maxW, (hi - anchor) / (1 - ox));
+  if (!(maxW > 0)) return;
+  const base = t.__fitBase ?? parseFloat(String(t.style.fontSize));
+  if (!(base > 0)) return;
+  const size = Math.max(Math.floor(base * FIT_MIN), Math.floor(base * (maxW / b.width)));
+  if (size >= base) return;
+  t.__fitBase = base;
+  t.setFontSize(size);
 }

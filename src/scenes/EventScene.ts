@@ -11,7 +11,7 @@ import { tabs } from '../ui/kit2';
 import { screenFrame, type ScreenFrame } from '../ui/screen';
 import { COLOR, TYPE } from '../ui/theme';
 import { fullH } from '../ui/layout';
-import { getLang } from '../i18n';
+import { getLang, tr } from '../i18n';
 import { playSfx } from '../systems/Sfx';
 
 const KST = 9 * 3600_000;
