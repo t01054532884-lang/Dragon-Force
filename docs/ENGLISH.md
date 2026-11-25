@@ -15,10 +15,21 @@
 ## 확인한 것 / 남은 것
 - 확인: 로비·드래곤·상점·장비·보상(미션)·이벤트·스킨·선물함·패스·연구소·전투(레벨업 카드·일시정지) 화면을 영어로 돌려 남은 한국어 0. 화면 사진: 로비·상점·드래곤·레벨업 카드.
 - 고친 것: 상점 "1 hit" → "x1", 장비 상자 설명 줄임, 연계 띠 줄임, 숫자 단위 "개" 앞 x 제거.
-- **남은 것(제작자)**:
-  - 영어 로고 그림 `logo-en`(지금 영어 모드는 글자 로고 "Dragon Force")
-  - App Store **영어 상품 페이지**(이름·부제·설명·키워드·스크린샷 — 영어 화면으로 다시 찍기)
-  - 개인정보처리방침·이용약관 영어판(지금 `public/privacy.html`은 한국어)
-  - 필살기 외침 영어 목소리(효과음 요청표에 이미 있음)
-  - 번역 검수: AI 번역 1차본. 결제·환불 안내(청약철회 등)는 법률 확인 필요
+- **남은 것 — 누가 하나로 나눔(2026-11-25)**:
+
+| 남은 것 | 누가 | 상태 |
+|---|---|---|
+| 처리방침·약관 영어판 | AI | ✅ 초안 `docs/legal/privacy-en.html`·`terms-en.html`. 설정 화면에 "개인정보처리방침·이용약관" 버튼(영어 모드면 -en 페이지). **[ ] 칸 채운 뒤 4개 파일을 `public/`으로 옮겨야 버튼 주소가 열림** |
+| 고객 지원 페이지 영어판 | AI | ✅ `public/support-en.html`(한국어판도 서버·Apple 연결 기준으로 고침) |
+| App Store 영어 페이지 문구 | AI | ✅ `docs/APPSTORE_EN.md`(이름·부제·설명·키워드·심사 메모·영양 라벨) → 제작자가 App Store Connect에 붙여 넣기 |
+| 영어 스크린샷 | AI | 제출 때 영어 모드 실제 화면 캡처(그림 담당 필요 없음) |
+| 영어 로고 `logo-en` | **Higgsfield(제작자가 생성)** | 그림 담당에게 받을 필요 없음. 한글 로고 `public/art/logo-ko.webp`를 참고 그림으로 넣고 글자만 바꾸는 편집 → 받은 원본을 AI가 배경 제거·800×254 맞춤·연결 |
+| 겨울 축제 배너 영어판 `event-winter-en` | **Higgsfield(제작자가 생성)** | ⚠ 새로 찾음: `event-winter.webp`에 "겨울 축제" 글자가 그림에 박혀 있어 영어 모드에서도 한글로 보임. 축제가 12/1 시작이라 먼저. 같은 방식(글자만 바꾸기) |
+| 필살기 외침 영어 목소리 | Higgsfield(시트 'Higgsfield 우선순위' 2·4번) | 레드 먼저(제출 전), 나머지 18종은 업데이트 |
+| 번역 검수 | 제작자(+필요하면 원어민) | AI 번역 1차본. 결제·환불 안내(청약철회 등)는 법률 확인 필요 |
+
+Higgsfield 편집 요청문(그림 모델, 참고 그림 1장 넣고):
+- 로고: `Keep this game logo exactly the same style — same glossy red-gold 3D lettering, same dragon ornament, same outline and lighting. Replace only the Korean text with the English words "DRAGON FORCE" on one line. Plain solid background, no other text.`
+- 축제 배너: `Keep this banner exactly the same — same dragons, gifts, snow, lanterns and composition. Replace only the Korean text with "WINTER FESTIVAL" in the same golden 3D lettering. No other text.`
+- 받을 때 확인: 철자, 글자 뒤에 다른 글자 생기지 않았는지, 원래 그림과 같은 비율(로고 약 3.1:1, 배너 약 2.9:1). 워터마크 없는 원본 보관.
 - 알려진 한계: 영어가 한국어보다 길어 좁은 칸에서 줄이 넘칠 수 있음(로비 오른쪽 "Settings" 등 가장자리) — 보이는 대로 사전 값을 짧게 고친다.

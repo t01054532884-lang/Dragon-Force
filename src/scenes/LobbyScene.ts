@@ -37,6 +37,9 @@ import { SKIN_ROULETTE } from '../data/skins';
 import { makeSkinTextures, skinIconKey } from '../ui/skinArt';
 import { offY } from '../ui/layout';
 
+/** 처리방침·약관 공개 주소(GitHub Pages, public/*.html) */
+const LEGAL_BASE = 'https://t01054532884-lang.github.io/Dragon-Force/';
+
 /** 접속 출석 팝업을 이번 실행에서 이미 띄운 날(같은 날 로비에 다시 와도 또 뜨지 않게) */
 let attendancePopupShown = '';
 
@@ -435,6 +438,12 @@ export class LobbyScene extends Phaser.Scene {
     }, { kind: 'primary', size: TYPE.caption }); // 버튼은 "Apple로 연결"만(제작자 11/25: 아래 회색 안내 문구와 겹침)
     link.setEnabled(acc.provider !== 'apple');
     m.body(link.root);
+    // 처리방침·약관(애플 심사 5.1.1(i): 앱 안에서 처리방침을 열 수 있어야 함). 영어 모드면 -en 페이지. 토스는 외부 링크 금지라 뺌
+    if (PLATFORM !== 'toss') {
+      const legal = (page: string) => () => window.open(`${LEGAL_BASE}${page}${st.lang === 'en' ? '-en' : ''}.html`, '_system');
+      m.body(button(this, -135, 220, 250, 56, '개인정보처리방침', legal('privacy'), { kind: 'secondary', size: TYPE.tiny }).root);
+      m.body(button(this, 135, 220, 250, 56, '이용약관', legal('terms'), { kind: 'secondary', size: TYPE.tiny }).root);
+    }
     m.body(text(this, -240, 50, '연결하면 기기를 바꾸거나 앱을 다시 설치해도 이어서 할 수 있어요', 15, COLOR.textDim, true).setOrigin(0, 0.5));
     m.body(text(this, -240, 82, `☁ ${cloudLine()}`, 15, cloud.status === 'error' || cloud.status === 'conflict' ? COLOR.danger : COLOR.textSub, true).setOrigin(0, 0.5));
     m.body(button(this, 0, 140, 300, 66, '계정 삭제', () => this.confirmDelete(), { kind: 'danger', size: TYPE.caption }).root);

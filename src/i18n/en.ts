@@ -1,6 +1,8 @@
 // 영어 사전(scripts/i18n_build.py가 만든다 — 손으로 고쳐도 됨). 한국어 원문 → 영어. {0},{1}… = 실행 중 들어가는 값
 /* eslint-disable */
 export const EN: Record<string, string> = {
+ "개인정보처리방침": "Privacy Policy",
+ "이용약관": "Terms of Service",
  "\n입장 가능까지 {0} 남음": "\n{0} until you can enter",
  "  ·  시즌 1 완료!": "  ·  Season 1 Complete!",
  "  보장: 매 {0}회째 희귀 이상 정수(희귀:영웅:전설 = {1}:{2}:{3}), {4}회째 전설 정수 — 그 회차 결과를 대신함": "  Guarantee: every {0}th pull gives Rare+ Essence (Rare:Epic:Legendary = {1}:{2}:{3}), every {4}th gives Legendary Essence — replaces that pull's result",

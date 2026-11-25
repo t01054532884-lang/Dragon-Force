@@ -39,7 +39,7 @@
 - **지원 URL**: https://t01054532884-lang.github.io/Dragon-Force/support.html
 - **개인정보처리방침 URL**: https://t01054532884-lang.github.io/Dragon-Force/privacy.html
 - **저작권**: © 2026 오준수
-- **앱 개인정보(영양 라벨)**: "데이터를 수집하지 않음"
+- **앱 개인정보(영양 라벨)**: ~~"데이터를 수집하지 않음"~~ → 서버·로그인 붙은 지금은 사용자 ID·게임 진행(·구입 내역) 수집으로 바꿈. 표는 `docs/APPSTORE_EN.md` 끝(2026-11-25)
 - **심사 메모(영문)**:
   > Single-player offline action game. No account, no login, no in-app purchases, no ads, no data collection. Drag anywhere on the screen to move; attacks are automatic. Progress is stored on device only. Random reward boxes use in-game currency earned by playing; odds are disclosed in the shop ("확률 보기").
 
