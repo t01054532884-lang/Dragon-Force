@@ -51,7 +51,7 @@ export const EN: Record<string, string> = {
  "30초가 지나기 전에 포기하면 보상이 없어요": "Giving up before 30s gives no rewards",
  "3발 동시 발사(각 65%)": "3 shots at once (65% each)",
  "3번째 공격마다 1.5m 독구름(2.5초)": "Every 3rd attack: 1.5m poison cloud (2.5s)",
- "3초 연출 뒤 화면 안 일반 몬스터 모두 처치 · 엘리트·보스 피해 ×{0} · 재사용 {1}분": "After a 3s cutscene, kills all regular monsters on screen · Elite/Boss DMG ×{0} · Cooldown {1} min",
+ "연출 뒤 화면 안 일반 몬스터 모두 처치 · 엘리트·보스 피해 ×{0} · 재사용 {1}분": "After the cutscene, kills all regular monsters on screen · Elite/Boss DMG ×{0} · Cooldown {1} min",
  "4번째 공격마다 2.2m 강철 폭발(150%)": "Every 4th attack: 2.2m steel blast (150%)",
  "4번째 공격마다 2.2m 독 폭발(100%) + 중독": "Every 4th attack: 2.2m poison blast (100%) + Poison",
  "4번째 공격마다 2.2m 마력 폭발(140%)": "Every 4th attack: 2.2m arcane blast (140%)",

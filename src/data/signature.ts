@@ -114,7 +114,7 @@ export const ultCap = (rank: 'normal' | 'elite' | 'boss', maxHp: number): number
   rank === 'boss' ? maxHp * ULT_RULES.bossCapPct : rank === 'elite' ? maxHp * ULT_RULES.eliteCapPct : Infinity;
 /** 화면 설명: "필살기: 3초 연출 뒤 …" 한 줄 */
 export function ultSummary(id: DragonId): string {
-  return `3초 연출 뒤 화면 안 일반 몬스터 모두 처치 · 엘리트·보스 피해 ×${ultMult(id)} · 재사용 ${ultCooldown(id) / 60_000}분`;
+  return `연출 뒤 화면 안 일반 몬스터 모두 처치 · 엘리트·보스 피해 ×${ultMult(id)} · 재사용 ${ultCooldown(id) / 60_000}분`;
 }
 /** 같이 나가는 원래 전용 스킬 효과 설명(전설 3종의 "자동: 기본 공격 N회마다" 표현은 뺌) */
 export function ultEffectText(id: DragonId): string {

@@ -26,7 +26,8 @@
 
 ## 3. 영상 규격
 
-- 세로 9:16, 720×1280 이상(1080×1920 권장), 3초, **소리 없음**(소리는 게임 효과음), **워터마크·글자 없음**.
+- 세로 9:16, 720×1280 이상(1080×1920 권장), 3초, **워터마크·글자 없음**.
+- **소리(11/25 변경)**: 영상과 같이 만든 소리(날갯짓·포효·불·폭발)를 그대로 효과음으로 쓴다 — 언어와 상관없어 1벌. 언어별로 다른 건 외침 목소리뿐(7절). 처음엔 "소리 없음"이었지만 같이 만들면 불길과 소리 타이밍이 저절로 맞아서 바꿈(제작자).
 - **영상에 글자(스킬 이름)를 넣지 않는다** — 이름은 게임 글자로 띄움. 글자를 넣으면 한국어·영어로 19 × 2 = 38개가 되지만, 빼면 19개로 끝(언어는 효과음 외침만 2벌).
 - 카메라는 거의 고정, 드래곤 모습(색·뿔·날개)이 첫 장면과 같아야 함.
 - 게임용 변환(AI): mp4(H.264) 720×1280, 한 개 약 1~1.5MB → 19개 약 25MB. 전투에 들어갈 때 **출격한 드래곤 것 1개만** 읽는다.
@@ -77,7 +78,8 @@
 
 ## 7. 효과음(한국어·영어) — 2026-11-25 정리, 시트 "180초 필살기" H~K열
 
-- 영상은 소리 없이, 소리는 따로 2개: **효과음 + 외침(한국어)** / **효과음 + 외침(English)**. 효과음은 같고 외침 목소리만 다름.
+- (11/25 변경) 효과음은 **영상에 들어 있는 소리**를 쓴다(게임이 같은 mp4를 소리로 한 번 더 읽어 영상과 같은 구간부터 틂). 따로 만들 것은 **외침 목소리(한국어/English)** 2개뿐. 아래 줄은 변경 전 기록.
+- (이전) 영상은 소리 없이, 소리는 따로 2개: **효과음 + 외침(한국어)** / **효과음 + 외침(English)**. 효과음은 같고 외침 목소리만 다름.
 - 3초(영상과 같은 길이): 0~0.5초 날아오름 → 0.5~2.5초 필살기 → 2.5초쯤 섬광·폭발. 외침은 0.6~1.4초 사이 한 번.
 - 파일 `ult-<드래곤>-ko` / `ult-<드래곤>-en`(m4a 또는 mp3), 배경음악보다 조금 크게.
 - 게임: 설정에 "음성 언어: 한국어 / English" → English면 en 파일. 게임 글자는 아직 한국어만(외침만 바뀜).
@@ -97,3 +99,24 @@
 2. (AI) 180초 필살기 시스템 + 코드 연출(19종) + 영상 재생(없으면 코드만) — 레드 영상으로 확인
 3. (제작자) 나머지 18종 영상 → (AI) 변환·연결
 4. 봇으로 피해 배율 측정 → 스크린샷 → App Store 제출
+
+## 10. 레드 영상 제작 기록 (2026-11-25, Higgsfield MCP — 나머지 18종도 같은 방식)
+
+**흐름**: 제작자 컷 8장(`드래곤 포스/output/red-dragon-skill-v7-8cuts.zip`) → AI가 Higgsfield MCP로 ① 공통 배경 ② 처음 장면 ③ 끝 장면(그림 GPT Image 2.6, 장당 2크레딧) → ④ 처음·끝 장면을 넣어 영상. 원본은 `art-src/ult/`(git 제외), 게임용은 `scripts/process_art_ult.py` → `public/art/ult/`.
+
+**모델 비교(같은 처음·끝 장면, 소리 포함)** — 제작자 선택: **Seedance 2.5**
+| | Kling 3.0 Pro 3초 | Seedance 2.5 720p 4초 (채택) |
+|---|---|---|
+| 흐름 | 1.3초에 불, 1.7초부터 파도 | 정면 포즈 뒤 2.1초 불, 3초쯤 파도 |
+| 장단점 | 빠름, 0.5초쯤 날개 흐림, 1080p 9MB | 드래곤이 또렷·귀여움, 720p 2.7MB |
+| 크레딧 | 약 7.5 | 28 (Seedance 무료 초 선물은 MCP에선 적용 안 됨) |
+
+**게임 연출(코드 `src/ui/UltCutscene.ts`)**: 날아오름 0.45초 → 영상 0.6~3.9초 구간(처음 0.6초는 드래곤이 반쯤 잘려 건너뜀, 같은 배경을 먼저 깔고 영상은 0.6초에 도달하면 보임) → 섬광 0.5초 → 전장 피해. **전체 약 4.25초**(영상 없는 드래곤은 3초 그대로). **화면을 누르면 넘김**(0.3초 뒤부터, 바로 섬광 → 피해는 똑같이, 영상 소리 끊김). 영상 소리는 같은 mp4를 Web Audio로 한 번 더 읽어 같은 구간부터 튼다(아이폰에서 영상 소리 자동재생이 막혀도 소리가 남).
+드래곤을 추가할 때: 영상을 `art-src/ult/`에 받고 `process_art_ult.py`의 `VIDEOS`에 한 줄 → `UltCutscene.ts` `ULT_VIDEO`에 `{ from, to }`(드래곤이 화면에 다 들어온 시점 ~ 필살기가 화면을 덮은 시점).
+
+**요청문(영어, 그대로 재사용 — `<…>`만 드래곤별로)**
+- 공통 배경(1번만): `Vertical 9:16 background plate for a mobile game ultimate-skill cutscene, stylized 3D animated feature-film look (soft, polished, cute fantasy style like a high-end animated movie), no characters. High in the sky above a vast sea of clouds at sunset: a warm golden-orange sun glow sits low near the horizon at about 60% of the image height; the sky gradient runs from deep violet and indigo at the top through magenta to warm amber near the horizon. Layered fluffy cumulus clouds, tops lit pink-gold, shadows soft lavender. Through gaps in the clouds far below, a faint misty fantasy land with forests and a winding river is visible. The upper half is open sky with room for a flying character; the lower third is the cloud sea and land as the target area. Majestic, cinematic depth, atmospheric haze, a few drifting golden light particles. No characters, no creatures, no text, no logo, no UI, no watermark.`
+- 처음 장면(참고 그림: 배경 + 드래곤 비행 컷): `Use image 1 as the exact background: same sunset sky, clouds, sun, land, colors and composition, unchanged. Place the <red baby dragon> from image 2 into the upper-left third of the frame, flying diagonally toward the lower right, wings spread wide, fierce determined expression, mouth closed with a few <embers> at the mouth<, tail flame burning>. Keep the dragon's design exactly as in image 2: <crimson scales, cream belly, golden curved horns and spikes, orange bat wings, flame-tipped tail>, same stylized 3D animated look. Warm sunset rim light on the dragon. The dragon spans about 40% of the frame width. No text, no logo, no watermark.`
+- 끝 장면(참고 그림: 배경 + 드래곤 공격 컷): `Same sunset sky and sea of clouds as image 1. Climax of the '<Wave of Fire>' ultimate attack: <a colossal tsunami of fire crashes down over the sea of clouds and land, a towering curling wave of orange, gold and white-hot flame covering the lower two thirds of the frame from edge to edge, glowing embers, sparks and heat haze everywhere, clouds lit fiery orange>. At the top center, the <red baby dragon> from image 2 (same design: <…>, same stylized 3D animated look), smaller, wings spread, <breathing a thick roaring stream of fire straight down that feeds the wave>. Epic, majestic, very bright glowing core. No text, no logo, no watermark.`
+- 영상(Seedance 2.5, mode omni_reference, 4초, 720p, 9:16, 소리 켬, start_image·end_image): `Epic 4-second ultimate-skill cutscene for a fantasy mobile game, stylized 3D animated film look, vertical. Over a sunset sea of clouds, the cute <red baby dragon> swoops in from the upper left, flaps up to the top center, rears back with wings flared and roars, then <unleashes a massive torrent of fire straight down. The flame stream explodes into a gigantic rolling Wave of Fire that crashes down and sweeps across the entire cloud sea and land from top to bottom: curling crest of orange-gold flame, white-hot core, swirling embers, heat distortion, a shockwave rippling through the clouds>. Camera nearly locked with a slight push-in and a short shake on impact. Dragon design stays identical to the first frame. Fast, powerful, majestic, cinematic lighting. Sound: wing whoosh, a fierce cute dragon roar, <deep roaring fire blast, crackling flames> and a heavy boom on impact; no music, no speech. No text, no logo, no watermark.`
+- 한 드래곤 비용(첫 시도): 그림 2장 4 + 영상 28 = 약 32크레딧 → 18종 약 580크레딧(다시 만들기 포함 여유 두 배).

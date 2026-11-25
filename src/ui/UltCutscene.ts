@@ -6,27 +6,41 @@ import { text } from './kit';
 import { COLOR } from './theme';
 
 /**
- * 필살기 3초 컷신(2026-11-25, docs/ULTIMATE.md).
+ * 필살기 컷신(2026-11-25, docs/ULTIMATE.md): 영상 없으면 3초, 영상이 있으면 영상 구간만큼(레드 약 4.25초). 화면을 누르면 바로 섬광(넘기기).
  *   0~0.5초  드래곤이 위로 날아올라 화면 밖으로, 화면이 어두워짐(코드)
  *   0.5~2.5초 공통 하늘 배경에서 필살기 장면 — Higgsfield 영상이 있으면 영상, 없으면 대체 연출(배경 + 드래곤 그림 + 색 효과)
- *   2.5~3초  하얀 섬광 → onHit(피해·효과) → 걷히며 onDone
+ *   마지막 0.5초 하얀 섬광 → onHit(피해·효과) → 걷히며 onDone
  * 시간은 장면 tween으로만 흐른다(게임 시계·물리는 게임 장면이 멈춰 둠). 화면 고정(scrollFactor 0), 가장 위 깊이.
  */
 
-/** Higgsfield 영상이 들어온 드래곤(public/art/ult/ult-<id>.mp4). 받는 대로 번호를 적는다 */
-export const ULT_VIDEO_READY: DragonId[] = [];
-/** 필살기 소리(효과음 + 외침, public/sfx/ult/ult-<id>-ko.mp3 · -en.mp3)가 들어온 드래곤. 영상은 무음이라 소리는 이 파일 */
+/**
+ * Higgsfield 영상이 들어온 드래곤(public/art/ult/ult-<id>.mp4, scripts/process_art_ult.py)과 쓸 구간(초).
+ * 영상 소리(날갯짓·포효·불·폭발 — 언어 상관없음)가 효과음이다. 영상 구간 길이에 따라 컷신이 길어진다(레드 약 4초).
+ * 레드(2026-11-25): Seedance 2.5 4초 — 0.6초(화면에 다 들어온 뒤)부터 3.9초(불의 파도가 화면을 덮음)까지.
+ */
+export const ULT_VIDEO: Partial<Record<DragonId, { from: number; to: number }>> = { red: { from: 0.6, to: 3.9 } };
+export const ULT_VIDEO_READY = Object.keys(ULT_VIDEO) as DragonId[];
+/** 필살기 외침 목소리(public/sfx/ult/ult-<id>-ko.mp3 · -en.mp3)가 들어온 드래곤. 효과음은 영상 소리, 이 파일은 언어별 외침 */
 export const ULT_AUDIO_READY: DragonId[] = [];
 const ultAudioKey = (id: DragonId, lang: 'ko' | 'en') => `ult-${id}-${lang}`;
-/** 공통 하늘 배경(public/art/ult/ult-bg.webp)이 들어왔는지 — 대체 연출의 바탕 */
-export const ULT_BG_READY = false;
+/** 공통 하늘 배경(public/art/ult/ult-bg.webp, 2026-11-25 Higgsfield) — 대체 연출의 바탕 */
+export const ULT_BG_READY = true;
 
 export const ultVideoKey = (id: DragonId) => `ult-${id}`;
+/** 영상 소리: 같은 mp4를 소리로 한 번 더 읽는다(Web Audio — 첫 터치로 풀린 소리 장치라 아이폰에서도 확실히 남). 영상 자체는 무음 재생 */
+const ultSfxKey = (id: DragonId) => `ult-${id}-sfx`;
+
+/** 영상이 있으면 컷신 길이 = 날아오름 0.45초 + 영상 구간 + 섬광 0.5초, 없으면 3초 */
+export function ultCutsceneMs(id: DragonId, hasVideo: boolean): number {
+  const v = ULT_VIDEO[id];
+  return hasVideo && v ? Math.round(450 + (v.to - v.from) * 1000 + 500) : ULT_RULES.cutsceneMs;
+}
 
 /** 전투 장면 preload에서: 출격한 드래곤 영상·배경만 읽는다(아이폰 메모리) */
 export function preloadUlt(scene: Phaser.Scene, id: DragonId): void {
   if (ULT_BG_READY && !scene.textures.exists('ult-bg')) scene.load.image('ult-bg', 'art/ult/ult-bg.webp');
   if (ULT_VIDEO_READY.includes(id) && !scene.cache.video.exists(ultVideoKey(id))) scene.load.video(ultVideoKey(id), `art/ult/ult-${id}.mp4`, true);
+  if (ULT_VIDEO_READY.includes(id) && !scene.cache.audio.exists(ultSfxKey(id))) scene.load.audio(ultSfxKey(id), [{ type: 'm4a', url: `art/ult/ult-${id}.mp4` }]);
   // 설정 언어 것만 읽는다(한국어/English)
   const lang = voiceLang();
   if (ULT_AUDIO_READY.includes(id) && !scene.cache.audio.exists(ultAudioKey(id, lang))) scene.load.audio(ultAudioKey(id, lang), `sfx/ult/ult-${id}-${lang}.mp3`);
@@ -51,7 +65,10 @@ const DEPTH = 5000;
 export function playUltCutscene(scene: Phaser.Scene, o: UltCutsceneOpts): void {
   const W = scene.scale.width;
   const H = scene.scale.height;
-  const T = ULT_RULES.cutsceneMs; // 3000
+  const videoKey = ultVideoKey(o.dragonId);
+  const clip = ULT_VIDEO[o.dragonId];
+  const hasVideo = !!clip && scene.cache.video.exists(videoKey);
+  const T = ultCutsceneMs(o.dragonId, hasVideo); // 영상 없으면 3000, 레드 영상 약 4250
   const objs: Phaser.GameObjects.GameObject[] = [];
   const add = <G extends Phaser.GameObjects.GameObject>(g: G): G => {
     (g as unknown as { setScrollFactor: (n: number) => void }).setScrollFactor(0);
@@ -68,20 +85,21 @@ export function playUltCutscene(scene: Phaser.Scene, o: UltCutsceneOpts): void {
       /* 소리 실패는 무시 */
     }
   }
-  // 입력 막기(컷신 중 버튼이 눌리지 않게)
-  add(scene.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.001).setInteractive());
+  // 입력 막기(컷신 중 버튼이 눌리지 않게) + 누르면 넘기기(0.3초 뒤부터, 바로 섬광 → 피해는 똑같이)
+  const blocker = add(scene.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.001).setInteractive());
+  const t0 = Date.now(); // 게임 시계는 멈춰 있으므로 실제 시계
+  let sfx: Phaser.Sound.BaseSound | null = null;
 
-  // ── 0~0.5초: 어두워지며 드래곤이 위로 날아오름 ──
+  // ── 0~0.45초: 어두워지며 드래곤이 위로 날아오름 ──
   const dim = add(scene.add.rectangle(W / 2, H / 2, W, H, 0x05060c, 0));
   scene.tweens.add({ targets: dim, fillAlpha: 0.75, duration: 450 });
   const fly = add(scene.add.image(o.from.x, o.from.y, o.dragonKey).setDisplaySize(110, 110));
   scene.tweens.add({ targets: fly, y: -160, scale: fly.scale * 1.8, duration: 500, ease: 'Quad.In' });
 
-  // ── 0.5~2.5초: 장면 ──
+  // ── 0.45초~섬광: 장면(영상이 있으면 영상 구간, 없으면 대체 연출 2초) ──
   const scene2 = scene.add.container(0, 0);
   add(scene2);
   scene2.setAlpha(0);
-  const videoKey = ultVideoKey(o.dragonId);
   let video: Phaser.GameObjects.Video | null = null;
   scene.tweens.add({
     targets: scene2,
@@ -89,12 +107,26 @@ export function playUltCutscene(scene: Phaser.Scene, o: UltCutsceneOpts): void {
     delay: 450,
     duration: 150,
     onStart: () => {
-      if (scene.cache.video.exists(videoKey)) {
+      if (hasVideo && clip) {
         try {
+          // 영상 뒤에 같은 하늘 배경: 영상이 시작 구간으로 넘어가기 전 첫 장면(드래곤이 반쯤 잘린)이 비치지 않게 영상은 숨겨 두고 배경부터
+          if (scene.textures.exists('ult-bg')) {
+            const bg = scene.add.image(W / 2, H / 2, 'ult-bg');
+            bg.setScale(Math.max(W / bg.width, H / bg.height));
+            scene2.add(bg);
+          }
           video = scene.add.video(W / 2, H / 2, videoKey);
           scene2.add(video);
-          video.setMute(true);
-          video.play(false);
+          video.setMute(true).setVisible(false);
+          video.play(false, clip.from, clip.to);
+          const showWhenReady = () => {
+            if (!video || !video.active) return scene.events.off('update', showWhenReady);
+            if (video.getCurrentTime() >= clip.from - 0.05) {
+              video.setVisible(true);
+              scene.events.off('update', showWhenReady);
+            }
+          };
+          scene.events.on('update', showWhenReady);
           // 화면을 덮게(세로 9:16 영상, 긴 화면이면 위아래 기준으로 키움)
           const fit = () => {
             const vw = video!.width || 720;
@@ -104,6 +136,16 @@ export function playUltCutscene(scene: Phaser.Scene, o: UltCutsceneOpts): void {
           };
           fit();
           video.once('created', fit);
+          // 영상 소리(효과음): 같은 구간부터
+          const sk = ultSfxKey(o.dragonId);
+          if (soundOn() && !scene.sound.locked && scene.cache.audio.exists(sk)) {
+            try {
+              sfx = scene.sound.add(sk, { volume: 0.9 });
+              sfx.play({ seek: clip.from });
+            } catch {
+              sfx = null;
+            }
+          }
           return;
         } catch {
           video = null;
@@ -116,31 +158,47 @@ export function playUltCutscene(scene: Phaser.Scene, o: UltCutsceneOpts): void {
   // 필살기 이름 띠
   const banner = add(text(scene, W / 2, H * 0.78, o.name, 64, COLOR.text, true, true).setOrigin(0.5).setAlpha(0));
   scene.tweens.add({ targets: banner, alpha: 1, scale: { from: 1.4, to: 1 }, delay: 650, duration: 260, ease: 'Back.Out' });
-  scene.tweens.add({ targets: banner, alpha: 0, delay: T - 650, duration: 200 });
+  const bannerOut = scene.tweens.add({ targets: banner, alpha: 0, delay: T - 650, duration: 200 });
 
-  // ── 2.5~3초: 섬광 → 피해 → 걷힘 ──
+  // ── 마지막 0.5초: 섬광 → 피해 → 걷힘 ──
   const flash = add(scene.add.rectangle(W / 2, H / 2, W, H, 0xffffff, 0));
-  scene.tweens.add({
-    targets: flash,
-    fillAlpha: 1,
-    delay: T - 500,
-    duration: 160,
-    onComplete: () => {
-      scene2.setVisible(false);
-      dim.setVisible(false);
-      fly.setVisible(false);
-      if (video) video.stop();
-      o.onHit();
-      scene.tweens.add({
-        targets: flash,
-        fillAlpha: 0,
-        duration: 340,
-        onComplete: () => {
-          objs.forEach((g) => g.destroy());
-          o.onDone();
-        },
-      });
-    },
+  let flashed = false;
+  const doFlash = (skipped: boolean) => {
+    if (flashed) return;
+    flashed = true;
+    if (skipped) {
+      bannerOut.stop();
+      banner.setAlpha(0);
+      sfx?.stop(); // 넘기면 영상 소리도 끊고 섬광 때 전투 효과음만
+    }
+    scene.tweens.add({
+      targets: flash,
+      fillAlpha: 1,
+      duration: 160,
+      onComplete: () => {
+        scene2.setVisible(false);
+        dim.setVisible(false);
+        fly.setVisible(false);
+        if (video) video.stop();
+        o.onHit();
+        scene.tweens.add({
+          targets: flash,
+          fillAlpha: 0,
+          duration: 340,
+          onComplete: () => {
+            objs.forEach((g) => g.destroy());
+            // 영상 소리는 끝까지(폭발 꼬리) 울리고 스스로 정리
+            if (sfx?.isPlaying) sfx.once('complete', () => sfx?.destroy());
+            else sfx?.destroy();
+            o.onDone();
+          },
+        });
+      },
+    });
+  };
+  scene.tweens.addCounter({ from: 0, to: 1, duration: 1, delay: T - 500, onComplete: () => doFlash(false) });
+  blocker.on('pointerdown', () => {
+    if (Date.now() - t0 > 300) doFlash(true);
   });
 }
 
