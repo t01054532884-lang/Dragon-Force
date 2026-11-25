@@ -55,15 +55,15 @@ export class ShopScene extends Phaser.Scene {
     super('shop');
   }
 
-  init(data: { dealTab?: DealTab; scrollY?: number; focus?: 'gold' | 'ruby' }): void {
+  init(data: { dealTab?: DealTab; scrollY?: number; focus?: 'gold' | 'ruby' | 'package' }): void {
     if (data?.dealTab) this.dealTab = data.dealTab;
     this.keepScroll = data?.scrollY ?? 0;
     this.focus = data?.focus ?? null;
   }
 
   /** 머리줄 골드·루비 "+"로 들어오면 그 칸이 맨 위에 오게 스크롤(제작자 2026-11-26) */
-  private focus: 'gold' | 'ruby' | null = null;
-  private sectionY: Partial<Record<'gold' | 'ruby', number>> = {};
+  private focus: 'gold' | 'ruby' | 'package' | null = null;
+  private sectionY: Partial<Record<'gold' | 'ruby' | 'package', number>> = {};
 
   onPlatformBack(): boolean {
     if (this.opening && !this.opening.finished) this.opening.skip(); // 연출 중 뒤로가기 = 건너뛰기
@@ -252,6 +252,7 @@ export class ShopScene extends Phaser.Scene {
    * 탭: 한정(계정당 1회) · 일일(무료 선물 + 꾸러미 2) · 주간 · 월간. 탭을 바꾸면 스크롤 위치를 지킨 채 다시 그린다.
    */
   private packageSection(y0: number): number {
+    this.sectionY.package = y0;
     const TABS: { key: DealTab; label: string; note: string }[] = [
       { key: 'once', label: '한정', note: '계정당 1회' },
       { key: 'daily', label: '일일 특혜', note: '매일 0시 초기화' },

@@ -8,7 +8,8 @@ import { preloadArt } from '../ui/art';
 import { rewardPopup, type RewardItem } from '../ui/celebrate';
 import { badge, button, progressBar, text } from '../ui/kit';
 import { plate } from '../ui/kit2';
-import { screenFrame, toast, type ScreenFrame } from '../ui/screen';
+import { CONTENT, screenFrame, toast, type ScreenFrame } from '../ui/screen';
+import { offY } from '../ui/layout';
 import { makeScroll, type Scroller } from '../ui/scroll';
 import { COLOR, TYPE } from '../ui/theme';
 import { gameNow } from '../ui/widgets';
@@ -27,6 +28,8 @@ const LV_X = 48;
 const CELL_H = 104;
 const ROW0 = 650;
 const ROW_GAP = 120;
+/** 아래 고정 줄(일괄 수령·구매) 높이 */
+const BAR_H = 150;
 
 const rewardItem = (it: PassGot): RewardItem => ({
   image: it.kind === 'redFrag' || it.dragonId ? undefined : PASS_ITEM_ICON[it.kind],
@@ -111,43 +114,44 @@ export class PassScene extends Phaser.Scene {
     }
     let y = ROW0 + PASS.levels * ROW_GAP + 10;
 
-    // ── 일괄 수령
-    const n = (['free', 'premium', 'royal'] as const).reduce((s, t) => s + PASS_REWARDS[t].filter((_, i) => cellState(p, t, i + 1) === 'ready').length, 0);
-    const all = button(this, 360, y + 24, 420, 92, n ? `일괄 수령 (${n})` : '받을 보상 없음', () => this.claim(), { kind: 'growth', size: TYPE.body });
-    all.setEnabled(n > 0);
-    y += 116;
+    text(this, 360, y + 20, `유료 패스는 구매한 시즌에만 적용돼요\n${PAY_NOTICE.replace(/\n/g, ' ')}`, 13, COLOR.textSub, true)
+      .setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(660).setLineSpacing(4);
+    y += 130 + BAR_H; // 맨 아래 칸이 고정 줄에 가리지 않게
 
-    // ── 구매 카드: 가치 % 크게(계산값)
+    this.scroll = makeScroll(this, before, y, () => this.popup);
+    if (this.keepY !== null) this.scroll.box.y = this.keepY;
+    else this.scroll.scrollTo(ROW0 + Math.max(0, lv.level - 2) * ROW_GAP, 640); // 지금 레벨 근처로
+    this.stickyBar(p);
+  }
+
+  /**
+   * 아래 고정 줄(2026-11-26 제작자: "한참 내려야 구매 칸이 떠서" 다른 게임처럼 스크롤해도 늘 보이게):
+   * 일괄 수령 · 프리미엄 가격 · 로열 가격, 가격 위에 "가치 N%" 리본. 스크롤 판 밖에 두어 고정.
+   */
+  private stickyBar(p: ReturnType<typeof Progress.load>): void {
+    const cy = CONTENT.bottom + offY(this) - BAR_H / 2 + 6;
+    const bg = this.add.rectangle(360, cy, 720, BAR_H, 0x1a1430, 0.96).setDepth(35);
+    this.add.rectangle(360, cy - BAR_H / 2, 720, 4, COLOR.gold, 0.9).setDepth(35);
+    void bg;
+    const n = (['free', 'premium', 'royal'] as const).reduce((s, t) => s + PASS_REWARDS[t].filter((_, i) => cellState(p, t, i + 1) === 'ready').length, 0);
+    const all = button(this, 128, cy + 10, 212, 78, n ? `일괄 수령 ${n}` : '받을 것 없음', () => this.claim(), { kind: 'growth', size: TYPE.caption });
+    all.setEnabled(n > 0);
+    all.root.setDepth(36);
     (['premium', 'royal'] as const).forEach((k, i) => {
-      const x = 190 + i * 340;
+      const x = 360 + i * 232;
       const owned = k === 'royal' ? p.pass.royal : p.pass.premium;
-      const card = plate(this, x, y + 110, 320, 220, { r: 24, fill: k === 'royal' ? 0x5a3a14 : 0x3a2370, gold: true });
-      if (this.textures.exists(`pass-${k}`)) card.add(this.add.image(-100, -20, `pass-${k}`).setDisplaySize(120, 120));
-      card.add(text(this, 40, -70, k === 'royal' ? '로열 패스' : '프리미엄 패스', TYPE.body, COLOR.gold, true, true).setOrigin(0.5));
-      card.add(text(this, 40, -38, k === 'royal' ? '프리미엄 포함 + 로열 보상' : '프리미엄 줄 30칸', TYPE.tiny, COLOR.text, true, true).setOrigin(0.5));
-      // 가치 %: 가장 크게(제작자 요청: "몇 퍼센트 이득인지 엄청 강조")
-      const pct = text(this, 40, 12, `${passValuePct(k).toLocaleString()}%`, 46, 0xffe14d, true, true).setOrigin(0.5);
-      card.add(pct);
-      card.add(text(this, 40, 44, '가치', TYPE.tiny, COLOR.gold, true, true).setOrigin(0.5));
-      this.tweens.add({ targets: pct, scale: 1.08, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
-      card.add(badge(this, -112, -96, k === 'royal' ? '최고 이득' : '추천', COLOR.ruby));
-      const b = button(this, x, y + 196, 260, 60, owned ? '구매함 ✔' : `${PASS.price[k].toLocaleString()}원`, () => this.buy(k), { kind: k === 'royal' ? 'cta' : 'magic', size: TYPE.caption });
+      const b = button(this, x, cy + 10, 216, 78, owned ? '구매함 ✔' : `${PASS.price[k].toLocaleString()}원`, () => this.buy(k), { kind: k === 'royal' ? 'cta' : 'magic', size: TYPE.body });
       b.setEnabled(!owned && !(k === 'premium' && p.pass.royal));
-      // 결제를 쓸 수 있으면 스토어 실제 가격으로 표시
+      b.root.setDepth(36);
+      // 가치 리본: "N% 가치" (제작자 요청: 몇 퍼센트 이득인지 강조)
+      const tag = badge(this, x, cy - 42, `${k === 'royal' ? '로열' : '프리미엄'} ${passValuePct(k).toLocaleString()}% 가치`, k === 'royal' ? COLOR.ruby : 0x7b3fe4).setDepth(37);
+      if (!owned) this.tweens.add({ targets: tag, scale: 1.08, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
       if (!owned && purchases.available)
         void purchases.products().then((list) => {
           const sp = list.find((x) => x.productId === PASS.productId[k]);
           if (sp && b.root.active) b.setLabel(sp.priceLabel);
         }).catch(() => {});
     });
-    y += 250;
-    text(this, 360, y + 20, `유료 패스는 구매한 시즌에만 적용돼요\n${PAY_NOTICE.replace(/\n/g, ' ')}`, 13, COLOR.textSub, true)
-      .setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(660).setLineSpacing(4);
-    y += 130;
-
-    this.scroll = makeScroll(this, before, y, () => this.popup);
-    if (this.keepY !== null) this.scroll.box.y = this.keepY;
-    else this.scroll.scrollTo(ROW0 + Math.max(0, lv.level - 2) * ROW_GAP, 640); // 지금 레벨 근처로
   }
 
   /** 칸 하나: 아이콘 + 이름·수량, 상태(받음 ✔ · 받기 · 레벨 잠금 🔒 · 구매 필요 🔒) */

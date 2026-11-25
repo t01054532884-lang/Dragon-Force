@@ -13,7 +13,9 @@ import { devMode, devQuery, gameNow } from '../ui/widgets';
 import { enterBattle } from '../ui/entry';
 import { drawLobbyBackdrop, makeArtPlaceholders, preloadArt } from '../ui/art';
 import { button, modal, navBar, text, type KitButton } from '../ui/kit';
-import { applySound, loadSettings, saveSettings } from '../systems/Settings';
+import { applySound, loadSettings, markTip, saveSettings, tipSeen } from '../systems/Settings';
+import { PACKAGES } from '../data/economy';
+import { passValuePct } from '../data/pass';
 import { playSfx, preloadSfx, UI_SFX_FILES } from '../systems/Sfx';
 import { playMusic, preloadMusic, refreshMusic } from '../systems/Music';
 import { altar, iconTile, plate, tabs, topBar, torch, wingBanner } from '../ui/kit2';
@@ -42,6 +44,8 @@ const LEGAL_BASE = 'https://t01054532884-lang.github.io/Dragon-Force/';
 
 /** 접속 출석 팝업을 이번 실행에서 이미 띄운 날(같은 날 로비에 다시 와도 또 뜨지 않게) */
 let attendancePopupShown = '';
+/** 계정 레벨 축하·권유 팝업을 띄우는 레벨(2026-11-26 제작자) */
+const LV_PROMO = [5, 10, 15, 20, 25, 30];
 
 /**
  * 메인 로비(8단계 v2.0 필수 B, 기획자 UI 시안 형식): 머리줄(출격 드래곤·행동력·골드·루비·전투력) · 날개 배너(단계·난이도·진행도)
@@ -295,7 +299,7 @@ export class LobbyScene extends Phaser.Scene {
     // 클라우드 저장: 이 기기와 서버 기록이 둘 다 바뀌었으면 고르기(자동 덮어쓰기 금지)
     if (cloud.conflict) this.openCloudChoice();
     else {
-      this.maybeUnlockPopup(() => this.maybeAttendancePopup());
+      this.maybeUnlockPopup(() => this.maybeLevelPromo(() => this.maybeAttendancePopup()));
       const watch = () => {
         if (cloud.conflict && this.scene.isActive()) this.openCloudChoice();
       };
@@ -326,6 +330,45 @@ export class LobbyScene extends Phaser.Scene {
       this.stageId = 1;
       this.scene.restart();
     }, then);
+  }
+
+  /**
+   * 계정 레벨 축하 팝업(2026-11-26 제작자): 5·10·15·20·25·30레벨이 되면 로비에서 한 번 — 축하 + 드래곤 패스·패키지 권유.
+   * 한 번에 여러 단계를 넘었으면 가장 높은 것만 보여 주고 나머지는 본 것으로. 결제가 없는 빌드(웹·토스)는 띄우지 않는다.
+   */
+  private maybeLevelPromo(then: () => void): void {
+    if (DEMO || !(purchases.available || devMode())) return then();
+    const p = Progress.load();
+    const lv = accountLevel(p).level;
+    const due = LV_PROMO.filter((n) => n <= lv && !tipSeen(`lv-promo-${n}`));
+    if (!due.length) return then();
+    for (const n of due) markTip(`lv-promo-${n}`);
+    const n = due[due.length - 1];
+    const pk = PACKAGES[LV_PROMO.indexOf(n) % PACKAGES.length];
+    const royalFirst = n >= 20; // 높은 레벨일수록 로열 패스를 먼저 권함
+    playSfx(this, 'sfx-upgrade');
+    const m = modal(this, 660, 700, `계정 레벨 ${n} 달성!`, { closeOnBackdrop: true, ribbonColor: COLOR.gold, depth: 900 });
+    m.body(text(this, 0, -250, '축하드립니다! 🎉', TYPE.title, COLOR.gold, true, true).setOrigin(0.5));
+    m.body(text(this, 0, -200, n >= 20 ? '여기까지 온 용사님께 드리는 특별 제안' : '더 빠르게 강해지고 싶다면 지금이 기회예요', TYPE.caption, COLOR.text, true, true).setOrigin(0.5));
+    const card = (x: number, icon: string, title: string, line1: string, line2: string, go: () => void, kind: 'magic' | 'cta') => {
+      const g = this.add.graphics();
+      g.fillStyle(0x2b2442, 1).fillRoundedRect(x - 150, -160, 300, 330, 20);
+      g.lineStyle(3, COLOR.gold, 0.9).strokeRoundedRect(x - 150, -160, 300, 330, 20);
+      m.body(g);
+      if (this.textures.exists(icon)) m.body(this.add.image(x, -82, icon).setDisplaySize(120, 120));
+      m.body(text(this, x, 0, title, TYPE.body, COLOR.gold, true, true).setOrigin(0.5));
+      m.body(text(this, x, 38, line1, 22, 0xffe14d, true, true).setOrigin(0.5));
+      m.body(text(this, x, 70, line2, TYPE.tiny, COLOR.textSub, true, true).setOrigin(0.5));
+      m.body(button(this, x, 128, 240, 62, '보러 가기', () => { m.close(); go(); }, { kind, size: TYPE.caption }).root);
+    };
+    const passCard = (x: number) => card(x, royalFirst ? 'pass-royal' : 'pass-premium', '드래곤 패스',
+      `최대 ${passValuePct(royalFirst ? 'royal' : 'premium').toLocaleString()}% 가치`, '레벨만 올려도 보상이 쏟아져요', () => this.scene.start('pass'), 'magic');
+    const pkgCard = (x: number) => card(x, ['pkg-dragon', 'pkg-gear', 'pkg-rune'][PACKAGES.indexOf(pk)] ?? 'pkg-dragon', pk.name,
+      `₩${pk.krw.toLocaleString()} · 계정당 1회`, '한정 수량 · 놓치면 다시 없어요', () => this.scene.start('shop', { focus: 'package' }), 'cta');
+    passCard(-160);
+    pkgCard(160);
+    m.body(button(this, 0, 262, 260, 64, '닫기', () => m.close(), { kind: 'secondary', size: TYPE.caption }).root);
+    m.box.once('destroy', then); // 닫으면 이어서 출석 팝업
   }
 
   /**

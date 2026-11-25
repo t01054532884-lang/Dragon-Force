@@ -45,7 +45,7 @@ export function saveSettings(s: Settings): void {
 }
 
 /** 첫 플레이 안내: 'battle-move'(이동·자동 공격) · 'first-card'(레벨업 카드) · 'lab'(연구소 강화) */
-export type TipId = 'battle-move' | 'first-card' | 'lab' | 'first-magnet';
+export type TipId = 'battle-move' | 'first-card' | 'lab' | 'first-magnet' | `lv-promo-${number}`;
 export const tipSeen = (id: TipId): boolean => loadSettings().tips.includes(id);
 export function markTip(id: TipId): void {
   const s = loadSettings();
