@@ -107,6 +107,11 @@ export class BattleFx {
     }
   }
 
+  /** 맵 테마 공격이 터질 때 튀는 입자(적 공격 연출, 2026-11-25) */
+  burst(x: number, y: number, colors: readonly number[], n: number, dist: number, size = 16): void {
+    this.sparks(x, y, n, dist, 420, colors, size, DEPTH_OVER);
+  }
+
   /** 공격 발생: 입(발사점) 섬광 — 드래곤 앞쪽 */
   muzzle(x: number, y: number, angle: number, reach = 34): void {
     const mx = x + Math.cos(angle) * reach;

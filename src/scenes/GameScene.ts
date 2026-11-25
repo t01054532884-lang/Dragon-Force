@@ -39,6 +39,7 @@ import { chapterOf, SEASON1_FINALE } from '../data/season1';
 import { arenaLayout, clampToArena, hitsObstacle, makeArena, outsideArena, type ArenaGeom, type Obstacle } from '../data/arenas';
 import { AURA_EVERY_MS, AURA_PAD, HAZARD_FROM_STAGE, HAZARD_RANGE, HAZARD_WARN_MS, obstacleTheme, type ObstacleHazard } from '../data/obstacleThemes';
 import { enterBattle } from '../ui/entry';
+import { attackTheme, BURST_CAP } from '../data/attackThemes';
 import { hardStage, type HardStageDef } from '../data/hardStages';
 import { fullH, offY } from '../ui/layout';
 import { playUltCutscene, playUltSweep, preloadUlt } from '../ui/UltCutscene';
@@ -335,6 +336,9 @@ export class GameScene extends Phaser.Scene {
     this.drawArena();
     this.mapHazardsOff = false;
     this.hurtLog = { total: 0, aura: 0, trap: 0 };
+    this.burstLog = [];
+    this.hitLog = [];
+    this.burstCut = 0;
     this.setupObstacleHazards(); // 단계 테마 장애물 기믹(동상 고드름 등)
     this.physics.world.setBounds(0, 0, WORLD_SIZE, WORLD_SIZE);
     this.cameras.main.setBounds(0, 0, WORLD_SIZE, WORLD_SIZE);
@@ -343,6 +347,12 @@ export class GameScene extends Phaser.Scene {
     this.player.setCircle(18, 14, 18);
     // 8단계 D: 기획자 탑다운 그림(top-<id>)이 있으면 그 그림을 보이고 물리 몸체(충돌 범위 그대로)는 숨긴다
     this.fx = new BattleFx(this);
+    // 맵 테마 공격 효과(B안, src/data/attackThemes.ts): 그림이 있으면 바닥 효과·탄 그림, 없으면 색만
+    this.atk = attackTheme(this.stage.id);
+    const decal = `atk-s${((this.stage.id - 1) % 20) + 1}`;
+    this.atkDecal = this.textures.exists(decal) ? decal : null;
+    this.atkShot = this.textures.exists(`shot-${this.atk.shot}`) ? `shot-${this.atk.shot}` : null;
+    this.atkStamps = 0;
     const topKey = `top-${this.dragon.id}`;
     if (this.textures.exists(topKey)) {
       this.player.setVisible(false);
@@ -472,7 +482,8 @@ export class GameScene extends Phaser.Scene {
     this.moveTip = [];
     if (!tipSeen('battle-move')) this.showMoveTip();
     // 맵 기믹은 안내하지 않는다(제작자 2026-11-25: "말 안 해야 더 재밌어")
-    this.banner(this.hard ? `어려움 ${this.stage.id}단계 — ${this.hard.title}\n${this.hard.mechanicText}` : `${this.stage.id}단계 — ${this.stage.name}${this.difficulty === 'easy' ? '' : ` (${DIFFICULTY_LABEL[this.difficulty]})`}`, this.hard ? '#ff8a80' : '#e0e0e0');
+    // 어려움 기믹 설명 줄은 뺌(제작자 2026-11-25: 큰 글씨로 알려줄 필요 없음 — 맵 기믹 안내를 뺀 것과 같은 이유)
+    this.banner(this.hard ? `어려움 ${this.stage.id}단계 — ${this.hard.title}` : `${this.stage.id}단계 — ${this.stage.name}${this.difficulty === 'easy' ? '' : ` (${DIFFICULTY_LABEL[this.difficulty]})`}`, this.hard ? '#ff8a80' : '#e0e0e0');
     // 어려움: 전투 시작 직후 스킬 카드 3번 고르기(시간 정지, 경험치 추가 없음)
     if (this.hard) {
       for (let k = 0; k < this.hard.startingSkillChoices; k++) this.choiceQueue.push('start');
@@ -502,6 +513,12 @@ export class GameScene extends Phaser.Scene {
       dark.fillRect(0, 0, W, y - r).fillRect(0, y + r, W, W - y - r).fillRect(0, y - r, x - r, r * 2).fillRect(x + r, y - r, W - x - r, r * 2);
     } else dark.lineStyle(WORLD_SIZE * 1.5, 0x0d0f14, 1).strokeCircle(x, y, r + WORLD_SIZE * 0.75);
     const g = this.add.graphics();
+    // 단계 바닥 그림이 있으면 도형 테두리·바닥 문양 대신 부드러운 가장자리(제작자 2026-11-25: 보라·파란 선, 도형 같은 테두리 없애기)
+    if (floorKey === stageFloor) {
+      this.drawSoftEdge(g, square);
+      this.drawObstacles(ch);
+      return;
+    }
     if (square) {
       this.drawSquareWalls(g, ch);
       this.drawObstacles(ch);
@@ -515,6 +532,24 @@ export class GameScene extends Phaser.Scene {
       g.fillStyle(ch.stone).fillRect(x + Math.cos(a) * (r + 22) - 14, y + Math.sin(a) * (r + 22) - 14, 28, 28); // 벽 돌기둥
     }
     this.drawObstacles(ch);
+  }
+
+  /**
+   * 부드러운 가장자리: 선·돌기둥 없이 전장 끝에서 안쪽으로 서서히 어두워짐(어디까지 갈 수 있는지만 보이게).
+   * 이동 범위(판정)는 그대로 — clampToArena가 막는다.
+   */
+  private drawSoftEdge(g: Phaser.GameObjects.Graphics, square: boolean): void {
+    const { x, y, r } = this.arena;
+    const steps = 9;
+    const band = 90;
+    for (let i = 0; i < steps; i++) {
+      const w = band / steps;
+      const rr = r - w * (i + 0.5);
+      const a = 0.55 * Math.pow(1 - i / steps, 1.6);
+      g.lineStyle(w + 1, 0x05060a, a);
+      if (square) g.strokeRect(x - rr, y - rr, rr * 2, rr * 2);
+      else g.strokeCircle(x, y, rr);
+    }
   }
 
   /** 정사각형 전장: 바닥 문양(사각 두 겹 + 대각선) · 두꺼운 돌벽 · 변마다 돌기둥 */
@@ -1177,6 +1212,11 @@ export class GameScene extends Phaser.Scene {
   mapHazardsOff = false;
   /** 받은 피해 기록(봇 측정용): 전체 · 장애물 근접 · 맵 방해 요소 */
   hurtLog = { total: 0, aura: 0, trap: 0 };
+  /** 연속 피해 상한용(엘리트·보스에게 받은 최근 피해) */
+  private burstLog: { at: number; dmg: number }[] = [];
+  /** 봇 측정용: 적에게 받은 피해 한 번씩(시각·피해·등급·패턴 여부) */
+  hitLog: { at: number; dmg: number; rank: string; pattern: boolean }[] = [];
+  burstCut = 0;
 
   private updateObstacleHazards(delta: number): void {
     if (this.mapHazardsOff) return;
@@ -1339,7 +1379,7 @@ export class GameScene extends Phaser.Scene {
     switch (act.kind) {
       case 'lineWarn': {
         const g = this.add.graphics().setDepth(4);
-        g.lineStyle(act.width, 0xff1744, 0.3);
+        g.lineStyle(act.width, this.atk.warn, 0.35);
         if (act.curve) {
           // 초승달 돌진: 휘는 경로를 점으로 이어 그린다
           const steps = 16;
@@ -1363,9 +1403,14 @@ export class GameScene extends Phaser.Scene {
         break;
       }
       case 'circleHit': {
-        const warn = this.add.circle(act.x, act.y, act.r, 0xff1744, 0.12).setStrokeStyle(5, 0xff1744, 0.9).setDepth(4);
-        const fill = this.add.circle(act.x, act.y, 1, 0xff1744, 0.25).setDepth(4);
-        this.tweens.add({ targets: fill, radius: act.r, duration: act.ms });
+        const W = this.atk.warn;
+        const warn = this.add.circle(act.x, act.y, act.r, W, 0.12).setStrokeStyle(5, W, 0.95).setDepth(4);
+        // 예고 안에서 맵 바닥 효과가 차오름(그림이 없으면 예전처럼 색 원)
+        const fill: Phaser.GameObjects.Image | Phaser.GameObjects.Arc = this.atkDecal
+          ? this.add.image(act.x, act.y, this.atkDecal).setDisplaySize(act.r * 0.6, act.r * 0.6).setAlpha(0.25).setDepth(4)
+          : this.add.circle(act.x, act.y, 1, W, 0.25).setDepth(4);
+        if (fill instanceof Phaser.GameObjects.Image) this.tweens.add({ targets: fill, displayWidth: act.r * 2, displayHeight: act.r * 2, alpha: 0.5, duration: act.ms });
+        else this.tweens.add({ targets: fill, radius: act.r, duration: act.ms });
         const dmg = act.damage * e.damageMult;
         this.hazards.push({
           left: act.ms,
@@ -1373,8 +1418,7 @@ export class GameScene extends Phaser.Scene {
           run: () => {
             warn.destroy();
             fill.destroy();
-            const boom = this.add.circle(act.x, act.y, act.r, 0xffcc80, 0.55).setDepth(8);
-            this.tweens.add({ targets: boom, alpha: 0, duration: 300, onComplete: () => boom.destroy() });
+            this.stampFx(act.x, act.y, act.r, 520, 7);
             this.cameras.main.shake(150, 0.008);
             if (Phaser.Math.Distance.Between(act.x, act.y, this.player.x, this.player.y) < act.r + 18) {
               this.damagePlayer(dmg, e, true);
@@ -1397,9 +1441,9 @@ export class GameScene extends Phaser.Scene {
       }
       case 'coneHit': {
         const g = this.add.graphics({ x: act.x, y: act.y }).setDepth(4);
-        if (act.breath) g.fillStyle(0xff6d00, 0.22).slice(0, 0, act.r, act.angle - act.half, act.angle + act.half).fillPath();
-        g.fillStyle(0xff1744, 0.18).slice(0, 0, act.r, act.angle - act.half, act.angle + act.half).fillPath();
-        g.lineStyle(4, 0xff1744, 0.9).slice(0, 0, act.r, act.angle - act.half, act.angle + act.half).strokePath();
+        if (act.breath) g.fillStyle(this.atk.fx[0], 0.2).slice(0, 0, act.r, act.angle - act.half, act.angle + act.half).fillPath();
+        g.fillStyle(this.atk.warn, 0.18).slice(0, 0, act.r, act.angle - act.half, act.angle + act.half).fillPath();
+        g.lineStyle(4, this.atk.warn, 0.95).slice(0, 0, act.r, act.angle - act.half, act.angle + act.half).strokePath();
         const dmg = act.damage * e.damageMult;
         this.hazards.push({
           left: act.ms,
@@ -1407,8 +1451,16 @@ export class GameScene extends Phaser.Scene {
           run: () => {
             g.destroy();
             const slash = this.add.graphics({ x: act.x, y: act.y }).setDepth(8);
-            slash.fillStyle(0xffffff, 0.5).slice(0, 0, act.r, act.angle - act.half, act.angle + act.half).fillPath();
+            slash.fillStyle(this.atk.fx[0], 0.5).slice(0, 0, act.r, act.angle - act.half, act.angle + act.half).fillPath();
             this.tweens.add({ targets: slash, alpha: 0, duration: 250, onComplete: () => slash.destroy() });
+            // 부채꼴 안에 맵 바닥 효과를 두 줄로 찍는다(가운데 → 바깥)
+            const fan = Math.max(1, Math.round(act.half * 2.2));
+            for (const k of [0.45, 0.8]) {
+              for (let i = 0; i <= fan; i++) {
+                const a = act.angle - act.half + (2 * act.half * i) / fan;
+                this.stampFx(act.x + Math.cos(a) * act.r * k, act.y + Math.sin(a) * act.r * k, act.r * 0.22, 420, 2);
+              }
+            }
             const d = Phaser.Math.Distance.Between(act.x, act.y, this.player.x, this.player.y);
             const a = Phaser.Math.Angle.Between(act.x, act.y, this.player.x, this.player.y);
             if (d < act.r + 18 && Math.abs(Phaser.Math.Angle.Wrap(a - act.angle)) <= act.half) {
@@ -1438,7 +1490,13 @@ export class GameScene extends Phaser.Scene {
       case 'shot':
       case 'orb': {
         const homing = act.kind === 'orb';
-        const img = this.add.image(act.x, act.y, homing ? 'e-orb' : 'e-shot').setDepth(9).setScale(homing ? 1 : act.kind === 'shot' ? act.size : 1);
+        const size = act.kind === 'shot' ? act.size : 1;
+        // 맵 테마 탄(가시·초승달·화염구·얼음 조각·유령불·별빛). 추적 구체는 맵 색으로 물들임. 판정 반지름은 그대로
+        const img = !homing && this.atkShot
+          ? this.add.image(act.x, act.y, this.atkShot).setDepth(9)
+          : this.add.image(act.x, act.y, homing ? 'e-orb' : 'e-shot').setDepth(9).setScale(homing ? 1 : size);
+        if (!homing && this.atkShot) img.setDisplaySize(46 * size, (46 * size * img.height) / img.width);
+        if (homing) img.setTint(this.atk.warn);
         this.enemyShots.push({
           img, homing, speed: act.speed, vx: Math.cos(act.angle) * act.speed, vy: Math.sin(act.angle) * act.speed,
           life: act.kind === 'orb' ? act.lifeMs : 4000, damage: act.damage, r: homing ? 14 : 8 * (act.kind === 'shot' ? act.size : 1), src: e,
@@ -1449,15 +1507,21 @@ export class GameScene extends Phaser.Scene {
         // 직선 범위(검기·뿌리·가시): 예고 직사각형 → 시간이 지나면 판정. 예고와 판정 위치가 같다.
         const cx = act.x + (Math.cos(act.angle) * act.length) / 2;
         const cy = act.y + (Math.sin(act.angle) * act.length) / 2;
-        const warn = this.add.rectangle(cx, cy, act.length, act.width, 0xff1744, 0.16).setStrokeStyle(4, 0xff1744, 0.85).setRotation(act.angle).setDepth(4);
+        const warn = this.add.rectangle(cx, cy, act.length, act.width, this.atk.warn, 0.16).setStrokeStyle(4, this.atk.warn, 0.95).setRotation(act.angle).setDepth(4);
         const dmg = act.damage * e.damageMult;
         this.hazards.push({
           left: act.ms,
           objs: [warn],
           run: () => {
             warn.destroy();
-            const fx = this.add.rectangle(cx, cy, act.length, act.width, 0xffe0b2, 0.6).setRotation(act.angle).setDepth(8);
+            const fx = this.add.rectangle(cx, cy, act.length, act.width, this.atk.fx[0], 0.5).setRotation(act.angle).setDepth(8);
             this.tweens.add({ targets: fx, alpha: 0, duration: 250, onComplete: () => fx.destroy() });
+            // 직선을 따라 맵 바닥 효과가 줄지어 터짐(얼음 가시 줄·불길 줄…)
+            const n = Math.min(8, Math.max(2, Math.round(act.length / Math.max(act.width * 1.3, 70))));
+            for (let i = 0; i < n; i++) {
+              const d = ((i + 0.5) / n) * act.length;
+              this.stampFx(act.x + Math.cos(act.angle) * d, act.y + Math.sin(act.angle) * d, act.width * 0.75, 420, 2);
+            }
             const dx = this.player.x - act.x;
             const dy = this.player.y - act.y;
             const along = dx * Math.cos(act.angle) + dy * Math.sin(act.angle);
@@ -1472,9 +1536,9 @@ export class GameScene extends Phaser.Scene {
         const g = this.add.graphics({ x: act.x, y: act.y }).setDepth(4);
         if (act.band) {
           // 2페이즈 연속 고리: 그 띠만 빨갛게(안쪽 초록 안전 원 없음 — 여러 겹이 겹쳐 헷갈리지 않게)
-          g.lineStyle(act.outer - act.inner, 0xff1744, 0.16).strokeCircle(0, 0, (act.inner + act.outer) / 2);
-        } else g.fillStyle(0xff1744, 0.14).fillCircle(0, 0, act.outer);
-        g.fillStyle(0x0d0f14, 0.0).lineStyle(4, 0xff1744, 0.9).strokeCircle(0, 0, act.outer).strokeCircle(0, 0, act.inner);
+          g.lineStyle(act.outer - act.inner, this.atk.warn, 0.16).strokeCircle(0, 0, (act.inner + act.outer) / 2);
+        } else g.fillStyle(this.atk.warn, 0.14).fillCircle(0, 0, act.outer);
+        g.fillStyle(0x0d0f14, 0.0).lineStyle(4, this.atk.warn, 0.95).strokeCircle(0, 0, act.outer).strokeCircle(0, 0, act.inner);
         const safe = this.add.circle(act.x, act.y, act.inner, 0x69f0ae, act.band ? 0 : 0.15).setDepth(4);
         const dmg = act.damage * e.damageMult;
         this.hazards.push({
@@ -1483,8 +1547,17 @@ export class GameScene extends Phaser.Scene {
           run: () => {
             g.destroy();
             safe.destroy();
-            const wave = this.add.circle(act.x, act.y, act.inner).setStrokeStyle(14, 0xffcc80, 0.8).setDepth(8);
+            const wave = this.add.circle(act.x, act.y, act.inner).setStrokeStyle(14, this.atk.fx[0], 0.8).setDepth(8);
             this.tweens.add({ targets: wave, radius: act.outer, alpha: 0.1, duration: 300, onComplete: () => wave.destroy() });
+            // 고리를 따라 맵 바닥 효과를 둘러 찍는다
+            const mid = (act.inner + act.outer) / 2;
+            const band = Math.min(act.outer - act.inner, 2.2 * M);
+            const n = Math.min(14, Math.max(6, Math.round((Math.PI * 2 * mid) / (band * 1.8))));
+            const a0 = Math.random() * Math.PI;
+            for (let i = 0; i < n; i++) {
+              const a = a0 + (i / n) * Math.PI * 2;
+              this.stampFx(act.x + Math.cos(a) * mid, act.y + Math.sin(a) * mid, band * 0.55, 420, 1);
+            }
             const d = Phaser.Math.Distance.Between(act.x, act.y, this.player.x, this.player.y);
             if (d > act.inner - 18 && d < act.outer + 18) this.damagePlayer(dmg, e, true);
           },
@@ -1965,6 +2038,28 @@ export class GameScene extends Phaser.Scene {
    * 드래곤이 받는 피해. 엘리트·보스의 한 방은 최대 HP의 35%를 넘지 않는다(기획서 5장).
    * pattern=true면 무적 시간과 상관없이 들어간다(예고된 큰 공격).
    */
+  // ───────── 맵 테마 공격 효과(B안 2026-11-25) ─────────
+  private atk = attackTheme(1);
+  private atkDecal: string | null = null;
+  private atkShot: string | null = null;
+  private atkStamps = 0;
+
+  /** 맵 바닥 효과를 한 번 찍고(크게 → 사라짐) 테마 입자를 튀긴다. 동시에 40개 넘으면 그림은 생략(판정과 무관) */
+  private stampFx(x: number, y: number, r: number, ms = 520, sparks = 5): void {
+    if (this.atkDecal && this.atkStamps < 40) {
+      this.atkStamps++;
+      const img = this.add.image(x, y, this.atkDecal).setDisplaySize(r * 2.2, r * 2.2).setDepth(8).setRotation(Math.random() * Math.PI * 2).setAlpha(0.95);
+      this.tweens.add({
+        targets: img, alpha: 0, scaleX: img.scaleX * 1.12, scaleY: img.scaleY * 1.12, duration: ms, ease: 'Quad.In',
+        onComplete: () => {
+          img.destroy();
+          this.atkStamps--;
+        },
+      });
+    }
+    if (sparks > 0) this.fx.burst(x, y, this.atk.fx, sparks, r * 0.9, Math.max(10, Math.min(22, r * 0.25)));
+  }
+
   private damagePlayer(amount: number, src?: Enemy, pattern = false, mapKind?: 'aura' | 'trap'): void {
     if (this.mode !== 'play' || this.invulnerable) return;
     if (!pattern && this.time.now < this.invincibleUntil) return;
@@ -1981,7 +2076,8 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     // 상한 기준 = 연구소 강화 전 최대 HP(기본 + 전투 중 패시브). 연구소 Lv.0이면 4단계와 똑같다.
-    const cap = src ? HIT_CAP[src.rank] * (this.stats.maxHp - this.permHpBonus) : Infinity;
+    // 맵 기믹(근접 피해·방해 요소)도 한 번에 최대 HP의 20%까지(봇 측정 2026-11-25: 상한이 없어 0.5초 만에 HP가 다 닳는 구간이 있었음)
+    const cap = src ? HIT_CAP[src.rank] * (this.stats.maxHp - this.permHpBonus) : mapKind ? BURST_CAP.mapHit * (this.stats.maxHp - this.permHpBonus) : Infinity;
     // 받는 피해 감소: 드래곤 특성·장비(damageTaken) × 전용 액티브(신성한 가호·대지의 수호) × 고대의 보호막
     const aegis = 1; // 고대의 보호막은 룬(받는 피해 감소)으로 바뀌어 능력치에 이미 들어감
     // 약화된 적(샌드 모래 산탄)은 주는 피해가 줄고, 샌드 특성은 약화된 적에게 받는 피해를 한 번 더 줄인다
@@ -1990,7 +2086,17 @@ export class GameScene extends Phaser.Scene {
     // 첫 전투 보호(2026-11-23 제보: 쉬움 1단계 13초 만에 사망 — 조작이 익숙하지 않아 무리 속으로 들어감):
     // 쉬움 1단계 처음 60초만 몸 부딪힘 피해 ×0.75. 보스·패턴 공격은 그대로
     const rookie = src && !pattern && this.difficulty === 'easy' && this.stage.id === 1 && this.elapsed < 60_000 ? 0.75 : 1;
-    const dmg = Math.min(amount * rookie * weak * this.stats.damageTaken * (1 - this.signature.reduce) * aegis, cap);
+    let dmg = Math.min(amount * rookie * weak * this.stats.damageTaken * (1 - this.signature.reduce) * aegis, cap);
+    // 연속 피해 상한(src/data/attackThemes.ts BURST_CAP): 엘리트·보스·맵 기믹에게 1초 안에 받는 피해 합계는 최대 HP의 50%까지
+    if (src ? src.rank !== 'normal' : !!mapKind) {
+      this.burstLog = this.burstLog.filter((b) => this.elapsed - b.at < BURST_CAP.windowMs);
+      const used = this.burstLog.reduce((s, b) => s + b.dmg, 0);
+      const room = BURST_CAP.ratio * (this.stats.maxHp - this.permHpBonus) - used;
+      if (dmg > room) this.burstCut += dmg - Math.max(0, room); // 봇 측정: 상한이 막은 피해
+      dmg = Math.max(0, Math.min(dmg, room));
+      this.burstLog.push({ at: this.elapsed, dmg });
+    }
+    this.hitLog.push({ at: Math.round(this.elapsed), dmg: Math.round(dmg), rank: src ? src.rank : mapKind ?? 'map', pattern });
     this.hp -= dmg;
     this.hurtLog.total += dmg;
     if (mapKind) this.hurtLog[mapKind] += dmg;

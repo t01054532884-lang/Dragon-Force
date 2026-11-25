@@ -19,6 +19,8 @@ export interface BotOpt {
   difficulty?: 'easy' | 'hard';
   /** false면 11~20단계 맵 기믹(근접 피해·방해 요소)을 끄고 잰다(비교용) */
   hazards?: boolean;
+  /** true면 쓰러져도 끝내지 않고 HP를 다시 채워 계속(쓰러진 시각을 기록) — 한 판 전체의 받는 피해를 재는 용도(2026-11-25) */
+  immortal?: boolean;
 }
 
 export function installBot(game: Phaser.Game): void {
@@ -59,6 +61,16 @@ function play(g: Any, s: Any, opt: BotOpt, resolve: (v: unknown) => void): void 
     s.stats.maxHp *= opt.hp;
     s.hp = s.stats.maxHp;
   }
+  const deaths: { sec: number; by: string }[] = [];
+  if (opt.immortal) {
+    const orig = s.fail.bind(s);
+    s.fail = (why: string) => {
+      if (why !== 'dead') return orig(why);
+      const last = s.hitLog[s.hitLog.length - 1];
+      deaths.push({ sec: Math.round(s.elapsed / 1000), by: last ? last.rank : '?' });
+      s.hp = s.stats.maxHp;
+    };
+  }
   const lv: [number, number][] = [];
   let lastLevel = 1;
   const maxMs = (opt.maxSec ?? 660) * 1000;
@@ -93,6 +105,7 @@ function play(g: Any, s: Any, opt: BotOpt, resolve: (v: unknown) => void): void 
         waveEnd: d.record.waveEndAt.map(sec), eliteAt: d.record.eliteSpawnAt.map(sec), eliteKill: d.record.eliteKillMs.map(sec),
         bossAt: sec(d.record.bossSpawnAt), bossKill: sec(d.record.bossKillMs), firstLevels: lv.slice(0, 5),
         hurt: Math.round(s.hurtLog.total), hurtAura: Math.round(s.hurtLog.aura), hurtTrap: Math.round(s.hurtLog.trap), maxHp: Math.round(s.stats.maxHp),
+        ...hitStats(s), deaths,
         sigUses: s.signature.uses, sigDmg: Math.round(s.dmgLog.signature ?? 0), dmg: Math.round(Object.values(s.dmgLog as Record<string, number>).reduce((a, b) => a + b, 0)),
       });
       return;
@@ -100,6 +113,48 @@ function play(g: Any, s: Any, opt: BotOpt, resolve: (v: unknown) => void): void 
     setTimeout(chunk, 0);
   };
   chunk();
+}
+
+/**
+ * 받은 피해 분석(최대 HP 대비 %): 엘리트·보스 한 방 최대, 엘리트·보스 1초 합계 최대, 모든 적 3초 합계 최대.
+ * 상한 기준은 게임과 같이 연구소 HP를 뺀 최대 HP(봇은 연구소 0이라 같음).
+ */
+function hitStats(s: Any): Record<string, Any> {
+  const hits = s.hitLog as { at: number; dmg: number; rank: string }[];
+  const max = s.stats.maxHp as number;
+  const pct = (v: number) => Math.round((v / max) * 1000) / 10;
+  const win = (list: typeof hits, ms: number) => {
+    let best = 0;
+    let sum = 0;
+    let j = 0;
+    for (let i = 0; i < list.length; i++) {
+      sum += list[i].dmg;
+      while (list[i].at - list[j].at >= ms) sum -= list[j++].dmg;
+      best = Math.max(best, sum);
+    }
+    return best;
+  };
+  const big = hits.filter((h) => h.rank === 'elite' || h.rank === 'boss');
+  // 가장 빨리 최대 HP만큼 받은 시간(모든 피해 — 일반·맵 기믹 포함). 짧을수록 "순식간에 녹는" 구간
+  let fastest = Infinity;
+  let acc = 0;
+  let k = 0;
+  for (let i = 0; i < hits.length; i++) {
+    acc += hits[i].dmg;
+    while (acc - hits[k].dmg >= max && k < i) acc -= hits[k++].dmg;
+    if (acc >= max) fastest = Math.min(fastest, hits[i].at - hits[k].at);
+  }
+  const bySrc: Record<string, number> = {};
+  for (const h of hits) bySrc[h.rank] = (bySrc[h.rank] ?? 0) + h.dmg;
+  return {
+    hitMaxPct: pct(big.reduce((m, h) => Math.max(m, h.dmg), 0)),
+    burst1sPct: pct(win(big, 1000)),
+    all3sPct: pct(win(hits, 3000)),
+    bigHits: big.length,
+    capCutPct: pct(s.burstCut ?? 0),
+    full100Ms: fastest === Infinity ? -1 : fastest,
+    srcPct: Object.fromEntries(Object.entries(bySrc).map(([k2, v]) => [k2, pct(v)])) as Any,
+  };
 }
 
 /** 단순 조작: 가까운 적은 피하고(엘리트·보스 가중), 보석·아이템으로 다가가고, 벽에서 멀어진다. 전용 스킬은 적이 모이면 쓴다 */
