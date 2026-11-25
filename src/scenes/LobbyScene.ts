@@ -31,6 +31,8 @@ import { DEMO, PLATFORM, platform } from '../platform';
 import { goTab, navTabsWithAlerts } from '../ui/screen';
 import { accountLevel } from '../systems/AccountLevel';
 import { claimablePass, syncPass } from '../systems/Pass';
+import { claimableRubyPass } from '../systems/RubyPass';
+import { rubyPassValuePct } from '../data/rubyPass';
 import { ATTENDANCE_28, activityRewardIcon, activityRewardText } from '../data/activity';
 import { fullH } from '../ui/layout';
 import { purchases } from '../systems/Purchases';
@@ -183,7 +185,7 @@ export class LobbyScene extends Phaser.Scene {
     giftAlert(this, 658, 310, 76, pendingGifts(p.mailbox, now).map((g) => g.id));
     side(658, 1, 'ic-gear', '설정', () => this.openSettings());
     // 드래곤 패스(2026-11-23 제작자 요청: 설정 아래) — 받을 칸이 있으면 !
-    side(658, 2, this.textures.exists('pass-royal') ? 'pass-royal' : 'ic-crown', '패스', () => this.scene.start('pass'), claimablePass(syncPass(p, t0)).length > 0);
+    side(658, 2, this.textures.exists('pass-royal') ? 'pass-royal' : 'ic-crown', '패스', () => this.openPassMenu(), claimablePass(syncPass(p, t0)).length > 0 || claimableRubyPass(p).length > 0);
 
     // ── 횃불 · 제단 · 출격 드래곤(숨쉬기 + 터치하면 살짝 뛰어오름)
     torch(this, 172, 560);
@@ -347,28 +349,52 @@ export class LobbyScene extends Phaser.Scene {
     const pk = PACKAGES[LV_PROMO.indexOf(n) % PACKAGES.length];
     const royalFirst = n >= 20; // 높은 레벨일수록 로열 패스를 먼저 권함
     playSfx(this, 'sfx-upgrade');
-    const m = modal(this, 660, 700, `계정 레벨 ${n} 달성!`, { closeOnBackdrop: true, ribbonColor: COLOR.gold, depth: 900 });
-    m.body(text(this, 0, -250, '축하드립니다! 🎉', TYPE.title, COLOR.gold, true, true).setOrigin(0.5));
-    m.body(text(this, 0, -200, n >= 20 ? '여기까지 온 용사님께 드리는 특별 제안' : '더 빠르게 강해지고 싶다면 지금이 기회예요', TYPE.caption, COLOR.text, true, true).setOrigin(0.5));
-    const card = (x: number, icon: string, title: string, line1: string, line2: string, go: () => void, kind: 'magic' | 'cta') => {
+    const m = modal(this, 690, 860, `계정 레벨 ${n} 달성!`, { closeOnBackdrop: true, ribbonColor: COLOR.gold, depth: 900 });
+    // 축하 문장 그림(2026-11-26 Higgsfield): 가운데 둥근 판에 레벨 숫자
+    if (this.textures.exists('lvup-crest')) {
+      const crest = this.add.image(0, -270, 'lvup-crest');
+      crest.setScale(560 / crest.width);
+      m.body(crest);
+      m.body(text(this, -14, -284, String(n), 64, 0x7a3a00, true, true).setOrigin(0.5));
+    } else m.body(text(this, 0, -270, '축하드립니다! 🎉', TYPE.title, COLOR.gold, true, true).setOrigin(0.5));
+    m.body(text(this, 0, -122, '축하드립니다! ' + (n >= 20 ? '여기까지 온 용사님께 드리는 특별 제안' : '더 빠르게 강해지고 싶다면 지금이 기회예요'), TYPE.caption, COLOR.text, true, true).setOrigin(0.5));
+    const card = (x: number, icon: string, title: string, line1: string, line2: string, go: () => void, kind: 'magic' | 'cta' | 'growth') => {
       const g = this.add.graphics();
-      g.fillStyle(0x2b2442, 1).fillRoundedRect(x - 150, -160, 300, 330, 20);
-      g.lineStyle(3, COLOR.gold, 0.9).strokeRoundedRect(x - 150, -160, 300, 330, 20);
+      g.fillStyle(0x2b2442, 1).fillRoundedRect(x - 102, -86, 204, 330, 18);
+      g.lineStyle(3, COLOR.gold, 0.9).strokeRoundedRect(x - 102, -86, 204, 330, 18);
       m.body(g);
-      if (this.textures.exists(icon)) m.body(this.add.image(x, -82, icon).setDisplaySize(120, 120));
-      m.body(text(this, x, 0, title, TYPE.body, COLOR.gold, true, true).setOrigin(0.5));
-      m.body(text(this, x, 38, line1, 22, 0xffe14d, true, true).setOrigin(0.5));
-      m.body(text(this, x, 70, line2, TYPE.tiny, COLOR.textSub, true, true).setOrigin(0.5));
-      m.body(button(this, x, 128, 240, 62, '보러 가기', () => { m.close(); go(); }, { kind, size: TYPE.caption }).root);
+      if (this.textures.exists(icon)) m.body(this.add.image(x, -10, icon).setDisplaySize(110, 110));
+      m.body(text(this, x, 70, title, 22, COLOR.gold, true, true).setOrigin(0.5));
+      m.body(text(this, x, 104, line1, 19, 0xffe14d, true, true).setOrigin(0.5));
+      m.body(text(this, x, 134, line2, 14, COLOR.textSub, true, true).setOrigin(0.5).setAlign('center'));
+      m.body(button(this, x, 198, 170, 58, '보러 가기', () => { m.close(); go(); }, { kind, size: TYPE.caption }).root);
     };
-    const passCard = (x: number) => card(x, royalFirst ? 'pass-royal' : 'pass-premium', '드래곤 패스',
-      `최대 ${passValuePct(royalFirst ? 'royal' : 'premium').toLocaleString()}% 가치`, '레벨만 올려도 보상이 쏟아져요', () => this.scene.start('pass'), 'magic');
-    const pkgCard = (x: number) => card(x, ['pkg-dragon', 'pkg-gear', 'pkg-rune'][PACKAGES.indexOf(pk)] ?? 'pkg-dragon', pk.name,
-      `₩${pk.krw.toLocaleString()} · 계정당 1회`, '한정 수량 · 놓치면 다시 없어요', () => this.scene.start('shop', { focus: 'package' }), 'cta');
-    passCard(-160);
-    pkgCard(160);
-    m.body(button(this, 0, 262, 260, 64, '닫기', () => m.close(), { kind: 'secondary', size: TYPE.caption }).root);
+    card(-215, royalFirst ? 'pass-royal' : 'pass-premium', '드래곤 패스', `최대 ${passValuePct('royal').toLocaleString()}% 가치`, '시즌마다 새 보상', () => this.scene.start('pass'), 'magic');
+    card(0, this.textures.exists('ruby-pack-5') ? 'ruby-pack-5' : 'ui-ruby', '루비 패스', `${rubyPassValuePct().toLocaleString()}% 가치`, '레벨만 올려도\n루비가 쏟아져요', () => this.scene.start('rubypass'), 'cta');
+    card(215, ['pkg-dragon', 'pkg-gear', 'pkg-rune'][PACKAGES.indexOf(pk)] ?? 'pkg-dragon', pk.name, `₩${pk.krw.toLocaleString()}`, '계정당 1회 한정', () => this.scene.start('shop', { focus: 'package' }), 'growth');
+    m.body(button(this, 0, 340, 260, 64, '닫기', () => m.close(), { kind: 'secondary', size: TYPE.caption }).root);
     m.box.once('destroy', then); // 닫으면 이어서 출석 팝업
+  }
+
+  /** 로비 "패스" → 드래곤 패스 / 루비 패스 고르기(2026-11-26 제작자) */
+  private openPassMenu(): void {
+    const p = Progress.load();
+    const m = modal(this, 640, 560, '패스', { closeOnBackdrop: true, ribbonColor: COLOR.gold, depth: 900 });
+    const row = (y: number, icon: string, title: string, sub: string, alert: boolean, go: () => void) => {
+      const g = this.add.graphics();
+      g.fillStyle(0x2b2442, 1).fillRoundedRect(-280, y - 80, 560, 160, 20);
+      g.lineStyle(3, COLOR.gold, 0.9).strokeRoundedRect(-280, y - 80, 560, 160, 20);
+      m.body(g);
+      if (this.textures.exists(icon)) m.body(this.add.image(-200, y, icon).setDisplaySize(124, 124));
+      m.body(text(this, -120, y - 26, title, TYPE.heading, COLOR.gold, true, true).setOrigin(0, 0.5));
+      m.body(text(this, -120, y + 18, sub, TYPE.tiny, COLOR.text, true, true).setOrigin(0, 0.5));
+      if (alert) m.body(text(this, 250, y - 56, '!', 30, COLOR.danger, true, true).setOrigin(0.5));
+      const hit = this.add.rectangle(0, y, 560, 160, 0xffffff, 0.001).setInteractive({ useHandCursor: true });
+      hit.on('pointerup', () => { m.close(); go(); });
+      m.body(hit);
+    };
+    row(-100, this.textures.exists('pass-royal') ? 'pass-royal' : 'ic-crown', '드래곤 패스', `28일 시즌 · 최대 ${passValuePct('royal').toLocaleString()}% 가치`, claimablePass(syncPass(p, gameNow())).length > 0, () => this.scene.start('pass'));
+    row(90, this.textures.exists('ruby-pack-5') ? 'ruby-pack-5' : 'ui-ruby', '루비 패스', `계정 레벨 보상 · ${rubyPassValuePct().toLocaleString()}% 가치`, claimableRubyPass(p).length > 0, () => this.scene.start('rubypass'));
   }
 
   /**

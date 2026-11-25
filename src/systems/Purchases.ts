@@ -2,6 +2,7 @@ import type { ServerSkinState, ServerSpin } from '../data/skinRoulette';
 import { DEALS, FREE_DAILY_GIFT, PACKAGES, RUBY_PRODUCTS, type PackageDef } from '../data/economy';
 import { iapProduct, passSeasonOf, type IapGrant, type ServerGrant } from '../data/iap';
 import { grantVerifiedPass } from './Pass';
+import { grantVerifiedRubyPass } from './RubyPass';
 import { grantVerifiedSkinKeys } from './Skins';
 import { dealPeriodKey, Progress, withTx, type PlayerProgress, type Result } from './Progress';
 
@@ -124,6 +125,7 @@ export function applyServerGrant(p: PlayerProgress, g: ServerGrant, now: number)
   if (def.kind === 'ruby') return grantVerifiedRubies(p, g.transactionId, g.grant.rubies);
   if (def.kind === 'package') return grantVerifiedPackage(p, g.transactionId, g.productId, now, false, g.purchasedAt);
   if (def.kind === 'skinkey') return grantVerifiedSkinKeys(p, g.transactionId, g.grant.skinKeys ?? def.grant.skinKeys ?? 1);
+  if (def.kind === 'rubypass') return grantVerifiedRubyPass(p, g.transactionId);
   const season = g.season ?? passSeasonOf(g.purchasedAt);
   if (season !== passSeasonOf(now)) return { ok: false, reason: 'expired' };
   return grantVerifiedPass(p, g.transactionId, g.grant.pass ?? 'premium', now);

@@ -167,6 +167,8 @@ export interface PlayerProgress {
   shopLog: string[];
   /** 드래곤 패스(2026-11-23): 시즌 번호 · 시즌 시작 때 계정 경험치 · 받은 칸('free-3' 등) · 유료 줄 구매 여부 */
   pass: PassState;
+  /** 루비 패스(2026-11-26): 유료 줄 구매 여부 · 받은 칸('free-3'·'paid-12'). 시즌 없음(계정 레벨 1~30) */
+  rubyPass: RubyPassState;
   /** 스킨(2026-11-23 밤): 가진 스킨 · 장착(계정 공통) · 열쇠 · 이번 주 룰렛 판에서 뽑은 칸 */
   skins: SkinState;
 }
@@ -178,6 +180,11 @@ export interface SkinState {
   keys: number;
   /** 룰렛 판: 주 키('w2026-11-23') · 그 주에 뽑은 칸 아이디 · 지금까지 돌린 횟수(난수 회차) */
   board: { week: string; picked: string[]; spins: number };
+}
+
+export interface RubyPassState {
+  owned: boolean;
+  claimed: string[];
 }
 
 export interface PassState {
@@ -204,6 +211,7 @@ export function defaultProgress(now = Date.now()): PlayerProgress {
     mailbox: newMailbox(),
     shopLog: [],
     pass: { season: 0, baseXp: 0, claimed: [], premium: false, royal: false },
+    rubyPass: { owned: false, claimed: [] },
     skins: { owned: [], cape: null, trail: null, keys: 0, board: { week: '', picked: [], spins: 0 } },
     saveVersion: SAVE_VERSION,
     gold: 0,
@@ -359,6 +367,10 @@ export function sanitize(raw: Record<string, unknown>): PlayerProgress {
       const rp = (raw.pass ?? {}) as Partial<PassState>;
       const royal = rp.royal === true;
       return { season: int(rp.season, 0, 1e6, 0), baseXp: int(rp.baseXp, 0, 1e12, 0), claimed: strs(rp.claimed, 200), premium: rp.premium === true || royal, royal };
+    })(),
+    rubyPass: (() => {
+      const rr = (raw.rubyPass ?? {}) as Partial<RubyPassState>;
+      return { owned: rr.owned === true, claimed: strs(rr.claimed, 100) };
     })(),
     saveVersion: SAVE_VERSION,
     gold: int(raw.gold, 0, 999_999_999, 0),

@@ -5,6 +5,7 @@ import { LabScene } from './scenes/LabScene';
 import { DragonsScene } from './scenes/DragonsScene';
 import { ShopScene } from './scenes/ShopScene';
 import { PassScene } from './scenes/PassScene';
+import { RubyPassScene } from './scenes/RubyPassScene';
 import { EquipScene } from './scenes/EquipScene';
 import { MissionScene } from './scenes/MissionScene';
 import { EventScene } from './scenes/EventScene';
@@ -53,7 +54,7 @@ async function boot(): Promise<void> {
     physics: { default: 'arcade', arcade: { debug: false } },
     // 개발 서버 전용 ?timer=1: 화면이 숨겨진 미리보기 창에서도 게임이 돌게(requestAnimationFrame 대신 타이머) — 자동 확인용
     ...(import.meta.env.DEV && new URLSearchParams(location.search).has('timer') ? { fps: { forceSetTimeOut: true, target: 30 } } : {}),
-    scene: [TitleScene, LobbyScene, GameScene, LabScene, DragonsScene, ShopScene, EquipScene, MissionScene, EventScene, SkinScene, GiftScene, PassScene], // 첫 화면은 시작 화면(로고) → 로비
+    scene: [TitleScene, LobbyScene, GameScene, LabScene, DragonsScene, ShopScene, EquipScene, MissionScene, EventScene, SkinScene, GiftScene, PassScene, RubyPassScene], // 첫 화면은 시작 화면(로고) → 로비
   });
 
   // 메뉴 화면(전투 제외)은 시작할 때마다 기준 화면을 가운데로

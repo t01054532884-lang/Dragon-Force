@@ -1,5 +1,6 @@
 import { DEALS, PACKAGES, RUBY_PRODUCTS, type PackageDef } from './economy';
 import { PASS } from './pass';
+import { RUBY_PASS } from './rubyPass';
 import { SKIN_ROULETTE } from './skins';
 
 /**
@@ -9,7 +10,7 @@ import { SKIN_ROULETTE } from './skins';
  * - 이 파일은 순수 데이터·함수만(Progress·플랫폼을 불러오지 않음 → 서버 번들에 그대로 들어감).
  */
 
-export type IapKind = 'ruby' | 'package' | 'pass' | 'skinkey';
+export type IapKind = 'ruby' | 'package' | 'pass' | 'skinkey' | 'rubypass';
 /** 구매 제한 기간: 일일·주간·월간(KST) · 계정당 1번(once) · 패스 시즌 · 제한 없음(루비) */
 export type IapPeriod = 'daily' | 'weekly' | 'monthly' | 'once' | 'season' | 'none';
 
@@ -23,6 +24,8 @@ export interface IapGrant {
   pass?: 'premium' | 'royal';
   /** 스킨 룰렛 열쇠(2026-11-23 밤) */
   skinKeys?: number;
+  /** 루비 패스 유료 줄(2026-11-26) */
+  rubyPass?: boolean;
 }
 
 export interface IapProduct {
@@ -61,6 +64,8 @@ export const IAP_PRODUCTS: IapProduct[] = [
   { productId: PASS.productId.premium, kind: 'pass', name: '드래곤 패스 프리미엄', krw: PASS.price.premium, grant: { ...emptyGrant, pass: 'premium' }, period: 'season', limit: 1 },
   { productId: PASS.productId.royal, kind: 'pass', name: '드래곤 패스 로열', krw: PASS.price.royal, grant: { ...emptyGrant, pass: 'royal' }, period: 'season', limit: 1 },
   // 스킨 룰렛 열쇠 1개(제작자 결정 2026-11-23 밤: 4,900원, 현금 결제만). 소모성, 구매 제한 없음
+  // 루비 패스(2026-11-26 제작자: ₩25,000 · 가치 500% · 계정당 1번). 비소모성처럼 한 번만
+  { productId: RUBY_PASS.productId, kind: 'rubypass', name: '루비 패스', krw: RUBY_PASS.price, grant: { ...emptyGrant, rubyPass: true }, period: 'once', limit: 1 },
   { productId: SKIN_ROULETTE.keyProductId, kind: 'skinkey', name: '스킨 룰렛 열쇠', krw: SKIN_ROULETTE.keyKrw, grant: { ...emptyGrant, skinKeys: 1 }, period: 'none', limit: Infinity },
 ];
 
