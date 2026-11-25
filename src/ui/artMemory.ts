@@ -9,7 +9,7 @@ import { ART_FILES, LAZY_ART } from './art';
  * 돌아가면 저절로 다시 올라온다(브라우저 캐시라 빠름).
  * 내리는 것은 ART_FILES에 있는 실제 그림 파일만 — 도형으로 만든 대체 그림은 건드리지 않는다.
  */
-const BATTLE_UNUSED = /^(scrbg-|lobby-bg|title-deco|skin-board-bg|chest-|sigil-|portrait-|equip-|pass-|event-|pkg-|logo-|skin-icon-)/;
+const BATTLE_UNUSED = /^(scrbg-|att-|lobby-bg|title-deco|skin-board-bg|chest-|sigil-|portrait-|equip-|pass-|event-|pkg-|logo-|skin-icon-)/;
 
 /** 전투에서 안 쓰는 그림인가(탑다운은 출격 드래곤과 블랙 — 다른 드래곤 필살기 연출이 빌려 씀 — 만 씀) */
 function battleUnused(key: string, dragonId: string): boolean {

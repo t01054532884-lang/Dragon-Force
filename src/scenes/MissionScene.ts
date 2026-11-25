@@ -334,10 +334,18 @@ export class MissionScene extends Phaser.Scene {
         const got = i < doneInCycle;
         const today = !st.claimedToday && i === st.index;
         const big = (i + 1) % 7 === 0;
-        box.add(plate(this, x, y, CW, CH, { r: 16, gold: today || big, fill: got ? 0x1a1626 : big ? 0x3a2a5a : undefined }));
+        // 7·14·21·28일 큰 보상(2026-11-25 Higgsfield): 금테 카드 + 뒤에서 천천히 도는 빛살 + 루비 날은 루비 보물 더미
+        if (big && this.textures.exists('att-big-frame')) box.add(this.add.image(x, y - 8, 'att-big-frame').setDisplaySize(CW + 12, CH + 28).setAlpha(got ? 0.45 : 1));
+        else box.add(plate(this, x, y, CW, CH, { r: 16, gold: today || big, fill: got ? 0x1a1626 : big ? 0x3a2a5a : undefined }));
+        if (big && !got && this.textures.exists('att-rays')) {
+          const ray = this.add.image(x, y - 2, 'att-rays').setDisplaySize(132, 132).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.75);
+          box.add(ray);
+          this.tweens.add({ targets: ray, angle: 360, duration: 9000, repeat: -1 });
+        }
         box.add(text(this, x - CW / 2 + 14, y - CH / 2 + 18, `${i + 1}일`, 17, today ? COLOR.gold : COLOR.textSub, true, true).setOrigin(0, 0.5));
         const ic = activityRewardIcon(r);
-        if (this.textures.exists(ic.image)) box.add(this.add.image(x, y - 2, ic.image).setDisplaySize(62, 62).setAlpha(got ? 0.35 : 1));
+        const icImg = big && r.rubies && this.textures.exists('att-ruby-hoard') ? 'att-ruby-hoard' : ic.image;
+        if (this.textures.exists(icImg)) box.add(this.add.image(x, y - 2, icImg).setDisplaySize(big ? 76 : 62, big ? 76 : 62).setAlpha(got ? 0.35 : 1));
         else box.add(text(this, x, y - 2, ic.emoji, 40).setOrigin(0.5).setAlpha(got ? 0.35 : 1));
         box.add(text(this, x, y + CH / 2 - 22, ic.amount, 18, got ? COLOR.textDim : COLOR.text, true, true).setOrigin(0.5));
         if (got) box.add(text(this, x + CW / 2 - 22, y - CH / 2 + 20, '✔', 26, COLOR.ok, true, true).setOrigin(0.5));

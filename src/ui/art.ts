@@ -175,6 +175,10 @@ export const ART_FILES: Record<string, string> = {
   // 24차분(2026-11-24, 요청서 8 ③④): 스킨 룰렛 열쇠 아이콘 · 룰렛 판 배경(원본 art-src/roulette)
   'ui-skinkey': 'ui/ui-skinkey.webp',
   'skin-board-bg': 'ui/skin-board-bg.webp',
+  // 출석 큰 보상 강조(2026-11-25 Higgsfield, scripts/process_art_attbig.py): 금테 카드·빛살·루비 보물 더미
+  'att-big-frame': 'ui/att-big-frame.webp',
+  'att-rays': 'ui/att-rays.webp',
+  'att-ruby-hoard': 'ui/att-ruby-hoard.webp',
   // 화면 배경 7장(2026-11-25 Higgsfield, scripts/process_art_scrbg.py): 그 화면에 들어갈 때만 읽음(LAZY_ART, src/ui/screen.ts)
   ...Object.fromEntries(['missions', 'gifts', 'pass', 'attendance', 'achievements', 'shop', 'lab'].map((k) => [`scrbg-${k}`, `bg/scrbg-${k}.webp`])),
   // 23차분(2026-11-24, scripts/process_art_batch23.py, 요청서 8): 장비 등급 오라 3(512) · 장비 궤도 받침 4(192) — EquipScene.drawAura·drawOrbit
