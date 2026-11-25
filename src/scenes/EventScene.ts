@@ -12,6 +12,7 @@ import { screenFrame, type ScreenFrame } from '../ui/screen';
 import { COLOR, TYPE } from '../ui/theme';
 import { fullH } from '../ui/layout';
 import { getLang } from '../i18n';
+import { playSfx } from '../systems/Sfx';
 
 const KST = 9 * 3600_000;
 const fmtKst = (t: number) => {
@@ -319,6 +320,7 @@ export class EventScene extends Phaser.Scene {
     this.busy = true;
     this.last = r;
     this.cameras.main.flash(250, 255, 240, 200);
+    playSfx(this, r.essence ? 'sfx-roulette-jackpot' : 'sfx-roulette-win'); // 겨울 룰렛에도 소리(2026-11-26)
     this.time.delayedCall(350, () => {
       this.busy = false;
       this.refresh();

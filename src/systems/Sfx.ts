@@ -23,10 +23,12 @@ export const SFX_FILES: string[] = [
   'sfx-aurora-shot', 'sfx-mirror-ping', 'sfx-chrono-shot', 'sfx-void-shot', 'sfx-sand-shot', 'sfx-steel-disc', 'sfx-bloom-pop', 'sfx-howl-pulse', 'sfx-crimson-slash',
   'sfx-aurora-sweep', 'sfx-mirror-clone', 'sfx-chrono-tick', 'sfx-chrono-boom', 'sfx-void-hole', 'sfx-sand-swamp', 'sfx-steel-swords', 'sfx-bloom-thorns', 'sfx-howl-roar', 'sfx-crimson-drain',
   'sfx-roulette-tick', 'sfx-roulette-win', 'sfx-roulette-jackpot', 'sfx-key-use',
+  // 없던 순간 7종 — Higgsfield Mirelo(텍스트→효과음, 2026-11-26 AI 생성), 출처 docs/SOUND.md
+  'sfx-warn', 'sfx-boss-appear', 'sfx-victory', 'sfx-defeat', 'sfx-battle-start', 'sfx-cape-unfurl', 'sfx-upgrade',
 ];
 /** 보상·화면 소리(로비에서 미리 읽어 상점·보상·드래곤 화면이 같이 쓴다) */
 export const UI_SFX_FILES = ['sfx-reward', 'sfx-reward-rare', 'sfx-claim', 'sfx-essence', 'sfx-dragon-unlock', 'sfx-day7', 'sfx-ui-confirm', 'sfx-ui-error',
-  'sfx-roulette-tick', 'sfx-roulette-win', 'sfx-roulette-jackpot', 'sfx-key-use'];
+  'sfx-roulette-tick', 'sfx-roulette-win', 'sfx-roulette-jackpot', 'sfx-key-use', 'sfx-upgrade'];
 /** 상자 개봉 화면에서 미리 읽는 것 */
 export const CHEST_SFX_FILES = SFX_FILES.filter((k) => k.startsWith('sfx-chest') || k.startsWith('sfx-card'));
 /** 전투에서 미리 읽는 것 */
@@ -120,6 +122,15 @@ const RECIPES: Record<string, Recipe> = {
   'sfx-roulette-win': { ch: 'reward', gap: 300, f0: 880, f1: 1760, ms: 400, wave: 'triangle', gain: 0.05 },
   'sfx-roulette-jackpot': { ch: 'reward', gap: 800, f0: 523, f1: 2093, ms: 1000, wave: 'triangle', gain: 0.06 },
   'sfx-key-use': { ch: 'ui', gap: 300, f0: 700, f1: 1400, ms: 150, wave: 'square', gain: 0.03 },
+  // 2026-11-26 Higgsfield: 엘리트·보스 경고 뿔피리, 보스 등장 포효, 클리어 팡파르, 패배, 출격, 망토 펼침, 강화 성공
+  // fileVol은 파일 소리 크기(RMS) 실측으로 맞춤: 보스 등장 0.35(큼) · 망토 0.012 · 강화 0.039 · 클리어 0.069(작음)
+  'sfx-warn': { ch: 'battle', gap: 1500, f0: 220, f1: 180, ms: 600, wave: 'sawtooth', gain: 0.05, fileVol: 1.2 },
+  'sfx-boss-appear': { ch: 'battle', gap: 2000, f0: 120, f1: 60, ms: 1200, wave: 'sawtooth', gain: 0.07, noise: 0.5, fileVol: 0.75 },
+  'sfx-victory': { ch: 'reward', gap: 3000, f0: 523, f1: 1568, ms: 1500, wave: 'triangle', gain: 0.06, fileVol: 1.5 },
+  'sfx-defeat': { ch: 'reward', gap: 3000, f0: 392, f1: 196, ms: 1200, wave: 'triangle', gain: 0.05 },
+  'sfx-battle-start': { ch: 'battle', gap: 2000, f0: 330, f1: 660, ms: 600, wave: 'triangle', gain: 0.05, fileVol: 1.2 },
+  'sfx-cape-unfurl': { ch: 'battle', gap: 2000, f0: 900, f1: 1800, ms: 500, wave: 'sine', gain: 0.04, fileVol: 2.6 },
+  'sfx-upgrade': { ch: 'ui', gap: 200, f0: 660, f1: 1760, ms: 400, wave: 'triangle', gain: 0.05, fileVol: 2.0 },
   // 전용 스킬 준비 완료: 짧고 부드러운 딩
   'sfx-sig-ready': { ch: 'ui', gap: 1000, f0: 880, f1: 1175, ms: 180, wave: 'triangle', gain: 0.045 },
 };

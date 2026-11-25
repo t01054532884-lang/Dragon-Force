@@ -377,7 +377,7 @@ export class MissionScene extends Phaser.Scene {
   private claimAttendance(): void {
     const r = Progress.claimDailyAttendance(gameNow());
     if (r.ok) {
-      playSfx(this, 'sfx-claim');
+      playSfx(this, r.day % 7 === 0 ? 'sfx-day7' : 'sfx-claim'); // 7·14·21·28일 큰 보상은 전용 소리
       rewardPopup(this, `출석 ${r.day}일차 보상`, activityItems(r.reward, r.cardDragon, r.runeId));
     } else toast(this, r.reason === 'claimed' ? '오늘은 이미 받았어요' : '받을 수 없어요', COLOR.danger);
     this.refresh();

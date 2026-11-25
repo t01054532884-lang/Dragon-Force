@@ -128,7 +128,7 @@ export function toast(scene: Phaser.Scene, msg: string, color: number = COLOR.te
 
 /** 성공 연출(강화!·해금! 등): 크게 떠올랐다 사라지는 금색 글자 */
 export function popWord(scene: Phaser.Scene, word: string, y = 600): void {
-  playSfx(scene, 'sfx-ui-confirm'); // 성공(레벨 업·승급 등)
+  playSfx(scene, 'sfx-upgrade'); // 성공(레벨 업·승급·강화 등) — 2026-11-26 Higgsfield 강화 소리
   const t = text(scene, 360, y, word, 46, COLOR.gold, true, true).setOrigin(0.5).setDepth(1000);
   t.setScale(0.6);
   scene.tweens.add({ targets: t, scale: 1, duration: 160, ease: 'Back.Out' });

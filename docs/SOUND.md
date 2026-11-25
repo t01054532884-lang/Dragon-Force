@@ -110,3 +110,18 @@
 | `sfx-roulette-win.mp3` | 직접 파형 합성 | 2026-11-24 |
 | `sfx-roulette-jackpot.mp3` | 직접 파형 합성 | 2026-11-24 |
 | `sfx-key-use.mp3` | 직접 파형 합성 | 2026-11-24 |
+
+## Higgsfield 효과음 7종 (2026-11-26, 없던 순간)
+출처: Higgsfield MCP `mirelo_text_to_audio`(텍스트 → 효과음, AI 생성, 한 개 0.75크레딧). 다른 게임 소리·샘플을 쓰라고 하지 않았고 요청문은 모두 일반 묘사("오리지널 멜로디"). 원본 `art-src/sfx/hf-<키>.mp3`(메인 폴더), 게임 `public/sfx/<키>.mp3`.
+
+| 키 | 언제 | 길이 | 크기 맞춤(fileVol) |
+|---|---|---|---|
+| sfx-warn | 엘리트·보스 경고(뿔피리 + 북) | 2.0초 | 1.2 |
+| sfx-boss-appear | 보스 등장(포효 + 땅울림) | 2.5초 | 0.75(원본이 큼) |
+| sfx-victory | 클리어 결과 화면(팡파르) | 3.0초 | 1.5 |
+| sfx-defeat | 실패 결과 화면(포기 제외) | 2.5초 | 1.0 |
+| sfx-battle-start | 전투 시작(뿔피리 + 날갯짓 + 칼 뽑기) | 2.0초 | 1.2 |
+| sfx-cape-unfurl | 스킨 망토가 펼쳐질 때 | 1.5초 | 2.6(원본이 작음) |
+| sfx-upgrade | 강화·레벨 업·승급 성공 글자(`popWord`) — 예전 sfx-ui-confirm | 1.5초 | 2.0 |
+
+같이 연결(새 파일 없음): 겨울 축제 룰렛 결과(정수 = sfx-roulette-jackpot, 나머지 = sfx-roulette-win), 출석 7·14·21·28일 받기 = sfx-day7(있었지만 안 쓰던 소리).

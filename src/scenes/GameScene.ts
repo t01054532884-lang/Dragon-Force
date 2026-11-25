@@ -372,6 +372,7 @@ export class GameScene extends Phaser.Scene {
         this.capeGlow = this.add.image(this.cape.x, this.cape.y, this.cape.texture.key).setDepth(9.89).setScale(this.capeScale * 1.12).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.3);
         this.cape.setScale(this.capeScale, this.capeScale * 0.15);
         this.tweens.add({ targets: this.cape, scaleY: this.capeScale, duration: 650, delay: 150, ease: 'Back.Out' });
+        this.time.delayedCall(150, () => playSfx(this, 'sfx-cape-unfurl'));
         const [c1, c2] = skinDef(sk.cape)?.colors ?? [0xffffff, 0xffffff];
         const ring = this.add.circle(this.player.x, this.player.y, 30, c2, 0).setStrokeStyle(5, c2, 1).setDepth(11).setBlendMode(Phaser.BlendModes.ADD);
         this.tweens.add({ targets: ring, scale: 3.4, alpha: 0, duration: 700, delay: 200, ease: 'Quad.Out', onComplete: () => ring.destroy() });
@@ -456,6 +457,10 @@ export class GameScene extends Phaser.Scene {
         emit: (name, data) => {
           this.stageLog.push({ name, at: Math.round(this.elapsed), data });
           if (name === 'boss:warning') playMusic(this, 'bgm-boss'); // 보스 경고부터 보스전 곡
+          // 없던 순간 소리(2026-11-26): 엘리트·보스 경고 뿔피리, 보스 등장 포효, 출격
+          if (name === 'elite:warning' || name === 'boss:warning') playSfx(this, 'sfx-warn');
+          else if (name === 'boss:spawn') playSfx(this, 'sfx-boss-appear');
+          else if (name === 'stage:start') this.time.delayedCall(300, () => playSfx(this, 'sfx-battle-start'));
         },
         fail: (reason) => this.fail(reason),
         enemyAction: (e, act) => this.doEnemyAction(e, act),
@@ -2335,6 +2340,8 @@ export class GameScene extends Phaser.Scene {
     if (this.mode === 'result') return;
     this.mode = 'result';
     stopMusic(this);
+    if (clear) playSfx(this, 'sfx-victory');
+    else if (reason !== 'quit') playSfx(this, 'sfx-defeat');
     this.drawHud();
     this.physics.pause();
     const d = this.director;
