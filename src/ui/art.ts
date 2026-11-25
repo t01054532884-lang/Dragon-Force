@@ -132,6 +132,9 @@ export const ART_FILES: Record<string, string> = {
   // 5차분(8단계 v2.0 묶음 2026-11-19, scripts/process_art_batch5.py): 선물함·행동력·탐욕, 로고, 타이틀 장식, 겨울 배너, 스톤·워터 탑다운, 상자 안쪽 빛
   'ui-mailbox': 'ui/ui-mailbox.webp',
   'ui-energy': 'ui/ui-energy.webp',
+  // 행동력 구매 창(2026-11-26, Higgsfield): 행동력 묶음 · 무료 선물
+  'stamina-pack': 'ui/stamina-pack.webp',
+  'stamina-free': 'ui/stamina-free.webp',
   'passive-greed': 'skill/passive-greed.webp',
   'logo-ko': 'logo-ko.webp',
   'title-deco': 'title-deco.webp',

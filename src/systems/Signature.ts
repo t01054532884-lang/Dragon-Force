@@ -81,7 +81,7 @@ export class Signature {
     readonly tier = 0,
   ) {
     this.def = SIGNATURES[dragonId];
-    this.cooldownMs = ultCooldown(dragonId) * cdMult; // 필살기(2026-11-25): 180초, 전설 120초
+    this.cooldownMs = ultCooldown(dragonId) * cdMult; // 필살기: 150초(11/26, 예전 180초), 전설 120초
     this.growth = sigGrowth(dragonId, tier);
     makeSigTextures(h.scene);
   }

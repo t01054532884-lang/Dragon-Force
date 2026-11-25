@@ -55,10 +55,15 @@ export class ShopScene extends Phaser.Scene {
     super('shop');
   }
 
-  init(data: { dealTab?: DealTab; scrollY?: number }): void {
+  init(data: { dealTab?: DealTab; scrollY?: number; focus?: 'gold' | 'ruby' }): void {
     if (data?.dealTab) this.dealTab = data.dealTab;
     this.keepScroll = data?.scrollY ?? 0;
+    this.focus = data?.focus ?? null;
   }
+
+  /** 머리줄 골드·루비 "+"로 들어오면 그 칸이 맨 위에 오게 스크롤(제작자 2026-11-26) */
+  private focus: 'gold' | 'ruby' | null = null;
+  private sectionY: Partial<Record<'gold' | 'ruby', number>> = {};
 
   onPlatformBack(): boolean {
     if (this.opening && !this.opening.finished) this.opening.skip(); // 연출 중 뒤로가기 = 건너뛰기
@@ -113,10 +118,15 @@ export class ShopScene extends Phaser.Scene {
     this.buttons.push({ btn: t1, box: 'dragon', count: 1, pay: 'ticket' }, { btn: t10, box: 'dragon', count: 10, pay: 'ticket' });
 
     // ── 장비 상자 · 룬 상자 카드(v1.2: 골드 상자 자리에 룬 상자 — 룬 조각은 연구소 "룬"에서 해금·강화)
+    // 칸마다 제목 줄 + 넓은 간격으로 구분(제작자 2026-11-26: 드래곤·스킬 상자 / 장비·룬 상자 / 골드 / 루비 / 패키지가 붙어 보임)
+    const SEC_GAP = 110;
+    const eqTitle = 770 + 34 + SEC_GAP / 2 + 32; // 보장 막대(770, 높이 68) 아래
+    this.section(eqTitle, 'chest-equipment', '장비 · 룬 상자', '루비 또는 무료 개봉권');
+    const EQ = eqTitle + 32 + 30 + 100;
     (['equipment', 'rune'] as const).forEach((box, i) => {
       const def = BOXES[box];
       const x = 196 + i * 328;
-      const card = plate(this, x, 905, 316, 200, { r: 22, fill: box === 'equipment' ? 0x1d3a52 : 0x22306a });
+      const card = plate(this, x, EQ, 316, 200, { r: 22, fill: box === 'equipment' ? 0x1d3a52 : 0x22306a });
       // 룬 상자 그림(v1.2 3차 묶음 chest-rune)이 없으면 금 상자 그림을 푸른빛으로 물들여 임시 사용
       const runeArt = box === 'rune' && this.textures.exists('chest-rune');
       const img = this.add.image(-92, -34, box === 'rune' ? (runeArt ? 'chest-rune' : 'chest-gold') : `chest-${box}`).setDisplaySize(120, 120);
@@ -125,24 +135,27 @@ export class ShopScene extends Phaser.Scene {
       card.add(text(this, 46, -58, def.name, TYPE.body, COLOR.text, true, true).setOrigin(0.5));
       const desc = text(this, 46, -22, def.desc, 16, COLOR.textSub, true).setOrigin(0.5).setWordWrapWidth(170).setAlign('center');
       card.add(desc);
-      this.boxButtons(box, 905 + 56, 142, 58, TYPE.caption, x);
+      this.boxButtons(box, EQ + 56, 142, 58, TYPE.caption, x);
       // 무료 개봉권(출석·활동 보상, 2026-11-21): 가진 만큼 1회씩
       // 개봉권이 있으면 설명 자리에 버튼(설명은 숨김)
-      const tb = button(this, x + 46, 905 - 16, 196, 50, '무료 1회', () => this.open(box, 1, 'ticket'), { kind: 'growth', size: TYPE.tiny });
+      const tb = button(this, x + 46, EQ - 16, 196, 50, '무료 1회', () => this.open(box, 1, 'ticket'), { kind: 'growth', size: TYPE.tiny });
       this.buttons.push({ btn: tb, box, count: 1, pay: 'ticket' });
       this.boxTicketButtons.push({ btn: tb, box, desc });
     });
 
     // ── 아래로 이어지는 상품 칸: 골드(큰 카드 3장) → 루비 구매(5장) → 기간 한정 패키지(3장) → 안내
-    let y = this.goldSection(1050);
-    y = this.rubySection(y + 30);
-    y = this.packageSection(y + 30);
+    let y = this.goldSection(EQ + 56 + 29 + SEC_GAP + 32);
+    y = this.rubySection(y + SEC_GAP);
+    y = this.packageSection(y + SEC_GAP);
     button(this, 200, y + 50, 300, 54, '확률 · 보장 안내', () => this.showRates(), { kind: 'secondary', size: TYPE.tiny });
     button(this, 520, y + 50, 300, 54, '구매 복원', () => this.restorePurchases(), { kind: 'secondary', size: TYPE.tiny });
     text(this, 360, y + 135, PAY_NOTICE, 15, COLOR.textSub, true)
       .setOrigin(0.5).setAlign('center').setLineSpacing(6);
     this.makeScroll(before, y + 200);
-    if (this.keepScroll && this.content) this.content.y = Math.max(this.keepScroll, Math.min(0, CONTENT.bottom + offY(this) - (y + 200)));
+    const minY = Math.min(0, CONTENT.bottom + offY(this) - (y + 200));
+    if (this.keepScroll && this.content) this.content.y = Math.max(this.keepScroll, minY);
+    const fy = this.focus ? this.sectionY[this.focus] : undefined;
+    if (fy !== undefined && this.content) this.content.y = Math.max(minY, Math.min(0, CONTENT.top + 50 - fy));
     // 스토어 가격 받아 오기(결제를 쓸 수 없으면 빈 목록 → 예정 가격 표시)
     purchases.products().catch(() => [] as RubyProduct[]).then((list) => (this.storeProducts = list));
 
@@ -188,6 +201,7 @@ export class ShopScene extends Phaser.Scene {
 
   /** 골드: 독립된 큰 카드 3장(그림 · 골드 양 · 루비 가격 버튼) → 다음 칸 시작 y */
   private goldSection(y0: number): number {
+    this.sectionY.gold = y0;
     this.section(y0, 'ui-gold', '골드', '루비로 바로 교환');
     const cy = y0 + 180;
     GOLD_OFFERS.forEach((o, i) => {
@@ -206,6 +220,7 @@ export class ShopScene extends Phaser.Scene {
 
   /** 루비 구매(인앱결제): 5장(3 + 2). 가격은 스토어 가격, 없으면 예정 가격 */
   private rubySection(y0: number): number {
+    this.sectionY.ruby = y0;
     this.section(y0, 'ui-ruby', '루비 구매', '보너스 루비 포함');
     RUBY_PRODUCTS.forEach((def, i) => {
       const row = Math.floor(i / 3);

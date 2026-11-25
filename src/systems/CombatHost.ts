@@ -22,4 +22,6 @@ export interface CombatHost {
   fx?: BattleFx;
   /** 기본 공격 한 묶음을 쏠 때 한 번(발사점 섬광·반동·발사음). angle = 첫 탄 방향 */
   onFire?(angle: number): void;
+  /** 이 자리가 벽 밖이거나 장애물 안이면 true — 드래곤 탄은 여기서 사라진다(제작자 2026-11-26: 장애물을 통과하지 않게) */
+  blocked?(x: number, y: number): boolean;
 }

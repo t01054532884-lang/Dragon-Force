@@ -11,7 +11,7 @@ import { topBar } from './kit2';
 import { COLOR, TYPE } from './theme';
 import { gameNow } from './widgets';
 import { playMusic } from '../systems/Music';
-import { openRubyShop } from './rubyShop';
+import { openStaminaShop } from './staminaShop';
 import { playSfx } from '../systems/Sfx';
 import { navAlerts } from './alerts';
 import { fullH, offY } from './layout';
@@ -94,9 +94,10 @@ export function screenFrame(scene: Phaser.Scene, opts: { title: string; nav: str
       level: accountLevel(p).level, // 계정 레벨(2026-11-23)
       cp: loadout(p, d.id).cp.toLocaleString(),
       currencies: [
-        { icon: 'ui-energy', value: '', onPlus: scene.scene.key === 'gifts' ? undefined : () => scene.scene.start('gifts') },
-        { icon: 'ui-gold', value: p.gold },
-        { icon: 'ui-ruby', value: p.rubies, onPlus: () => openRubyShop(scene, () => draw()) }, // 루비 충전(첫 출시 결제)
+        // 2026-11-26 제작자: 행동력 + = 행동력 구매 창, 골드·루비 + = 상점의 그 칸으로(상점 안이면 그 칸으로 스크롤)
+        { icon: 'ui-energy', value: '', onPlus: () => openStaminaShop(scene, () => draw()) },
+        { icon: 'ui-gold', value: p.gold, onPlus: () => scene.scene.start('shop', { focus: 'gold' }) },
+        { icon: 'ui-ruby', value: p.rubies, onPlus: () => scene.scene.start('shop', { focus: 'ruby' }) },
       ],
     });
     barRoot = bar.root.setDepth(40).setY(-offY(scene)); // 머리줄은 실제 화면 맨 위에

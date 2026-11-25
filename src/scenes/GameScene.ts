@@ -428,6 +428,7 @@ export class GameScene extends Phaser.Scene {
       },
       fx: this.fx,
       onFire: (angle) => this.onFire(angle),
+      blocked: (x, y) => outsideArena(this.arena, x, y, 0) || hitsObstacle(this.arena, x, y, 0),
       heal: (pct) => {
         const amount = Math.min(this.stats.maxHp - this.hp, this.stats.maxHp * pct);
         if (amount <= 0) return;
@@ -1134,9 +1135,11 @@ export class GameScene extends Phaser.Scene {
         s.img.destroy();
         return false;
       }
-      // 벽 밖으로 나가면 사라진다. 장애물은 드래곤 공격처럼 그대로 지나간다(11/24 엄폐 → 테스터 피드백으로 11/25 통일)
+      // 벽 밖으로 나가거나 장애물에 닿으면 사라진다(제작자 2026-11-26: 적·드래곤 탄 모두 장애물을 통과하지 않음 — 11/25의 "통과"를 되돌림)
       const out = outsideArena(this.arena, s.img.x, s.img.y, 10);
-      if (s.life <= 0 || out) {
+      const wall = !out && hitsObstacle(this.arena, s.img.x, s.img.y, 0);
+      if (wall) this.fx.burst(s.img.x, s.img.y, [0xffffff, 0xd7ccc8, 0xbcaaa4], 4, 22, 10);
+      if (s.life <= 0 || out || wall) {
         s.img.destroy();
         return false;
       }

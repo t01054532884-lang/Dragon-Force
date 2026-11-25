@@ -261,6 +261,11 @@ export class BasicAttack {
       }
       b.img.x += Math.cos(b.angle) * b.speed * dt;
       b.img.y += Math.sin(b.angle) * b.speed * dt;
+      // 벽·장애물에 닿으면 사라진다(제작자 2026-11-26) — 부딪힌 자리에 작은 먼지
+      if (this.h.blocked?.(b.img.x, b.img.y)) {
+        this.h.fx?.burst(b.img.x, b.img.y, [0xffffff, 0xd7ccc8, 0xbcaaa4], 4, 22, 10);
+        return this.kill(b);
+      }
 
       const r = 9 * (b.child ? 0.8 : this.L.scale);
       const hit = enemies.find((e) => e.active && !b.hitSet.has(e.uid) && Phaser.Math.Distance.Between(b.img.x, b.img.y, e.x, e.y) < e.def.radius + r);

@@ -20,7 +20,7 @@ import { altar, iconTile, plate, tabs, topBar, torch, wingBanner } from '../ui/k
 import { COLOR, css, TYPE } from '../ui/theme';
 import { giftAlert } from '../ui/giftFx';
 import { bundleItems, difficultyUnlock, openSmallChest, rewardPopup } from '../ui/celebrate';
-import { openRubyShop } from '../ui/rubyShop';
+import { openStaminaShop } from '../ui/staminaShop';
 import { account, shortId } from '../systems/Account';
 import { cloud, cloudLine } from '../systems/Cloud';
 import { summaryLine } from '../systems/cloudSync';
@@ -118,15 +118,15 @@ export class LobbyScene extends Phaser.Scene {
     const o = p.dragons[d.id];
     const lo = loadout(p, d.id);
 
-    // ── 머리줄: 출격 드래곤 · 행동력(+ = 선물함, 결제 없음) · 골드 · 루비 · 전투력
+    // ── 머리줄: 출격 드래곤 · 행동력(+ = 행동력 구매 창) · 골드(+ = 상점 골드) · 루비(+ = 상점 루비 구매) · 전투력 — 제작자 2026-11-26
     const bar = topBar(this, {
       portrait: `portrait-${d.id}`,
       level: accountLevel(p).level, // 계정 레벨(2026-11-23, 드래곤 레벨 아님)
       cp: lo.cp.toLocaleString(),
       currencies: [
-        { icon: 'ui-energy', value: '', onPlus: () => this.scene.start('gifts') },
-        { icon: 'ui-gold', value: p.gold },
-        { icon: 'ui-ruby', value: p.rubies, onPlus: () => (this.settingsUi = openRubyShop(this, () => this.scene.restart())) },
+        { icon: 'ui-energy', value: '', onPlus: () => (this.settingsUi = openStaminaShop(this, () => this.scene.restart())) },
+        { icon: 'ui-gold', value: p.gold, onPlus: () => this.scene.start('shop', { focus: 'gold' }) },
+        { icon: 'ui-ruby', value: p.rubies, onPlus: () => this.scene.start('shop', { focus: 'ruby' }) },
       ],
     });
     bar.root.setY(-offY(this)); // 머리줄은 실제 화면 맨 위에(세로가 긴 화면)

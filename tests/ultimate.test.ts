@@ -5,10 +5,10 @@ import { ULT_NAMES, ULT_RULES, ultCap, ultCooldown, ultEffectText, ultMult } fro
 // 필살기(2026-11-25 제작자 확정, docs/ULTIMATE.md)
 describe('필살기 규칙', () => {
   it('쿨타임: 일반~영웅 180초, 전설 120초', () => {
-    for (const id of DRAGON_ORDER) expect(ultCooldown(id), id).toBe(DRAGONS[id].rarity === 'legendary' ? 120_000 : 180_000);
+    for (const id of DRAGON_ORDER) expect(ultCooldown(id), id).toBe(DRAGONS[id].rarity === 'legendary' ? 120_000 : 150_000);
     expect(ultCooldown('chrono')).toBe(120_000);
     expect(ultCooldown('arcane')).toBe(120_000);
-    expect(ultCooldown('red')).toBe(180_000);
+    expect(ultCooldown('red')).toBe(150_000);
   });
   it('엘리트·보스 배율: 일반·희귀 4 · 영웅 5 · 전설 6, 레드(기본)는 일반', () => {
     const want: Record<string, number> = { starter: 4, common: 4, rare: 4, epic: 5, legendary: 6 };

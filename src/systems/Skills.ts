@@ -214,6 +214,12 @@ export class Skills {
       s.life -= delta;
       s.img.x += s.vx * dt;
       s.img.y += s.vy * dt;
+      // 얼음 파편도 벽·장애물에 닿으면 사라진다(2026-11-26)
+      if (this.h.blocked?.(s.img.x, s.img.y)) {
+        this.h.fx?.burst(s.img.x, s.img.y, [0xe1f5fe, 0x81d4fa, 0xffffff], 4, 22, 10);
+        s.img.destroy();
+        return false;
+      }
       const hit = s.life > 0 && enemies.find((e) => e.active && Phaser.Math.Distance.Between(s.img.x, s.img.y, e.x, e.y) < e.def.radius + 8);
       if (hit) {
         hit.slow(SKILL.ice.slow(s.lv), SKILL.ice.slowMs());
