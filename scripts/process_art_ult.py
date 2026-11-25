@@ -23,6 +23,9 @@ def fresh(src: Path, out: Path) -> bool:
 OTHERS = 'blue yellow green sand steel white black stone bloom howl wind water crimson mirror chrono void aurora arcane'.split()
 # 영상: 레드는 비교 때 받은 Seedance 4초, 나머지 18종(2026-11-25 밤)은 hf-<id>-video-1.mp4
 VIDEOS = {'red': 'hf-red-seedance-4s.mp4', **{d: f'hf-{d}-video-1.mp4' for d in OTHERS}}
+# 비슷한 4쌍 다시 만들기(2026-11-25 제작자 결정): 워터 심해의 격류·샌드 사막의 균열·아케인 마력 강림·블랙 그림자 포식은 2번째 판
+REDONE = ['water', 'sand', 'arcane', 'black']
+VIDEOS.update({d: f'hf-{d}-video-2.mp4' for d in REDONE})
 
 
 def cover(im: Image.Image, w: int, h: int) -> Image.Image:
@@ -41,17 +44,25 @@ if bg.exists() and not fresh(bg, OUT / 'ult-bg.webp'):
 # 필살기 전장 효과(섬광 뒤 화면 전체를 위→아래로 쓸고 지나가는 그림, 2026-11-25)
 # 레드: 가로로 긴 불의 파도를 위아래 뒤집어 물마루가 아래(가는 쪽)로. 나머지 18종은 처음부터 아래쪽이 앞(진한 쪽)이 되게 요청해 그대로.
 FX = {'red': ('hf-red-fx-wave-2.png', True), **{d: (f'hf-{d}-fx-1.png', False) for d in OTHERS}}
+# 다시 만든 4종: 위에서 본 정사각(소용돌이·균열·마법진 — 돌리므로 가운데가 어긋나지 않게 자르지 않음)과 블랙 세로 날개(왼쪽 붙음, 잘라서 높이 1024)
+FX.update({d: (f'hf-{d}-fx-2.png', False) for d in REDONE})
+SQUARE = {'water', 'sand', 'arcane'}
 for dragon, (name, flip) in FX.items():
     p = SRC / name
     if p.exists() and not fresh(p, OUT / f'ult-fx-{dragon}.webp'):
         im = Image.open(p).convert('RGBA')
         if flip:
             im = im.transpose(Image.FLIP_TOP_BOTTOM)
+        if dragon in SQUARE:
+            im = im.resize((1024, 1024), Image.LANCZOS)
+            im.save(OUT / f'ult-fx-{dragon}.webp', 'WEBP', quality=85, method=6)
+            print(f'ult-fx-{dragon}.webp', im.size)
+            continue
         bbox = im.getchannel('A').point(lambda a: 255 if a > 8 else 0).getbbox()
         if bbox:
             im = im.crop(bbox)
-        s = 1024 / im.width
-        im = im.resize((1024, round(im.height * s)), Image.LANCZOS)
+        s = 1024 / (im.height if dragon == 'black' else im.width)
+        im = im.resize((round(im.width * s), round(im.height * s)), Image.LANCZOS)
         im.save(OUT / f'ult-fx-{dragon}.webp', 'WEBP', quality=85, method=6)
         print(f'ult-fx-{dragon}.webp', im.size, f'{(OUT / f"ult-fx-{dragon}.webp").stat().st_size // 1024}KB')
 

@@ -55,10 +55,15 @@ const ultSfxKey = (id: DragonId) => `ult-${id}-sfx`;
  * 섬광 뒤 전장 효과 그림(public/art/ult/ult-fx-<id>.webp, Higgsfield) — 화면 전체를 위→아래로 쓸고 지나감. 레드: 불의 파도.
  * add: 밝은 빛 계열은 더하기(빛나 보임), 어두운 색이 중요한 것(그림자·블랙홀·바위·덩굴·모래)은 보통 섞기 — 더하기면 어두운 부분이 사라진다.
  */
-const ULT_FX: Partial<Record<DragonId, { add: boolean }>> = {
-  red: { add: true }, blue: { add: true }, yellow: { add: true }, green: { add: false }, sand: { add: false }, steel: { add: false },
-  white: { add: true }, black: { add: false }, stone: { add: false }, bloom: { add: false }, howl: { add: true }, wind: { add: true },
-  water: { add: false }, crimson: { add: true }, mirror: { add: true }, chrono: { add: true }, void: { add: false }, aurora: { add: true }, arcane: { add: true },
+/**
+ * motion(2026-11-25 제작자 결정 — 비슷한 4쌍을 움직임부터 다르게): 없으면 위→아래 쓸기(sweep).
+ * vortex 가운데 소용돌이(워터) · rift 가운데서 바깥으로 갈라짐(샌드) · circle 마법진 + 빛기둥(아케인) · enclose 양옆에서 조여 옴(블랙)
+ */
+type FxMotion = 'sweep' | 'vortex' | 'rift' | 'circle' | 'enclose';
+const ULT_FX: Partial<Record<DragonId, { add: boolean; motion?: FxMotion }>> = {
+  red: { add: true }, blue: { add: true }, yellow: { add: true }, green: { add: false }, sand: { add: true, motion: 'rift' }, steel: { add: false },
+  white: { add: true }, black: { add: false, motion: 'enclose' }, stone: { add: false }, bloom: { add: false }, howl: { add: true }, wind: { add: true },
+  water: { add: false, motion: 'vortex' }, crimson: { add: true }, mirror: { add: true }, chrono: { add: true }, void: { add: false }, aurora: { add: true }, arcane: { add: true, motion: 'circle' },
 };
 export const ULT_FX_READY = Object.keys(ULT_FX) as DragonId[];
 const ultFxKey = (id: DragonId) => `ult-fx-${id}`;
@@ -76,13 +81,22 @@ export function playUltSweep(scene: Phaser.Scene, id: DragonId, color: number, d
     (g as unknown as { setDepth: (n: number) => void }).setDepth(depth);
     return g;
   };
+  const motion = ULT_FX[id]?.motion ?? 'sweep';
+  const key = ultFxKey(id);
+  if (motion !== 'sweep' && scene.textures.exists(key)) {
+    const add = !!ULT_FX[id]?.add;
+    if (motion === 'vortex') fxVortex(scene, key, color, add, W, H, fix);
+    else if (motion === 'rift') fxRift(scene, key, color, add, W, H, fix);
+    else if (motion === 'circle') fxCircle(scene, key, color, add, W, H, fix);
+    else fxEnclose(scene, key, color, add, W, H, fix);
+    return;
+  }
   const DUR = 750;
   // 지나간 자리의 빛: 위에서부터 차오르는 막(파도 바로 뒤를 따라감)
   const glow = fix(scene.add.rectangle(W / 2, 0, W, 1, color, 0.38).setOrigin(0.5, 0));
   scene.tweens.add({ targets: glow, displayHeight: H, duration: DUR, ease: 'Sine.In' });
   scene.tweens.add({ targets: glow, alpha: 0, delay: DUR, duration: 650, onComplete: () => glow.destroy() });
   // 파도
-  const key = ultFxKey(id);
   let wave: Phaser.GameObjects.Image | Phaser.GameObjects.Rectangle;
   if (scene.textures.exists(key)) {
     const im = scene.add.image(W / 2, 0, key);
@@ -111,6 +125,103 @@ export function playUltSweep(scene: Phaser.Scene, id: DragonId, color: number, d
       ease: 'Quad.Out',
       onComplete: () => ember.destroy(),
     });
+  }
+}
+
+type Fix = <G extends Phaser.GameObjects.GameObject>(g: G) => G;
+
+/** 화면 전체를 한 번 물들였다 사라지는 색 막 */
+function fxTint(scene: Phaser.Scene, color: number, alpha: number, W: number, H: number, fix: Fix, delay = 0, hold = 300): void {
+  const r = fix(scene.add.rectangle(W / 2, H / 2, W, H, color, 1).setAlpha(0));
+  scene.tweens.add({ targets: r, alpha, delay, duration: 220, yoyo: true, hold, onComplete: () => r.destroy() });
+}
+
+/** 워터 심해의 격류: 가운데에 소용돌이가 돌며 커졌다가 안쪽으로 빨려 들어가 사라짐 + 물방울이 가운데로 끌려감 */
+function fxVortex(scene: Phaser.Scene, key: string, color: number, add: boolean, W: number, H: number, fix: Fix): void {
+  const cx = W / 2, cy = H / 2;
+  const im = fix(scene.add.image(cx, cy, key));
+  if (add) im.setBlendMode(Phaser.BlendModes.ADD);
+  const full = (Math.hypot(W, H) * 1.05) / im.width;
+  im.setScale(full * 0.25).setAlpha(0);
+  fxTint(scene, color, 0.28, W, H, fix, 0, 600);
+  scene.tweens.add({ targets: im, scale: full, alpha: 0.95, angle: 220, duration: 650, ease: 'Sine.Out' });
+  scene.tweens.add({ targets: im, scale: full * 0.08, alpha: 0, angle: 560, delay: 700, duration: 650, ease: 'Sine.In', onComplete: () => im.destroy() });
+  for (let i = 0; i < 32; i++) {
+    const a = Math.random() * Math.PI * 2, d = Phaser.Math.Between(Math.min(W, H) * 0.3, Math.hypot(W, H) * 0.5);
+    const p = fix(scene.add.circle(cx + Math.cos(a) * d, cy + Math.sin(a) * d, Phaser.Math.Between(3, 7), i % 3 === 0 ? 0xffffff : color, 0.95));
+    p.setAlpha(0).setBlendMode(Phaser.BlendModes.ADD);
+    scene.tweens.add({ targets: p, alpha: { from: 1, to: 0 }, x: cx, y: cy, delay: 300 + Math.random() * 500, duration: 700, ease: 'Quad.In', onComplete: () => p.destroy() });
+  }
+}
+
+/** 샌드 사막의 균열: 가운데서 금빛 균열이 화면 끝까지 퍼지고(흔들림) 땅이 꺼지듯 어두워졌다 걷힘 + 모래 먼지가 솟음 */
+function fxRift(scene: Phaser.Scene, key: string, color: number, add: boolean, W: number, H: number, fix: Fix): void {
+  const cx = W / 2, cy = H / 2;
+  const im = fix(scene.add.image(cx, cy, key));
+  if (add) im.setBlendMode(Phaser.BlendModes.ADD);
+  const full = (Math.hypot(W, H) * 1.1) / im.width;
+  im.setScale(full * 0.05).setAlpha(1).setAngle(Phaser.Math.Between(0, 359));
+  scene.tweens.add({ targets: im, scale: full, duration: 420, ease: 'Expo.Out' });
+  scene.tweens.add({ targets: im, alpha: 0, delay: 900, duration: 600, onComplete: () => im.destroy() });
+  scene.cameras.main.shake(320, 0.01);
+  fxTint(scene, 0x3a2408, 0.32, W, H, fix, 250, 400);
+  for (let i = 0; i < 30; i++) {
+    const x = Phaser.Math.Between(10, W - 10), y = Phaser.Math.Between(60, H - 30);
+    const d = Math.hypot(x - cx, y - cy) / Math.hypot(W, H);
+    const p = fix(scene.add.circle(x, y, Phaser.Math.Between(4, 9), i % 2 ? color : 0xffe08a, 0.85));
+    p.setAlpha(0);
+    scene.tweens.add({ targets: p, alpha: { from: 0.9, to: 0 }, y: y - Phaser.Math.Between(50, 130), scale: { from: 0.6, to: 1.6 }, delay: d * 800, duration: Phaser.Math.Between(600, 900), ease: 'Quad.Out', onComplete: () => p.destroy() });
+  }
+}
+
+/** 아케인 마력 강림: 화면 전체에 마법진이 돌며 펼쳐지고, 여러 곳에 빛기둥이 차례로 내리꽂힘 */
+function fxCircle(scene: Phaser.Scene, key: string, color: number, add: boolean, W: number, H: number, fix: Fix): void {
+  const cx = W / 2, cy = H / 2;
+  const im = fix(scene.add.image(cx, cy, key));
+  if (add) im.setBlendMode(Phaser.BlendModes.ADD);
+  const full = (Math.max(W, H) * 1.05) / im.width;
+  im.setScale(0).setAngle(-120).setAlpha(0.95);
+  scene.tweens.add({ targets: im, scale: full, angle: 0, duration: 520, ease: 'Back.Out' });
+  scene.tweens.add({ targets: im, angle: 60, duration: 1500, delay: 520 });
+  scene.tweens.add({ targets: im, alpha: 0, delay: 1300, duration: 700, onComplete: () => im.destroy() });
+  fxTint(scene, color, 0.22, W, H, fix, 200, 700);
+  for (let i = 0; i < 14; i++) {
+    const x = Phaser.Math.Between(30, W - 30), y = Phaser.Math.Between(Math.round(H * 0.2), H - 40);
+    const delay = 380 + i * 60;
+    const beam = fix(scene.add.rectangle(x, y, 34, y + 20, color, 0.85).setOrigin(0.5, 1).setBlendMode(Phaser.BlendModes.ADD));
+    const core = fix(scene.add.rectangle(x, y, 10, y + 20, 0xffffff, 0.95).setOrigin(0.5, 1).setBlendMode(Phaser.BlendModes.ADD));
+    beam.setScale(0, 1); core.setScale(0, 1);
+    scene.tweens.add({ targets: [beam, core], scaleX: 1, delay, duration: 90, yoyo: true, hold: 160, onComplete: () => { beam.destroy(); core.destroy(); } });
+    const ring = fix(scene.add.circle(x, y, 18, 0xffffff, 0).setStrokeStyle(4, color, 1).setBlendMode(Phaser.BlendModes.ADD));
+    ring.setAlpha(0);
+    scene.tweens.add({ targets: ring, alpha: { from: 1, to: 0 }, scale: 3.2, delay: delay + 80, duration: 420, ease: 'Quad.Out', onComplete: () => ring.destroy() });
+  }
+}
+
+/** 블랙 그림자 포식: 양옆에서 그림자 날개·손아귀가 턱처럼 조여 와 가운데서 맞물리고, 보랏빛이 터지며 흩어짐 */
+function fxEnclose(scene: Phaser.Scene, key: string, color: number, add: boolean, W: number, H: number, fix: Fix): void {
+  const cx = W / 2, cy = H / 2;
+  const mk = (flip: boolean) => {
+    const im = fix(scene.add.image(flip ? W : 0, cy, key)).setFlipX(flip).setOrigin(flip ? 0 : 1, 0.5);
+    if (add) im.setBlendMode(Phaser.BlendModes.ADD);
+    im.setScale((H * 1.1) / im.height);
+    return im;
+  };
+  const L = mk(false), R = mk(true);
+  const reach = Math.min(L.displayWidth * 0.12, 60);
+  fxTint(scene, 0x12051f, 0.4, W, H, fix, 0, 500);
+  scene.tweens.add({ targets: L, x: cx + reach, duration: 480, ease: 'Cubic.In' });
+  scene.tweens.add({ targets: R, x: cx - reach, duration: 480, ease: 'Cubic.In' });
+  scene.tweens.add({ targets: [L, R], alpha: 0, delay: 650, duration: 550, onComplete: () => { L.destroy(); R.destroy(); } });
+  const burst = fix(scene.add.circle(cx, cy, 40, color, 0.9).setBlendMode(Phaser.BlendModes.ADD));
+  burst.setAlpha(0);
+  scene.tweens.add({ targets: burst, alpha: { from: 1, to: 0 }, scale: 9, delay: 470, duration: 600, ease: 'Quad.Out', onComplete: () => burst.destroy() });
+  scene.time.delayedCall(470, () => scene.cameras.main.shake(220, 0.008));
+  for (let i = 0; i < 30; i++) {
+    const a = Math.random() * Math.PI * 2, d = Phaser.Math.Between(120, Math.round(Math.hypot(W, H) * 0.5));
+    const p = fix(scene.add.circle(cx, cy, Phaser.Math.Between(3, 7), i % 3 === 0 ? 0xe6d4ff : color, 0.95));
+    p.setAlpha(0).setBlendMode(Phaser.BlendModes.ADD);
+    scene.tweens.add({ targets: p, alpha: { from: 1, to: 0 }, x: cx + Math.cos(a) * d, y: cy + Math.sin(a) * d, delay: 480, duration: Phaser.Math.Between(500, 800), ease: 'Quad.Out', onComplete: () => p.destroy() });
   }
 }
 

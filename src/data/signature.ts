@@ -122,10 +122,10 @@ export function ultEffectText(id: DragonId): string {
 }
 /** 필살기 이름(시트 "180초 필살기" 1차안) */
 export const ULT_NAMES: Record<DragonId, string> = {
-  red: '불의 파도', blue: '빙하 강림', yellow: '천둥 그물', green: '독의 폭우', sand: '모래 폭풍', steel: '천 개의 검',
-  white: '성광의 기둥', black: '검은 일식', stone: '운석 낙하', bloom: '만개', howl: '천지의 포효',
-  wind: '대폭풍', water: '대해일', crimson: '핏빛 초승달', mirror: '거울 세계',
-  chrono: '시간 정지', void: '사건의 지평선', aurora: '극광 강림', arcane: '마력 유성우',
+  red: '불의 파도', blue: '절대영도', yellow: '천둥 그물', green: '독의 폭우', sand: '사막의 균열', steel: '천 개의 검',
+  white: '성광의 기둥', black: '그림자 포식', stone: '운석 낙하', bloom: '천화의 만개', howl: '천지의 포효',
+  wind: '대폭풍', water: '심해의 격류', crimson: '핏빛 초승달', mirror: '거울 세계',
+  chrono: '시간 정지', void: '사건의 지평선', aurora: '극광의 심판', arcane: '마력 강림',
 };
 
 /** 광역형 한 마리당 피해: 대상당 DPS × 4초, 맞은 적이 많으면 총합 DPS × 24초를 나눈다 */
