@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { makeTextures } from '../textures';
 import { DRAGONS, RARITY_COLOR, RARITY_LABEL } from '../data/dragons';
 import { BOXES, DEALS, DRAGON_BOX, EQUIPMENT_BOX, ESSENCE, FREE_DAILY_GIFT, GOLD_OFFERS, PACKAGES, RARITIES, RUBY_PRODUCTS, type BoxId, type PackageDef } from '../data/economy';
-import { buyFailText, buyProduct, claimFreeDaily, freeDailyClaimed, grantLine, packageBought, PAY_NOTICE, purchases, restoreAll, type RubyProduct } from '../systems/Purchases';
+import { buyFailText, buyProduct, CASH_SHOP, claimFreeDaily, freeDailyClaimed, grantLine, packageBought, PAY_NOTICE, purchases, restoreAll, type RubyProduct } from '../systems/Purchases';
 import { rewardPopup } from '../ui/celebrate';
 import { gameNow } from '../ui/widgets';
 import { tabs } from '../ui/kit2';
@@ -145,11 +145,12 @@ export class ShopScene extends Phaser.Scene {
 
     // ── 아래로 이어지는 상품 칸: 골드(큰 카드 3장) → 루비 구매(5장) → 기간 한정 패키지(3장) → 안내
     let y = this.goldSection(EQ + 56 + 29 + SEC_GAP + 32);
-    y = this.rubySection(y + SEC_GAP);
-    y = this.packageSection(y + SEC_GAP);
-    button(this, 200, y + 50, 300, 54, '확률 · 보장 안내', () => this.showRates(), { kind: 'secondary', size: TYPE.tiny });
-    button(this, 520, y + 50, 300, 54, '구매 복원', () => this.restorePurchases(), { kind: 'secondary', size: TYPE.tiny });
-    text(this, 360, y + 135, PAY_NOTICE, 15, COLOR.textSub, true)
+    // 앱인토스(CASH_SHOP false): 루비 구매·유료 패키지·구매 복원·결제 안내 없이 무료 일일 선물만
+    if (CASH_SHOP) y = this.rubySection(y + SEC_GAP);
+    y = CASH_SHOP ? this.packageSection(y + SEC_GAP) : this.freeGiftSection(y + SEC_GAP);
+    button(this, CASH_SHOP ? 200 : 360, y + 50, 300, 54, '확률 · 보장 안내', () => this.showRates(), { kind: 'secondary', size: TYPE.tiny });
+    if (CASH_SHOP) button(this, 520, y + 50, 300, 54, '구매 복원', () => this.restorePurchases(), { kind: 'secondary', size: TYPE.tiny });
+    text(this, 360, y + 135, CASH_SHOP ? PAY_NOTICE : '', 15, COLOR.textSub, true)
       .setOrigin(0.5).setAlign('center').setLineSpacing(6);
     this.makeScroll(before, y + 200);
     const minY = Math.min(0, CONTENT.bottom + offY(this) - (y + 200));
@@ -251,6 +252,22 @@ export class ShopScene extends Phaser.Scene {
    * 패키지 · 특혜(2026-11-23 제작자 요청: 참고 시안처럼 일일/주간/월간 특혜 탭).
    * 탭: 한정(계정당 1회) · 일일(무료 선물 + 꾸러미 2) · 주간 · 월간. 탭을 바꾸면 스크롤 위치를 지킨 채 다시 그린다.
    */
+  /** 앱인토스용: 현금 상품 없이 무료 일일 선물 카드 한 장 */
+  private freeGiftSection(y0: number): number {
+    this.sectionY.package = y0;
+    this.section(y0, 'ic-gift', '무료 선물', '매일 0시 초기화');
+    const p = Progress.load();
+    const got = freeDailyClaimed(p, gameNow());
+    const y = y0 + 100;
+    const card = plate(this, 360, y, 680, 128, { r: 24, fill: 0x1f4a2a, gold: !got });
+    card.add(this.add.image(-262, 0, 'ic-gift').setDisplaySize(96, 96));
+    card.add(text(this, -196, -24, '무료 일일 선물', TYPE.body, COLOR.gold, true, true).setOrigin(0, 0.5));
+    card.add(text(this, -196, 18, `골드 ${FREE_DAILY_GIFT.gold.toLocaleString()} + 루비 ${FREE_DAILY_GIFT.rubies}`, TYPE.caption, COLOR.text, true, true).setOrigin(0, 0.5));
+    const fb = button(this, 360 + 236, y, 160, 62, got ? '내일 또' : '무료 받기', () => this.claimFree(), { kind: got ? 'secondary' : 'growth', size: TYPE.caption });
+    fb.setEnabled(!got);
+    return y + 110;
+  }
+
   private packageSection(y0: number): number {
     this.sectionY.package = y0;
     const TABS: { key: DealTab; label: string; note: string }[] = [
@@ -518,7 +535,7 @@ export class ShopScene extends Phaser.Scene {
     lines.push(`[룬 상자] 룬 조각 ${RUNE_BOX.bundles.map(([n, w]) => `${n}개 ${w}%`).join(' · ')} (15종 균등) · 보장: 매 ${RUNE_BOX.guaranteeEvery}회째 10개 이상(${RUNE_BOX.guaranteeBundles.map(([n, w]) => `${n}개 ${w}`).join(':')})`);
     lines.push(`[골드 구매] ${GOLD_OFFERS.map((o) => `루비 ${o.rubies.toLocaleString()} → ${o.gold.toLocaleString()}G`).join(' · ')}`);
     lines.push('');
-    lines.push('루비는 게임 보상과 App Store 구매로 얻을 수 있어요.');
+    lines.push(CASH_SHOP ? '루비는 게임 보상과 App Store 구매로 얻을 수 있어요.' : '루비는 게임 보상으로 얻을 수 있어요.');
     add(this.add.text(48, 230, lines.join('\n'), { fontFamily: 'sans-serif', fontSize: '18px', color: css(0xe1d5f5), lineSpacing: 9, wordWrap: { width: 624 } }));
   }
 }

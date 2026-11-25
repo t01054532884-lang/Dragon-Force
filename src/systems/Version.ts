@@ -34,7 +34,7 @@ export function judgeVersion(current: string, info: { latest?: unknown; min?: un
 
 export async function checkVersion(timeoutMs = 3000): Promise<VersionCheck> {
   const none: VersionCheck = { status: 'ok', latest: APP_VERSION, notice: '' };
-  if (PLATFORM === 'web') return none;
+  if (PLATFORM !== 'ios') return none; // 웹·앱인토스는 늘 최신 묶음이 내려와 업데이트 안내가 필요 없음(토스에서 "App Store로" 안내 금지)
   try {
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), timeoutMs);
