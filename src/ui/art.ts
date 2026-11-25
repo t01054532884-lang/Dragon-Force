@@ -191,7 +191,7 @@ export const ART_FILES: Record<string, string> = {
   'att-rays': 'ui/att-rays.webp',
   'att-ruby-hoard': 'ui/att-ruby-hoard.webp',
   // 화면 배경 7장(2026-11-25 Higgsfield, scripts/process_art_scrbg.py): 그 화면에 들어갈 때만 읽음(LAZY_ART, src/ui/screen.ts)
-  ...Object.fromEntries(['missions', 'gifts', 'pass', 'attendance', 'achievements', 'shop', 'lab'].map((k) => [`scrbg-${k}`, `bg/scrbg-${k}.webp`])),
+  ...Object.fromEntries(['missions', 'gifts', 'pass', 'attendance', 'achievements', 'shop', 'lab', 'dragons', 'equip', 'event'].map((k) => [`scrbg-${k}`, `bg/scrbg-${k}.webp`])),
   // 23차분(2026-11-24, scripts/process_art_batch23.py, 요청서 8): 장비 등급 오라 3(512) · 장비 궤도 받침 4(192) — EquipScene.drawAura·drawOrbit
   ...Object.fromEntries(['rare', 'epic', 'legendary'].map((r) => [`aura-equip-${r}`, `equip/aura-equip-${r}.webp`])),
   ...Object.fromEntries(['common', 'rare', 'epic', 'legendary'].map((r) => [`equip-orb-${r}`, `equip/equip-orb-${r}.webp`])),

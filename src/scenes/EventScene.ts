@@ -119,7 +119,7 @@ export class EventScene extends Phaser.Scene {
     if (!active) {
       const msg = now < start ? `${fmtKst(start)}에 시작합니다` : '이벤트가 끝났습니다. 받은 보상은 그대로 남아 있어요.';
       this.A(this.add.text(360, 560, msg, { fontFamily: FONT, fontSize: '30px', color: '#e3f2fd', align: 'center', wordWrap: { width: 620 } }).setOrigin(0.5));
-      this.A(this.add.text(360, 640, '행운 룰렛(12월 한 달): 전투 5판마다 1회\n크리스마스 출석(12/18~12/31): 매일 루비 100~700', { fontFamily: FONT, fontSize: '22px', color: '#90caf9', align: 'center', lineSpacing: 8 }).setOrigin(0.5, 0));
+      this.A(this.add.text(360, 640, '행운 룰렛(출시 ~ 12/31): 전투 5판마다 1회\n크리스마스 출석(12/18~12/31): 매일 루비 100~700', { fontFamily: FONT, fontSize: '22px', color: '#90caf9', align: 'center', lineSpacing: 8 }).setOrigin(0.5, 0));
       return;
     }
     const keys: ('roulette' | 'attend')[] = ['roulette', 'attend'];

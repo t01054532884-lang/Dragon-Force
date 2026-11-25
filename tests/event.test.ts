@@ -22,8 +22,8 @@ const battles = (p: PlayerProgress, n: number, o: Partial<RunRecord> = {}, now =
 
 describe('겨울 축제 기간(KST, 끝 시각 제외)', () => {
   it('12/1 00:00 시작 ~ 1/1 00:00 직전까지', () => {
-    expect(eventActive(KST('2026-11-30T23:59:59'))).toBe(false);
-    expect(eventActive(KST('2026-12-01T00:00:00'))).toBe(true);
+    expect(eventActive(KST('2026-11-25T23:59:59'))).toBe(false); // 행운 룰렛은 출시(11/26)부터
+    expect(eventActive(KST('2026-11-26T00:00:00'))).toBe(true);
     expect(eventActive(KST('2026-12-31T23:59:59'))).toBe(true);
     expect(eventActive(KST('2027-01-01T00:00:00'))).toBe(false);
   });
@@ -40,7 +40,7 @@ describe('행운 룰렛 진행', () => {
   it('자발적 포기·60초 미만·이벤트 기간 밖은 세지 않음', () => {
     let p = battles(defaultProgress(), 3, { outcome: 'quit' }, DEC5, 'q');
     p = battles(p, 3, { elapsedMs: 59_999 }, DEC5, 's');
-    p = battles(p, 3, {}, KST('2026-11-30T12:00:00'), 'n');
+    p = battles(p, 3, {}, KST('2026-11-25T12:00:00'), 'n'); // 출시(11/26) 전
     expect(p.events[EV.id]?.battles ?? 0).toBe(0);
   });
   it('같은 전투(같은 runId)는 한 번만', () => {
