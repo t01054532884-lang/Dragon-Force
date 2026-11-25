@@ -74,6 +74,11 @@ export class StageDirector {
     return this.diff.hp;
   }
 
+  /** 이 판의 적 피해 배율(스테이지 × 난이도) — 장애물 기믹도 같은 배율 */
+  get damageMult(): number {
+    return this.diff.damage;
+  }
+
   /** 지금 살아 있는 첫 보스(없으면 처음 나온 보스, 아직 없으면 null) — 쉬움 1마리 코드와 호환 */
   get boss(): Enemy | null {
     return this.bosses.find((b) => b.active) ?? this.bosses[0] ?? null;

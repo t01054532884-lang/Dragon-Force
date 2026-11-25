@@ -35,7 +35,8 @@ import { DIFFICULTY_LABEL, DIFFICULTY_MULT, DIFFICULTY_REWARD, type Difficulty }
 import { decideDrop, ITEM_RULES, ITEMS, newDropState, type DropState, type ItemId } from '../data/items';
 import { GEM_MERGE, gemTier, mergeGroups } from '../systems/GemMerge';
 import { chapterOf, SEASON1_FINALE } from '../data/season1';
-import { arenaLayout, clampToArena, makeArena, outsideArena, type ArenaGeom } from '../data/arenas';
+import { arenaLayout, clampToArena, hitsObstacle, makeArena, outsideArena, type ArenaGeom, type Obstacle } from '../data/arenas';
+import { AURA_EVERY_MS, AURA_PAD, HAZARD_FROM_STAGE, HAZARD_RANGE, HAZARD_WARN_MS, obstacleTheme, type ObstacleHazard } from '../data/obstacleThemes';
 import { enterBattle } from '../ui/entry';
 import { hardStage, type HardStageDef } from '../data/hardStages';
 import { fullH, offY } from '../ui/layout';
@@ -51,8 +52,11 @@ interface EnemyShot {
   life: number;
   damage: number;
   r: number;
-  src: Enemy;
+  /** 쏜 적. 장애물 기믹(동상·토템)이 쏜 탄은 null */
+  src: Enemy | null;
   homing: boolean;
+  /** 맞으면 이동 둔화(장애물 고드름 등) */
+  slow?: number;
 }
 
 const WORLD_SIZE = 2800; // 투기장을 담는 정사각형 세계
@@ -182,7 +186,7 @@ export class GameScene extends Phaser.Scene {
   private hazards: Hazard[] = [];
   // ── 7단계 공통 패턴 ──
   private enemyShots: EnemyShot[] = [];
-  private slowZones: { x: number; y: number; r: number; left: number; slow: number; g: Phaser.GameObjects.Arc }[] = [];
+  private slowZones: { x: number; y: number; r: number; left: number; slow: number; g: Phaser.GameObjects.Arc | Phaser.GameObjects.Image }[] = [];
   private followFx: { obj: Phaser.GameObjects.Arc | Phaser.GameObjects.Image; target: Enemy; left: number }[] = [];
   private playerSlow = { until: 0, ratio: 0 };
   /** 패턴 위치 전용 난수(적 생성 난수와 분리 — 1단계 시드 재현 보존) */
@@ -319,6 +323,7 @@ export class GameScene extends Phaser.Scene {
     if (!this.textures.exists('gem-large')) makeGemTextures(this);
 
     this.drawArena();
+    this.setupObstacleHazards(); // 단계 테마 장애물 기믹(동상 고드름 등)
     this.physics.world.setBounds(0, 0, WORLD_SIZE, WORLD_SIZE);
     this.cameras.main.setBounds(0, 0, WORLD_SIZE, WORLD_SIZE);
 
@@ -437,7 +442,12 @@ export class GameScene extends Phaser.Scene {
     playMusic(this, 'bgm-battle');
     this.moveTip = [];
     if (!tipSeen('battle-move')) this.showMoveTip();
-    this.banner(this.hard ? `어려움 ${this.stage.id}단계 — ${this.hard.title}\n${this.hard.mechanicText}` : `${this.stage.id}단계 — ${this.stage.name}${this.difficulty === 'easy' ? '' : ` (${DIFFICULTY_LABEL[this.difficulty]})`}`, this.hard ? '#ff8a80' : '#e0e0e0');
+    // 11~20단계: 맵 방해 요소 한 줄 안내(obstacleThemes.ts note)
+    const mapNote = this.stage.id >= HAZARD_FROM_STAGE ? obstacleTheme(this.stage.id).note : undefined;
+    this.banner(
+      (this.hard ? `어려움 ${this.stage.id}단계 — ${this.hard.title}\n${this.hard.mechanicText}` : `${this.stage.id}단계 — ${this.stage.name}${this.difficulty === 'easy' ? '' : ` (${DIFFICULTY_LABEL[this.difficulty]})`}`) + (mapNote ? `\n${mapNote}` : ''),
+      this.hard ? '#ff8a80' : '#e0e0e0',
+    );
     // 어려움: 전투 시작 직후 스킬 카드 3번 고르기(시간 정지, 경험치 추가 없음)
     if (this.hard) {
       for (let k = 0; k < this.hard.startingSkillChoices; k++) this.choiceQueue.push('start');
@@ -502,7 +512,9 @@ export class GameScene extends Phaser.Scene {
    */
   private drawObstacles(ch: ReturnType<typeof chapterOf>): void {
     for (const o of this.arena.obstacles ?? []) {
-      const key = `obstacle-${o.kind}-${ch.id}`;
+      // 단계 테마 그림(얼음 동상 등, obstacleThemes.ts)이 먼저, 없으면 챕터 그림, 그것도 없으면 도형
+      const stageKey = `obstacle-${o.kind}-s${this.stage.id}`;
+      const key = this.textures.exists(stageKey) ? stageKey : `obstacle-${o.kind}-${ch.id}`;
       if (o.kind === 'pillar') {
         if (this.textures.exists(key)) {
           // 그림 크기 = 판정 크기에 가깝게(예전 2.3배·위로 0.25 밀림 → 그림 윗부분을 캐릭터가 밟고 지나가는 것처럼 보임)
@@ -922,6 +934,7 @@ export class GameScene extends Phaser.Scene {
       return false;
     });
     this.updateEnemies(delta);
+    this.updateObstacleHazards(delta);
     this.signature.update(delta);
     this.basic.update(delta);
     this.skills.update(delta);
@@ -1033,7 +1046,8 @@ export class GameScene extends Phaser.Scene {
       s.img.y += s.vy * dt;
       s.img.setRotation(Math.atan2(s.vy, s.vx));
       if (Phaser.Math.Distance.Between(s.img.x, s.img.y, px, py) < s.r + 16) {
-        this.damagePlayer(s.damage * s.src.damageMult, s.src);
+        this.damagePlayer(s.damage * (s.src ? s.src.damageMult : 1), s.src ?? undefined);
+        if (s.slow) this.slowPlayerFor(1500, s.slow);
         s.img.destroy();
         return false;
       }
@@ -1083,7 +1097,174 @@ export class GameScene extends Phaser.Scene {
     this.playerSlow = { until: Math.max(this.playerSlow.until, until), ratio: this.playerSlow.until > this.elapsed ? Math.max(this.playerSlow.ratio, ratio) : ratio };
   }
 
+  // ───────── 장애물 기믹(2026-11-25, src/data/obstacleThemes.ts) ─────────
+  // 11~20단계: ① 장애물에 가까이 있으면 1초마다 피해(장애물 둘레 테마 색 빛) ② 맵마다 다른 방해 요소(탄·파동·직선·랜덤 장판)
+  // 1~10단계는 장애물만(기믹 없음). 탄·파동·직선은 둥근 장애물마다 따로(시작 시각을 어긋나게), 랜덤 장판은 드래곤에게 가장 가까운 장애물 하나가.
+  private obstacleTimers: { o: Extract<Obstacle, { kind: 'pillar' }>; left: number; warn: Phaser.GameObjects.GameObject | null }[] = [];
+  private auraTick = 0;
+  private auraFx: Phaser.GameObjects.Shape[] = [];
+
+  private setupObstacleHazards(): void {
+    this.obstacleTimers = [];
+    this.auraFx.forEach((g) => g.destroy());
+    this.auraFx = [];
+    this.auraTick = 0;
+    const th = obstacleTheme(this.stage.id);
+    if (this.stage.id < HAZARD_FROM_STAGE) return;
+    // 가까이 가면 피해: 장애물 둘레에 숨 쉬는 테마 색 빛(피해 범위 표시)
+    if (th.aura) {
+      for (const o of this.arena.obstacles ?? []) {
+        const g = o.kind === 'pillar'
+          ? this.add.circle(o.x, o.y, o.r + AURA_PAD - PLAYER_BLOCK_R, th.aura.color, 0.1).setStrokeStyle(3, th.aura.color, 0.55)
+          : this.add.rectangle(o.x, o.y, o.w + (AURA_PAD - PLAYER_BLOCK_R) * 2, o.h + (AURA_PAD - PLAYER_BLOCK_R) * 2, th.aura.color, 0.1).setStrokeStyle(3, th.aura.color, 0.55);
+        g.setDepth(3);
+        this.tweens.add({ targets: g, alpha: 0.45, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+        this.auraFx.push(g);
+      }
+    }
+    const h = th.hazard;
+    if (!h) return;
+    const pillars = (this.arena.obstacles ?? []).filter((o): o is Extract<Obstacle, { kind: 'pillar' }> => o.kind === 'pillar');
+    if (!pillars.length) return;
+    if (h.kind === 'zones') this.obstacleTimers.push({ o: pillars[0], left: h.every * 0.8, warn: null });
+    else pillars.forEach((o, k) => this.obstacleTimers.push({ o, left: h.every * (0.6 + ((k * 0.37) % 1) * 0.8), warn: null }));
+  }
+
+  private updateObstacleHazards(delta: number): void {
+    if (this.stage.id < HAZARD_FROM_STAGE) return;
+    const th = obstacleTheme(this.stage.id);
+    // ① 가까이 가면 피해
+    if (th.aura) {
+      this.auraTick -= delta;
+      if (this.auraTick <= 0 && hitsObstacle(this.arena, this.player.x, this.player.y, AURA_PAD)) {
+        this.auraTick = AURA_EVERY_MS;
+        this.damagePlayer(th.aura.damage * this.director.damageMult);
+        const spark = this.add.circle(this.player.x, this.player.y, 30, th.aura.color, 0.5).setDepth(11);
+        this.tweens.add({ targets: spark, scale: 1.8, alpha: 0, duration: 300, onComplete: () => spark.destroy() });
+      }
+    }
+    // ② 방해 요소
+    const h = th.hazard;
+    if (!h) return;
+    const px = this.player.x;
+    const py = this.player.y;
+    for (const t of this.obstacleTimers) {
+      t.left -= delta;
+      // 랜덤 장판은 매번 드래곤에게 가장 가까운 장애물이 쏜다
+      if (h.kind === 'zones' && !t.warn) {
+        let best = t.o;
+        for (const o of this.arena.obstacles ?? []) if (o.kind === 'pillar' && Phaser.Math.Distance.Between(o.x, o.y, px, py) < Phaser.Math.Distance.Between(best.x, best.y, px, py)) best = o;
+        t.o = best;
+      }
+      const o = t.o;
+      const near = Phaser.Math.Distance.Between(o.x, o.y, px, py) < HAZARD_RANGE + o.r;
+      if (!t.warn && t.left <= HAZARD_WARN_MS) {
+        if (!near) {
+          t.left += h.every; // 드래곤이 멀면 이번 차례는 건너뜀
+          continue;
+        }
+        t.warn = this.hazardWarn(o, h);
+      }
+      if (t.left > 0) continue;
+      t.warn?.destroy();
+      t.warn = null;
+      t.left += h.every;
+      this.fireHazard(o, h);
+    }
+  }
+
+  /** 예고: 장애물이 테마 색으로 깜빡임(파동은 닿는 범위, 직선은 찌르는 줄까지 표시) */
+  private hazardWarn(o: Extract<Obstacle, { kind: 'pillar' }>, h: ObstacleHazard): Phaser.GameObjects.GameObject {
+    let g: Phaser.GameObjects.Shape;
+    if (h.kind === 'pulse') g = this.add.circle(o.x, o.y, o.r + h.r, h.color, 0.12).setStrokeStyle(5, h.color, 0.85);
+    else if (h.kind === 'line') {
+      const a = Phaser.Math.Angle.Between(o.x, o.y, this.player.x, this.player.y);
+      const cx = o.x + Math.cos(a) * (o.r + h.length / 2);
+      const cy = o.y + Math.sin(a) * (o.r + h.length / 2);
+      g = this.add.rectangle(cx, cy, h.length, h.width, h.color, 0.14).setStrokeStyle(4, h.color, 0.85).setRotation(a);
+      g.setData('angle', a);
+    } else g = this.add.circle(o.x, o.y, o.r + 14).setStrokeStyle(8, h.color, 0.9);
+    g.setDepth(4);
+    this.tweens.add({ targets: g, alpha: 0.35, duration: 200, yoyo: true, repeat: -1 });
+    return g;
+  }
+
+  private fireHazard(o: Extract<Obstacle, { kind: 'pillar' }>, h: ObstacleHazard): void {
+    const mult = this.director.damageMult;
+    const px = this.player.x;
+    const py = this.player.y;
+    if (h.kind === 'pulse') {
+      const R = o.r + h.r;
+      const boom = this.add.circle(o.x, o.y, o.r, h.color, 0.45).setDepth(8);
+      this.tweens.add({ targets: boom, radius: R, alpha: 0, duration: 350, onComplete: () => boom.destroy() });
+      if (Phaser.Math.Distance.Between(o.x, o.y, px, py) < R + 18) {
+        this.damagePlayer(h.damage * mult);
+        if (h.slow) this.slowPlayerFor(1500, h.slow);
+      }
+      return;
+    }
+    if (h.kind === 'line') {
+      // 예고 때 정한 방향 그대로(예고와 판정이 같은 자리) — 예고 없이 불리면 지금 방향
+      const a = Phaser.Math.Angle.Between(o.x, o.y, px, py);
+      const sx = o.x + Math.cos(a) * o.r;
+      const sy = o.y + Math.sin(a) * o.r;
+      const fx = this.add.rectangle(sx + (Math.cos(a) * h.length) / 2, sy + (Math.sin(a) * h.length) / 2, h.length, h.width, h.color, 0.7).setRotation(a).setDepth(8);
+      this.tweens.add({ targets: fx, alpha: 0, scaleY: 0.3, duration: 280, onComplete: () => fx.destroy() });
+      const dx = px - sx;
+      const dy = py - sy;
+      const along = dx * Math.cos(a) + dy * Math.sin(a);
+      const side = Math.abs(-dx * Math.sin(a) + dy * Math.cos(a));
+      if (along > -18 && along < h.length + 18 && side < h.width / 2 + 18) this.damagePlayer(h.damage * mult);
+      return;
+    }
+    if (h.kind === 'zones') {
+      // 드래곤 둘레 랜덤 위치(첫 장판은 거의 발밑)에 덩어리가 날아가 장판이 됨: 둔화 장판(거미줄·눈더미)은 남고, 폭발은 예고 뒤 터짐
+      for (let i = 0; i < h.count; i++) {
+        const ang = this.itemRng.frac() * Math.PI * 2;
+        const dist = i === 0 ? this.itemRng.frac() * 0.6 * M : (0.4 + this.itemRng.frac() * 0.6) * h.scatter;
+        const p = clampToArena(this.arena, px + Math.cos(ang) * dist, py + Math.sin(ang) * dist, h.r * 0.5);
+        const blob = this.add.circle(o.x, o.y, 12, h.color, 0.9).setDepth(9);
+        const warn = this.add.circle(p.x, p.y, h.r, h.color, 0.1).setStrokeStyle(4, h.color, 0.8).setDepth(4);
+        this.tweens.add({ targets: blob, x: p.x, y: p.y, duration: 450, ease: 'Quad.Out', onComplete: () => blob.destroy() });
+        const delay = h.effect === 'burst' ? 1200 : 450;
+        this.hazards.push({
+          left: delay,
+          objs: [warn, blob],
+          run: () => {
+            warn.destroy();
+            if (h.effect === 'burst') {
+              const boom = this.add.circle(p.x, p.y, h.r, h.color, 0.6).setDepth(8);
+              this.tweens.add({ targets: boom, scale: 1.25, alpha: 0, duration: 320, onComplete: () => boom.destroy() });
+              if (Phaser.Math.Distance.Between(p.x, p.y, this.player.x, this.player.y) < h.r + 18) this.damagePlayer((h.damage ?? 10) * mult);
+              return;
+            }
+            // 둔화 장판: 기존 둔화 지대(적 장판과 같은 규칙)로. 단계 그림(zone-s14 거미줄·zone-s11 눈더미)이 있으면 그림, 없으면 원
+            const zKey = `zone-s${this.stage.id}`;
+            const g = this.textures.exists(zKey)
+              ? this.add.image(p.x, p.y, zKey).setDisplaySize(h.r * 2.3, h.r * 2.3).setDepth(3)
+              : this.add.circle(p.x, p.y, h.r, h.color, 0.22).setStrokeStyle(3, h.color, 0.9).setDepth(3);
+            this.slowZones.push({ x: p.x, y: p.y, r: h.r, left: h.lastMs ?? 3500, slow: h.slow ?? 0.4, g });
+          },
+        });
+      }
+      return;
+    }
+    // shot: 조준 탄 · 부채꼴 · 사방(radial) · 따라오는 구슬(homing)
+    const aim = Phaser.Math.Angle.Between(o.x, o.y, px, py);
+    for (let i = 0; i < h.count; i++) {
+      const a = h.radial ? aim + (i / h.count) * Math.PI * 2 : aim + (h.count > 1 ? (i / (h.count - 1) - 0.5) * h.spread * 2 : 0);
+      const sx = o.x + Math.cos(a) * (o.r + 12);
+      const sy = o.y + Math.sin(a) * (o.r + 12);
+      const img = this.add.image(sx, sy, h.homing ? 'e-orb' : 'e-shot').setDepth(9).setScale(h.size).setTint(h.color);
+      this.enemyShots.push({ img, homing: !!h.homing, speed: h.speed, vx: Math.cos(a) * h.speed, vy: Math.sin(a) * h.speed, life: h.homing ? 5500 : 4000, damage: h.damage * this.director.damageMult, r: (h.homing ? 14 : 8) * h.size, src: null, slow: h.slow });
+    }
+  }
+
   private clearEnemyShots(): void {
+    this.obstacleTimers.forEach((t) => t.warn?.destroy());
+    this.obstacleTimers = [];
+    this.auraFx.forEach((g) => g.destroy());
+    this.auraFx = [];
     this.dangerZones.forEach((z) => z.g.destroy());
     this.dangerZones = [];
     this.enemyShots.forEach((s) => s.img.destroy());

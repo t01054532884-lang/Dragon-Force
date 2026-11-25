@@ -1,20 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { arenaLayout, ARENA_LAYOUTS, clampToArena, edgePointAt, hitsObstacle, makeArena, outsideArena, randomPointIn, steerAround, touchingWall, type ArenaGeom } from '../src/data/arenas';
+import { arenaLayout, ARENA_LAYOUTS, STAGE_ARENAS, clampToArena, edgePointAt, hitsObstacle, makeArena, outsideArena, randomPointIn, steerAround, touchingWall, type ArenaGeom } from '../src/data/arenas';
 import { earlyEase } from '../src/data/stages';
 
 const R = 1100;
 
 describe('전장 모양(2026-11-24)', () => {
-  it('1~20단계가 원형·정사각형·장애물 배치를 섞어 쓴다', () => {
-    const ids = Array.from({ length: 20 }, (_, i) => arenaLayout(i + 1).id);
-    expect(new Set(ids).size).toBeGreaterThanOrEqual(6);
-    expect(ids.filter((id) => ARENA_LAYOUTS[id].shape === 'square').length).toBeGreaterThanOrEqual(6);
-    // 최종보스 단계(5·10·15·20)는 장애물 없음
-    for (const s of [5, 10, 15, 20]) expect(arenaLayout(s).obstacles).toEqual([]);
+  it('1~20단계 모두 장애물이 있고 단계마다 배치가 다르다(2026-11-25), 원형·정사각형을 섞어 쓴다', () => {
+    const lays = Array.from({ length: 20 }, (_, i) => arenaLayout(i + 1));
+    expect(new Set(lays.map((l) => l.id)).size).toBe(20);
+    expect(lays.filter((l) => l.shape === 'square').length).toBeGreaterThanOrEqual(6);
+    for (const l of lays) expect(l.obstacles.length, l.id).toBeGreaterThan(0);
   });
 
   it('드래곤 시작·보스 등장 자리에 장애물이 없다', () => {
-    for (const lay of Object.values(ARENA_LAYOUTS)) {
+    for (const lay of [...Object.values(ARENA_LAYOUTS), ...Object.values(STAGE_ARENAS)]) {
       for (const scale of [1, 0.7]) {
         const a = makeArena(0, 0, R * scale, lay);
         expect(hitsObstacle(a, 0, a.r * 0.4, 25), `${lay.id} 시작`).toBe(false);

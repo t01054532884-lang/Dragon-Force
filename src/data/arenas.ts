@@ -58,11 +58,39 @@ export const ARENA_LAYOUTS: Record<string, ArenaLayout> = {
   center: { id: 'center', name: '가운데 바위', shape: 'square', obstacles: [{ kind: 'pillar', x: 0, y: -0.05, r: 0.15 }, ...pillars([[-0.62, 0.62], [0.62, 0.62], [-0.62, -0.62], [0.62, -0.62]], 0.06)] },
 };
 
-/** 1~20단계 배치(같은 챕터 안에서도 모양이 바뀌게). 어려움도 같은 단계 번호면 같은 모양 */
-const STAGE_LAYOUT = ['circle', 'square', 'pillars', 'rocks', 'circle', 'ring', 'walls', 'center', 'rocks', 'square', 'pillars', 'walls', 'ring', 'center', 'circle', 'rocks', 'walls', 'pillars', 'center', 'square'];
+const rock = (x: number, y: number, w: number, h: number): Obstacle => ({ kind: 'rock', x, y, w, h });
+const lay = (id: string, name: string, shape: ArenaShape, obstacles: Obstacle[]): ArenaLayout => ({ id, name, shape, obstacles });
+
+/**
+ * 1~20단계 전장(제작자 요청 2026-11-25: "장애물은 1~20단계 모두, 맵마다 구성이 달랐으면"). 단계마다 배치가 모두 다르다.
+ * 장애물 이름·그림·기믹은 src/data/obstacleThemes.ts(같은 단계 번호). 최종보스 단계(5·10·15·20)는 돌진 패턴이 많아
+ * 가장자리 쪽에 작은 장애물만. 어려움도 같은 단계 번호면 같은 배치(좌표가 r 비율이라 좁은 전장에선 함께 줄어듦).
+ */
+export const STAGE_ARENAS: Record<number, ArenaLayout> = {
+  1: lay('s1', '마른 고목 숲', 'circle', pillars([[-0.5, 0.05], [0.55, 0.15], [-0.15, -0.25]], 0.07)),
+  2: lay('s2', '가시덤불 길', 'square', [rock(-0.55, -0.05, 0.3, 0.09), rock(0.55, 0.3, 0.3, 0.09), ...pillars([[0.25, -0.78], [-0.65, 0.7]], 0.06)]),
+  3: lay('s3', '사냥꾼의 토템', 'circle', ARENA_LAYOUTS.pillars.obstacles),
+  4: lay('s4', '고목의 뿌리', 'square', ARENA_LAYOUTS.rocks.obstacles),
+  5: lay('s5', '불꽃 관문', 'circle', pillars([[-0.53, -0.53], [0.53, -0.53], [-0.53, 0.53], [0.53, 0.53]], 0.055)),
+  6: lay('s6', '화로 고리', 'circle', ARENA_LAYOUTS.ring.obstacles),
+  7: lay('s7', '용광로 통로', 'square', ARENA_LAYOUTS.walls.obstacles),
+  8: lay('s8', '성벽 망루', 'square', ARENA_LAYOUTS.center.obstacles),
+  9: lay('s9', '얼음 능선', 'square', [rock(-0.55, -0.2, 0.09, 0.4), rock(0.55, 0.25, 0.09, 0.4), rock(0, 0.75, 0.3, 0.08), ...pillars([[0.5, -0.68]], 0.06)]),
+  10: lay('s10', '수정 군락', 'square', pillars([[-0.62, -0.3], [0.62, -0.3], [-0.62, 0.45], [0.62, 0.45]], 0.06)),
+  11: lay('s11', '눈보라 토템', 'circle', ARENA_LAYOUTS.pillars.obstacles),
+  12: lay('s12', '빙궁 회랑', 'square', [...ARENA_LAYOUTS.walls.obstacles, ...pillars([[-0.66, -0.1], [0.66, -0.1]], 0.065)]),
+  13: lay('s13', '유령 가로등 거리', 'circle', ARENA_LAYOUTS.ring.obstacles),
+  14: lay('s14', '가고일 성당', 'square', ARENA_LAYOUTS.center.obstacles),
+  15: lay('s15', '흑기사 석상 길', 'circle', pillars([[-0.6, -0.1], [0.6, -0.1], [-0.6, 0.45], [0.6, 0.45]], 0.06)),
+  16: lay('s16', '저주받은 왕좌의 방', 'square', ARENA_LAYOUTS.rocks.obstacles),
+  17: lay('s17', '태양 거울 폐허', 'square', [...ARENA_LAYOUTS.walls.obstacles, ...pillars([[0, -0.82], [0, 0.8]], 0.06)]),
+  18: lay('s18', '별의 오벨리스크', 'circle', pillars([0, 1, 2, 3, 4].map((k) => [Math.cos(Math.PI / 2 + (k / 5) * Math.PI * 2) * 0.7, Math.sin(Math.PI / 2 + (k / 5) * Math.PI * 2) * 0.7]), 0.06)),
+  19: lay('s19', '용 석상 제단', 'square', ARENA_LAYOUTS.center.obstacles),
+  20: lay('s20', '봉인 기둥', 'square', pillars([[-0.6, -0.6], [0.6, -0.6], [-0.6, 0.62], [0.6, 0.62]], 0.07)),
+};
 
 export function arenaLayout(stageId: number): ArenaLayout {
-  return ARENA_LAYOUTS[STAGE_LAYOUT[(stageId - 1) % STAGE_LAYOUT.length]] ?? ARENA_LAYOUTS.circle;
+  return STAGE_ARENAS[((stageId - 1) % 20) + 1] ?? ARENA_LAYOUTS.circle;
 }
 
 /** 배치(비율) → 실제 좌표 */

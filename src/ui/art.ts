@@ -36,7 +36,7 @@ export const SKILL_ICONS = [
  * - enemy: 단계 → 그 단계에서 처음 나오는 적 id 목록. 그림 `public/art/enemy/art-e-<id>.webp`(옆모습, 머리 오른쪽).
  * 셋 다 크기가 커서 처음에 한꺼번에 읽지 않고 그 화면·그 단계에서만 읽는다(아이폰 메모리).
  */
-export const STAGE_ART_READY: { lobby: number[]; floor: number[]; enemy: Record<number, string[]> } = { lobby: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], floor: [], enemy: {
+export const STAGE_ART_READY: { lobby: number[]; floor: number[]; enemy: Record<number, string[]> } = { lobby: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], floor: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20] /* 2026-11-25 Higgsfield, 로비 배경을 참고 그림으로·이음새 없게 후처리·밝기 60~115로 맞춤 */, enemy: {
   // 2~20단계 몬스터 전부(2026-11-25, Higgsfield GPT Image 2.6 · 기준 그림 art-graymane, 원본 art-src/enemies/hf/):
   // 보스 19(512px) · 엘리트 38(384px) · 일반·소환물 63(256px). 각 단계: [보스, 엘리트 2, 일반 3, 소환물] — 게임 데이터(생성표·소환)에서 뽑은 목록
   2: ['thornhorn_treant', 'thorn_boar', 'vine_hunter', 'thorn_bug', 'vine_sprite', 'forest_archer', 'vine_sprout'],
@@ -59,14 +59,25 @@ export const STAGE_ART_READY: { lobby: number[]; floor: number[]; enemy: Record<
   19: ['serkan', 'dragon_apostle', 'ancient_captain', 'dragon_soul', 'ancient_merc', 'mana_guard'],
   20: ['eirgon', 'seal_warden', 'sanctum_executioner', 'ancient_spirit', 'mana_golem', 'seal_guard'],
 } };
+/**
+ * 단계 테마 장애물 그림(2026-11-25, src/data/obstacleThemes.ts): 단계 → 받은 모양. `public/art/arena/obstacle-<pillar|rock>-s<단계>.webp`.
+ * 있으면 GameScene.drawObstacles가 챕터 그림·도형 대신 쓴다.
+ */
+export const OBSTACLE_ART_READY: Record<number, ('pillar' | 'rock' | 'zone')[]> = {
+  // 2026-11-25 Higgsfield(로비 배경을 참고 그림으로), 원본 art-src/arena/hf/. 7단계는 벽만
+  1: ['pillar'], 2: ['pillar', 'rock'], 3: ['pillar'], 4: ['pillar', 'rock'], 5: ['pillar'], 6: ['pillar'], 7: ['rock'], 8: ['pillar'], 9: ['pillar', 'rock'], 10: ['pillar'], 11: ['pillar', 'zone'], 12: ['pillar', 'rock'], 13: ['pillar'], 14: ['pillar', 'zone'], 15: ['pillar'], 16: ['pillar', 'rock'], 17: ['pillar', 'rock'], 18: ['pillar'], 19: ['pillar'], 20: ['pillar'],
+};
 /** 단계별 그림처럼 그때그때 읽는 키(preloadArt가 건너뜀) */
-const LAZY_ART = /^(lobby-bg-\d+|floor-s\d+|art-e-)/;
+const LAZY_ART = /^(lobby-bg-\d+|floor-s\d+|art-e-|obstacle-(pillar|rock)-s\d+|zone-s\d+)/;
+/** 'zone'은 장애물이 깔아 두는 장판 그림(거미줄·눈더미) `arena/zone-s<단계>.webp` */
+const obstacleArtKey = (k: 'pillar' | 'rock' | 'zone', s: number | string) => (k === 'zone' ? `zone-s${s}` : `obstacle-${k}-s${s}`);
 
 export const ART_FILES: Record<string, string> = {
   'lobby-bg': 'lobby-bg.jpg',
   ...Object.fromEntries(STAGE_ART_READY.lobby.map((n) => [`lobby-bg-${n}`, `stage/lobby-bg-${n}.jpg`])),
   ...Object.fromEntries(STAGE_ART_READY.floor.map((n) => [`floor-s${n}`, `stage/floor-s${n}.webp`])),
   ...Object.fromEntries(Object.values(STAGE_ART_READY.enemy).flat().map((id) => [`art-e-${id}`, `enemy/art-e-${id}.webp`])),
+  ...Object.fromEntries(Object.entries(OBSTACLE_ART_READY).flatMap(([s, kinds]) => kinds.map((k) => [obstacleArtKey(k, s), `arena/${obstacleArtKey(k, s)}.webp`]))),
   'chest-equipment': 'chest-equipment.webp',
   'chest-dragon': 'chest-dragon.webp',
   'chest-gold': 'chest-gold.webp',
@@ -193,7 +204,11 @@ export function preloadArt(scene: Phaser.Scene): void {
 
 /** 전투 preload: 이 단계의 바닥·적 그림만 읽는다(받은 것만) */
 export function preloadStageArt(scene: Phaser.Scene, stageId: number): void {
-  preloadKeys(scene, [`floor-s${stageId}`, ...(STAGE_ART_READY.enemy[stageId] ?? []).map((id) => `art-e-${id}`)]);
+  preloadKeys(scene, [
+    `floor-s${stageId}`,
+    ...(STAGE_ART_READY.enemy[stageId] ?? []).map((id) => `art-e-${id}`),
+    ...(OBSTACLE_ART_READY[stageId] ?? []).map((k) => obstacleArtKey(k, stageId)),
+  ]);
 }
 
 /** 실제 그림이 없는 키만 도형 임시 그림을 만든다 */
