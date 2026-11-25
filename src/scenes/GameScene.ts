@@ -328,6 +328,8 @@ export class GameScene extends Phaser.Scene {
     releaseLobbyArt(this, this.dragon.id); // 전투에서 안 쓰는 로비 그림을 GPU에서 내림(돌아가면 로비가 다시 읽음)
 
     this.drawArena();
+    this.mapHazardsOff = false;
+    this.hurtLog = { total: 0, aura: 0, trap: 0 };
     this.setupObstacleHazards(); // 단계 테마 장애물 기믹(동상 고드름 등)
     this.physics.world.setBounds(0, 0, WORLD_SIZE, WORLD_SIZE);
     this.cameras.main.setBounds(0, 0, WORLD_SIZE, WORLD_SIZE);
@@ -447,12 +449,8 @@ export class GameScene extends Phaser.Scene {
     playMusic(this, 'bgm-battle');
     this.moveTip = [];
     if (!tipSeen('battle-move')) this.showMoveTip();
-    // 11~20단계: 맵 방해 요소 한 줄 안내(obstacleThemes.ts note)
-    const mapNote = this.stage.id >= HAZARD_FROM_STAGE ? obstacleTheme(this.stage.id).note : undefined;
-    this.banner(
-      (this.hard ? `어려움 ${this.stage.id}단계 — ${this.hard.title}\n${this.hard.mechanicText}` : `${this.stage.id}단계 — ${this.stage.name}${this.difficulty === 'easy' ? '' : ` (${DIFFICULTY_LABEL[this.difficulty]})`}`) + (mapNote ? `\n${mapNote}` : ''),
-      this.hard ? '#ff8a80' : '#e0e0e0',
-    );
+    // 맵 기믹은 안내하지 않는다(제작자 2026-11-25: "말 안 해야 더 재밌어")
+    this.banner(this.hard ? `어려움 ${this.stage.id}단계 — ${this.hard.title}\n${this.hard.mechanicText}` : `${this.stage.id}단계 — ${this.stage.name}${this.difficulty === 'easy' ? '' : ` (${DIFFICULTY_LABEL[this.difficulty]})`}`, this.hard ? '#ff8a80' : '#e0e0e0');
     // 어려움: 전투 시작 직후 스킬 카드 3번 고르기(시간 정지, 경험치 추가 없음)
     if (this.hard) {
       for (let k = 0; k < this.hard.startingSkillChoices; k++) this.choiceQueue.push('start');
@@ -1051,7 +1049,7 @@ export class GameScene extends Phaser.Scene {
       s.img.y += s.vy * dt;
       s.img.setRotation(Math.atan2(s.vy, s.vx));
       if (Phaser.Math.Distance.Between(s.img.x, s.img.y, px, py) < s.r + 16) {
-        this.damagePlayer(s.damage * (s.src ? s.src.damageMult : 1), s.src ?? undefined);
+        this.damagePlayer(s.damage * (s.src ? s.src.damageMult : 1), s.src ?? undefined, false, s.src ? undefined : 'trap');
         if (s.slow) this.slowPlayerFor(1500, s.slow);
         s.img.destroy();
         return false;
@@ -1104,7 +1102,9 @@ export class GameScene extends Phaser.Scene {
 
   // ───────── 장애물 기믹(2026-11-25, src/data/obstacleThemes.ts) ─────────
   // 11~20단계: ① 장애물에 가까이 있으면 1초마다 피해(장애물 둘레 테마 색 빛) ② 맵마다 다른 방해 요소(탄·파동·직선·랜덤 장판)
-  // 1~10단계는 장애물만(기믹 없음). 탄·파동·직선은 둥근 장애물마다 따로(시작 시각을 어긋나게), 랜덤 장판은 드래곤에게 가장 가까운 장애물 하나가.
+  // 1~10단계는 장애물만(기믹 없음). 방해 요소는 차례마다 드래곤에게 가장 가까운 둥근 장애물 하나만 쓴다
+  // (자동 측정 2026-11-25: 장애물마다 따로 쏘면 15단계 흑기사 석상 4개가 6초에 창 4번 → 봇 피해 732·실패. 한 번에 하나로).
+  // 근접 피해도 둥근 장애물(동상·토템)만 — 벽은 막기만(17단계 벽을 따라 움직이면 피해 267이 쌓였음).
   private obstacleTimers: { o: Extract<Obstacle, { kind: 'pillar' }>; left: number; warn: Phaser.GameObjects.GameObject | null }[] = [];
   private auraTick = 0;
   private auraFx: Phaser.GameObjects.Shape[] = [];
@@ -1119,9 +1119,8 @@ export class GameScene extends Phaser.Scene {
     // 가까이 가면 피해: 장애물 둘레에 숨 쉬는 테마 색 빛(피해 범위 표시)
     if (th.aura) {
       for (const o of this.arena.obstacles ?? []) {
-        const g = o.kind === 'pillar'
-          ? this.add.circle(o.x, o.y, o.r + AURA_PAD - PLAYER_BLOCK_R, th.aura.color, 0.1).setStrokeStyle(3, th.aura.color, 0.55)
-          : this.add.rectangle(o.x, o.y, o.w + (AURA_PAD - PLAYER_BLOCK_R) * 2, o.h + (AURA_PAD - PLAYER_BLOCK_R) * 2, th.aura.color, 0.1).setStrokeStyle(3, th.aura.color, 0.55);
+        if (o.kind !== 'pillar') continue;
+        const g = this.add.circle(o.x, o.y, o.r + AURA_PAD - PLAYER_BLOCK_R, th.aura.color, 0.1).setStrokeStyle(3, th.aura.color, 0.55);
         g.setDepth(3);
         this.tweens.add({ targets: g, alpha: 0.45, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
         this.auraFx.push(g);
@@ -1131,19 +1130,25 @@ export class GameScene extends Phaser.Scene {
     if (!h) return;
     const pillars = (this.arena.obstacles ?? []).filter((o): o is Extract<Obstacle, { kind: 'pillar' }> => o.kind === 'pillar');
     if (!pillars.length) return;
-    if (h.kind === 'zones') this.obstacleTimers.push({ o: pillars[0], left: h.every * 0.8, warn: null });
-    else pillars.forEach((o, k) => this.obstacleTimers.push({ o, left: h.every * (0.6 + ((k * 0.37) % 1) * 0.8), warn: null }));
+    this.obstacleTimers.push({ o: pillars[0], left: h.every * 0.8, warn: null });
   }
 
+  /** 개발용(봇 비교 측정): true면 맵 기믹(근접 피해·방해 요소)을 끈다 */
+  mapHazardsOff = false;
+  /** 받은 피해 기록(봇 측정용): 전체 · 장애물 근접 · 맵 방해 요소 */
+  hurtLog = { total: 0, aura: 0, trap: 0 };
+
   private updateObstacleHazards(delta: number): void {
+    if (this.mapHazardsOff) return;
     if (this.stage.id < HAZARD_FROM_STAGE) return;
     const th = obstacleTheme(this.stage.id);
     // ① 가까이 가면 피해
     if (th.aura) {
       this.auraTick -= delta;
-      if (this.auraTick <= 0 && hitsObstacle(this.arena, this.player.x, this.player.y, AURA_PAD)) {
+      const nearPillar = (this.arena.obstacles ?? []).some((o) => o.kind === 'pillar' && Phaser.Math.Distance.Between(o.x, o.y, this.player.x, this.player.y) < o.r + AURA_PAD);
+      if (this.auraTick <= 0 && nearPillar) {
         this.auraTick = AURA_EVERY_MS;
-        this.damagePlayer(th.aura.damage * this.director.damageMult);
+        this.damagePlayer(th.aura.damage * this.director.damageMult, undefined, false, 'aura');
         const spark = this.add.circle(this.player.x, this.player.y, 30, th.aura.color, 0.5).setDepth(11);
         this.tweens.add({ targets: spark, scale: 1.8, alpha: 0, duration: 300, onComplete: () => spark.destroy() });
       }
@@ -1155,8 +1160,8 @@ export class GameScene extends Phaser.Scene {
     const py = this.player.y;
     for (const t of this.obstacleTimers) {
       t.left -= delta;
-      // 랜덤 장판은 매번 드래곤에게 가장 가까운 장애물이 쏜다
-      if (h.kind === 'zones' && !t.warn) {
+      // 차례마다 드래곤에게 가장 가까운 둥근 장애물이 쏜다
+      if (!t.warn) {
         let best = t.o;
         for (const o of this.arena.obstacles ?? []) if (o.kind === 'pillar' && Phaser.Math.Distance.Between(o.x, o.y, px, py) < Phaser.Math.Distance.Between(best.x, best.y, px, py)) best = o;
         t.o = best;
@@ -1203,7 +1208,7 @@ export class GameScene extends Phaser.Scene {
       const boom = this.add.circle(o.x, o.y, o.r, h.color, 0.45).setDepth(8);
       this.tweens.add({ targets: boom, radius: R, alpha: 0, duration: 350, onComplete: () => boom.destroy() });
       if (Phaser.Math.Distance.Between(o.x, o.y, px, py) < R + 18) {
-        this.damagePlayer(h.damage * mult);
+        this.damagePlayer(h.damage * mult, undefined, false, 'trap');
         if (h.slow) this.slowPlayerFor(1500, h.slow);
       }
       return;
@@ -1219,7 +1224,7 @@ export class GameScene extends Phaser.Scene {
       const dy = py - sy;
       const along = dx * Math.cos(a) + dy * Math.sin(a);
       const side = Math.abs(-dx * Math.sin(a) + dy * Math.cos(a));
-      if (along > -18 && along < h.length + 18 && side < h.width / 2 + 18) this.damagePlayer(h.damage * mult);
+      if (along > -18 && along < h.length + 18 && side < h.width / 2 + 18) this.damagePlayer(h.damage * mult, undefined, false, 'trap');
       return;
     }
     if (h.kind === 'zones') {
@@ -1240,7 +1245,7 @@ export class GameScene extends Phaser.Scene {
             if (h.effect === 'burst') {
               const boom = this.add.circle(p.x, p.y, h.r, h.color, 0.6).setDepth(8);
               this.tweens.add({ targets: boom, scale: 1.25, alpha: 0, duration: 320, onComplete: () => boom.destroy() });
-              if (Phaser.Math.Distance.Between(p.x, p.y, this.player.x, this.player.y) < h.r + 18) this.damagePlayer((h.damage ?? 10) * mult);
+              if (Phaser.Math.Distance.Between(p.x, p.y, this.player.x, this.player.y) < h.r + 18) this.damagePlayer((h.damage ?? 10) * mult, undefined, false, 'trap');
               return;
             }
             // 둔화 장판: 기존 둔화 지대(적 장판과 같은 규칙)로. 단계 그림(zone-s14 거미줄·zone-s11 눈더미)이 있으면 그림, 없으면 원
@@ -1918,7 +1923,7 @@ export class GameScene extends Phaser.Scene {
    * 드래곤이 받는 피해. 엘리트·보스의 한 방은 최대 HP의 35%를 넘지 않는다(기획서 5장).
    * pattern=true면 무적 시간과 상관없이 들어간다(예고된 큰 공격).
    */
-  private damagePlayer(amount: number, src?: Enemy, pattern = false): void {
+  private damagePlayer(amount: number, src?: Enemy, pattern = false, mapKind?: 'aura' | 'trap'): void {
     if (this.mode !== 'play' || this.invulnerable) return;
     if (!pattern && this.time.now < this.invincibleUntil) return;
     // 용의 수호막: 피해 계산보다 먼저. 한 번 막고 사라지며, 막은 뒤에도 평소처럼 0.5초 무적
@@ -1945,6 +1950,8 @@ export class GameScene extends Phaser.Scene {
     const rookie = src && !pattern && this.difficulty === 'easy' && this.stage.id === 1 && this.elapsed < 60_000 ? 0.75 : 1;
     const dmg = Math.min(amount * rookie * weak * this.stats.damageTaken * (1 - this.signature.reduce) * aegis, cap);
     this.hp -= dmg;
+    this.hurtLog.total += dmg;
+    if (mapKind) this.hurtLog[mapKind] += dmg;
     this.invincibleUntil = this.time.now + 500;
     // 장비 가시: 나를 때린 적에게 받은 피해의 x% 되돌림(엘리트·보스에게도, 고정 피해)
     if (src?.active && this.gear.thorns > 0) this.hitEnemy(src, { source: 'active', coef: 0, flat: dmg * this.gear.thorns, tag: 'thorns' });

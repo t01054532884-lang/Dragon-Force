@@ -11,7 +11,8 @@ import { M } from './stats';
  *   (기본 5~7 × 단계 피해 배율 — 처음 7~10은 13단계 Lv.1 드래곤이 8초 붙어 있으면 쓰러져 30% 낮춤)
  * - hazard(11~20단계): 맵마다 다른 방해 요소. 드래곤이 range 안일 때만, 0.8~1초 예고 뒤 발동. 피해는 단계 피해 배율을 곱한다.
  *   shot = 동상이 탄을 쏨 · pulse = 둘레로 파동 · line = 직선 찌르기/광선 · zones = 드래곤 근처 랜덤 위치에 장판(둔화·폭발)
- * 수치는 AI 1차안(임시) — 사람 플레이로 조정.
+ * 수치는 AI 1차안(임시) — 사람 플레이로 조정. 자동 측정(2026-11-25, 봇 공 ×4·HP ×8)에서 기믹 켜면 10단계 중 4개만 클리어
+ *   → 방해 요소 피해 ×0.75, 차례마다 가장 가까운 장애물 하나만, 근접 피해는 둥근 장애물만. 전투 시작 안내는 넣지 않음(제작자: 말 안 해야 더 재밌음).
  */
 export type ObstacleHazard =
   | { kind: 'shot'; every: number; count: number; spread: number; radial?: boolean; homing?: boolean; speed: number; damage: number; slow?: number; color: number; size: number }
@@ -74,13 +75,13 @@ export const OBSTACLE_THEMES: Record<number, ObstacleTheme> = {
     pillar: '얼음 동상',
     rock: '얼음 결정 벽',
     aura: { damage: 5, color: 0x80deea },
-    hazard: { kind: 'shot', every: 5000, count: 1, spread: 0, speed: 380, damage: 11, slow: 0.35, color: 0x80deea, size: 1.6 },
+    hazard: { kind: 'shot', every: 5000, count: 1, spread: 0, speed: 380, damage: 8, slow: 0.35, color: 0x80deea, size: 1.6 },
     note: '얼음 동상이 5초마다 고드름(둔화)',
   },
   13: {
     pillar: '유령 가로등',
     aura: { damage: 6, color: 0x80d8ff },
-    hazard: { kind: 'pulse', every: 6000, r: 2.2 * M, damage: 12, color: 0x80d8ff },
+    hazard: { kind: 'pulse', every: 6000, r: 2.2 * M, damage: 9, color: 0x80d8ff },
     note: '가로등이 6초마다 영혼 파동',
   },
   14: {
@@ -92,39 +93,39 @@ export const OBSTACLE_THEMES: Record<number, ObstacleTheme> = {
   15: {
     pillar: '창을 든 흑기사 석상',
     aura: { damage: 6, color: 0xff5252 },
-    hazard: { kind: 'line', every: 6000, length: 10 * M, width: 1.1 * M, damage: 14, color: 0xff1744 },
+    hazard: { kind: 'line', every: 7000, length: 10 * M, width: 1.1 * M, damage: 8, color: 0xff1744 }, // 자동 측정: 11·6초면 봇이 109초에 쓰러짐
     note: '흑기사 석상이 6초마다 창 찌르기(직선)',
   },
   16: {
     pillar: '저주받은 왕의 석상',
     rock: '무너진 왕궁 벽',
     aura: { damage: 6, color: 0xea80fc },
-    hazard: { kind: 'zones', every: 6000, count: 3, r: 1.5 * M, scatter: 3 * M, effect: 'burst', damage: 14, color: 0xd500f9 },
+    hazard: { kind: 'zones', every: 6000, count: 3, r: 1.5 * M, scatter: 3 * M, effect: 'burst', damage: 11, color: 0xd500f9 },
     note: '석상이 6초마다 발밑에 저주 폭발 3곳',
   },
   17: {
     pillar: '태양 거울 기둥',
     rock: '황금 부조 석벽',
     aura: { damage: 6, color: 0xffd54f },
-    hazard: { kind: 'line', every: 5000, length: 13 * M, width: 0.8 * M, damage: 13, color: 0xffd54f },
+    hazard: { kind: 'line', every: 5000, length: 13 * M, width: 0.8 * M, damage: 10, color: 0xffd54f },
     note: '태양 거울이 5초마다 빛줄기(직선)',
   },
   18: {
     pillar: '별의 오벨리스크',
     aura: { damage: 6, color: 0xfff59d },
-    hazard: { kind: 'shot', every: 6000, count: 6, spread: 0, radial: true, speed: 300, damage: 11, color: 0xfff59d, size: 1.3 },
+    hazard: { kind: 'shot', every: 6000, count: 6, spread: 0, radial: true, speed: 300, damage: 8, color: 0xfff59d, size: 1.3 },
     note: '오벨리스크가 6초마다 별빛 6방향',
   },
   19: {
     pillar: '불을 머금은 용 석상',
     aura: { damage: 7, color: 0xff7043 },
-    hazard: { kind: 'shot', every: 5000, count: 1, spread: 0, speed: 460, damage: 15, color: 0xff7043, size: 1.8 },
+    hazard: { kind: 'shot', every: 6000, count: 1, spread: 0, speed: 420, damage: 8, color: 0xff7043, size: 1.8 }, // 자동 측정: 11·5초면 봇 피해 849
     note: '용 석상이 5초마다 화염구',
   },
   20: {
     pillar: '빛나는 봉인 기둥',
     aura: { damage: 7, color: 0xffe082 },
-    hazard: { kind: 'shot', every: 7000, count: 1, spread: 0, homing: true, speed: 220, damage: 14, color: 0xffe082, size: 1 },
+    hazard: { kind: 'shot', every: 7000, count: 1, spread: 0, homing: true, speed: 190, damage: 8, color: 0xffe082, size: 1 },
     note: '봉인 기둥이 7초마다 따라오는 봉인 구슬',
   },
 };

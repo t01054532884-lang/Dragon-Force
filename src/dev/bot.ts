@@ -17,6 +17,8 @@ export interface BotOpt {
   sig?: boolean;
   maxSec?: number;
   difficulty?: 'easy' | 'hard';
+  /** false면 11~20단계 맵 기믹(근접 피해·방해 요소)을 끄고 잰다(비교용) */
+  hazards?: boolean;
 }
 
 export function installBot(game: Phaser.Game): void {
@@ -51,6 +53,7 @@ function play(g: Any, s: Any, opt: BotOpt, resolve: (v: unknown) => void): void 
     t += 16.667;
     g.headlessStep(t, 16.667);
   };
+  if (opt.hazards === false) s.mapHazardsOff = true;
   if (opt.atk) s.stats.attack *= opt.atk;
   if (opt.hp) {
     s.stats.maxHp *= opt.hp;
@@ -89,6 +92,7 @@ function play(g: Any, s: Any, opt: BotOpt, resolve: (v: unknown) => void): void 
         kills: s.normalKills, coinGold: s.coinGold, drops: s.itemLog.drop, picks: s.itemLog.pick,
         waveEnd: d.record.waveEndAt.map(sec), eliteAt: d.record.eliteSpawnAt.map(sec), eliteKill: d.record.eliteKillMs.map(sec),
         bossAt: sec(d.record.bossSpawnAt), bossKill: sec(d.record.bossKillMs), firstLevels: lv.slice(0, 5),
+        hurt: Math.round(s.hurtLog.total), hurtAura: Math.round(s.hurtLog.aura), hurtTrap: Math.round(s.hurtLog.trap), maxHp: Math.round(s.stats.maxHp),
         sigUses: s.signature.uses, sigDmg: Math.round(s.dmgLog.signature ?? 0), dmg: Math.round(Object.values(s.dmgLog as Record<string, number>).reduce((a, b) => a + b, 0)),
       });
       return;
