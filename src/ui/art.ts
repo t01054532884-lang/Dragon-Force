@@ -37,10 +37,27 @@ export const SKILL_ICONS = [
  * 셋 다 크기가 커서 처음에 한꺼번에 읽지 않고 그 화면·그 단계에서만 읽는다(아이폰 메모리).
  */
 export const STAGE_ART_READY: { lobby: number[]; floor: number[]; enemy: Record<number, string[]> } = { lobby: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], floor: [], enemy: {
-  // 2~20단계 보스 19종(2026-11-25, Higgsfield GPT Image 2.6 · 기준 그림 art-graymane, 원본 art-src/enemies/hf/)
-  2: ['thornhorn_treant'], 3: ['moonshadow_devourer'], 4: ['morkan'], 5: ['verkan'], 6: ['dravan'], 7: ['graum'], 8: ['valterion'],
-  9: ['air'], 10: ['kardion'], 11: ['seria'], 12: ['valkir'], 13: ['morte'], 14: ['nox'], 15: ['bargan'], 16: ['ardeon'],
-  17: ['auren'], 18: ['lumiel'], 19: ['serkan'], 20: ['eirgon'],
+  // 2~20단계 보스 19종 + 엘리트 38종(2026-11-25, Higgsfield GPT Image 2.6 · 기준 그림 art-graymane, 원본 art-src/enemies/hf/)
+  // 보스 512px · 엘리트 384px. 각 단계: [보스, 엘리트1, 엘리트2]
+  2: ['thornhorn_treant', 'thorn_boar', 'vine_hunter'],
+  3: ['moonshadow_devourer', 'shadow_panther', 'cursed_hunter'],
+  4: ['morkan', 'spore_queen', 'oak_giant'],
+  5: ['verkan', 'flame_charger', 'lava_golem'],
+  6: ['dravan', 'berserker_captain', 'order_commander'],
+  7: ['graum', 'forge_beast', 'iron_giant'],
+  8: ['valterion', 'wall_breaker', 'flame_executioner'],
+  9: ['air', 'ice_wolf_king', 'frost_mage'],
+  10: ['kardion', 'spider_queen', 'ice_giant'],
+  11: ['seria', 'tundra_beast', 'storm_shaman'],
+  12: ['valkir', 'palace_guard', 'ice_judge'],
+  13: ['morte', 'wraith_knight', 'curse_priest'],
+  14: ['nox', 'dark_executioner', 'shadow_priest'],
+  15: ['bargan', 'black_knight_captain', 'soul_devourer'],
+  16: ['ardeon', 'palace_executioner', 'dark_witch_king'],
+  17: ['auren', 'ancient_lancer', 'mana_giant'],
+  18: ['lumiel', 'star_executioner', 'dimension_warden'],
+  19: ['serkan', 'dragon_apostle', 'ancient_captain'],
+  20: ['eirgon', 'seal_warden', 'sanctum_executioner'],
 } };
 /** 단계별 그림처럼 그때그때 읽는 키(preloadArt가 건너뜀) */
 const LAZY_ART = /^(lobby-bg-\d+|floor-s\d+|art-e-)/;
