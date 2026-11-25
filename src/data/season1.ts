@@ -1,5 +1,6 @@
 import { M } from './stats';
 import type { ArtShape, EnemyDef, PatternSpec } from './enemies';
+import { BOSS_P2 } from './bossPhase2';
 
 // 개발 7단계 상세 기획서 v1.0 — 시즌 1 "WORLD EXPANSION" 2~20단계(제작자 2026-11-18).
 // 1단계 잿빛 숲은 기존 구현 그대로(제작자 결정: 기존 확정 콘텐츠 우선). 2~20단계는 이름·몬스터·보스·패턴 방향은 원문,
@@ -209,6 +210,11 @@ export const SEASON1_ENEMIES: Record<string, EnemyDef> = {
   eirgon: boss('봉인 수호룡 에이르곤', ['dragon', 0xeceff1, 0xffd54f], [P.breath(0.52, 7 * M, 26), P.claw(1.57, 4 * M, 24), P.orbs(3), P.ring()], [P.breath(0.52, 7 * M, 26), P.orbs(3), P.claw(1.57, 4 * M, 24), P.ring()], { hp: 2400 }), // 최종보스 ×2.0(기존 규칙) 적용 후 20단계 약 17,400
 };
 for (const [id, d] of Object.entries(SEASON1_ENEMIES)) d.texture = `e-${id}`;
+// 보스 2페이즈 전용 공격(2026-11-25, bossPhase2.ts): 2페이즈 목록 맨 앞 → 전환 직후 첫 공격, 그 뒤로 차례대로
+for (const [id, p] of Object.entries(BOSS_P2)) {
+  const d = SEASON1_ENEMIES[id];
+  if (d?.patterns2 && p.move) d.patterns2 = [p.move, ...d.patterns2];
+}
 
 /** 챕터(원문 5개). 바닥·벽 색은 투기장 테마 */
 export const CHAPTERS = [

@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { CC, ENEMIES, HARD_CC_BOSS, PATTERN, type EnemyDef, type EnemyKind, type PatternSpec } from '../data/enemies';
 import { M } from '../data/stats';
+import { BOSS_P2 } from '../data/bossPhase2';
 import { clampToArena, randomPointIn, steerAround, touchingWall, type ArenaGeom } from '../data/arenas';
 
 /** 7단계 공통 패턴 예고시간(ms) — 모든 난이도에서 같다(원문 6장) */
@@ -16,7 +17,7 @@ export type EnemyAction =
   | { kind: 'shot'; x: number; y: number; angle: number; speed: number; damage: number; size: number } // 직선 투사체(예고선 뒤 발사)
   | { kind: 'orb'; x: number; y: number; angle: number; speed: number; damage: number; lifeMs: number } // 느린 추적 구체
   | { kind: 'lineHit'; x: number; y: number; angle: number; length: number; width: number; ms: number; damage: number } // 직선 범위 예고 → 판정
-  | { kind: 'ringHit'; x: number; y: number; inner: number; outer: number; ms: number; damage: number } // 고리(안쪽 안전) 예고 → 판정
+  | { kind: 'ringHit'; x: number; y: number; inner: number; outer: number; ms: number; damage: number; band?: boolean } // 고리(안쪽 안전) 예고 → 판정. band = 2페이즈 연속 고리(그 띠만 위험)
   | { kind: 'slowZone'; x: number; y: number; r: number; ms: number; slow: number }
   | { kind: 'shield'; ms: number; front: boolean };
 
@@ -166,9 +167,57 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
     else if (Math.abs(vx) <= 8 && this.rotation !== 0) this.faceLeft = Math.cos(this.rotation) < 0;
     s.setPosition(this.x, this.y).setFlipX(this.faceLeft).setAlpha(this.alpha);
     s.setTint(this.tintTopLeft);
+    this.aura?.setPosition(this.x, this.y + this.def.radius * 0.75);
+  }
+
+  /** 2페이즈 발밑 오라(보스 색, src/data/bossPhase2.ts) */
+  private aura?: Phaser.GameObjects.Container;
+
+  /**
+   * 보스 2페이즈 진입(제작자 요청 2026-11-25): 더 어둡고 분노한 그림으로 바꾸고, 발밑에 보스 색 오라, 전환 순간 번쩍임.
+   * 2페이즈 전용 공격은 patterns2 맨 앞(season1.ts) → resetPattern 직후 첫 공격.
+   */
+  enterPhase2(): void {
+    const p2 = BOSS_P2[this.kind];
+    const color = p2?.aura ?? 0xff5252;
+    const sc = this.scene;
+    const key = `art-${this.def.texture}-p2`;
+    if (this.def.behavior === 'graymane') this.bossTurn = 3; // 전환 직후 첫 공격 = 2페이즈 전용 공격
+    const size = this.def.radius * ART_SCALE;
+    if (this.skin) {
+      if (sc.textures.exists(key)) this.skin.setTexture(key).setDisplaySize(size, size);
+      // 전환 순간: 크게 부풀었다가 돌아옴
+      sc.tweens.add({ targets: this.skin, scaleX: this.skin.scaleX * 1.18, scaleY: this.skin.scaleY * 1.18, duration: 160, yoyo: true, ease: 'Quad.Out' });
+    }
+    // 발밑 오라: 바깥 흐린 타원 + 안쪽 진한 타원(숨 쉬듯) + 천천히 도는 점선 고리
+    const r = this.def.radius;
+    const outer = sc.add.ellipse(0, 0, r * 3.8, r * 1.5, color, 0.4).setBlendMode(Phaser.BlendModes.ADD);
+    const inner = sc.add.ellipse(0, 0, r * 2.5, r * 0.95, color, 0.6).setBlendMode(Phaser.BlendModes.ADD);
+    const ring = sc.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
+    ring.lineStyle(5, color, 1);
+    for (let i = 0; i < 12; i++) {
+      const a0 = (i / 12) * Math.PI * 2;
+      ring.beginPath();
+      ring.arc(0, 0, r * 1.75, a0, a0 + 0.32);
+      ring.strokePath();
+    }
+    // 고리는 원 그대로 돌리고, 감싼 상자만 납작하게(바닥에 누운 모양)
+    const flat = sc.add.container(0, 0, [ring]).setScale(1, 0.4);
+    this.aura = sc.add.container(this.x, this.y + r * 0.75, [outer, inner, flat]).setDepth(this.depth - 0.5);
+    sc.tweens.add({ targets: inner, scaleX: 1.15, scaleY: 1.15, alpha: 0.85, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+    sc.tweens.add({ targets: outer, alpha: 0.6, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+    sc.tweens.add({ targets: ring, rotation: Math.PI * 2, duration: 4000, repeat: -1 });
+    // 전환 번쩍임: 보스 색 충격 고리 + 화면 살짝 번쩍
+    const burst = sc.add.circle(this.x, this.y, r, color, 0.5).setDepth(8).setBlendMode(Phaser.BlendModes.ADD);
+    sc.tweens.add({ targets: burst, scale: 4, alpha: 0, duration: 550, ease: 'Quad.Out', onComplete: () => burst.destroy() });
+    const c = Phaser.Display.Color.IntegerToColor(color);
+    sc.cameras.main.flash(220, c.red, c.green, c.blue);
+    sc.cameras.main.shake(260, 0.01);
   }
 
   destroy(fromScene?: boolean): void {
+    this.aura?.destroy();
+    this.aura = undefined;
     this.skin?.destroy();
     this.skin = undefined;
     super.destroy(fromScene);
@@ -417,7 +466,15 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
       case 'graymane': {
         const p = PATTERN.graymane;
         this.patternCd = p.every * (this.phase === 2 ? 0.75 : 1);
-        const turn = this.bossTurn++ % 3;
+        // 2페이즈(2026-11-25): 차례가 4개 — 넷째가 2페이즈 전용 "피의 울부짖음"(안쪽부터 퍼지는 고리 3겹)
+        const turn = this.bossTurn++ % (this.phase === 2 ? 4 : 3);
+        if (turn === 3) {
+          this.queue.push({ kind: 'hold', ms: TELEGRAPH.shockwave });
+          return [0, 1, 2].map((k) => {
+            const inner = this.def.radius + 0.6 * M + k * 2.6 * M;
+            return { kind: 'ringHit' as const, x: this.x, y: this.y, inner, outer: inner + 1.4 * M, ms: TELEGRAPH.shockwave + k * 420, damage: 18, band: true };
+          });
+        }
         if (turn === 0) {
           // 돌진: 2페이즈는 3연속
           const n = this.phase === 2 ? p.phase2Dashes : 1;
@@ -447,7 +504,7 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
     const full = this.phase === 2 && this.def.patterns2 ? this.def.patterns2 : this.def.patterns ?? [];
     // 어려움 보스 역할 분리: 근거리(돌진·부채꼴·충격파·자기 주변) / 원거리(투사체·구체·직선·플레이어 위치). 해당 패턴이 없으면 전체
     const f = this.patternFilter;
-    const melee = (s: PatternSpec) => s.t === 'charge' || s.t === 'cone' || s.t === 'shockwave' || s.t === 'ring' || s.t === 'teleport' || s.t === 'shield' || (s.t === 'area' && s.at === 'self');
+    const melee = (s: PatternSpec) => s.t === 'charge' || s.t === 'cone' || s.t === 'shockwave' || s.t === 'ring' || s.t === 'teleport' || s.t === 'shield' || s.t === 'lineRadial' || s.t === 'ringWaves' || (s.t === 'area' && s.at === 'self');
     const picked = f ? full.filter((s) => s.t === 'summon' || (f === 'melee' ? melee(s) : !melee(s))) : full;
     const list = picked.length ? picked : full;
     if (list.length === 0) {
@@ -562,6 +619,41 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
       case 'slowZone':
         this.queue.push({ kind: 'hold', ms: 500 });
         return [{ kind: 'slowZone', x: this.lastTarget.x, y: this.lastTarget.y, r: spec.r, ms: spec.ms, slow: spec.slow }];
+      // ── 보스 2페이즈 전용(src/data/bossPhase2.ts) ──
+      case 'lineRadial': {
+        // n방향 직선: 한 줄은 드래곤을 겨누고 나머지는 고르게(줄 사이로 피함)
+        this.queue.push({ kind: 'hold', ms: T.line + 200 });
+        return Array.from({ length: spec.count }, (_, k) => ({
+          kind: 'lineHit' as const, x: this.x, y: this.y, angle: toT + (k * Math.PI * 2) / spec.count, length: spec.length, width: spec.width, ms: T.line + 200, damage: spec.damage,
+        }));
+      }
+      case 'spiral': {
+        // 회전 탄막: 첫 번째 사방 탄은 예고선 뒤, 이후 0.38초마다 조금씩 돌려 다시
+        const ring = (w: number): EnemyAction[] => Array.from({ length: spec.count }, (_, i) => ({
+          kind: 'shot' as const, x: this.x, y: this.y, angle: toT + (i * Math.PI * 2) / spec.count + w * spec.turn, speed: spec.speed, damage: spec.damage, size: 1.2,
+        }));
+        this.queue.push({ kind: 'hold', ms: TELEGRAPH.projectile, onEnd: () => ring(0) });
+        for (let w = 1; w < spec.waves; w++) this.queue.push({ kind: 'hold', ms: 380, onEnd: () => ring(w) });
+        this.queue.push({ kind: 'hold', ms: 300 });
+        return Array.from({ length: spec.count }, (_, i) => this.warnLine(toT + (i * Math.PI * 2) / spec.count, 3 * M, TELEGRAPH.projectile, 12));
+      }
+      case 'march': {
+        // 보스 앞에서 드래곤 쪽으로 이어지며 차례로 터지는 원(옆으로 비켜서 피함)
+        this.queue.push({ kind: 'hold', ms: 700 });
+        const start = this.def.radius + spec.r;
+        return Array.from({ length: spec.count }, (_, i) => {
+          const d = start + i * spec.gap;
+          return { kind: 'circleHit' as const, x: this.x + Math.cos(toT) * d, y: this.y + Math.sin(toT) * d, r: spec.r, ms: T.area + i * 170, damage: spec.damage, slowPlayer: spec.slowPlayer };
+        });
+      }
+      case 'ringWaves': {
+        // 안쪽부터 차례로 퍼지는 고리: 고리 사이 틈으로 들어가거나 보스에게 붙어서 피함
+        this.queue.push({ kind: 'hold', ms: T.shockwave });
+        return Array.from({ length: spec.count }, (_, k) => {
+          const inner = this.def.radius + 0.6 * M + k * spec.step;
+          return { kind: 'ringHit' as const, x: this.x, y: this.y, inner, outer: inner + spec.width, ms: T.shockwave + k * 420, damage: spec.damage, band: true };
+        });
+      }
     }
   }
 

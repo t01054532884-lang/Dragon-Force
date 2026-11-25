@@ -25,7 +25,12 @@ export type PatternSpec =
   | { t: 'shield'; ms: number; reduce: number; front?: boolean } // 피해 감소(front면 정면만)
   | { t: 'teleport' } // 짧게 사라졌다가 플레이어 옆(4~5m)으로
   | { t: 'orbs'; count: number; speed: number; lifeMs: number; damage: number } // 느린 추적 구체
-  | { t: 'slowZone'; r: number; ms: number; slow: number }; // 플레이어 둔화 지대
+  | { t: 'slowZone'; r: number; ms: number; slow: number } // 플레이어 둔화 지대
+  // ── 보스 2페이즈 전용(2026-11-25, src/data/bossPhase2.ts) ──
+  | { t: 'lineRadial'; count: number; width: number; length: number; damage: number } // 보스 둘레 n방향 직선
+  | { t: 'spiral'; waves: number; count: number; speed: number; damage: number; turn: number } // 사방 탄을 조금씩 돌려 여러 번(회전 탄막)
+  | { t: 'march'; count: number; r: number; gap: number; damage: number; slowPlayer?: boolean } // 보스에서 드래곤 쪽으로 차례로 터지는 원
+  | { t: 'ringWaves'; count: number; step: number; width: number; damage: number }; // 안쪽부터 차례로 퍼지는 고리 여러 개
 
 /** 도형 그림 종류(src/enemyArt.ts) */
 export type ArtShape = 'beast' | 'boar' | 'humanoid' | 'knight' | 'mage' | 'archer' | 'slime' | 'spirit' | 'flyer' | 'insect' | 'golem' | 'plant' | 'imp' | 'dragon';

@@ -1430,9 +1430,12 @@ export class GameScene extends Phaser.Scene {
       case 'ringHit': {
         // 바깥으로 퍼지는 충격파: 안쪽 원은 안전(보스 가까이로 피함)
         const g = this.add.graphics({ x: act.x, y: act.y }).setDepth(4);
-        g.fillStyle(0xff1744, 0.14).fillCircle(0, 0, act.outer);
+        if (act.band) {
+          // 2페이즈 연속 고리: 그 띠만 빨갛게(안쪽 초록 안전 원 없음 — 여러 겹이 겹쳐 헷갈리지 않게)
+          g.lineStyle(act.outer - act.inner, 0xff1744, 0.16).strokeCircle(0, 0, (act.inner + act.outer) / 2);
+        } else g.fillStyle(0xff1744, 0.14).fillCircle(0, 0, act.outer);
         g.fillStyle(0x0d0f14, 0.0).lineStyle(4, 0xff1744, 0.9).strokeCircle(0, 0, act.outer).strokeCircle(0, 0, act.inner);
-        const safe = this.add.circle(act.x, act.y, act.inner, 0x69f0ae, 0.15).setDepth(4);
+        const safe = this.add.circle(act.x, act.y, act.inner, 0x69f0ae, act.band ? 0 : 0.15).setDepth(4);
         const dmg = act.damage * e.damageMult;
         this.hazards.push({
           left: act.ms,

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { BOSS_P2_ART } from '../data/bossPhase2';
 import { COLOR } from './theme';
 import { fullH, offY } from './layout';
 
@@ -67,8 +68,9 @@ export const OBSTACLE_ART_READY: Record<number, ('pillar' | 'rock' | 'zone')[]> 
   // 2026-11-25 Higgsfield(로비 배경을 참고 그림으로), 원본 art-src/arena/hf/. 7단계는 벽만
   1: ['pillar'], 2: ['pillar', 'rock'], 3: ['pillar'], 4: ['pillar', 'rock'], 5: ['pillar'], 6: ['pillar'], 7: ['rock'], 8: ['pillar'], 9: ['pillar', 'rock'], 10: ['pillar'], 11: ['pillar', 'zone'], 12: ['pillar', 'rock'], 13: ['pillar'], 14: ['pillar', 'zone'], 15: ['pillar'], 16: ['pillar', 'rock'], 17: ['pillar', 'rock'], 18: ['pillar'], 19: ['pillar'], 20: ['pillar'],
 };
+// 보스 2페이즈 그림 목록은 src/data/bossPhase2.ts BOSS_P2_ART(테스트가 Phaser 없이 읽게)
 /** 단계별 그림처럼 그때그때 읽는 키(preloadArt가 건너뜀) */
-export const LAZY_ART = /^(lobby-bg-\d+|floor-s\d+|art-e-|obstacle-(pillar|rock)-s\d+|zone-s\d+)/;
+export const LAZY_ART = /^(lobby-bg-\d+|floor-s\d+|art-e-|art-graymane-p2|obstacle-(pillar|rock)-s\d+|zone-s\d+)/;
 /** 'zone'은 장애물이 깔아 두는 장판 그림(거미줄·눈더미) `arena/zone-s<단계>.webp` */
 const obstacleArtKey = (k: 'pillar' | 'rock' | 'zone', s: number | string) => (k === 'zone' ? `zone-s${s}` : `obstacle-${k}-s${s}`);
 
@@ -77,6 +79,7 @@ export const ART_FILES: Record<string, string> = {
   ...Object.fromEntries(STAGE_ART_READY.lobby.map((n) => [`lobby-bg-${n}`, `stage/lobby-bg-${n}.jpg`])),
   ...Object.fromEntries(STAGE_ART_READY.floor.map((n) => [`floor-s${n}`, `stage/floor-s${n}.webp`])),
   ...Object.fromEntries(Object.values(STAGE_ART_READY.enemy).flat().map((id) => [`art-e-${id}`, `enemy/art-e-${id}.webp`])),
+  ...Object.fromEntries(Object.values(BOSS_P2_ART).map((t) => [`art-${t}-p2`, `enemy/art-${t}-p2.webp`])),
   ...Object.fromEntries(Object.entries(OBSTACLE_ART_READY).flatMap(([s, kinds]) => kinds.map((k) => [obstacleArtKey(k, s), `arena/${obstacleArtKey(k, s)}.webp`]))),
   'chest-equipment': 'chest-equipment.webp',
   'chest-dragon': 'chest-dragon.webp',
@@ -208,6 +211,7 @@ export function preloadStageArt(scene: Phaser.Scene, stageId: number): void {
     `floor-s${stageId}`,
     ...(STAGE_ART_READY.enemy[stageId] ?? []).map((id) => `art-e-${id}`),
     ...(OBSTACLE_ART_READY[stageId] ?? []).map((k) => obstacleArtKey(k, stageId)),
+    ...(BOSS_P2_ART[stageId] ? [`art-${BOSS_P2_ART[stageId]}-p2`] : []),
   ]);
 }
 

@@ -292,6 +292,7 @@ export class StageDirector {
       if (boss.phase === 1 && boss.hp <= boss.maxHp * (boss.def.phaseAt ?? PATTERN.graymane.phaseAt)) {
         boss.phase = 2;
         boss.resetPattern(1000);
+        boss.enterPhase2(); // 2페이즈 그림·오라·번쩍임(2026-11-25)
         this.h.banner(`${boss.def.name} — 보스 2페이즈!`, '#ff8a65'); // 문구(제작자 2026-11-25): "변신!"은 촌스러움 → "보스 2페이즈!"
         this.h.emit('boss:phase-change', { phase: 2, at: elapsed });
       }
