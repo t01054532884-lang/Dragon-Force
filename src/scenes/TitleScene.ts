@@ -60,7 +60,7 @@ export class TitleScene extends Phaser.Scene {
       deco.setScale(720 / deco.width);
       this.tweens.add({ targets: deco, y: 690, duration: 2400, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
     }
-    // 영어 모드: 영어 로고 그림(logo-en)이 오기 전까지는 한글 로고 대신 글자 로고
+    // 영어 모드: 영어 로고 그림(logo-en, 2026-11-25). 그림이 없으면 글자 로고
     const logoKey = getLang() === 'en' ? 'logo-en' : 'logo-ko';
     if (this.textures.exists(logoKey)) {
       const logo = this.add.image(360, 230, logoKey);

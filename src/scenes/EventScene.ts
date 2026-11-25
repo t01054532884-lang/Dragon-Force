@@ -11,6 +11,7 @@ import { tabs } from '../ui/kit2';
 import { screenFrame, type ScreenFrame } from '../ui/screen';
 import { COLOR, TYPE } from '../ui/theme';
 import { fullH } from '../ui/layout';
+import { getLang } from '../i18n';
 
 const KST = 9 * 3600_000;
 const fmtKst = (t: number) => {
@@ -49,7 +50,7 @@ export class EventScene extends Phaser.Scene {
     this.tab = 'roulette'; // 이벤트를 누르면 늘 행운 룰렛부터(제작자 2026-11-25), 출석은 옆 탭
     this.last = null;
     this.busy = false;
-    this.frame = screenFrame(this, { title: '겨울 축제', nav: '', ribbonColor: 0x3b82c4, banner: 'event-winter' });
+    this.frame = screenFrame(this, { title: '겨울 축제', nav: '', ribbonColor: 0x3b82c4, banner: getLang() === 'en' ? 'event-winter-en' : 'event-winter' }); // 배너 그림에 글자가 박혀 있어 영어판 따로
     this.add.rectangle(360, 640, 720, fullH(this), 0x0e2a4a, 0.45); // 겨울 빛(공통 배경 위에 푸른 막)
     // 눈송이 배경
     for (let i = 0; i < 40; i++) {

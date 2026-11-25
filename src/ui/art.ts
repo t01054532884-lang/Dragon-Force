@@ -96,6 +96,9 @@ export const ART_FILES: Record<string, string> = {
   'logo-ko': 'logo-ko.webp',
   'title-deco': 'title-deco.webp',
   'event-winter': 'event-winter.webp',
+  // 영어판(2026-11-25, Higgsfield 글자만 바꾼 편집, scripts/process_art_en.py): 영어 모드에서 logo-ko·event-winter 대신
+  'logo-en': 'logo-en.webp',
+  'event-winter-en': 'event-winter-en.webp',
   // 1단계 적 5종·얼굴 3·잿빛 바닥(scripts/process_art_batch7.py, 기획자 요청 5)
   ...Object.fromEntries(['wolf', 'boar', 'moonfang', 'matriarch', 'graymane'].map((k) => [`art-${k}`, `enemy/art-${k}.webp`])),
   ...Object.fromEntries(['graymane', 'moonfang', 'matriarch'].map((k) => [`face-${k}`, `enemy/face-${k}.webp`])),

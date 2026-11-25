@@ -23,8 +23,8 @@
 | 고객 지원 페이지 영어판 | AI | ✅ `public/support-en.html`(한국어판도 서버·Apple 연결 기준으로 고침) |
 | App Store 영어 페이지 문구 | AI | ✅ `docs/APPSTORE_EN.md`(이름·부제·설명·키워드·심사 메모·영양 라벨) → 제작자가 App Store Connect에 붙여 넣기 |
 | 영어 스크린샷 | AI | 제출 때 영어 모드 실제 화면 캡처(그림 담당 필요 없음) |
-| 영어 로고 `logo-en` | **Higgsfield(제작자가 생성)** | 그림 담당에게 받을 필요 없음. 한글 로고 `public/art/logo-ko.webp`를 참고 그림으로 넣고 글자만 바꾸는 편집 → 받은 원본을 AI가 배경 제거·800×254 맞춤·연결 |
-| 겨울 축제 배너 영어판 `event-winter-en` | **Higgsfield(제작자가 생성)** | ⚠ 새로 찾음: `event-winter.webp`에 "겨울 축제" 글자가 그림에 박혀 있어 영어 모드에서도 한글로 보임. 축제가 12/1 시작이라 먼저. 같은 방식(글자만 바꾸기) |
+| 영어 로고 `logo-en` | Higgsfield(AI가 MCP로 생성, 제작자 승인) | ✅ 11/25 GPT Image 2.6 편집(투명 배경 1920×640, 2크레딧) → `public/art/logo-en.webp` 800×254(`scripts/process_art_en.py`). 영어 모드 타이틀에 나옴 |
+| 겨울 축제 배너 영어판 `event-winter-en` | Higgsfield(AI가 MCP로 생성, 제작자 승인) | ✅ 11/25 같은 방식(투명 배경 1904×656, 2크레딧) → `public/art/event-winter-en.webp` 879×299. 영어 모드면 겨울 축제 화면 배너가 이것(`EventScene.ts`) |
 | 필살기 외침 영어 목소리 | Higgsfield(시트 'Higgsfield 우선순위' 2·4번) | 레드 먼저(제출 전), 나머지 18종은 업데이트 |
 | 번역 검수 | 제작자(+필요하면 원어민) | AI 번역 1차본. 결제·환불 안내(청약철회 등)는 법률 확인 필요 |
 
