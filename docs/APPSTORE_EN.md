@@ -7,7 +7,7 @@ App Store Connect → 앱 → 배포 → 오른쪽 위 언어 메뉴에서 **Eng
 |---|---|---|
 | 이름 Name | 30자 | `Dragon Force: Survivor` (22자) |
 | 부제 Subtitle | 30자 | `Dragon roguelike survival` (25자) |
-| 프로모션 텍스트 Promotional Text | 170자 | `Dragon Winter Festival is here! From Dec 1 to Dec 31, play to spin the Festival Roulette and collect limited rewards.` (약 120자, 12/1 전 제출이면 축제 문구 대신 아래 대체 문구) |
+| 프로모션 텍스트 Promotional Text | 170자 | `Dragon Winter Festival is live until Dec 31! Battle to spin the Lucky Roulette for the Glacier Dragon and limited rewards. Christmas check-in opens Dec 18.` (약 160자, 2026-11-26 갱신 — 행운 룰렛은 출시일부터) |
 | 프로모션 텍스트(축제 전) | 170자 | `Drag to fly, your dragon fights on its own. Survive the swarm, beat the boss, and build a new combo every run.` (110자) |
 | 키워드 Keywords | 100자 | `dragon,roguelike,survivor,action,shooter,fantasy,boss,idle,auto,one hand,rpg,monster,arcade` (93자) |
 | 지원 URL | | https://t01054532884-lang.github.io/Dragon-Force/support-en.html |
@@ -34,13 +34,13 @@ Charge your dragon's ultimate and unleash a screen-wide cinematic strike.
 Survive the waves, take down two elites, then face the stage boss. At half health, bosses enter Phase 2.
 
 • 19 DRAGONS TO COLLECT
-Red, Blue, Yellow, Green and many more — each with its own basic attack, signature skill and growth path.
+Red, Glacier, Yellow, Green and many more — each with its own basic attack, signature skill and growth path.
 
 • 20 STAGES, TWO DIFFICULTIES
 Clear Easy to unlock Hard, with tougher arenas, enemies and better rewards.
 
 • LONG-TERM GROWTH
-Upgrade your dragons in the Lab, equip gear and runes, and dress them up with cosmetic skins.
+Upgrade your dragons in the Lab, equip gear and runes, fill the Dragon Pass and Ruby Pass, and dress them up with cosmetic capes and trails.
 
 • FAIR ODDS
 All chest odds and guarantee rules are shown in the game.
@@ -58,9 +58,9 @@ Link your Apple account to keep your progress when you change devices.
 Dragon Force is a single-player roguelike survival game.
 - Controls: drag anywhere to move; attacks are automatic.
 - Account: a guest account is created automatically (Firebase anonymous auth). Users can link Sign in with Apple in Settings, and delete the account in Settings → Delete Account (Apple token is revoked).
-- In-app purchases: Rubies, bundles, perks, passes and Skin Keys (consumables). Chest and roulette odds are disclosed in the shop ("Odds · Guarantees"). The Skin Roulette draw runs on our server.
+- In-app purchases (18): Rubies, bundles, daily/weekly/monthly perks, Dragon Pass Premium/Royal and Skin Roulette Keys are consumables; the Ruby Pass (ruby_pass_1) is a non-consumable and can be restored with "Restore Purchases" in the shop. Chest and roulette odds are disclosed before purchase ("Odds · Guarantees" in the shop, "Odds" in each roulette). The Skin Roulette draw runs on our server.
 - Language: Korean and English, following the device language; switch in Settings → Language.
-- The "Winter Festival" event screens are a limited-time event from Dec 1 to Dec 31 and are hidden outside that period.
+- The "Winter Festival" is a limited-time event: the Lucky Roulette runs from launch (Nov 26) to Dec 31, and the Christmas check-in tab opens on Dec 18 (it shows its start date until then). The event button disappears after Dec 31.
 - No ads, no tracking, no analytics.
 ```
 - 결제 없이 먼저 출시하면 In-app purchases 줄을 `No in-app purchases in this version.`으로 바꾼다.
@@ -71,7 +71,7 @@ Dragon Force is a single-player roguelike survival game.
 | 데이터 종류 | 체크 | 사용자와 연결 | 추적 | 목적 |
 |---|---|---|---|---|
 | 식별자 → 사용자 ID | ✅ | 예 | 아니오 | 앱 기능 |
-| 구입 항목 → 구입 내역 | 결제를 켠 빌드만 ✅ | 예 | 아니오 | 앱 기능 |
+| 구입 항목 → 구입 내역 | ✅ (2026-11-26 결제 켬) | 예 | 아니오 | 앱 기능 |
 | 기타 데이터 → 기타 데이터 유형(게임 진행 기록) | ✅ | 예 | 아니오 | 앱 기능 |
 
 - 이름·이메일은 받지 않는다(Apple 로그인에서 요청하지 않음). 분석 도구를 넣으면(기획서 P0 이벤트표) "사용 데이터 → 제품 상호 작용"이 추가되고 처리방침 4절도 고쳐야 한다.
