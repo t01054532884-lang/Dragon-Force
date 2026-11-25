@@ -30,6 +30,60 @@ export const ultVideoKey = (id: DragonId) => `ult-${id}`;
 /** 영상 소리: 같은 mp4를 소리로 한 번 더 읽는다(Web Audio — 첫 터치로 풀린 소리 장치라 아이폰에서도 확실히 남). 영상 자체는 무음 재생 */
 const ultSfxKey = (id: DragonId) => `ult-${id}-sfx`;
 
+/** 섬광 뒤 전장 효과 그림(public/art/ult/ult-fx-<id>.webp, Higgsfield) — 화면 전체를 위→아래로 쓸고 지나감. 레드: 불의 파도 */
+export const ULT_FX_READY: DragonId[] = ['red'];
+const ultFxKey = (id: DragonId) => `ult-fx-${id}`;
+
+/**
+ * 필살기 전장 효과(섬광이 걷히는 순간 게임 장면이 부른다): 필살기 피해가 화면 전체라 효과도 화면 전체.
+ * 그림이 있으면 거대한 파도가 위에서 아래로 화면을 덮으며 지나가고, 지나간 자리에 색 빛이 남았다 사라지며 불씨가 흩날린다.
+ * 그림이 없으면 같은 흐름을 색 띠로. 화면 고정(카메라 기준), 깊이는 전투 화면 위·UI 아래.
+ */
+export function playUltSweep(scene: Phaser.Scene, id: DragonId, color: number, depth: number): void {
+  const W = scene.scale.width;
+  const H = scene.scale.height;
+  const fix = <G extends Phaser.GameObjects.GameObject>(g: G): G => {
+    (g as unknown as { setScrollFactor: (n: number) => void }).setScrollFactor(0);
+    (g as unknown as { setDepth: (n: number) => void }).setDepth(depth);
+    return g;
+  };
+  const DUR = 750;
+  // 지나간 자리의 빛: 위에서부터 차오르는 막(파도 바로 뒤를 따라감)
+  const glow = fix(scene.add.rectangle(W / 2, 0, W, 1, color, 0.38).setOrigin(0.5, 0));
+  scene.tweens.add({ targets: glow, displayHeight: H, duration: DUR, ease: 'Sine.In' });
+  scene.tweens.add({ targets: glow, alpha: 0, delay: DUR, duration: 650, onComplete: () => glow.destroy() });
+  // 파도
+  const key = ultFxKey(id);
+  let wave: Phaser.GameObjects.Image | Phaser.GameObjects.Rectangle;
+  if (scene.textures.exists(key)) {
+    const im = scene.add.image(W / 2, 0, key);
+    im.setScale((W * 1.25) / im.width).setBlendMode(Phaser.BlendModes.ADD);
+    wave = im;
+  } else {
+    wave = scene.add.rectangle(W / 2, 0, W * 1.2, 260, color, 0.8);
+  }
+  fix(wave);
+  const h = wave.displayHeight;
+  wave.setY(-h / 2);
+  scene.tweens.add({ targets: wave, y: H + h * 0.15, duration: DUR, ease: 'Sine.In' });
+  scene.tweens.add({ targets: wave, alpha: 0, delay: DUR - 200, duration: 380, onComplete: () => wave.destroy() });
+  // 불씨: 화면 곳곳에서 파도가 지나갈 때 튀어 올라 사라짐
+  for (let i = 0; i < 36; i++) {
+    const y = Phaser.Math.Between(80, H - 40);
+    const ember = fix(scene.add.circle(Phaser.Math.Between(10, W - 10), y, Phaser.Math.Between(3, 7), i % 3 === 0 ? 0xfff1a8 : color, 0.95));
+    ember.setAlpha(0).setBlendMode(Phaser.BlendModes.ADD);
+    scene.tweens.add({
+      targets: ember,
+      alpha: { from: 1, to: 0 },
+      y: y - Phaser.Math.Between(60, 160),
+      delay: (y / H) * DUR,
+      duration: Phaser.Math.Between(500, 900),
+      ease: 'Quad.Out',
+      onComplete: () => ember.destroy(),
+    });
+  }
+}
+
 /** 영상이 있으면 컷신 길이 = 날아오름 0.45초 + 영상 구간 + 섬광 0.5초, 없으면 3초 */
 export function ultCutsceneMs(id: DragonId, hasVideo: boolean): number {
   const v = ULT_VIDEO[id];
@@ -41,6 +95,7 @@ export function preloadUlt(scene: Phaser.Scene, id: DragonId): void {
   if (ULT_BG_READY && !scene.textures.exists('ult-bg')) scene.load.image('ult-bg', 'art/ult/ult-bg.webp');
   if (ULT_VIDEO_READY.includes(id) && !scene.cache.video.exists(ultVideoKey(id))) scene.load.video(ultVideoKey(id), `art/ult/ult-${id}.mp4`, true);
   if (ULT_VIDEO_READY.includes(id) && !scene.cache.audio.exists(ultSfxKey(id))) scene.load.audio(ultSfxKey(id), [{ type: 'm4a', url: `art/ult/ult-${id}.mp4` }]);
+  if (ULT_FX_READY.includes(id) && !scene.textures.exists(ultFxKey(id))) scene.load.image(ultFxKey(id), `art/ult/ult-fx-${id}.webp`);
   // 설정 언어 것만 읽는다(한국어/English)
   const lang = voiceLang();
   if (ULT_AUDIO_READY.includes(id) && !scene.cache.audio.exists(ultAudioKey(id, lang))) scene.load.audio(ultAudioKey(id, lang), `sfx/ult/ult-${id}-${lang}.mp3`);

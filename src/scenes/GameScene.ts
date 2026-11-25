@@ -39,7 +39,7 @@ import { arenaLayout, clampToArena, makeArena, outsideArena, type ArenaGeom } fr
 import { enterBattle } from '../ui/entry';
 import { hardStage, type HardStageDef } from '../data/hardStages';
 import { fullH, offY } from '../ui/layout';
-import { playUltCutscene, preloadUlt } from '../ui/UltCutscene';
+import { playUltCutscene, playUltSweep, preloadUlt } from '../ui/UltCutscene';
 import { capeKey, makeSkinTextures, trailKey } from '../ui/skinArt';
 
 /** 적 투사체(직선탄·추적 구체) */
@@ -618,6 +618,8 @@ export class GameScene extends Phaser.Scene {
         this.time.paused = false;
         this.skin.setVisible(wasVisible);
         if (this.signature.cast()) {
+          // 필살기 피해는 화면 전체 → 효과도 화면 전체(레드: Higgsfield 불의 파도 그림이 위→아래로 쓸고 지나감)
+          playUltSweep(this, this.dragon.id, this.signature.def.color, UI_DEPTH - 1);
           const ss = SIGNATURE_SFX[this.dragon.id];
           if (ss) playSfx(this, ss);
           this.cameras.main.shake(260, 0.006);

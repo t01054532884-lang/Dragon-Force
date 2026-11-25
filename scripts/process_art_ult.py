@@ -29,6 +29,20 @@ if bg.exists():
     cover(Image.open(bg), 720, 1280).save(OUT / 'ult-bg.webp', 'WEBP', quality=85, method=6)
     print('ult-bg.webp', f'{(OUT / "ult-bg.webp").stat().st_size // 1024}KB')
 
+# 필살기 전장 효과(섬광 뒤 화면 전체를 위→아래로 쓸고 지나가는 그림, 2026-11-25): 가로로 긴 불의 파도를 위아래 뒤집어 물마루가 아래(가는 쪽)로 부서지게
+FX = {'red': 'hf-red-fx-wave-2.png'}
+for dragon, name in FX.items():
+    p = SRC / name
+    if p.exists():
+        im = Image.open(p).convert('RGBA').transpose(Image.FLIP_TOP_BOTTOM)
+        bbox = im.getchannel('A').point(lambda a: 255 if a > 8 else 0).getbbox()
+        if bbox:
+            im = im.crop(bbox)
+        s = 1024 / im.width
+        im = im.resize((1024, round(im.height * s)), Image.LANCZOS)
+        im.save(OUT / f'ult-fx-{dragon}.webp', 'WEBP', quality=85, method=6)
+        print(f'ult-fx-{dragon}.webp', im.size, f'{(OUT / f"ult-fx-{dragon}.webp").stat().st_size // 1024}KB')
+
 for dragon, name in VIDEOS.items():
     p = SRC / name
     if p.exists():
