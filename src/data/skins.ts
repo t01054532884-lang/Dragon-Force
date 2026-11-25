@@ -10,7 +10,7 @@
  */
 
 export type SkinKind = 'cape' | 'trail';
-export type TrailShape = 'flame' | 'frost' | 'star' | 'petal' | 'spark' | 'shadow';
+export type TrailShape = 'flame' | 'frost' | 'star' | 'petal' | 'spark' | 'shadow' | 'aurora' | 'bell';
 
 export interface SkinDef {
   id: string;
@@ -27,6 +27,8 @@ export const SKINS: SkinDef[] = [
   { id: 'cape-ember-king', kind: 'cape', name: '불꽃왕의 망토', text: '진홍 비단에 금실 불꽃 무늬', colors: [0xb71c1c, 0xffc107] },
   { id: 'cape-frost-crown', kind: 'cape', name: '서리 왕관 망토', text: '눈꽃 결정이 반짝이는 하늘빛 망토', colors: [0x4fc3f7, 0xe1f5fe] },
   { id: 'cape-starlight', kind: 'cape', name: '별빛 망토', text: '밤하늘처럼 별이 흐르는 망토', colors: [0x311b92, 0xb388ff] },
+  // 4번째(2026-11-25 제작자 요청 "12월 4주 미리", Higgsfield): 크리스마스 주간용
+  { id: 'cape-holy-night', kind: 'cape', name: '성야의 망토', text: '눈꽃 털 장식과 금빛 별이 수놓인 초록 벨벳 망토', colors: [0x1b5e20, 0xffd54f] },
   // ── 발자국(흔적) ──
   { id: 'trail-flame', kind: 'trail', name: '불꽃 발자국', text: '지나간 자리에 작은 불꽃이 남는다', colors: [0xff7043, 0xffd54f], trail: 'flame' },
   { id: 'trail-frost', kind: 'trail', name: '서리 발자국', text: '지나간 자리에 눈꽃이 피었다 녹는다', colors: [0x81d4fa, 0xffffff], trail: 'frost' },
@@ -34,6 +36,8 @@ export const SKINS: SkinDef[] = [
   { id: 'trail-petal', kind: 'trail', name: '꽃잎 발자국', text: '분홍 꽃잎이 흩어진다', colors: [0xf48fb1, 0xfce4ec], trail: 'petal' },
   { id: 'trail-spark', kind: 'trail', name: '번개 발자국', text: '푸른 전기 불꽃이 튄다', colors: [0x40c4ff, 0xe1f5fe], trail: 'spark' },
   { id: 'trail-shadow', kind: 'trail', name: '그림자 발자국', text: '보랏빛 연기가 남았다 사라진다', colors: [0x7e57c2, 0x311b92], trail: 'shadow' },
+  { id: 'trail-aurora', kind: 'trail', name: '극광 발자국', text: '초록·보랏빛 오로라가 물결친다', colors: [0x69f0ae, 0xb388ff], trail: 'aurora' },
+  { id: 'trail-bell', kind: 'trail', name: '황금 종 발자국', text: '반짝이는 금빛 종이 딸랑인다', colors: [0xffca28, 0xe53935], trail: 'bell' },
 ];
 
 export const skinDef = (id: string | null | undefined): SkinDef | undefined => SKINS.find((s) => s.id === id);
@@ -76,6 +80,7 @@ export const SKIN_ROULETTE = {
     { cape: 'cape-ember-king', trails: ['trail-flame', 'trail-star'] },
     { cape: 'cape-frost-crown', trails: ['trail-frost', 'trail-spark'] },
     { cape: 'cape-starlight', trails: ['trail-petal', 'trail-shadow'] },
+    { cape: 'cape-holy-night', trails: ['trail-aurora', 'trail-bell'] },
   ] as { cape: string; trails: [string, string] }[],
   /** 첫 판이 시작하는 주의 월요일(KST). 이 주가 rotations[0] */
   epochMonday: '2026-11-23',

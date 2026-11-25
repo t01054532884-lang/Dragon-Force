@@ -187,7 +187,7 @@ export class SkinScene extends Phaser.Scene {
     else if (slot.equipTickets) key = 'ui-ticket-equip';
     else if (slot.epicEssence) key = 'ui-essence';
     if (key && this.textures.exists(key)) this.A(this.add.image(x, y - (skin ? 4 : 12), key).setDisplaySize(iconSize, iconSize));
-    const amount = slot.rubies ? `×${slot.rubies.toLocaleString()}` : slot.gold ? `×${slot.gold.toLocaleString()}` : slot.dragonTickets ? `×${slot.dragonTickets}` : slot.equipTickets ? `×${slot.equipTickets}` : slot.epicEssence ? '영웅' : '';
+    const amount = slot.rubies ? `×${slot.rubies.toLocaleString()}` : slot.gold ? `×${slot.gold.toLocaleString()}` : slot.dragonTickets ? `×${slot.dragonTickets}` : slot.equipTickets ? `×${slot.equipTickets}` : slot.epicEssence ? '영웅 랜덤 정수' : '';
     if (amount) this.A(text(this, x + size / 2 - 12, y + size / 2 - 14, amount, slot.center ? 30 : 24, COLOR.text, true, true).setOrigin(1, 1));
     if (skin) {
       this.A(text(this, x, y + size / 2 - 18, skin.name, slot.center ? 24 : 17, COLOR.text, true, true).setOrigin(0.5));

@@ -44,6 +44,7 @@ import { fullH, offY } from '../ui/layout';
 import { playUltCutscene, playUltSweep, preloadUlt } from '../ui/UltCutscene';
 import { getLang } from '../i18n';
 import { capeKey, makeSkinTextures, trailKey } from '../ui/skinArt';
+import { skinDef } from '../data/skins';
 
 /** 적 투사체(직선탄·추적 구체) */
 interface EnemyShot {
@@ -179,6 +180,9 @@ export class GameScene extends Phaser.Scene {
   private skinScale = 1;
   /** 스킨(2026-11-23 밤): 망토(드래곤 아래층, 함께 회전) · 발자국(움직인 거리마다 흔적) — 꾸미기 전용, 판정·능력치 없음 */
   private cape: Phaser.GameObjects.Image | null = null;
+  private capeGlow: Phaser.GameObjects.Image | null = null;
+  private capeScale = 1;
+  private trailColors: [number, number] = [0xffffff, 0xffffff];
   private trailTex: string | null = null;
   private trailLast = { x: 0, y: 0 };
   private emberAt = 0;
@@ -349,9 +353,26 @@ export class GameScene extends Phaser.Scene {
     this.skinScale = this.skin.scaleX;
     {
       const sk = Progress.load().skins;
-      makeSkinTextures(this);
+      makeSkinTextures(this, false);
       this.cape = sk.cape ? this.add.image(this.player.x, this.player.y, capeKey(sk.cape)).setDepth(9.9).setDisplaySize(SKIN_SIZE * 0.92, SKIN_SIZE * 0.92) : null;
+      this.capeGlow = null;
+      if (this.cape) {
+        // 유료 스킨답게(2026-11-25 제작자): 시작할 때 망토가 펼쳐지며 빛 고리, 전투 중 은은한 빛이 숨 쉬듯
+        this.capeScale = this.cape.scaleX;
+        this.capeGlow = this.add.image(this.cape.x, this.cape.y, this.cape.texture.key).setDepth(9.89).setScale(this.capeScale * 1.12).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.3);
+        this.cape.setScale(this.capeScale, this.capeScale * 0.15);
+        this.tweens.add({ targets: this.cape, scaleY: this.capeScale, duration: 650, delay: 150, ease: 'Back.Out' });
+        const [c1, c2] = skinDef(sk.cape)?.colors ?? [0xffffff, 0xffffff];
+        const ring = this.add.circle(this.player.x, this.player.y, 30, c2, 0).setStrokeStyle(5, c2, 1).setDepth(11).setBlendMode(Phaser.BlendModes.ADD);
+        this.tweens.add({ targets: ring, scale: 3.4, alpha: 0, duration: 700, delay: 200, ease: 'Quad.Out', onComplete: () => ring.destroy() });
+        for (let i = 0; i < 14; i++) {
+          const a = (i / 14) * Math.PI * 2;
+          const sp = this.add.circle(this.player.x, this.player.y, 4, i % 2 ? c1 : c2, 1).setDepth(11).setBlendMode(Phaser.BlendModes.ADD);
+          this.tweens.add({ targets: sp, x: this.player.x + Math.cos(a) * 90, y: this.player.y + Math.sin(a) * 90, alpha: 0, duration: 700, delay: 200, ease: 'Quad.Out', onComplete: () => sp.destroy() });
+        }
+      }
       this.trailTex = sk.trail ? trailKey(sk.trail) : null;
+      this.trailColors = skinDef(sk.trail)?.colors ?? [0xffffff, 0xffffff];
       this.trailLast = { x: this.player.x, y: this.player.y };
     }
     this.cameras.main.startFollow(this.player, true, 0.15, 0.15);
@@ -902,8 +923,15 @@ export class GameScene extends Phaser.Scene {
     const r = this.player.rotation;
     if (this.cape) {
       const back = SKIN_SIZE * 0.23;
-      this.cape.setPosition(this.player.x - Math.sin(r) * back, this.player.y + Math.cos(r) * back).setRotation(r + Math.sin(time / 110) * 0.05);
+      const moving = this.player.body ? (this.player.body as Phaser.Physics.Arcade.Body).speed > 10 : false;
+      const flap = moving ? 0.1 : 0.04; // 움직일 때 더 크게 펄럭임
+      this.cape.setPosition(this.player.x - Math.sin(r) * back, this.player.y + Math.cos(r) * back).setRotation(r + Math.sin(time / 110) * flap * 0.6);
+      if (!this.tweens.isTweening(this.cape)) this.cape.setScale(this.capeScale * (1 - Math.sin(time / 95) * flap * 0.25), this.capeScale * (1 + Math.sin(time / 130) * flap));
       this.cape.setVisible(this.skin.visible);
+      if (this.capeGlow) {
+        this.capeGlow.setPosition(this.cape.x, this.cape.y).setRotation(this.cape.rotation).setAlpha(0.18 + 0.14 * Math.sin(time / 320)).setVisible(this.skin.visible);
+        this.capeGlow.setScale(this.cape.scaleX * 1.12, this.cape.scaleY * 1.12);
+      }
     }
     if (!this.trailTex || this.mode !== 'play') return;
     const dx = this.player.x - this.trailLast.x;
@@ -911,8 +939,19 @@ export class GameScene extends Phaser.Scene {
     if (dx * dx + dy * dy < 26 * 26) return;
     this.trailLast = { x: this.player.x, y: this.player.y };
     const back = SKIN_SIZE * 0.4;
-    const fx = this.add.image(this.player.x - Math.sin(r) * back, this.player.y + Math.cos(r) * back, this.trailTex).setDepth(2).setDisplaySize(30, 30).setRotation(r);
-    this.tweens.add({ targets: fx, alpha: 0, scale: fx.scale * 0.5, duration: 700, onComplete: () => fx.destroy() });
+    const x = this.player.x - Math.sin(r) * back;
+    const y = this.player.y + Math.cos(r) * back;
+    const [c1, c2] = this.trailColors;
+    // 바닥에 번지는 빛 → 흔적 그림이 톡 튀어나왔다 작아지며 사라짐 → 작은 반짝이가 위로 떠오름
+    const glow = this.add.circle(x, y, 14, c1, 0.5).setDepth(1.9).setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({ targets: glow, scale: 2, alpha: 0, duration: 600, ease: 'Quad.Out', onComplete: () => glow.destroy() });
+    const fx = this.add.image(x, y, this.trailTex).setDepth(2).setDisplaySize(34, 34).setRotation(r + Phaser.Math.FloatBetween(-0.4, 0.4));
+    const s0 = fx.scale;
+    fx.setScale(s0 * 0.4);
+    this.tweens.add({ targets: fx, scale: s0, duration: 120, ease: 'Back.Out' });
+    this.tweens.add({ targets: fx, alpha: 0, scale: s0 * 0.45, delay: 200, duration: 650, onComplete: () => fx.destroy() });
+    const sp = this.add.circle(x + Phaser.Math.Between(-10, 10), y, 3, c2, 1).setDepth(2.1).setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({ targets: sp, y: y - Phaser.Math.Between(24, 44), alpha: 0, duration: 650, ease: 'Quad.Out', onComplete: () => sp.destroy() });
   }
 
   update(_time: number, rawDelta: number): void {

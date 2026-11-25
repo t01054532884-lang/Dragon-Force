@@ -8,10 +8,12 @@ import { SKINS, skinDef, type SkinDef, type TrailShape } from '../data/skins';
  * - `skin-cape-<id>`: 전투 중 드래곤 아래층에 붙는 망토(위에서 본 모양, 머리 쪽이 위, 160×160)
  * - `skin-trail-<모양>`: 발자국 효과 한 개(48×48)
  */
-export function makeSkinTextures(scene: Phaser.Scene): void {
+/** icons=false: 전투 장면용 — 아이콘은 전투에서 안 씀. 전투 중 내린 진짜 아이콘 키를 도형 그림이 차지하면
+ * 로비·룰렛으로 돌아가도 진짜 그림이 다시 안 읽혀 도형으로 보이던 문제(2026-11-25) 방지 */
+export function makeSkinTextures(scene: Phaser.Scene, icons = true): void {
   const g = scene.add.graphics();
   const make = (key: string, w: number, h: number, draw: () => void) => {
-    if (scene.textures.exists(key)) return;
+    if (scene.textures.exists(key) || (!icons && key.startsWith('skin-icon-'))) return;
     g.clear();
     draw();
     g.generateTexture(key, w, h);
@@ -88,6 +90,14 @@ function trail(g: Phaser.GameObjects.Graphics, shape: TrailShape, [a, b]: [numbe
     case 'shadow':
       g.fillStyle(b, 0.55).fillCircle(x, y, 14 * k);
       g.fillStyle(a, 0.75).fillCircle(x - 4 * k, y - 3 * k, 9 * k).fillCircle(x + 6 * k, y + 4 * k, 7 * k);
+      break;
+    case 'aurora':
+      g.fillStyle(a, 0.7).fillEllipse(x - 3 * k, y, 10 * k, 26 * k);
+      g.fillStyle(b, 0.7).fillEllipse(x + 5 * k, y + 2 * k, 8 * k, 22 * k);
+      break;
+    case 'bell':
+      g.fillStyle(a, 1).fillCircle(x, y - 2 * k, 10 * k).fillRect(x - 12 * k, y + 2 * k, 24 * k, 6 * k);
+      g.fillStyle(b, 1).fillCircle(x, y + 9 * k, 3 * k);
       break;
   }
 }

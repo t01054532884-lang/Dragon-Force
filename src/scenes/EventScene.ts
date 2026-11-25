@@ -161,12 +161,16 @@ export class EventScene extends Phaser.Scene {
       a0 = a1;
     });
     this.A(this.add.triangle(cx, cy - R - 6, -14, -18, 14, -18, 0, 6, 0xffffff));
+    // 가운데: 축제 드래곤(빙하 드래곤) 초상 — 정수 칸의 주인공(2026-11-25 제작자)
+    const pk = `portrait-${WINTER_DRAGON}`;
+    this.A(this.add.circle(cx, cy, 52, 0x0e1a2a, 1).setStrokeStyle(4, 0xffd54f));
+    if (this.textures.exists(pk)) this.A(this.add.image(cx, cy - 2, pk).setDisplaySize(96, 96));
     const groups = this.oddsGroups();
     const rowH = 44;
     groups.forEach(({ r, slots }, i) => {
       const ly = cy - ((groups.length - 1) * rowH) / 2 + i * rowH;
       this.A(this.add.rectangle(420, ly, 22, 22, this.colorOf(r), 0.95).setStrokeStyle(2, 0x0e1a2a));
-      const icon = r.rubies ? 'ui-ruby' : r.fragments ? 'ui-fragment' : '';
+      const icon = r.rubies ? 'ui-ruby' : r.fragments ? 'ui-fragment' : r.dragonEssence ? `portrait-${WINTER_DRAGON}` : '';
       let tx = 442;
       if (icon && this.textures.exists(icon)) {
         this.A(this.add.image(tx, ly, icon).setDisplaySize(28, 28).setOrigin(0, 0.5));

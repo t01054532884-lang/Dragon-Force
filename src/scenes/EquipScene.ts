@@ -303,30 +303,37 @@ export class EquipScene extends Phaser.Scene {
       },
     });
 
+    // 칸(2026-11-25 제작자): 망토 4·발자국 8 칸을 모두 미리 두고, 없는 스킨은 어둡게 + "룰렛" — 스킨 룰렛에서만 얻음
+    A(text(this, 360, 610, '외형 스킨(능력치 없으며, 모든 드래곤에 적용됩니다)', TYPE.tiny, COLOR.textSub, true).setOrigin(0.5));
     const row = (kind: SkinKind, y: number, label: string) => {
-      A(text(this, 40, y - 76, label, TYPE.caption, COLOR.gold, true, true).setOrigin(0, 0.5));
-      const owned = SKINS.filter((s) => s.kind === kind && p.skins.owned.includes(s.id));
+      A(text(this, 40, y - 56, label, TYPE.caption, COLOR.gold, true, true).setOrigin(0, 0.5));
+      A(text(this, 680, y - 56, '없는 스킨은 스킨 룰렛에서 얻을 수 있어요', TYPE.tiny, COLOR.textDim, true).setOrigin(1, 0.5));
       const cur = kind === 'cape' ? p.skins.cape : p.skins.trail;
-      const cells: (string | null)[] = [null, ...owned.map((s) => s.id)];
-      cells.slice(0, 5).forEach((id, i) => {
-        const x = 96 + i * 132;
+      const cells: (string | null)[] = [null, ...SKINS.filter((s) => s.kind === kind).map((s) => s.id)];
+      cells.forEach((id, i) => {
+        const x = 84 + (i % 5) * 138;
+        const yy = y + Math.floor(i / 5) * 112;
         const on = cur === id;
-        if (on) A(this.add.rectangle(x, y, 122, 122, COLOR.cta, 0.95).setStrokeStyle(4, COLOR.outline));
-        const box = A(slotBox(this, x, y, 106, { icon: id ? skinIconKey(id) : undefined }));
-        box.add(text(this, 0, 40, id ? skinDef(id)!.name : '없음', 13, COLOR.text, true, true).setOrigin(0.5));
-        if (on) box.add(badge(this, -30, -40, '장착', COLOR.teal));
+        const have = !id || p.skins.owned.includes(id);
+        if (on) A(this.add.rectangle(x, yy, 108, 108, COLOR.cta, 0.95).setStrokeStyle(4, COLOR.outline));
+        const box = A(slotBox(this, x, yy, 94, { icon: id ? skinIconKey(id) : undefined }));
+        box.add(text(this, 0, 36, id ? skinDef(id)!.name : '없음', 12, have ? COLOR.text : COLOR.textDim, true, true).setOrigin(0.5));
+        if (on) box.add(badge(this, -26, -36, '장착', COLOR.teal));
+        if (!have) {
+          box.setAlpha(0.45);
+          box.add(badge(this, 0, -6, '룰렛', 0x6a2bbf));
+          return;
+        }
         box.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
           const r = equipSkin(Progress.load(), kind, id);
           if (r.ok) Progress.save(r.progress);
           this.refresh();
         });
       });
-      if (!owned.length) A(text(this, 228, y, '스킨 룰렛에서 얻을 수 있어요', TYPE.tiny, COLOR.textDim, true).setOrigin(0, 0.5));
     };
-    row('cape', 720, '망토');
-    row('trail', 900, '발자국');
-    A(text(this, 360, 1000, '스킨은 꾸미기 전용(능력치 없음) · 모든 드래곤에 함께 적용', TYPE.tiny, COLOR.textSub, true).setOrigin(0.5));
-    if (purchases.available || devMode()) this.B(button(this, 360, 1068, 340, 72, '스킨 룰렛 가기', () => this.scene.start('skins'), { kind: 'magic', size: TYPE.caption }));
+    row('cape', 700, '망토');
+    row('trail', 850, '발자국');
+    if (purchases.available || devMode()) this.B(button(this, 360, 1094, 340, 52, '스킨 룰렛 가기', () => this.scene.start('skins'), { kind: 'magic', size: TYPE.caption }));
   }
 
   private act(r: { ok: boolean; reason?: string; cost?: number }, done?: string): void {

@@ -1,6 +1,8 @@
 """영어 그림 2장(2026-11-25, Higgsfield GPT Image 2.6 편집, 투명 배경으로 받음).
 art-src/en/hf-logo-en-1.png          → public/art/logo-en.webp          (800×254, 한글 로고와 같은 크기)
 art-src/en/hf-event-winter-en-1.png  → public/art/event-winter-en.webp  (879×299, 겨울 축제 배너와 같은 크기)
+(2026-11-25 밤) 축제 대표가 빙하 드래곤으로 바뀌어 한·영 배너 모두 빙하 드래곤이 주인공인 판으로 다시 만듦:
+art-src/en/hf-event-winter-ko-glacier.png → public/art/event-winter.webp · hf-event-winter-en-glacier.png → event-winter-en.webp
 투명 여백을 자르고 비율을 지킨 채 칸 안에 가운데 맞춤(남는 곳은 투명). 다시 돌려도 됨.
 원본 경로(art-src/)는 메인 저장소 폴더 — worktree에서 돌릴 때는 ART_SRC 환경변수로 지정."""
 import os
@@ -13,7 +15,8 @@ OUT = ROOT / 'public' / 'art'
 
 JOBS = [
     ('hf-logo-en-1.png', 'logo-en.webp', (800, 254)),
-    ('hf-event-winter-en-1.png', 'event-winter-en.webp', (879, 299)),
+    ('hf-event-winter-en-glacier.png', 'event-winter-en.webp', (879, 299)),
+    ('hf-event-winter-ko-glacier.png', 'event-winter.webp', (879, 299)),
 ]
 
 

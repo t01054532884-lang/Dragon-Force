@@ -146,7 +146,7 @@ export function slotLabel(s: SkinSlot & { duplicate?: boolean }): string {
   if (s.gold) return `골드 ${s.gold.toLocaleString()}`;
   if (s.dragonTickets) return `드래곤 상자 개봉권 ${s.dragonTickets}장`;
   if (s.equipTickets) return `장비 상자 개봉권 ${s.equipTickets}장`;
-  if (s.epicEssence) return '영웅 드래곤 정수';
+  if (s.epicEssence) return '영웅 랜덤 정수';
   return s.id;
 }
 

@@ -57,8 +57,8 @@ describe('스킨 룰렛', () => {
     expect(q.skins.board).toMatchObject({ week: weekKey(nextWeek), picked: [] });
     expect(q.skins.keys).toBe(2);
     expect(boardSlots(q, nextWeek)[0].skin).toBe('cape-frost-crown');
-    // 3주 뒤 다시 첫 묶음 → 이미 가진 망토 칸은 루비로
-    const later = nextWeek + 14 * 86_400_000;
+    // 4주 뒤(묶음 4개, 11/25 성야 묶음 추가) 다시 첫 묶음 → 이미 가진 망토 칸은 루비로
+    const later = nextWeek + 21 * 86_400_000;
     expect(rotationIndex(later)).toBe(0);
     expect(boardSlots(q, later)[0]).toMatchObject({ duplicate: true, rubies: SKIN_ROULETTE.duplicateRubies });
     expect(boardSlots(q, later)[0].skin).toBeUndefined();

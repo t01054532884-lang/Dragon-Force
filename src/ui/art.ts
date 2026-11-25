@@ -175,8 +175,8 @@ export const ART_FILES: Record<string, string> = {
   ...Object.fromEntries(['rare', 'epic', 'legendary'].map((r) => [`aura-equip-${r}`, `equip/aura-equip-${r}.webp`])),
   ...Object.fromEntries(['common', 'rare', 'epic', 'legendary'].map((r) => [`equip-orb-${r}`, `equip/equip-orb-${r}.webp`])),
   // 22차분(2026-11-24, scripts/process_art_batch22.py): 스킨 망토 3·발자국 6·아이콘 9 — 키가 있으면 skinArt.ts 도형 그림 대신 씀
-  ...Object.fromEntries(['cape-ember-king', 'cape-frost-crown', 'cape-starlight'].flatMap((id) => [[`skin-cape-${id}`, `skin/skin-cape-${id}.webp`], [`skin-icon-${id}`, `skin/skin-icon-${id}.webp`]])),
-  ...Object.fromEntries(['flame', 'frost', 'star', 'petal', 'spark', 'shadow'].flatMap((t) => [[`skin-trail-${t}`, `skin/skin-trail-${t}.webp`], [`skin-icon-trail-${t}`, `skin/skin-icon-trail-${t}.webp`]])),
+  ...Object.fromEntries(['cape-ember-king', 'cape-frost-crown', 'cape-starlight', 'cape-holy-night'].flatMap((id) => [[`skin-cape-${id}`, `skin/skin-cape-${id}.webp`], [`skin-icon-${id}`, `skin/skin-icon-${id}.webp`]])),
+  ...Object.fromEntries(['flame', 'frost', 'star', 'petal', 'spark', 'shadow', 'aurora', 'bell'].flatMap((t) => [[`skin-trail-${t}`, `skin/skin-trail-${t}.webp`], [`skin-icon-trail-${t}`, `skin/skin-icon-trail-${t}.webp`]])),
   // 21차분(2026-11-24, scripts/process_art_batch21.py): 진화·적중 효과 6장 256px(BasicAttack.flashArt)
   ...Object.fromEntries(['fx-aurora-split', 'fx-mirror-bounce', 'fx-void-burst', 'fx-sand-pillar', 'fx-bloom-burst', 'fx-heal-flower'].map((k) => [k, `fx/${k}.webp`])),
   // 20차분(2026-11-24, scripts/process_art_batch20.py): 탄 수정본(아래 같은 파일 덮어씀) + 신규 9종 전용 스킬 전투 연출 512px(Signature.ts SIGART)
