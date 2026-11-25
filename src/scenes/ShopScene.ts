@@ -214,10 +214,14 @@ export class ShopScene extends Phaser.Scene {
       const x = 360 + (col - (perRow - 1) / 2) * 230;
       const cy = y0 + 160 + row * 250;
       const card = plate(this, x, cy, 216, 236, { r: 22, fill: i >= 3 ? 0x3a2370 : 0x2b2442, gold: i === RUBY_PRODUCTS.length - 1 });
-      const n = Math.min(5, 1 + i);
-      for (let k = 0; k < n; k++) {
-        const a = n === 1 ? 0 : (k / (n - 1) - 0.5) * 1.2;
-        card.add(this.add.image(Math.sin(a) * 44, -52 + Math.abs(a) * 14, 'ui-ruby').setDisplaySize(62 - n * 3, 62 - n * 3));
+      const pack = `ruby-pack-${Math.min(5, i + 1)}`; // 2026-11-26: 양에 따라 몇 알 → 주머니 → 더미 → 그릇 → 보물 상자
+      if (this.textures.exists(pack)) card.add(this.add.image(0, -56, pack).setDisplaySize(118, 118));
+      else {
+        const n = Math.min(5, 1 + i);
+        for (let k = 0; k < n; k++) {
+          const a = n === 1 ? 0 : (k / (n - 1) - 0.5) * 1.2;
+          card.add(this.add.image(Math.sin(a) * 44, -52 + Math.abs(a) * 14, 'ui-ruby').setDisplaySize(62 - n * 3, 62 - n * 3));
+        }
       }
       card.add(text(this, 0, 14, (def.rubies + def.bonus).toLocaleString(), TYPE.heading, COLOR.text, true, true).setOrigin(0.5));
       card.add(text(this, 0, 46, def.bonus ? `보너스 +${def.bonus.toLocaleString()}` : '루비', TYPE.tiny, def.bonus ? COLOR.gold : COLOR.textSub, true, true).setOrigin(0.5));

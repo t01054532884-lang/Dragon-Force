@@ -2392,7 +2392,14 @@ export class GameScene extends Phaser.Scene {
     const T = (x: number, y: number, str: string, size: number, color: number = COLOR.text, ox = 0.5) => add(ktext(this, x, y, str, size, color, true, true).setOrigin(ox, 0.5));
     add(this.add.rectangle(360, 640, 720, fullH(this), 0x000000, 0.82));
     const titleTxt = clear ? '성지 탈환!' : reason === 'timeout' ? '시간 초과' : reason === 'quit' ? '전투 포기' : '드래곤이 쓰러졌다';
-    const rb = ribbon(this, 360, 160, 440, titleTxt, clear ? 0xe0a032 : COLOR.danger, 84);
+    // 승리·패배 배너 그림(2026-11-26 Higgsfield) 위에 제목 글자. 그림이 없으면 예전 리본
+    const resKey = clear ? 'res-victory' : 'res-defeat';
+    let rb: Phaser.GameObjects.Container;
+    if (this.textures.exists(resKey)) {
+      const im = this.add.image(0, 0, resKey);
+      im.setScale(470 / im.width);
+      rb = this.add.container(360, 124, [im, ktext(this, 0, clear ? 28 : 11, titleTxt, 34, clear ? 0x4a2a00 : 0xffe0d0, true, true).setOrigin(0.5)]);
+    } else rb = ribbon(this, 360, 160, 440, titleTxt, clear ? 0xe0a032 : COLOR.danger, 84);
     add(rb);
     rb.setScale(0.6).setAlpha(0);
     this.tweens.add({ targets: rb, scale: 1, alpha: 1, duration: 220, ease: 'Back.Out' });

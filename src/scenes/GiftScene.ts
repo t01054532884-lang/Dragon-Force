@@ -134,6 +134,7 @@ export class GiftScene extends Phaser.Scene {
       toast(this, `${tag(r.gift.kind)}${L.name} ${r.gift.amount.toLocaleString()}${L.unit} 받았어요`, COLOR.ok);
     }
     this.render();
+    if (r.ok) this.mailPop();
   }
 
   private claimAll(): void {
@@ -150,6 +151,17 @@ export class GiftScene extends Phaser.Scene {
     const keptLines = r.kept.map((k) => `${tag(k.gift.kind)}${k.gift.amount}${GIFT_LABEL[k.gift.kind].unit} — ${CLAIM_FAIL_TEXT[k.reason]}`);
     this.render();
     this.showSummary(r.claimed.length, lines, keptLines);
+    if (r.claimed.length) this.mailPop();
+  }
+
+  /** 받기 연출(2026-11-26 Higgsfield): 봉인이 깨진 봉투에서 빛나는 편지가 떠오르는 그림이 톡 튀어 올랐다 사라짐 */
+  private mailPop(): void {
+    if (!this.textures.exists('mail-open')) return;
+    const im = this.add.image(360, 560, 'mail-open').setDepth(1000).setDisplaySize(240, 240).setAlpha(0);
+    const s0 = im.scale;
+    im.setScale(s0 * 0.4);
+    this.tweens.add({ targets: im, scale: s0, alpha: 1, y: 520, duration: 260, ease: 'Back.Out' });
+    this.tweens.add({ targets: im, alpha: 0, y: 470, delay: 750, duration: 350, onComplete: () => im.destroy() });
   }
 
   private showSummary(n: number, lines: string[], kept: string[]): void {

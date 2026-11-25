@@ -242,8 +242,15 @@ export class MissionScene extends Phaser.Scene {
       rows.sort((r1, r2) => Number(r1.pr.done) - Number(r2.pr.done) || r2.pr.cur / r2.pr.goal - r1.pr.cur / r1.pr.goal);
       for (const { a, pr } of rows) {
         this.A(plate(this, 360, y, 664, 96, { r: 20, fill: pr.done ? 0x1a1626 : undefined }));
-        this.rewardBox(84, y, { image: 'ui-ruby', emoji: '💎', amount: `${a.rubies}` }, pr.done);
+        // 업적 메달(2026-11-26 Higgsfield): 어려울수록 동 → 은 → 금 → 다이아. 못 이룬 업적은 흐리게. 보상 루비는 제목 오른쪽
+        const medal = `medal-${ACH_MEDAL[a.id] ?? 'bronze'}`;
+        if (this.textures.exists(medal)) this.A(this.add.image(84, y, medal).setDisplaySize(78, 78).setAlpha(pr.done ? 1 : 0.55));
+        else this.rewardBox(84, y, { image: 'ui-ruby', emoji: '💎', amount: `${a.rubies}` }, pr.done);
         this.A(text(this, 140, y - 22, a.text, 19, pr.done ? COLOR.ok : COLOR.text, true, true).setOrigin(0, 0.5));
+        if (this.textures.exists(medal)) {
+          this.A(this.add.image(500, y - 22, 'ui-ruby').setDisplaySize(26, 26).setAlpha(pr.done ? 0.5 : 1));
+          this.A(text(this, 518, y - 22, `${a.rubies}`, 18, pr.done ? COLOR.textDim : COLOR.gold, true, true).setOrigin(0, 0.5));
+        }
         this.A(progressBar(this, 330, y + 18, 380, 16, pr.cur / pr.goal, pr.done ? COLOR.ok : COLOR.violet, `${pr.cur.toLocaleString()} / ${pr.goal.toLocaleString()}`).root);
         // 업적 루비는 달성한 판이 끝날 때 자동 지급(기존 규칙) → 달성하면 체크, 아직이면 이동
         const b = this.keep(button(this, 616, y, 116, 60, pr.done ? '✔' : '이동', () => this.scene.start('lobby'), { kind: pr.done ? 'secondary' : 'cta', size: TYPE.caption }));
@@ -401,6 +408,8 @@ export class MissionScene extends Phaser.Scene {
 }
 
 type Tab = 'progress' | 'daily' | 'missions' | 'achievements' | 'attendance';
+/** 업적별 메달 등급(2026-11-26 AI 1차안: 첫 판 동 · 첫 엘리트·수집 은 · 1,000마리 금 · 10,000마리 다이아) */
+const ACH_MEDAL: Record<string, 'bronze' | 'silver' | 'gold' | 'diamond'> = { 'first-run': 'bronze', 'first-elite': 'silver', 'collector-3': 'silver', 'kills-1000': 'gold', 'kills-10000': 'diamond' };
 type Only = 'mission' | 'progress' | 'achievements' | 'attendance';
 const ONLY_TITLE: Record<Only, string> = { mission: '미션', progress: '진행도', achievements: '업적', attendance: '출석' };
 

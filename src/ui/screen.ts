@@ -45,7 +45,7 @@ export const NAV_TABS = [
   { key: 'dragons', label: '드래곤', icon: 'ic-dragon' },
   { key: 'lobby', label: '전투', icon: 'ic-swords' },
   { key: 'equip', label: '장비', icon: 'ic-shield' }, // 톱니(ic-gear)는 설정과 헷갈려 날개 방패로(2026-11-22)
-  { key: 'lab', label: '연구소', icon: 'ic-upgrade' },
+  { key: 'lab', label: '연구소', icon: 'ic-lab' }, // 2026-11-26 플라스크·마법서(Higgsfield)
 ];
 
 /** 하단 탭 + 빨간 알림 점(지금 있는 탭은 빼고) — 로비와 다른 화면이 같이 쓴다 */

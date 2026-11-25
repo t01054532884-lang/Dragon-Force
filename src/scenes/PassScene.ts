@@ -158,6 +158,12 @@ export class PassScene extends Phaser.Scene {
     const H = CELL_H;
     const box = plate(this, c.x, y, c.w, H, { r: 16, fill: c.fill, gold: st === 'ready' });
     const ix = -c.w / 2 + 40;
+    // 보상 받침대(2026-11-26 Higgsfield): 아이콘이 받침대 위에 놓인 모습, 받을 수 있는 칸은 받침대 빛이 숨 쉼
+    if (this.textures.exists('pass-pedestal')) {
+      const ped = this.add.image(ix, 20, 'pass-pedestal').setDisplaySize(78, 78);
+      box.add(ped);
+      if (st === 'ready') this.tweens.add({ targets: ped, alpha: 0.6, duration: 600, yoyo: true, repeat: -1 });
+    }
     if (it.kind === 'redFrag') box.add(this.add.image(ix, -6, 'portrait-red').setDisplaySize(64, 64));
     else if (this.textures.exists(PASS_ITEM_ICON[it.kind])) box.add(this.add.image(ix, -6, PASS_ITEM_ICON[it.kind]).setDisplaySize(60, 60));
     const tx = ix + 38;
