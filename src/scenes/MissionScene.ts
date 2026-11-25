@@ -136,7 +136,7 @@ export class MissionScene extends Phaser.Scene {
       this.A(this.add.text(40, y + 6, `받은 상자 ${dp.claimed.length} / ${STAGE_COUNT} · 받을 상자 ${ready}개\n단계를 처음 깰 때마다 상자 1개\n5단계마다 특별 상자`, {
         fontFamily: FONT, fontSize: '19px', color: ready ? '#7ee2a8' : '#b9c2da', lineSpacing: 6,
       }));
-      const b = this.keep(button(this, 560, y + 62, 220, 76, ready ? `상자 ${ready}개 받기` : '받을 상자 없음', () => this.claimBox(d), { kind: 'growth', size: 20 }));
+      const b = this.keep(button(this, 560, y + 62, 220, 76, ready ? `상자 ${ready}개 받기` : '받을 상자가 없어요', () => this.claimBox(d), { kind: 'growth', size: 20 }));
       b.setEnabled(open && ready > 0);
     });
   }

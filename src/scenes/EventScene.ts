@@ -180,7 +180,7 @@ export class EventScene extends Phaser.Scene {
       const name = r.rubies ? `${r.rubies}` : r.fragments ? `${dragonShort} 조각 ${r.fragments}${slots > 1 ? ` ×${slots}` : ''}` : `${dragonShort} 드래곤 정수`;
       this.A(this.add.text(tx, ly, name, { fontFamily: FONT, fontSize: '20px', fontStyle: 'bold', color: r.dragonEssence ? '#ffd54f' : r.fragments ? '#81d4fa' : '#ffffff' }).setOrigin(0, 0.5));
     });
-    const spin = this.keep(button(this, 360, 748, 360, 76, avail > 0 ? '룰렛 돌리기' : '기회 없음', () => this.spin(), { kind: 'cta', size: TYPE.heading }));
+    const spin = this.keep(button(this, 360, 748, 360, 76, avail > 0 ? '룰렛 돌리기' : '기회가 없어요', () => this.spin(), { kind: 'cta', size: TYPE.heading }));
     spin.setEnabled(avail > 0 && !this.busy);
 
     if (this.last) {
@@ -336,7 +336,7 @@ export class EventScene extends Phaser.Scene {
     if (!attendanceActive(now)) {
       const aStart = Date.parse(EV.attendanceStartKst);
       this.A(this.add.text(360, 520, now < aStart ? `크리스마스 출석은\n${fmtKst(aStart).split(' ')[0]}(금)부터 시작해요` : '크리스마스 출석이 끝났어요', { fontFamily: FONT, fontSize: '30px', color: '#e3f2fd', align: 'center', lineSpacing: 10 }).setOrigin(0.5));
-      this.A(this.add.text(360, 640, '12/18(금) ~ 12/31(목) 14일 · 매일 루비 100~700\n그날 출석해야 그날 보상(지난 날은 못 받음)', { fontFamily: FONT, fontSize: '20px', color: '#90caf9', align: 'center' }).setOrigin(0.5));
+      this.A(this.add.text(360, 640, '12/18(금) ~ 12/31(목) 14일 · 매일 루비 100~700\n매일 접속해서 그날 보상을 받아 주세요\n지난 일차 보상은 받을 수 없어요', { fontFamily: FONT, fontSize: '20px', color: '#90caf9', align: 'center' }).setOrigin(0.5));
       return;
     }
     // 2주 달력(제작자 2026-11-25): 12/18 = 1일차 … 12/31 = 14일차. 그날 들어와야 그날 보상 — 지난 날은 "놓침"(나중에 못 받음)
@@ -354,7 +354,7 @@ export class EventScene extends Phaser.Scene {
       this.A(this.add.text(x, y - 46, `${day}일차`, { fontFamily: FONT, fontSize: '16px', color: '#ffffff' }).setOrigin(0.5));
       this.A(this.add.text(x, y - 24, attendanceDate(day).slice(5).replace('-', '/'), { fontFamily: FONT, fontSize: '13px', color: '#90caf9' }).setOrigin(0.5));
       this.rubyRow(x, y + 8, attendanceReward(day), 18, missed ? '#9e9e9e' : '#ffffff');
-      this.A(this.add.text(x, y + 46, got ? '받음 ✔' : today ? '오늘' : missed ? '놓침' : '', { fontFamily: FONT, fontSize: '15px', color: missed ? '#9e9e9e' : '#ffe082' }).setOrigin(0.5));
+      this.A(this.add.text(x, y + 46, got ? '받았어요 ✔' : today ? '오늘' : missed ? '지났어요' : '', { fontFamily: FONT, fontSize: '15px', color: missed ? '#9e9e9e' : '#ffe082' }).setOrigin(0.5));
     }
     this.A(this.add.text(360, 712, '그날 출석해야 그날 보상을 받아요 · 지난 날 보상은 받을 수 없어요', { fontFamily: FONT, fontSize: '17px', color: '#90caf9', align: 'center' }).setOrigin(0.5));
     const b = this.keep(button(this, 360, 830, 440, 90, done ? '오늘 출석 완료' : `출석하고 ${attendanceReward(todayN)} 받기`, () => {

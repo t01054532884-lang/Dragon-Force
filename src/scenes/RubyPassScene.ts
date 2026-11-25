@@ -142,7 +142,7 @@ export class RubyPassScene extends Phaser.Scene {
     this.add.rectangle(360, cy, 720, BAR_H, 0x1a1430, 0.96).setDepth(35);
     this.add.rectangle(360, cy - BAR_H / 2, 720, 4, COLOR.gold, 0.9).setDepth(35);
     const n = (['free', 'paid'] as const).reduce((s, t) => s + RUBY_PASS[t].filter((_, i) => rubyCellState(p, t, i + 1) === 'ready').length, 0);
-    const all = button(this, 190, cy + 10, 300, 78, n ? `일괄 수령 ${n}` : '받을 것 없음', () => this.claim(), { kind: 'growth', size: TYPE.caption });
+    const all = button(this, 190, cy + 10, 300, 78, n ? `일괄 수령 ${n}` : '받을 보상이 없어요', () => this.claim(), { kind: 'growth', size: TYPE.caption });
     all.setEnabled(n > 0);
     all.root.setDepth(36);
     const owned = p.rubyPass.owned;

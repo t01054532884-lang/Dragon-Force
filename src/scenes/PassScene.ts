@@ -134,7 +134,7 @@ export class PassScene extends Phaser.Scene {
     this.add.rectangle(360, cy - BAR_H / 2, 720, 4, COLOR.gold, 0.9).setDepth(35);
     void bg;
     const n = (['free', 'premium', 'royal'] as const).reduce((s, t) => s + PASS_REWARDS[t].filter((_, i) => cellState(p, t, i + 1) === 'ready').length, 0);
-    const all = button(this, 128, cy + 10, 212, 78, n ? `일괄 수령 ${n}` : '받을 것 없음', () => this.claim(), { kind: 'growth', size: TYPE.caption });
+    const all = button(this, 128, cy + 10, 212, 78, n ? `일괄 수령 ${n}` : '받을 보상이 없어요', () => this.claim(), { kind: 'growth', size: TYPE.caption });
     all.setEnabled(n > 0);
     all.root.setDepth(36);
     (['premium', 'royal'] as const).forEach((k, i) => {

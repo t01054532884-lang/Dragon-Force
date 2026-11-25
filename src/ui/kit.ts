@@ -234,7 +234,7 @@ export function milestoneBar(
       root.add(alertDot(scene, mx + 30, -56, 26));
     }
     root.addAt(ic, 0);
-    root.add(text(scene, mx, 46, m.claimed ? '받음' : m.label, TYPE.tiny, m.claimed ? COLOR.textDim : COLOR.text, true, true).setOrigin(0.5));
+    root.add(text(scene, mx, 46, m.claimed ? '받았어요' : m.label, TYPE.tiny, m.claimed ? COLOR.textDim : COLOR.text, true, true).setOrigin(0.5));
   });
   return root;
 }

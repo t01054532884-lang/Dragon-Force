@@ -2395,7 +2395,7 @@ export class GameScene extends Phaser.Scene {
         const counted = outcome !== 'quit' && this.elapsed >= WINTER_2026.minBattleMs;
         const left = WINTER_2026.battlesPerSpin - (st.battles % WINTER_2026.battlesPerSpin);
         this.runRewards.push({
-          id: 'event', text: counted ? `겨울 축제 룰렛 — 남은 기회 ${spinsAvailable(st)}회, 다음까지 ${left}판` : '겨울 축제: 포기·60초 미만 전투는 룰렛에 들어가지 않음',
+          id: 'event', text: counted ? `겨울 축제 룰렛 — 남은 기회 ${spinsAvailable(st)}회, 다음까지 ${left}판` : '겨울 축제: 포기했거나 60초 미만인 전투는 룰렛 횟수에 들어가지 않아요',
           gold: 0,
         });
       }

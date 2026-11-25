@@ -358,9 +358,9 @@ export function cloudLine(now = Date.now()): string {
     case 'offline':
       return '오프라인 · 연결되면 저장해요';
     case 'conflict':
-      return '저장 기록 선택 필요';
+      return '저장 기록을 골라 주세요';
     case 'error':
-      return '클라우드 저장 오류 · 이 기기에는 저장됨';
+      return '클라우드 저장 실패 · 이 기기에는 저장했어요';
     default:
       return '이 기기에만 저장 중';
   }

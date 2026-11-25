@@ -163,7 +163,7 @@ export class SkinScene extends Phaser.Scene {
     if (this.textures.exists('ui-skinkey')) this.A(this.add.image(keyLine.x - keyLine.width / 2 - 22, 950, 'ui-skinkey').setDisplaySize(38, 38));
     const left = slots.filter((s) => !picked.has(s.id)).length;
     const canBuy = purchases.available || devMode();
-    const spinBtn = this.keep(button(this, canBuy ? 270 : 360, 1026, canBuy ? 360 : 400, 88, left ? '1회 뽑기' : '이번 판 모두 받음', () => this.spin(), { kind: 'cta', size: 34, sub: left ? '열쇠 1개' : '다음 주 새 판' }));
+    const spinBtn = this.keep(button(this, canBuy ? 270 : 360, 1026, canBuy ? 360 : 400, 88, left ? '1회 뽑기' : '이번 판을 다 받았어요', () => this.spin(), { kind: 'cta', size: 34, sub: left ? '열쇠 1개' : '다음 주 새 판' }));
     spinBtn.setEnabled(left > 0);
     if (canBuy) {
       const buy = this.keep(button(this, 572, 1026, 210, 78, '열쇠 구매', () => this.buyKey(), { kind: 'secondary', size: TYPE.caption, sub: `${R.keyKrw.toLocaleString()}원` }));
@@ -315,7 +315,7 @@ export class SkinScene extends Phaser.Scene {
     const m = modal(this, 640, 900, '스킨 룰렛 확률', { closeOnBackdrop: true, ribbonColor: 0x7b3fe4 });
     const lines = [
       '다음 1회 확률(지금 판 기준)',
-      ...odds.map((o) => `${o.picked ? '✓ ' : '· '}${slotLabel(o.slot)}${o.slot.center ? ' (대표)' : ''}  ${o.picked ? '획득함' : `${o.pct.toFixed(2)}%`}`),
+      ...odds.map((o) => `${o.picked ? '✓ ' : '· '}${slotLabel(o.slot)}${o.slot.center ? ' (대표)' : ''}  ${o.picked ? '받았어요' : `${o.pct.toFixed(2)}%`}`),
       '',
       `규칙`,
       `· 열쇠 1개(${R.keyKrw.toLocaleString()}원)로 1회. 뽑힌 칸은 다시 나오지 않고, 남은 칸의 가중치로 확률을 다시 나눕니다.`,
@@ -323,7 +323,7 @@ export class SkinScene extends Phaser.Scene {
       `· 매주 월요일 0시(한국 시간)에 새 판으로 바뀝니다. 남은 열쇠는 그대로이고, 받지 못한 칸은 사라집니다.`,
       `· 이미 가진 스킨이 판에 오면 그 칸은 루비 ${R.duplicateRubies.toLocaleString()}로 바뀝니다.`,
       `· 영웅 드래곤 정수: 영웅 드래곤 중 하나(같은 확률). 없으면 해금, 있으면 조각.`,
-      `· 추첨과 열쇠 수는 서버에서 처리합니다(앱 저장을 되돌려도 결과가 바뀌지 않음).`,
+      `· 추첨과 열쇠 수는 서버에서 처리해요(앱 저장을 되돌려도 결과는 바뀌지 않아요).`,
       `· 스킨은 꾸미기 전용이며 능력치는 없습니다.`,
     ];
     m.body(this.add.text(-280, -390, lines.join('\n'), { fontFamily: FONT, fontSize: '20px', color: '#ece6ff', lineSpacing: 7, wordWrap: { width: 560 } }).setOrigin(0, 0));
