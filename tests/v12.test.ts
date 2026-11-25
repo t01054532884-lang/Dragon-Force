@@ -109,11 +109,11 @@ describe('6-3 정수·조각·카드', () => {
     expect(r.progress.dragons[got].fragments).toBe(80);
   });
   it('5성 이후 초과 조각 → 범용(일반 5:1·전설 1:1), 나머지 보관, 5성 전에는 불가', () => {
-    const p = own(defaultProgress(), 'blue', { stars: 5, fragments: 23 });
-    const r = convertToUniversal(p, 'blue');
+    const p = own(defaultProgress(), 'water', { stars: 5, fragments: 23 });
+    const r = convertToUniversal(p, 'water');
     expect(r.ok && r.progress.universalFragments).toBe(4);
-    expect(r.ok && r.progress.dragons.blue.fragments).toBe(3);
-    expect(convertToUniversal(own(defaultProgress(), 'blue', { stars: 4, fragments: 50 }), 'blue')).toMatchObject({ ok: false });
+    expect(r.ok && r.progress.dragons.water.fragments).toBe(3);
+    expect(convertToUniversal(own(defaultProgress(), 'water', { stars: 4, fragments: 50 }), 'water')).toMatchObject({ ok: false });
   });
   it('범용 조각으로 승급 부족분 채우기, 전설은 필요량의 25%까지', () => {
     const p = { ...own(defaultProgress(), 'arcane', { stars: 4, fragments: 100 }), universalFragments: 100 };
@@ -337,7 +337,7 @@ describe('6-6 장비', () => {
     const e = equipItem(withItems([item('a', 'sword', 'rare', 1)]), 'a');
     if (!e.ok) throw new Error();
     const red = loadout(e.progress, 'red');
-    const blue = loadout(e.progress, 'blue');
+    const blue = loadout(e.progress, 'water');
     expect(red.stats.attack).toBeCloseTo(10 * 1.07);
     expect(blue.stats.attack).toBeCloseTo(10 * 1.07);
   });

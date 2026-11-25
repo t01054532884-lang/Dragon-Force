@@ -58,7 +58,7 @@ describe('룰렛 추첨', () => {
     expect(ev * 30).toBeCloseTo(576);
   });
   it('겨울 축제 드래곤 = 워터(영웅): 정수 2% · 조각 5개 칸 4개(각 5%) · 루비 78%', () => {
-    expect(WINTER_DRAGON).toBe('water');
+    expect(WINTER_DRAGON).toBe('blue');
     expect(DRAGONS[WINTER_DRAGON].rarity).toBe('epic');
     const frag = EV.roulette.filter((r) => r.fragments);
     expect(frag.map((r) => [r.fragments, r.weight])).toEqual([[5, 5], [5, 5], [5, 5], [5, 5]]);
@@ -77,22 +77,22 @@ describe('룰렛 추첨', () => {
     const fragSeed = findSeed((id) => id.startsWith('frag'));
     const a = spinRoulette(withSeed(base, fragSeed), DEC5);
     if (!a.ok) throw new Error(a.reason);
-    expect(a.fragments).toEqual({ dragonId: 'water', count: 5 });
-    expect(a.progress.dragons.water.fragments).toBe(base.dragons.water.fragments + 5);
+    expect(a.fragments).toEqual({ dragonId: 'blue', count: 5 });
+    expect(a.progress.dragons.blue.fragments).toBe(base.dragons.blue.fragments + 5);
     expect(a.progress.rubies).toBe(base.rubies);
 
-    const essSeed = findSeed((id) => id === 'water');
+    const essSeed = findSeed((id) => id === 'essence');
     const b = spinRoulette(withSeed(base, essSeed), DEC5);
     if (!b.ok) throw new Error(b.reason);
-    expect(base.dragons.water.unlocked).toBe(false);
-    expect(b.essence).toEqual({ dragonId: 'water', isNew: true, fragments: 0 });
-    expect(b.progress.dragons.water.unlocked).toBe(true);
+    expect(base.dragons.blue.unlocked).toBe(false);
+    expect(b.essence).toEqual({ dragonId: 'blue', isNew: true, fragments: 0 });
+    expect(b.progress.dragons.blue.unlocked).toBe(true);
 
-    const owned = { ...base, dragons: { ...base.dragons, water: { ...base.dragons.water, unlocked: true } } };
+    const owned = { ...base, dragons: { ...base.dragons, blue: { ...base.dragons.blue, unlocked: true } } };
     const c = spinRoulette(withSeed(owned, essSeed), DEC5);
     if (!c.ok) throw new Error(c.reason);
-    expect(c.essence).toEqual({ dragonId: 'water', isNew: false, fragments: 50 });
-    expect(c.progress.dragons.water.fragments).toBe(owned.dragons.water.fragments + 50);
+    expect(c.essence).toEqual({ dragonId: 'blue', isNew: false, fragments: 50 });
+    expect(c.progress.dragons.blue.fragments).toBe(owned.dragons.blue.fragments + 50);
   });
   it('100만 회: 각 칸이 설정 확률 ±3% 안(난수 경계 검증)', () => {
     const count: Record<string, number> = {};

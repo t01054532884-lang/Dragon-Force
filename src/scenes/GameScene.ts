@@ -3,7 +3,7 @@ import { makeTextures } from '../textures';
 import { ENEMIES, HIT_CAP, type EnemyKind } from '../data/enemies';
 import { BASE_STATS, M, xpToNext, type RunStats } from '../data/stats';
 import { BOSS_ESCORT, REWARD, STAGES, type StageData } from '../data/stages';
-import { BASIC_TAGS, compareText, rollOffer, synergyWith, UPGRADES, type Upgrade } from '../data/upgrades';
+import { BASIC_TAGS, rollOffer, synergyWith, UPGRADES, type Upgrade } from '../data/upgrades';
 import { Enemy, type EnemyAction } from '../objects/Enemy';
 import { Skills } from '../systems/Skills';
 import { BasicAttack, NO_TRAITS } from '../systems/BasicAttack';
@@ -42,6 +42,7 @@ import { enterBattle } from '../ui/entry';
 import { hardStage, type HardStageDef } from '../data/hardStages';
 import { fullH, offY } from '../ui/layout';
 import { playUltCutscene, playUltSweep, preloadUlt } from '../ui/UltCutscene';
+import { getLang } from '../i18n';
 import { capeKey, makeSkinTextures, trailKey } from '../ui/skinArt';
 
 /** 적 투사체(직선탄·추적 구체) */
@@ -1804,10 +1805,9 @@ export class GameScene extends Phaser.Scene {
       // 조합 태그(화염·빙결·연쇄·범위 …) — 카드 오른쪽 위
       if (u.tags?.length) card.add(ktext(this, 300, -56, u.tags.map((t) => `#${t}`).join(' '), 17, 0xffd9a8, true, true).setOrigin(1, 0.5));
       card.add(ktext(this, -140, -16, `${i + 1}. ${u.name}`, TYPE.heading, COLOR.text, true, true).setOrigin(0, 0.5));
-      card.add(ktext(this, -140, 22, u.describe(next), 19, COLOR.textSub, true).setOrigin(0, 0.5).setWordWrapWidth(450).setAlign('left'));
-      // 강화 전후 차이를 숫자로(예: 투사체 1개 → 2개 · 피해 90% → 120%)
-      const cmp = compareText(u, next);
-      if (cmp) card.add(ktext(this, -140, 64, `${next > 1 ? '▲ ' : '✦ '}${cmp}`, 16, COLOR.gold, true, true).setOrigin(0, 0.5).setWordWrapWidth(450).setAlign('left'));
+      // 설명은 회색 한 줄만(제작자 2026-11-25: 범위·각도 같은 노란 숫자 줄은 없앰, "피해 +15%" → "피해 15% 증가")
+      const desc = getLang() === 'ko' ? plainPct(u.describe(next)) : u.describe(next);
+      card.add(ktext(this, -140, 30, desc, 20, COLOR.textSub, true).setOrigin(0, 0.5).setWordWrapWidth(450).setAlign('left'));
       // 지금 보유한 스킬과 어울리는 카드
       const syn = synergyWith(u, this.upgradeLevels);
       if (syn) {
@@ -2442,4 +2442,9 @@ function scaleAction(a: EnemyAction, m: number): EnemyAction {
     case 'lineHit': return { ...a, width: a.width * m };
     default: return a;
   }
+}
+
+/** 카드 설명의 "피해 +15%" → "피해 15% 증가", "간격 −10%" → "간격 10% 감소"(한국어 화면만) */
+function plainPct(s: string): string {
+  return s.replace(/([가-힣A-Za-z·]+) \+(\d+(?:\.\d+)?%)/g, '$1 $2 증가').replace(/([가-힣A-Za-z·]+) [−-](\d+(?:\.\d+)?%)/g, '$1 $2 감소');
 }

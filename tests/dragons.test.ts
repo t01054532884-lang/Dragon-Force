@@ -38,8 +38,8 @@ describe('드래곤 데이터', () => {
   it('v1.2 종별 기본 능력치(공격력·HP·속도)', () => {
     const t = Object.fromEntries(DRAGON_ORDER.map((id) => [id, [DRAGONS[id].baseAttack, DRAGONS[id].baseHp, DRAGONS[id].baseMoveSpeed]]));
     expect(t).toEqual({
-      red: [10, 100, 260], blue: [10, 105, 255], yellow: [10.5, 95, 270], green: [9.8, 110, 255], white: [10.8, 120, 255],
-      black: [12, 100, 260], stone: [10.5, 135, 240], wind: [12, 105, 285], water: [11.5, 125, 260], arcane: [14, 120, 275],
+      red: [10, 100, 260], blue: [11.5, 125, 260], yellow: [10.5, 95, 270], green: [9.8, 110, 255], white: [10.8, 120, 255],
+      black: [12, 100, 260], stone: [10.5, 135, 240], wind: [12, 105, 285], water: [10, 105, 255], arcane: [14, 120, 275],
     });
   });
 });

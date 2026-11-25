@@ -150,7 +150,7 @@ const RED: BasicSpec = {
   })),
 };
 
-// ───────── 블루: 얼음탄 — 둔화·빙결 ─────────
+// ───────── 빙하(아이디 blue, 2026-11-25 블루 → 빙하 드래곤·영웅, 워터와 등급·기본 능력치 맞바꿈): 얼음탄 — 둔화·빙결 ─────────
 const BLUE = common('얼음탄', '🧊', 'bolt-ice', build(
   { ...STRAIGHT, speed: 520, shots: 1, coef: 1.0, levelMod: 1, interval: 1200, slow: { ratio: 0.3, ms: 1500 } },
   [
@@ -421,14 +421,14 @@ const B = (baseAttack: number, baseHp: number, baseMoveSpeed: number) => ({ base
 
 export const DRAGONS: Record<DragonId, DragonDef> = {
   red: { id: 'red', name: '레드 드래곤', short: '레드', element: 'fire', rarity: 'starter', role: '안정적인 범용 딜러', color: 0xd23b2a, accent: 0xff9a3c, belly: 0xf3d6a2, ...B(10, 100, 260), trait: { id: 'burnBonus', text: '5성부터: 화상 상태 적에게 피해 +20%', value: 0.2 }, basic: RED },
-  blue: { id: 'blue', name: '블루 드래곤', short: '블루', element: 'ice', rarity: 'common', role: '둔화·빙결', color: 0x9cc8f0, accent: 0xe3f4ff, belly: 0xdcecff, ...B(10, 105, 255), trait: { id: 'slowBonus', text: '둔화된 적에게 추가 피해 +20%', value: 0.2 }, basic: BLUE },
+  blue: { id: 'blue', name: '빙하 드래곤', short: '빙하', element: 'ice', rarity: 'epic', role: '둔화·빙결', color: 0x9cc8f0, accent: 0xe3f4ff, belly: 0xdcecff, ...B(11.5, 125, 260), trait: { id: 'slowBonus', text: '둔화된 적에게 추가 피해 +20%', value: 0.2 }, basic: BLUE },
   yellow: { id: 'yellow', name: '옐로 드래곤', short: '옐로', element: 'lightning', rarity: 'common', role: '연쇄 공격', color: 0xf2c230, accent: 0xfff27a, belly: 0xfff0c2, ...B(10.5, 95, 270), trait: { id: 'chainRelief', text: '연쇄 공격 피해 감소율 20% 완화', value: 0.2 }, basic: YELLOW },
   green: { id: 'green', name: '그린 드래곤', short: '그린', element: 'poison', rarity: 'common', role: '지속 피해', color: 0x4f9a3a, accent: 0xa35cff, belly: 0xc9e6a0, ...B(9.8, 110, 255), trait: { id: 'poisonDuration', text: '중독 지속시간 +30%', value: 0.3 }, basic: GREEN },
   white: { id: 'white', name: '화이트 드래곤', short: '화이트', element: 'light', rarity: 'rare', role: '관통·회복', color: 0xf2efe6, accent: 0xe7c25a, belly: 0xffffff, ...B(10.8, 120, 255), trait: { id: 'killHeal', text: '기본 공격 처치 시 2% 확률로 최대 HP 1% 회복', value: 0.02 }, basic: WHITE },
   black: { id: 'black', name: '블랙 드래곤', short: '블랙', element: 'dark', rarity: 'rare', role: '관통·추가 피해', color: 0x2e2540, accent: 0xa66bff, belly: 0x4a3d63, ...B(12, 100, 260), trait: { id: 'execute', text: 'HP 30% 이하인 적에게 기본 공격 피해 +20%', value: 0.2 }, basic: BLACK },
   stone: { id: 'stone', name: '스톤 드래곤', short: '스톤', element: 'earth', rarity: 'rare', role: '넉백·방어', color: 0x8d7558, accent: 0x7fae4e, belly: 0xb9a383, ...B(10.5, 135, 240), trait: { id: 'guard', text: '받는 피해 −10%', value: 0.1 }, basic: STONE },
   wind: { id: 'wind', name: '윈드 드래곤', short: '윈드', element: 'wind', rarity: 'epic', role: '다중 투사체·연사', color: 0x6fd6b8, accent: 0xd8fff3, belly: 0xe6fff7, ...B(12, 105, 285), trait: { id: 'swift', text: '이동속도 +10%', value: 0.1 }, basic: WIND },
-  water: { id: 'water', name: '워터 드래곤', short: '워터', element: 'water', rarity: 'epic', role: '둔화·감속', color: 0x2fa6d9, accent: 0xff9ec4, belly: 0xbdeeff, ...B(11.5, 125, 260), trait: { id: 'slowDuration', text: '기본 공격 둔화 지속시간 +15%', value: 0.15 }, basic: WATER },
+  water: { id: 'water', name: '워터 드래곤', short: '워터', element: 'water', rarity: 'common', role: '둔화·감속', color: 0x2fa6d9, accent: 0xff9ec4, belly: 0xbdeeff, ...B(10, 105, 255), trait: { id: 'slowDuration', text: '기본 공격 둔화 지속시간 +15%', value: 0.15 }, basic: WATER },
   sand: { id: 'sand', name: '샌드 드래곤', short: '샌드', element: 'sand', rarity: 'common', role: '근거리 산탄·약화', color: 0xd9b27c, accent: 0xc8643c, belly: 0xf1e0c0, ...B(11, 115, 255), trait: { id: 'weakGuard', text: '약화된 적에게 받는 피해 −15%', value: 0.15 }, basic: SAND },
   steel: { id: 'steel', name: '스틸 드래곤', short: '스틸', element: 'steel', rarity: 'common', role: '되돌아오는 원반·관통', color: 0x9aa3ad, accent: 0xff8a2a, belly: 0xc9d0d6, ...B(11, 125, 255), trait: { id: 'returnBonus', text: '되돌아오는 원반 피해 +20%', value: 0.2 }, basic: STEEL },
   bloom: { id: 'bloom', name: '블룸 드래곤', short: '블룸', element: 'bloom', rarity: 'rare', role: '지연 폭발·속박', color: 0xf48fb1, accent: 0x9ccc65, belly: 0xf1f8e0, ...B(10.5, 110, 260), trait: { id: 'rootBonus', text: '속박된 적에게 피해 +20%', value: 0.2 }, basic: BLOOM },

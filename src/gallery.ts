@@ -303,9 +303,9 @@ class GalleryScene extends Phaser.Scene {
     ribbon(this, 360, 182, 330, '드래곤', 0xe0a032, 70);
     tabs(this, 262, ['보유 드래곤', '성장', '승급'], 0);
     const list: [string, RarityKey, number, number][] = [
-      ['red', 'starter', 12, 2], ['blue', 'common', 4, 1], ['yellow', 'common', 0, 0], ['green', 'common', 2, 1],
+      ['red', 'starter', 12, 2], ['blue', 'epic', 4, 1], ['yellow', 'common', 0, 0], ['green', 'common', 2, 1],
       ['white', 'rare', 0, 0], ['black', 'rare', 1, 1], ['stone', 'rare', 0, 0], ['wind', 'epic', 0, 0],
-      ['water', 'epic', 0, 0], ['arcane', 'legendary', 0, 0],
+      ['water', 'common', 0, 0], ['arcane', 'legendary', 0, 0],
     ];
     list.forEach(([id, r, lv, stars], i) => {
       const x = 104 + (i % 4) * 171;
