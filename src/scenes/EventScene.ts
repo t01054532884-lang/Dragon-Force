@@ -3,7 +3,7 @@ import { makeTextures } from '../textures';
 import { DRAGONS } from '../data/dragons';
 import { WINTER_2026 as EV, WINTER_DRAGON, type RouletteReward } from '../data/events';
 import { ESSENCE, econRarity } from '../data/economy';
-import { attendedToday, eventActive, eventState, Progress, spinsAvailable, type SpinResult } from '../systems/Progress';
+import { attendanceActive, attendanceDate, attendanceDay, attendanceDays, attendanceReward, attendedToday, eventActive, eventState, Progress, spinsAvailable, type SpinResult } from '../systems/Progress';
 import { FONT, gameNow } from '../ui/widgets';
 import { preloadArt } from '../ui/art';
 import { button, modal, text, type KitButton } from '../ui/kit';
@@ -46,6 +46,7 @@ export class EventScene extends Phaser.Scene {
   create(): void {
     if (!this.textures.exists('dragon-red')) makeTextures(this);
     this.layer = [];
+    this.tab = 'roulette'; // 이벤트를 누르면 늘 행운 룰렛부터(제작자 2026-11-25), 출석은 옆 탭
     this.last = null;
     this.busy = false;
     this.frame = screenFrame(this, { title: '겨울 축제', nav: '', ribbonColor: 0x3b82c4, banner: 'event-winter' });
@@ -116,7 +117,7 @@ export class EventScene extends Phaser.Scene {
     if (!active) {
       const msg = now < start ? `${fmtKst(start)}에 시작합니다` : '이벤트가 끝났습니다. 받은 보상은 그대로 남아 있어요.';
       this.A(this.add.text(360, 560, msg, { fontFamily: FONT, fontSize: '30px', color: '#e3f2fd', align: 'center', wordWrap: { width: 620 } }).setOrigin(0.5));
-      this.A(this.add.text(360, 640, '행운 룰렛: 전투 5판마다 1회\n크리스마스 출석: 매일 루비 100~700(7일 반복)', { fontFamily: FONT, fontSize: '22px', color: '#90caf9', align: 'center', lineSpacing: 8 }).setOrigin(0.5, 0));
+      this.A(this.add.text(360, 640, '행운 룰렛(12월 한 달): 전투 5판마다 1회\n크리스마스 출석(12/18~12/31): 매일 루비 100~700', { fontFamily: FONT, fontSize: '22px', color: '#90caf9', align: 'center', lineSpacing: 8 }).setOrigin(0.5, 0));
       return;
     }
     const keys: ('roulette' | 'attend')[] = ['roulette', 'attend'];
@@ -324,19 +325,32 @@ export class EventScene extends Phaser.Scene {
     const st = eventState(p);
     const n = st.attendance.length;
     const done = attendedToday(p, now);
-    const cyclePos = done ? (n - 1) % 7 : n % 7; // 오늘 받을(받은) 칸
-    this.A(this.add.text(360, 316, `누적 출석 ${n}일`, { fontFamily: FONT, fontSize: '24px', fontStyle: 'bold', color: '#ffffff' }).setOrigin(0.5));
-    EV.attendance.forEach((rub, i) => {
-      const x = i < 4 ? 120 + i * 160 : 200 + (i - 4) * 160;
-      const y = i < 4 ? 440 : 610;
-      const passed = i < cyclePos || (i === cyclePos && done);
-      const today = i === cyclePos;
-      this.A(this.add.rectangle(x, y, 145, 150, passed ? 0x1b5e20 : today ? 0x0d47a1 : 0x1f2a3a).setStrokeStyle(today ? 5 : 2, today ? 0xffe082 : 0x37474f));
-      this.A(this.add.text(x, y - 40, `${i + 1}일차`, { fontFamily: FONT, fontSize: '20px', color: '#ffffff' }).setOrigin(0.5));
-      this.rubyRow(x, y + 4, rub, 26, '#ffffff');
-      this.A(this.add.text(x, y + 44, passed ? '받음 ✔' : today ? '오늘' : '', { fontFamily: FONT, fontSize: '17px', color: '#ffe082' }).setOrigin(0.5));
-    });
-    const b = this.keep(button(this, 360, 830, 440, 90, done ? '오늘 출석 완료' : `출석하고 ${EV.attendance[n % 7]} 받기`, () => {
+    // 출석은 12/18(금)~12/31(목) 2주만(제작자 2026-11-25). 그 전엔 시작일 안내만
+    if (!attendanceActive(now)) {
+      const aStart = Date.parse(EV.attendanceStartKst);
+      this.A(this.add.text(360, 520, now < aStart ? `크리스마스 출석은\n${fmtKst(aStart).split(' ')[0]}(금)부터 시작해요` : '크리스마스 출석이 끝났어요', { fontFamily: FONT, fontSize: '30px', color: '#e3f2fd', align: 'center', lineSpacing: 10 }).setOrigin(0.5));
+      this.A(this.add.text(360, 640, '12/18(금) ~ 12/31(목) 14일 · 매일 루비 100~700\n그날 출석해야 그날 보상(지난 날은 못 받음)', { fontFamily: FONT, fontSize: '20px', color: '#90caf9', align: 'center' }).setOrigin(0.5));
+      return;
+    }
+    // 2주 달력(제작자 2026-11-25): 12/18 = 1일차 … 12/31 = 14일차. 그날 들어와야 그날 보상 — 지난 날은 "놓침"(나중에 못 받음)
+    const todayN = attendanceDay(now);
+    const days = attendanceDays();
+    this.A(this.add.text(360, 316, `출석 ${n}/${days}일 · 오늘 ${todayN}일차`, { fontFamily: FONT, fontSize: '24px', fontStyle: 'bold', color: '#ffffff' }).setOrigin(0.5));
+    for (let day = 1; day <= days; day++) {
+      const i = day - 1;
+      const x = 66 + (i % 7) * 98;
+      const y = i < 7 ? 440 : 600;
+      const got = st.attendance.includes(attendanceDate(day));
+      const today = day === todayN;
+      const missed = day < todayN && !got;
+      this.A(this.add.rectangle(x, y, 90, 142, got ? 0x1b5e20 : today ? 0x0d47a1 : missed ? 0x2a2a2a : 0x1f2a3a).setStrokeStyle(today ? 5 : 2, today ? 0xffe082 : 0x37474f).setAlpha(missed ? 0.6 : 1));
+      this.A(this.add.text(x, y - 46, `${day}일차`, { fontFamily: FONT, fontSize: '16px', color: '#ffffff' }).setOrigin(0.5));
+      this.A(this.add.text(x, y - 24, attendanceDate(day).slice(5).replace('-', '/'), { fontFamily: FONT, fontSize: '13px', color: '#90caf9' }).setOrigin(0.5));
+      this.rubyRow(x, y + 8, attendanceReward(day), 18, missed ? '#9e9e9e' : '#ffffff');
+      this.A(this.add.text(x, y + 46, got ? '받음 ✔' : today ? '오늘' : missed ? '놓침' : '', { fontFamily: FONT, fontSize: '15px', color: missed ? '#9e9e9e' : '#ffe082' }).setOrigin(0.5));
+    }
+    this.A(this.add.text(360, 712, '그날 출석해야 그날 보상을 받아요 · 지난 날 보상은 받을 수 없어요', { fontFamily: FONT, fontSize: '17px', color: '#90caf9', align: 'center' }).setOrigin(0.5));
+    const b = this.keep(button(this, 360, 830, 440, 90, done ? '오늘 출석 완료' : `출석하고 ${attendanceReward(todayN)} 받기`, () => {
       const r = Progress.attend(gameNow());
       if (r.ok) this.cameras.main.flash(250, 200, 255, 200);
       this.refresh();

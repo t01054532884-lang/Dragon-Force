@@ -104,6 +104,17 @@ export const TIMELINE = {
   maxElites: 2,
 };
 
+/**
+ * 보스 호위 엘리트(제작자 2026-11-25: "지금 깨기 쉽다" → 보스가 나올 때 엘리트도 같이). 난이도가 높을수록 더 많이.
+ * 그 단계의 엘리트 2종을 번갈아 보스 양옆에 소환, 체력은 그 엘리트의 hpMult배(보스전이 너무 길어지지 않게).
+ * 클리어 조건은 그대로(보스를 모두 잡으면 클리어) — 호위는 압박용. 처치하면 경험치 + 엘리트 처치 수(미션)만, 상자·회복은 없음.
+ * 수치는 AI 1차안(임시).
+ */
+export const BOSS_ESCORT = {
+  count: { easy: 1, hard: 2, extreme: 3 } as Record<'easy' | 'hard' | 'extreme', number>,
+  hpMult: 0.6,
+};
+
 /** 일반 몬스터 생성량 배율(2026-11-20: 기존 대비 약 30% 감소 → 생성 간격 ÷ 0.7) */
 export const SPAWN_VOLUME = 0.7;
 

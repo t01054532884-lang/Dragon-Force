@@ -1162,6 +1162,8 @@ const evStart = Date.parse(EV.startKst);
 const evEnd = Date.parse(EV.endKst);
 /** 이벤트 기간인가(KST 12/1 00:00 이상, 1/1 00:00 미만) */
 export const eventActive = (now: number) => now >= evStart && now < evEnd;
+/** 크리스마스 출석 기간인가(KST 12/18 00:00 이상, 1/1 00:00 미만 — 룰렛보다 짧음) */
+export const attendanceActive = (now: number) => now >= Date.parse(EV.attendanceStartKst) && now < Date.parse(EV.attendanceEndKst);
 
 /** 이벤트 상태(없으면 새로 — 시드는 처음 참여할 때 한 번 정한다) */
 export function eventState(p: PlayerProgress, rnd: () => number = Math.random): EventState {
@@ -1264,14 +1266,29 @@ export function spinRoulette(p: PlayerProgress, now: number): Result<SpinResult>
 
 /** 크리스마스 출석: 하루 1회(KST), n번째 출석은 표의 (n mod 7)번째 보상. 빠진 날이 있어도 누적은 이어진다. */
 export function claimAttendance(p: PlayerProgress, now: number): Result<{ day: number; rubies: number }> {
-  if (!eventActive(now)) return fail('ended');
+  if (!attendanceActive(now)) return fail(now < Date.parse(EV.attendanceStartKst) ? 'notYet' : 'ended');
   const st = eventState(p);
   const today = ymd(kstDate(now));
   if (st.attendance.includes(today)) return fail('claimed');
-  const n = st.attendance.length;
-  const rubies = EV.attendance[n % EV.attendance.length];
-  return { ok: true, day: n + 1, rubies, progress: setEvent({ ...p, rubies: p.rubies + rubies }, { ...st, attendance: [...st.attendance, today] }) };
+  const day = attendanceDay(now); // 달력 기준 n일차(12/18 = 1일차). 빠진 날의 보상은 사라진다
+  const rubies = attendanceReward(day);
+  return { ok: true, day, rubies, progress: setEvent({ ...p, rubies: p.rubies + rubies }, { ...st, attendance: [...st.attendance, today] }) };
 }
+
+/** 출석 기간 일수(12/18~12/31 = 14) */
+export const attendanceDays = () => Math.round((Date.parse(EV.attendanceEndKst) - Date.parse(EV.attendanceStartKst)) / 86_400_000);
+/**
+ * 오늘이 출석 몇 일차인가(제작자 2026-11-25: 달력 기준 — 1일차 받고 2일차에 안 들어오면 3일차엔 3일차 보상만, 2일차 보상은 사라짐).
+ * 기간 전이면 0, 지나면 attendanceDays()+1.
+ */
+export function attendanceDay(now: number): number {
+  const d = Math.floor((now - Date.parse(EV.attendanceStartKst)) / 86_400_000) + 1;
+  return Math.max(0, Math.min(attendanceDays() + 1, d));
+}
+/** n일차 보상: 7일 표 반복(1·8일차 100 … 7·14일차 700) */
+export const attendanceReward = (day: number) => EV.attendance[(day - 1) % EV.attendance.length];
+/** n일차 날짜(KST 'YYYY-MM-DD') */
+export const attendanceDate = (day: number) => ymd(kstDate(Date.parse(EV.attendanceStartKst) + (day - 1) * 86_400_000));
 
 export const attendedToday = (p: PlayerProgress, now: number) => eventState(p).attendance.includes(ymd(kstDate(now)));
 

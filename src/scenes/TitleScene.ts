@@ -4,7 +4,8 @@ import { drawLobbyBackdrop, makeArtPlaceholders, preloadArt } from '../ui/art';
 import { text } from '../ui/kit';
 import { COLOR, TYPE } from '../ui/theme';
 import { playMusic, preloadMusic } from '../systems/Music';
-import { DEMO } from '../platform';
+import { DEMO, PLATFORM } from '../platform';
+import { loadSettings, saveSettings } from '../systems/Settings';
 import { fullH } from '../ui/layout';
 import { APP_STORE_URL, APP_VERSION, checkVersion, type VersionCheck } from '../systems/Version';
 import { button, modal } from '../ui/kit';
@@ -70,8 +71,19 @@ export class TitleScene extends Phaser.Scene {
     } else {
       text(this, 360, 230, '드래곤 특공대', TYPE.display, COLOR.gold, true, true).setOrigin(0.5);
     }
+    // 영어 부제(제작자 2026-11-25: 외국인도 첫 화면에서 무슨 게임인지 알고 바로 언어를 바꿀 수 있게)
+    if (getLang() === 'ko') text(this, 360, 372, 'DRAGON FORCE', TYPE.heading, 0xffe39a, true, true).setOrigin(0.5);
     const tap = text(this, 360, 1140, '화면을 눌러 시작', TYPE.heading, COLOR.text, true, true).setOrigin(0.5);
     this.tweens.add({ targets: tap, alpha: 0.35, duration: 800, yoyo: true, repeat: -1 });
+    if (getLang() === 'ko') text(this, 360, 1182, 'Tap to start', TYPE.tiny, COLOR.textSub, true).setOrigin(0.5);
+    // 언어 바꾸기(토스는 한국어 전용이라 없음): 누르면 한국어 ↔ English 저장 후 다시 불러옴
+    if (PLATFORM !== 'toss') {
+      const st = loadSettings();
+      button(this, 360, 1010, 340, 64, `🌐 ${st.lang === 'en' ? 'English' : '한국어'}  ·  Korean / English`, () => {
+        saveSettings({ ...st, lang: st.lang === 'en' ? 'ko' : 'en' });
+        setTimeout(() => location.reload(), 150);
+      }, { kind: 'secondary', size: TYPE.tiny });
+    }
     text(this, 360, 1236, `Dragon Force · v${APP_VERSION}`, TYPE.tiny, COLOR.textDim, true).setOrigin(0.5);
     if (DEMO) text(this, 360, 1060, 'DEMO · 시험용 저장(실제 진행과 따로)', TYPE.caption, 0xffb74d, true, true).setOrigin(0.5);
 
@@ -90,7 +102,10 @@ export class TitleScene extends Phaser.Scene {
       this.cameras.main.fadeOut(220, 11, 13, 23);
       this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('lobby'));
     };
-    this.input.on('pointerdown', go);
+    // 버튼(언어 등)을 누른 건 시작으로 치지 않음
+    this.input.on('pointerdown', (_p: Phaser.Input.Pointer, hit: Phaser.GameObjects.GameObject[]) => {
+      if (!hit.length) go();
+    });
     this.input.keyboard?.on('keydown', go);
   }
 

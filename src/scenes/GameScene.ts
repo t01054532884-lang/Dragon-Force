@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { makeTextures } from '../textures';
 import { ENEMIES, HIT_CAP, type EnemyKind } from '../data/enemies';
 import { BASE_STATS, M, xpToNext, type RunStats } from '../data/stats';
-import { REWARD, STAGES, type StageData } from '../data/stages';
+import { BOSS_ESCORT, REWARD, STAGES, type StageData } from '../data/stages';
 import { BASIC_TAGS, compareText, rollOffer, synergyWith, UPGRADES, type Upgrade } from '../data/upgrades';
 import { Enemy, type EnemyAction } from '../objects/Enemy';
 import { Skills } from '../systems/Skills';
@@ -58,6 +58,8 @@ interface EnemyShot {
 const WORLD_SIZE = 2800; // 투기장을 담는 정사각형 세계
 const ARENA_R = 22 * M; // 원형 투기장 반지름 22m = 1100px (사용자 결정 2026-11-17)
 const UI_DEPTH = 200;
+/** 드래곤이 벽·장애물에 막히는 반지름(그림 64px — 예전 20은 그림이 장애물 위로 많이 겹쳐 "뚫고 지나가는" 것처럼 보였음, 2026-11-25) */
+const PLAYER_BLOCK_R = 28;
 
 /** 레벨업 카드·머리줄의 스킬 그림 키(기획자 그림 15장). 없는 것은 기존 이모지로 */
 function upgradeIcon(u: Upgrade, dragonId: string): string | null {
@@ -428,7 +430,10 @@ export class GameScene extends Phaser.Scene {
       this.stage,
       this.hard ? { hp: this.hard.enemyHpMultiplier, damage: this.hard.enemyDamageMultiplier } : DIFFICULTY_MULT[this.difficulty],
       this.hard,
+      BOSS_ESCORT.count[this.difficulty] ?? 0, // 보스 호위 엘리트(2026-11-25): 쉬움 1 · 어려움 2 · 매우 어려움 3
     );
+    this.events.on(Phaser.Scenes.Events.POST_UPDATE, this.clampAfterPhysics);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.events.off(Phaser.Scenes.Events.POST_UPDATE, this.clampAfterPhysics));
     playMusic(this, 'bgm-battle');
     this.moveTip = [];
     if (!tipSeen('battle-move')) this.showMoveTip();
@@ -500,7 +505,8 @@ export class GameScene extends Phaser.Scene {
       const key = `obstacle-${o.kind}-${ch.id}`;
       if (o.kind === 'pillar') {
         if (this.textures.exists(key)) {
-          this.add.image(o.x, o.y - o.r * 0.25, key).setDisplaySize(o.r * 2.3, o.r * 2.3);
+          // 그림 크기 = 판정 크기에 가깝게(예전 2.3배·위로 0.25 밀림 → 그림 윗부분을 캐릭터가 밟고 지나가는 것처럼 보임)
+          this.add.image(o.x, o.y - o.r * 0.08, key).setDisplaySize(o.r * 2.1, o.r * 2.1);
           continue;
         }
         const g = this.add.graphics();
@@ -514,7 +520,7 @@ export class GameScene extends Phaser.Scene {
         if (this.textures.exists(key)) {
           // 그림은 가로로 긴 바위 한 장 — 세로 바위는 90° 돌려 쓴다
           const tall = o.h > o.w;
-          this.add.image(o.x, o.y, key).setRotation(tall ? Math.PI / 2 : 0).setDisplaySize((tall ? o.h : o.w) + 24, (tall ? o.w : o.h) + 24);
+          this.add.image(o.x, o.y, key).setRotation(tall ? Math.PI / 2 : 0).setDisplaySize((tall ? o.h : o.w) + 8, (tall ? o.w : o.h) + 8);
           continue;
         }
         const g = this.add.graphics();
@@ -938,7 +944,7 @@ export class GameScene extends Phaser.Scene {
       this.player.setRotation(dir.angle() + Math.PI / 2);
       this.facing.copy(dir).normalize();
     }
-    this.keepInArena(this.player, 20);
+    this.keepInArena(this.player, PLAYER_BLOCK_R);
     this.showMoveDir(dir);
   }
 
@@ -956,6 +962,21 @@ export class GameScene extends Phaser.Scene {
       this.tweens.add({ targets: t, scale: 0.3, alpha: 0, duration: 420, onComplete: () => t.destroy() });
     }
   }
+
+  /**
+   * 물리 이동이 끝난 뒤 한 번 더 벽·장애물 밖으로(제작자 2026-11-25 "장애물을 뚫고 지나감").
+   * update()의 되돌리기는 물리 엔진이 그 뒤에 속도만큼 또 움직여, 매 프레임 장애물 안으로 몇 px 들어간 채 그려졌다.
+   */
+  private clampAfterPhysics = (): void => {
+    if (!this.player?.active || !this.arena) return;
+    this.keepInArena(this.player, PLAYER_BLOCK_R);
+    for (const obj of this.enemies.getChildren()) {
+      const e = obj as Enemy;
+      if (!e.active) continue;
+      this.keepInArena(e, e.def.radius);
+      e.syncSkin();
+    }
+  };
 
   /** 벽 밖·장애물 안으로 들어가지 못하게 되돌린다(장애물은 옆으로 미끄러지게 밀어냄) */
   private keepInArena(o: Phaser.GameObjects.Image, radius: number): void {
@@ -1348,8 +1369,12 @@ export class GameScene extends Phaser.Scene {
       if (all) this.clearSequence();
       return;
     }
-    const eliteRes = enemy.rank === 'elite' ? d.onEliteKilled(enemy, this.elapsed) : false;
-    if (eliteRes === 'member') {
+    const eliteRes = enemy.rank === 'elite' && !d.isEscort(enemy) ? d.onEliteKilled(enemy, this.elapsed) : false;
+    if (d.isEscort(enemy)) {
+      // 보스 호위 엘리트: 경험치 + 엘리트 처치 수(미션)만. 상자·회복은 웨이브 엘리트에서만
+      this.eliteKills++;
+      this.dropGem(enemy.x, enemy.y, enemy.def.xp);
+    } else if (eliteRes === 'member') {
       this.dropGem(enemy.x, enemy.y, enemy.def.xp); // 무리 중 한 마리: 경험치만(상자·회복은 무리를 다 잡았을 때 한 번)
     } else if (eliteRes === 'slot') {
       this.eliteKills++; // onEliteKilled가 슬롯마다 한 번만 true → 엘리트 보상도 한 번만

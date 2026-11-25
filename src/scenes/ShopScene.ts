@@ -98,10 +98,13 @@ export class ShopScene extends Phaser.Scene {
     ban.add(this.add.image(-200, 0, 'portrait-blue').setDisplaySize(160, 160));
     ban.add(this.add.image(200, 0, 'portrait-arcane').setDisplaySize(160, 160));
     ban.add(this.add.image(0, -22, 'chest-dragon').setDisplaySize(210, 210));
-    ban.add(text(this, 0, 92, D.name, 36, COLOR.gold, true, true).setOrigin(0.5));
-    ban.add(text(this, 0, 124, D.desc, TYPE.tiny, COLOR.text, true, true).setOrigin(0.5));
+    ban.add(text(this, 0, 80, D.name, 36, COLOR.gold, true, true).setOrigin(0.5));
+    ban.add(text(this, 0, 110, D.desc, TYPE.tiny, COLOR.text, true, true).setOrigin(0.5));
     this.ticketText = text(this, -312, -128, '', TYPE.tiny, COLOR.text, true, true).setOrigin(0, 0.5);
     ban.add(this.ticketText);
+    // 중복 정수 안내(제작자 2026-11-25): 이미 가진 드래곤의 정수는 그 자리에서 조각으로(따로 바꾸는 화면 없음)
+    const E = ESSENCE.essenceToFragments;
+    ban.add(text(this, 0, 134, `보유한 드래곤의 정수는 조각으로 자동 변환: 일반 ${E.common} · 희귀 ${E.rare} · 영웅 ${E.epic} · 전설 ${E.legendary}개`, 15, 0xffe39a, true, true).setOrigin(0.5));
 
     this.boxButtons('dragon', 600, 300, 88, TYPE.heading);
     // 무료 개봉권(기존 소환권) — 드래곤·스킬 상자 전용
@@ -506,7 +509,8 @@ function describe(res: BoxResult): { color: number; title: string; sub: string; 
       return {
         color: RARITY_COLOR[res.rarity], portrait: res.dragonId, icon: '',
         title: `${DRAGONS[res.dragonId].short} 정수${res.guaranteed ? ' (보장)' : ''}`,
-        sub: res.isNew ? 'NEW! 해금' : `조각 +${res.fragments}`,
+        // 이미 가진 드래곤의 정수는 그 자리에서 조각으로 바뀌어 들어간다(따로 바꾸는 화면 없음 — 제작자 질문 2026-11-25)
+        sub: res.isNew ? 'NEW! 해금' : `중복→조각 +${res.fragments}`,
       };
     case 'card':
       return { color: RARITY_COLOR[res.rarity], portrait: res.dragonId, icon: '', title: `${DRAGONS[res.dragonId].short} 카드`, sub: `+${res.count}장` };

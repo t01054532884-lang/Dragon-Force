@@ -12,16 +12,17 @@ describe('드래곤 패스', () => {
     expect(seasonOf(T0)).toBe(1);
     expect(seasonOf(T0 + 28 * 86_400_000)).toBe(2);
   });
-  it('가치 표시는 계산값: 프리미엄 ≥ 1000% · 로열 > 프리미엄', () => {
-    expect(passValuePct('premium')).toBeGreaterThanOrEqual(1000);
+  it('가치 표시는 계산값: 프리미엄 ≥ 800%(조각 칸 5~30 랜덤으로 바뀐 뒤 910%) · 로열 > 프리미엄', () => {
+    expect(passValuePct('premium')).toBeGreaterThanOrEqual(800);
     expect(passValuePct('royal')).toBeGreaterThan(passValuePct('premium'));
   });
   it('시즌 시작 때 계정 경험치가 출발점 — 예전 기록은 패스 포인트가 아님', () => {
     const p = syncPass(withXp(defaultProgress(), 10), T0);
     expect(passLevel(p)).toMatchObject({ points: 0, level: 1 }); // Lv.1에서 시작
-    const q = withXp(p, 3); // 클리어 3번 = 300P = Lv.4
-    expect(passLevel(q)).toMatchObject({ points: 300, level: 4 });
-    expect(passLevel(withXp(p, 40)).level).toBe(30); // 최대
+    const q = withXp(p, 3); // 클리어 3번 = 300P = Lv.3(100 + 150 = 250P, 다음 200P)
+    expect(passLevel(q)).toMatchObject({ points: 300, level: 3, inLevel: 50, need: 200 });
+    expect(passLevel(withXp(p, 13)).level).toBeLessThan(10); // 쉬움 13단계 클리어로 25레벨 되던 문제(2026-11-25)
+    expect(passLevel(withXp(p, 232)).level).toBe(30); // 23,200P = 최대
   });
   it('무료 줄만 받기 · 유료 줄은 구매 뒤', () => {
     const p = withXp(syncPass(defaultProgress(), T0), 1); // 100P = Lv.2
@@ -54,7 +55,7 @@ describe('드래곤 패스', () => {
 describe('패스 구매 → 전부 받기(2026-11-23 제작자 확인 요청)', () => {
   it('로열 구매 + Lv.30이면 90칸이 한 번에 모두 들어오고 합계가 보상표와 같음', () => {
     const start = syncPass(defaultProgress(), T0);
-    const maxed = withXp(start, 40); // 4,000P → Lv.30
+    const maxed = withXp(start, 232); // 23,200P → Lv.30
     const bought = grantVerifiedPass(maxed, 'tx-royal', 'royal', T0);
     if (!bought.ok) throw new Error('buy');
     const r = claimPass(bought.progress, T0);
@@ -66,8 +67,10 @@ describe('패스 구매 → 전부 받기(2026-11-23 제작자 확인 요청)', 
     const p1 = r.progress;
     expect(p1.gold - p0.gold).toBe(sum('gold'));
     expect(p1.rubies - p0.rubies).toBe(sum('rubies'));
-    expect(p1.dragons.red.fragments - p0.dragons.red.fragments).toBe(sum('redFrag'));
-    expect(p1.universalFragments - p0.universalFragments).toBe(sum('uniFrag'));
+    const frags = (q: PlayerProgress) => Object.values(q.dragons).reduce((s, d) => s + d.fragments, 0);
+    expect(frags(p1) - frags(p0)).toBe(sum('randFrag')); // 랜덤 조각(여러 드래곤에 나뉨)
+    expect(sum('uniFrag') + sum('redFrag')).toBe(0); // 범용·레드 고정 조각은 패스에서 없앰
+    expect(p1.universalFragments).toBe(p0.universalFragments);
     expect(p1.summon.legacyTickets - p0.summon.legacyTickets).toBe(sum('dragonTicket'));
     expect(p1.summon.equipTickets - p0.summon.equipTickets).toBe(sum('equipTicket'));
     expect(p1.summon.runeTickets - p0.summon.runeTickets).toBe(sum('runeTicket'));
@@ -75,7 +78,7 @@ describe('패스 구매 → 전부 받기(2026-11-23 제작자 확인 요청)', 
     expect(claimPass(p1, T0).ok).toBe(false);
   });
   it('레벨 중간에 사도 지난 칸까지 소급해서 받음 · 프리미엄만 사면 로열 줄은 잠김', () => {
-    const p = withXp(syncPass(defaultProgress(), T0), 9); // Lv.10
+    const p = withXp(syncPass(defaultProgress(), T0), 28); // 2,800P = Lv.10(누적 2,700P, Lv.11은 3,250P)
     const free = claimPass(p, T0);
     if (!free.ok) throw new Error('free');
     expect(free.items).toHaveLength(10);

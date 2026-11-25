@@ -178,6 +178,13 @@ export class DragonsScene extends Phaser.Scene {
 
     // 육성 버튼
     const by = top + 432;
+    // 정수·조각 안내(제작자 2026-11-25): 중복 정수는 따로 바꿀 필요 없이 얻는 순간 조각으로 바뀐다
+    const dupFrag = ESSENCE.essenceToFragments[econRarity(d.rarity)];
+    this.A(text(this, 360, by + 62, d.id === 'red'
+      ? '레드 조각: 단계 상자·패스·미션에서 획득 → 승급에 사용'
+      : o.unlocked
+        ? `이미 보유 — ${d.short} 정수를 또 얻으면 조각 ${dupFrag}개로 자동 변환(승급에 사용)`
+        : `${d.short} 정수를 얻으면 바로 해금 · 해금 뒤 중복 정수는 조각 ${dupFrag}개로 자동 변환`, 15, COLOR.textSub, true).setOrigin(0.5, 0).setWordWrapWidth(640).setAlign('center'));
     if (o.unlocked) {
       const lvMax = o.level >= GROWTH.maxLevel;
       const lvGold = GROWTH.levelCost(o.level);

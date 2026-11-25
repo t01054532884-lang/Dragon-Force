@@ -3,7 +3,7 @@ import { Enemy, type EnemyAction } from '../objects/Enemy';
 import type { EnemyKind } from '../data/enemies';
 import { PATTERN } from '../data/enemies';
 import { M } from '../data/stats';
-import { baseSpawn, difficulty, earlyEase, pace, rankHpMult, TIMELINE, type StageData } from '../data/stages';
+import { baseSpawn, BOSS_ESCORT, difficulty, earlyEase, pace, rankHpMult, TIMELINE, type StageData } from '../data/stages';
 import { edgePointAt, type ArenaGeom } from '../data/arenas';
 import { HARD_ATTACK_GAP_MS, HARD_PACE, type HardStageDef } from '../data/hardStages';
 
@@ -47,6 +47,8 @@ export class StageDirector {
   eliteGroups: Enemy[][];
   /** 보스(쉬움 1마리, 어려움 1~2마리) */
   bosses: Enemy[] = [];
+  /** 보스와 같이 나오는 호위 엘리트(BOSS_ESCORT, 클리어 조건 아님) */
+  escorts: Enemy[] = [];
   bossBuffs: string[] = [];
   enraged = false;
   /** 전투 기록: 엘리트·보스가 나온 시각과 처치에 걸린 시간(ms), 웨이브가 끝난 시각 */
@@ -86,6 +88,10 @@ export class StageDirector {
     return this.bosses.includes(e);
   }
 
+  isEscort(e: Enemy): boolean {
+    return this.escorts.includes(e);
+  }
+
   /** 격노 시각(제한시간 30초 전) */
   get enrageAtMs(): number {
     return this.stage.durationMs - TIMELINE.enrageBeforeEndMs;
@@ -101,7 +107,14 @@ export class StageDirector {
    * mult: 난이도 체력·피해 배율. 쉬움은 1 → 기존과 같다.
    * hard: 어려움 단계 설정(엘리트·보스 수, 기믹). 없으면 쉬움 진행 그대로.
    */
-  constructor(private h: DirectorHost, readonly stage: StageData, mult: { hp: number; damage: number } = { hp: 1, damage: 1 }, readonly hard: HardStageDef | null = null) {
+  constructor(
+    private h: DirectorHost,
+    readonly stage: StageData,
+    mult: { hp: number; damage: number } = { hp: 1, damage: 1 },
+    readonly hard: HardStageDef | null = null,
+    /** 보스 호위 엘리트 수(난이도별 BOSS_ESCORT.count). 0이면 예전처럼 보스만 */
+    private escortCount = 0,
+  ) {
     this.eliteSlots = stage.eliteSpawns.map(() => 'pending');
     this.eliteGroups = stage.eliteSpawns.map(() => []);
     this.eliteSpawnPoints = stage.eliteSpawns.map(() => []);
@@ -326,10 +339,34 @@ export class StageDirector {
       if (k > 0) boss.resetPattern(1800 + HARD_ATTACK_GAP_MS);
       return boss;
     });
+    this.spawnEscorts(elapsed);
     this.record.bossSpawnAt = elapsed;
     this.phase = 'BOSS';
-    this.h.banner(`보스 — ${this.bosses[0].def.name}${n > 1 ? ' ×2' : ''}`, '#ff1744');
-    this.h.emit('boss:spawn', { at: elapsed, count: n });
+    const esc = this.escorts.length ? ` + 호위 엘리트 ${this.escorts.length}` : '';
+    this.h.banner(`보스 — ${this.bosses[0].def.name}${n > 1 ? ' ×2' : ''}${esc}`, '#ff1744');
+    this.h.emit('boss:spawn', { at: elapsed, count: n, escorts: this.escorts.length });
+  }
+
+  /** 보스 호위 엘리트: 단계 엘리트 2종을 번갈아, 첫 보스 양옆(좌·우·아래 순)에. 공격 시작은 조금씩 늦춤 */
+  private spawnEscorts(elapsed: number): void {
+    const n = this.escortCount;
+    if (n <= 0 || !this.stage.eliteSpawns.length || !this.bosses.length) return;
+    const s = this.stage;
+    const a = this.h.arena;
+    const b0 = this.bosses[0];
+    const off = [[-1, 0.35], [1, 0.35], [0, 0.8]];
+    this.escorts = Array.from({ length: n }, (_, k) => {
+      const slot = k % s.eliteSpawns.length;
+      const [ox, oy] = off[k % off.length];
+      const x = b0.x + ox * a.r * 0.3;
+      const y = b0.y + oy * a.r * 0.3;
+      const hp = this.diff.hp * rankHpMult(s, slot === 0 ? 'elite1' : 'elite2') * pace(s.id).eliteHp * (this.hard ? HARD_PACE.eliteHp : 1) * BOSS_ESCORT.hpMult;
+      const en = this.h.spawn(s.eliteSpawns[slot].eliteId, x, y, hp);
+      en.damageMult = this.diff.damage;
+      en.spawnedAtMs = elapsed;
+      en.resetPattern(2200 + k * 900);
+      return en;
+    });
   }
 
   /** 보스가 죽었을 때 장면이 부른다. 모든 보스를 잡았으면 true(클리어) */
@@ -362,7 +399,7 @@ export class StageDirector {
    */
   private allowAttack(e: Enemy): boolean {
     const key = e.def.rank === 'boss' ? 'boss' : 'elite';
-    const group = key === 'boss' ? this.bosses : this.elites;
+    const group = key === 'boss' ? this.bosses : [...this.elites, ...this.escorts];
     const others = group.filter((x) => x.active && x !== e);
     if (!others.length) return true;
     if (others.some((o) => o.busy || this.now < o.telegraphUntil + 300)) return false;

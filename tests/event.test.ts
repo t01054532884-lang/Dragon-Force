@@ -153,42 +153,45 @@ describe('룰렛 누적 보상', () => {
   });
 });
 
-describe('크리스마스 출석(7일 반복 100~700)', () => {
-  it('31일 개근 = 2,800 × 4 + 600 = 11,800루비, 하루 한 번만', () => {
+describe('크리스마스 출석(12/18~12/31 2주, 달력 기준 — 2026-11-25)', () => {
+  it('14일 개근 = 2,800 × 2 = 5,600루비, 하루 한 번만', () => {
     let p = defaultProgress();
-    for (let d = 1; d <= 31; d++) {
-      const now = KST(`2026-12-${String(d).padStart(2, '0')}T09:00:00`);
+    for (let d = 18; d <= 31; d++) {
+      const now = KST(`2026-12-${d}T09:00:00`);
       const r = claimAttendance(p, now);
       if (!r.ok) throw new Error(`${d}일 ${r.reason}`);
+      expect(r.day).toBe(d - 17);
       p = r.progress;
       expect(claimAttendance(p, now)).toMatchObject({ ok: false, reason: 'claimed' });
     }
-    expect(p.rubies).toBe(11_800);
+    expect(p.rubies).toBe(5_600);
     expect(EV.attendance.reduce((a, b) => a + b, 0)).toBe(2_800);
   });
-  it('KST 자정에 갱신, 빠진 날이 있어도 누적 출석일은 이어짐', () => {
+  it('KST 자정에 갱신, 빠진 날 보상은 사라짐(1일차 받고 2일차 빠지면 3일차엔 3일차 보상)', () => {
     let p = defaultProgress();
-    const a = claimAttendance(p, KST('2026-12-01T23:59:59'));
+    const a = claimAttendance(p, KST('2026-12-18T23:59:59'));
     if (!a.ok) throw new Error();
+    expect(a.rubies).toBe(100);
     p = a.progress;
-    const b = claimAttendance(p, KST('2026-12-02T00:00:00')); // 자정 지나면 다음 날
-    expect(b.ok && b.rubies).toBe(200);
-    if (!b.ok) return;
-    const c = claimAttendance(b.progress, KST('2026-12-09T10:00:00')); // 일주일 빠졌어도 3일차
+    const c = claimAttendance(p, KST('2026-12-20T00:00:00')); // 12/19 빠짐
     expect(c.ok && c.day).toBe(3);
     expect(c.ok && c.rubies).toBe(300);
+    const late = claimAttendance(c.ok ? c.progress : p, KST('2026-12-25T10:00:00')); // 8일차 = 다시 100
+    expect(late.ok && late.rubies).toBe(100);
   });
-  it('기간 밖에는 받을 수 없음', () => {
-    expect(claimAttendance(defaultProgress(), KST('2026-11-30T12:00:00'))).toMatchObject({ ok: false, reason: 'ended' });
+  it('기간 밖에는 받을 수 없음(룰렛 기간인 12/1~12/17에도 출석은 아직)', () => {
+    expect(claimAttendance(defaultProgress(), KST('2026-11-30T12:00:00'))).toMatchObject({ ok: false, reason: 'notYet' });
+    expect(claimAttendance(defaultProgress(), KST('2026-12-17T23:59:59'))).toMatchObject({ ok: false, reason: 'notYet' });
+    expect(eventActive(KST('2026-12-05T12:00:00'))).toBe(true);
     expect(claimAttendance(defaultProgress(), KST('2027-01-01T00:00:00'))).toMatchObject({ ok: false, reason: 'ended' });
   });
 });
 
-describe('이벤트 경제 목표(31일 출석 + 룰렛 30회)', () => {
-  it('출석 11,800 + 누적 1,400 + 추첨 기대 576 = 13,776루비', () => {
+describe('이벤트 경제 목표(14일 출석 + 룰렛 30회)', () => {
+  it('출석 5,600 + 누적 1,400 + 추첨 기대 576 = 7,576루비', () => {
     const ev = EV.roulette.reduce((a, r) => a + (r.rubies ?? 0) * (r.weight / 100), 0) * 30;
-    const total = 11_800 + EV.milestones.reduce((a, m) => a + m.rubies, 0) + ev;
-    expect(Math.round(total)).toBe(13_776);
+    const total = 5_600 + EV.milestones.reduce((a, m) => a + m.rubies, 0) + ev;
+    expect(Math.round(total)).toBe(7_576);
   });
   it('저장 이어받기: 이벤트 기록이 없는 저장도 그대로 열림', () => {
     const s = mem();

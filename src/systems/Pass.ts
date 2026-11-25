@@ -1,6 +1,7 @@
 import { PASS, PASS_REWARDS, type PassItem, type PassTrack } from '../data/pass';
 import { accountXp } from './AccountLevel';
-import { addFragments, withTx, type PlayerProgress, type Result } from './Progress';
+import type { DragonId } from '../data/dragons';
+import { addFragments, randomFragmentDragon, withTx, type PlayerProgress, type Result } from './Progress';
 
 /** 지금 시즌 번호(1부터, KST 2026-11-23 0시부터 28일씩) */
 export const seasonOf = (now: number) => Math.max(1, Math.floor((now - PASS.epoch) / (PASS.seasonDays * 86_400_000)) + 1);
@@ -17,11 +18,24 @@ export function syncPass(p: PlayerProgress, now: number): PlayerProgress {
   return { ...p, pass: { season, baseXp: accountXp(p), claimed: [], premium: false, royal: false } };
 }
 
-/** 이번 시즌 패스 포인트·레벨: Lv.1에서 시작(첫 칸은 바로 받기), 100P마다 +1, 최대 30(= 2,900P) */
-export function passLevel(p: PlayerProgress): { points: number; level: number; inLevel: number; maxed: boolean } {
+/** Lv.1에서 Lv.lv까지 필요한 누적 포인트 */
+export function passPointsTo(lv: number): number {
+  let s = 0;
+  for (let n = 1; n < lv; n++) s += PASS.levelCost(n);
+  return s;
+}
+
+/** 이번 시즌 패스 포인트·레벨: Lv.1에서 시작(첫 칸은 바로 받기), 필요량 100·150·200…(50P씩 증가), 최대 30(= 23,200P) */
+export function passLevel(p: PlayerProgress): { points: number; level: number; inLevel: number; need: number; maxed: boolean } {
   const points = Math.max(0, accountXp(p) - p.pass.baseXp);
-  const level = Math.min(PASS.levels, Math.floor(points / PASS.pointsPerLevel) + 1);
-  return { points, level, inLevel: points % PASS.pointsPerLevel, maxed: level >= PASS.levels };
+  let level = 1;
+  let left = points;
+  while (level < PASS.levels && left >= PASS.levelCost(level)) {
+    left -= PASS.levelCost(level);
+    level++;
+  }
+  const maxed = level >= PASS.levels;
+  return { points, level, inLevel: maxed ? 0 : left, need: maxed ? 0 : PASS.levelCost(level), maxed };
 }
 
 const owns = (p: PlayerProgress, t: PassTrack) => t === 'free' || (t === 'premium' ? p.pass.premium || p.pass.royal : p.pass.royal);
@@ -37,7 +51,18 @@ export function cellState(p: PlayerProgress, t: PassTrack, lv: number): 'claimed
 export const claimablePass = (p: PlayerProgress) =>
   (['free', 'premium', 'royal'] as PassTrack[]).flatMap((t) => PASS_REWARDS[t].map((_, i) => ({ t, lv: i + 1 }))).filter((c) => cellState(p, c.t, c.lv) === 'ready');
 
-export function grantPassItem(p: PlayerProgress, it: PassItem): PlayerProgress {
+/** 받은 보상 한 칸(랜덤 조각이면 뽑힌 드래곤) */
+export type PassGot = PassItem & { dragonId?: DragonId };
+
+export function grantPassItem(p: PlayerProgress, it: PassItem, rng: () => number = Math.random): { progress: PlayerProgress; got: PassGot } {
+  if (it.kind === 'randFrag') {
+    const dragonId = randomFragmentDragon(rng);
+    return { progress: addFragments(p, dragonId, it.n), got: { ...it, dragonId } };
+  }
+  return { progress: grantFixed(p, it), got: it };
+}
+
+function grantFixed(p: PlayerProgress, it: Exclude<PassItem, { kind: 'randFrag' }>): PlayerProgress {
   switch (it.kind) {
     case 'gold': return { ...p, gold: p.gold + it.n };
     case 'rubies': return { ...p, rubies: p.rubies + it.n };
@@ -49,16 +74,16 @@ export function grantPassItem(p: PlayerProgress, it: PassItem): PlayerProgress {
   }
 }
 
-/** 받기 가능한 칸을 모두 받기(칸 하나만이면 only) → 받은 보상 목록 */
-export function claimPass(p0: PlayerProgress, now: number, only?: { t: PassTrack; lv: number }): Result<{ items: PassItem[] }> {
+/** 받기 가능한 칸을 모두 받기(칸 하나만이면 only) → 받은 보상 목록(랜덤 조각은 뽑힌 드래곤 포함) */
+export function claimPass(p0: PlayerProgress, now: number, only?: { t: PassTrack; lv: number }, rng: () => number = Math.random): Result<{ items: PassGot[] }> {
   let p = syncPass(p0, now);
   const list = claimablePass(p).filter((c) => !only || (c.t === only.t && c.lv === only.lv));
   if (!list.length) return { ok: false, reason: 'none' };
-  const items: PassItem[] = [];
+  const items: PassGot[] = [];
   for (const c of list) {
-    const it = PASS_REWARDS[c.t][c.lv - 1];
-    p = grantPassItem(p, it);
-    items.push(it);
+    const g = grantPassItem(p, PASS_REWARDS[c.t][c.lv - 1], rng);
+    p = g.progress;
+    items.push(g.got);
   }
   p = { ...p, pass: { ...p.pass, claimed: [...p.pass.claimed, ...list.map((c) => passKey(c.t, c.lv))] } };
   return { ok: true, progress: p, items };

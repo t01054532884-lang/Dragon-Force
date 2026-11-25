@@ -5,7 +5,7 @@ import { DRAGONS, ELEMENT_LABEL, RARITY_COLOR, RARITY_LABEL } from '../data/drag
 import { DIFFICULTIES, DIFFICULTY_LABEL, DIFFICULTY_RELEASED, DIFFICULTY_UNLOCK_AT, STAGE_COUNT, type Difficulty } from '../data/economy';
 import { cpVerdict, recommendedCp } from '../data/power';
 import { hardStage } from '../data/hardStages';
-import { attendedToday, pendingDifficultyUnlock, CHEST_TIERS, claimableMissions, claimableStageBoxes, eventActive, eventState, progressPct, Progress, spinsAvailable, stageChestState, stageReach } from '../systems/Progress';
+import { attendanceActive, attendedToday, pendingDifficultyUnlock, CHEST_TIERS, claimableMissions, claimableStageBoxes, eventActive, eventState, progressPct, Progress, spinsAvailable, stageChestState, stageReach } from '../systems/Progress';
 import { loadout } from '../systems/Loadout';
 import { pendingGifts, staminaNow } from '../systems/Mailbox';
 import { STAMINA, formatLeft, nextRegenIn } from '../systems/Stamina';
@@ -149,7 +149,7 @@ export class LobbyScene extends Phaser.Scene {
 
     // ── 양옆 바로가기
     const live = eventActive(now);
-    const evAlert = live && (spinsAvailable(eventState(p)) > 0 || !attendedToday(p, now));
+    const evAlert = live && (spinsAvailable(eventState(p)) > 0 || (attendanceActive(now) && !attendedToday(p, now)));
     // 2026-11-22 제작자 요청: 왼쪽 이벤트·미션·업적·출석, 오른쪽 우편함·설정. 진행도 상자는 드래곤 아래에서 바로 받기
     const t0 = gameNow();
     const missionAlert = claimableMissions(p, t0).length > 0 || claimableActivity(p, t0) > 0;
@@ -412,7 +412,8 @@ export class LobbyScene extends Phaser.Scene {
     // 언어(2026-11-25): 누를 때마다 한국어 ↔ English — 글자 전체와 필살기 외침이 바뀐다. 모든 화면을 다시 그리려고 새로 불러온다
     if (PLATFORM !== 'toss') {
       m.body(text(this, -240, -190, '언어 / Language', TYPE.body, COLOR.text, true, true).setOrigin(0, 0.5));
-      m.body(text(this, -240, -152, '글자와 필살기 목소리', TYPE.tiny, COLOR.textSub, true).setOrigin(0, 0.5));
+      // 밑줄은 두 언어 이름을 그대로(번역 안 됨) — 어느 언어로 보고 있어도 여기서 바꿀 수 있다는 걸 알게(제작자 2026-11-25)
+      m.body(text(this, -240, -152, 'Korean / English', TYPE.tiny, COLOR.gold, true).setOrigin(0, 0.5));
       m.body(
         button(this, 170, -178, 170, 70, st.lang === 'en' ? 'English' : '한국어', () => {
           saveSettings({ ...st, lang: st.lang === 'en' ? 'ko' : 'en' });
@@ -438,15 +439,15 @@ export class LobbyScene extends Phaser.Scene {
     }, { kind: 'primary', size: TYPE.caption }); // 버튼은 "Apple로 연결"만(제작자 11/25: 아래 회색 안내 문구와 겹침)
     link.setEnabled(acc.provider !== 'apple');
     m.body(link.root);
+    m.body(text(this, -240, 50, '연결하면 기기를 바꾸거나 앱을 다시 설치해도 이어서 할 수 있어요', 15, COLOR.textDim, true).setOrigin(0, 0.5));
+    m.body(text(this, -240, 82, `☁ ${cloudLine()}`, 15, cloud.status === 'error' || cloud.status === 'conflict' ? COLOR.danger : COLOR.textSub, true).setOrigin(0, 0.5));
+    m.body(button(this, 0, 140, 300, 66, '계정 삭제', () => this.confirmDelete(), { kind: 'danger', size: TYPE.caption }).root);
     // 처리방침·약관(애플 심사 5.1.1(i): 앱 안에서 처리방침을 열 수 있어야 함). 영어 모드면 -en 페이지. 토스는 외부 링크 금지라 뺌
     if (PLATFORM !== 'toss') {
       const legal = (page: string) => () => window.open(`${LEGAL_BASE}${page}${st.lang === 'en' ? '-en' : ''}.html`, '_system');
       m.body(button(this, -135, 220, 250, 56, '개인정보처리방침', legal('privacy'), { kind: 'secondary', size: TYPE.tiny }).root);
       m.body(button(this, 135, 220, 250, 56, '이용약관', legal('terms'), { kind: 'secondary', size: TYPE.tiny }).root);
     }
-    m.body(text(this, -240, 50, '연결하면 기기를 바꾸거나 앱을 다시 설치해도 이어서 할 수 있어요', 15, COLOR.textDim, true).setOrigin(0, 0.5));
-    m.body(text(this, -240, 82, `☁ ${cloudLine()}`, 15, cloud.status === 'error' || cloud.status === 'conflict' ? COLOR.danger : COLOR.textSub, true).setOrigin(0, 0.5));
-    m.body(button(this, 0, 140, 300, 66, '계정 삭제', () => this.confirmDelete(), { kind: 'danger', size: TYPE.caption }).root);
     m.body(button(this, 0, 300, 220, 70, '닫기', () => this.closeSettings(), { kind: 'secondary', size: TYPE.caption }).root);
     this.settingsUi = m;
   }

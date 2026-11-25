@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { PASS, PASS_ITEM_ICON, PASS_ITEM_LABEL, PASS_REWARDS, passValuePct, type PassItem, type PassTrack } from '../data/pass';
-import { cellState, claimPass, passLevel, seasonEnd, syncPass } from '../systems/Pass';
+import { DRAGONS } from '../data/dragons';
+import { cellState, claimPass, passLevel, seasonEnd, syncPass, type PassGot } from '../systems/Pass';
 import { Progress } from '../systems/Progress';
 import { buyFailText, buyProduct, PAY_NOTICE, purchases } from '../systems/Purchases';
 import { preloadArt } from '../ui/art';
@@ -27,10 +28,10 @@ const CELL_H = 104;
 const ROW0 = 650;
 const ROW_GAP = 120;
 
-const rewardItem = (it: PassItem): RewardItem => ({
-  image: it.kind === 'redFrag' ? undefined : PASS_ITEM_ICON[it.kind],
-  portrait: it.kind === 'redFrag' ? 'red' : undefined,
-  label: PASS_ITEM_LABEL[it.kind],
+const rewardItem = (it: PassGot): RewardItem => ({
+  image: it.kind === 'redFrag' || it.dragonId ? undefined : PASS_ITEM_ICON[it.kind],
+  portrait: it.kind === 'redFrag' ? 'red' : it.dragonId,
+  label: it.dragonId ? `${DRAGONS[it.dragonId].short} 조각` : PASS_ITEM_LABEL[it.kind],
   amount: `+${it.n.toLocaleString()}`,
   grade: it.kind === 'dragonTicket' || it.kind === 'uniFrag' ? 'epic' : it.kind === 'rubies' ? 'rare' : 'common',
 });
@@ -87,8 +88,8 @@ export class PassScene extends Phaser.Scene {
     const shield = this.add.circle(-290, 0, 40, 0x4a2a8a).setStrokeStyle(5, COLOR.gold);
     bar.add([shield, text(this, -290, 0, `Lv.${lv.level}`, TYPE.body, COLOR.text, true, true).setOrigin(0.5)]);
     bar.add(text(this, -232, -22, `현재 Lv. ${lv.level} / ${PASS.levels}`, TYPE.caption, COLOR.text, true, true).setOrigin(0, 0.5));
-    bar.add(progressBar(this, -40, 18, 380, 22, lv.maxed ? 1 : lv.inLevel / PASS.pointsPerLevel, COLOR.gold, lv.maxed ? 'MAX' : `${lv.inLevel}P / ${PASS.pointsPerLevel}P`).root);
-    bar.add(text(this, 320, 0, lv.maxed ? '모두 달성!' : `다음 보상까지\n${PASS.pointsPerLevel - lv.inLevel}P`, TYPE.tiny, COLOR.gold, true, true).setOrigin(1, 0.5).setAlign('right'));
+    bar.add(progressBar(this, -40, 18, 380, 22, lv.maxed ? 1 : lv.inLevel / lv.need, COLOR.gold, lv.maxed ? 'MAX' : `${lv.inLevel}P / ${lv.need}P`).root);
+    bar.add(text(this, 320, 0, lv.maxed ? '모두 달성!' : `다음 보상까지\n${lv.need - lv.inLevel}P`, TYPE.tiny, COLOR.gold, true, true).setOrigin(1, 0.5).setAlign('right'));
 
     // ── 줄 제목
     for (const t of ['free', 'premium', 'royal'] as const) {
@@ -193,9 +194,14 @@ export class PassScene extends Phaser.Scene {
     this.popup = true;
     const y = this.scroll?.box.y ?? 0;
     // 같은 종류는 합쳐서 보여 줌
-    const sum = new Map<PassItem['kind'], number>();
-    for (const it of r.items) sum.set(it.kind, (sum.get(it.kind) ?? 0) + it.n);
-    rewardPopup(this, only ? `패스 Lv.${only.lv} 보상` : '패스 보상', [...sum].map(([kind, n]) => rewardItem({ kind, n } as PassItem)), () => this.scene.restart({ scrollY: y }));
+    // 랜덤 조각은 뽑힌 드래곤별로 합침
+    const sum = new Map<string, PassGot>();
+    for (const it of r.items) {
+      const k = it.dragonId ? `${it.kind}:${it.dragonId}` : it.kind;
+      const cur = sum.get(k);
+      sum.set(k, cur ? ({ ...cur, n: cur.n + it.n } as PassGot) : it);
+    }
+    rewardPopup(this, only ? `패스 Lv.${only.lv} 보상` : '패스 보상', [...sum.values()].map(rewardItem), () => this.scene.restart({ scrollY: y }));
   }
 
   /** 패스 구매: 서버가 이번 시즌 구매 여부 확인 → App Store 결제 → 서버 검증 → 이번 시즌 유료 줄 열기(docs/PAYMENTS.md) */
