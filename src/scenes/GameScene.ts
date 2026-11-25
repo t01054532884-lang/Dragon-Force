@@ -347,6 +347,8 @@ export class GameScene extends Phaser.Scene {
     this.player.setCircle(18, 14, 18);
     // 8단계 D: 기획자 탑다운 그림(top-<id>)이 있으면 그 그림을 보이고 물리 몸체(충돌 범위 그대로)는 숨긴다
     this.fx = new BattleFx(this);
+    BattleFx.quality = 1; // 판마다 보통 품질로 시작(아래 perfWatch가 필요하면 낮춤)
+    this.perf = { last: 0, frames: 0, from: 0, slow: 0, fast: 0 };
     // 맵 테마 공격 효과(B안, src/data/attackThemes.ts): 그림이 있으면 바닥 효과·탄 그림, 없으면 색만
     this.atk = attackTheme(this.stage.id);
     const decal = `atk-s${((this.stage.id - 1) % 20) + 1}`;
@@ -995,7 +997,33 @@ export class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: sp, y: y - Phaser.Math.Between(24, 44), alpha: 0, duration: 650, ease: 'Quad.Out', onComplete: () => sp.destroy() });
   }
 
+  /** 실제 프레임 감시(2026-11-26 최적화): 2초 평균 45fps 미만이 두 번 이어지면 연출을 가볍게, 57fps 이상이 다섯 번 이어지면 되돌림 */
+  private perf = { last: 0, frames: 0, from: 0, slow: 0, fast: 0 };
+  private perfWatch(): void {
+    const now = performance.now();
+    const p = this.perf;
+    // 일시정지·선택 화면·탭 숨김 뒤 첫 프레임처럼 0.5초 넘게 비면 그 구간은 세지 않음
+    if (!p.from || now - p.last > 500) {
+      p.from = now;
+      p.frames = 0;
+    }
+    p.last = now;
+    p.frames++;
+    if (now - p.from < 2000) return;
+    const fps = (p.frames * 1000) / (now - p.from);
+    p.from = now;
+    p.frames = 0;
+    if (fps < 45) {
+      p.fast = 0;
+      if (++p.slow >= 2 && BattleFx.quality > 0.4) BattleFx.quality = 0.4;
+    } else if (fps >= 57) {
+      p.slow = 0;
+      if (++p.fast >= 5 && BattleFx.quality < 1) BattleFx.quality = 1;
+    }
+  }
+
   update(_time: number, rawDelta: number): void {
+    if (this.mode === 'play') this.perfWatch();
     if (this.skin && this.skin !== this.player) this.skin.setPosition(this.player.x, this.player.y).setRotation(this.player.rotation);
     this.updateSkinFx(_time);
     if (this.moveTip.length && this.mode === 'play' && this.player.body && (this.player.body as Phaser.Physics.Arcade.Body).speed > 10) this.hideMoveTip();
@@ -2054,7 +2082,7 @@ export class GameScene extends Phaser.Scene {
 
   /** 맵 바닥 효과를 한 번 찍고(크게 → 사라짐) 테마 입자를 튀긴다. 동시에 40개 넘으면 그림은 생략(판정과 무관) */
   private stampFx(x: number, y: number, r: number, ms = 520, sparks = 5): void {
-    if (this.atkDecal && this.atkStamps < 40) {
+    if (this.atkDecal && this.atkStamps < 40 * BattleFx.quality) {
       this.atkStamps++;
       const img = this.add.image(x, y, this.atkDecal).setDisplaySize(r * 2.2, r * 2.2).setDepth(8).setRotation(Math.random() * Math.PI * 2).setAlpha(0.95);
       this.tweens.add({
@@ -2065,7 +2093,7 @@ export class GameScene extends Phaser.Scene {
         },
       });
     }
-    if (sparks > 0) this.fx.burst(x, y, this.atk.fx, sparks, r * 0.9, Math.max(10, Math.min(22, r * 0.25)));
+    if (sparks > 0 && BattleFx.quality >= 1) this.fx.burst(x, y, this.atk.fx, sparks, r * 0.9, Math.max(10, Math.min(22, r * 0.25)));
   }
 
   private damagePlayer(amount: number, src?: Enemy, pattern = false, mapKind?: 'aura' | 'trap'): void {

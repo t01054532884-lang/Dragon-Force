@@ -54,6 +54,11 @@ const DEPTH_UNDER = 3.9; // 위험 예고(4)보다 아래
 const DEPTH_OVER = 6.5; // 적(6) 바로 위, 드래곤(10)·적 탄 아래
 
 export class BattleFx {
+  /**
+   * 연출 품질(2026-11-26 최적화): 1 = 보통, 0.4 = 가벼움. 전투 중 실제 프레임이 계속 낮으면 GameScene이 낮춘다.
+   * 입자·고리·꼬리 개수 상한에만 곱한다 — 판정·피해와 무관.
+   */
+  static quality = 1;
   private parts = 0;
   private rings = 0;
   private trails = 0;
@@ -73,7 +78,7 @@ export class BattleFx {
   }
 
   private part(x: number, y: number, color: number, size: number, depth: number, ms: number, dx = 0, dy = 0): void {
-    if (this.parts >= FX.maxParts) return; // 넘치면 장식만 생략(판정과 무관)
+    if (this.parts >= FX.maxParts * BattleFx.quality) return; // 넘치면 장식만 생략(판정과 무관)
     this.parts++;
     const p = this.scene.add.image(x, y, 'fx-dot').setTint(color).setDepth(depth).setBlendMode(Phaser.BlendModes.ADD);
     p.setDisplaySize(size, size);
@@ -87,7 +92,7 @@ export class BattleFx {
   }
 
   private ring(x: number, y: number, r0: number, r1: number, color: number, width: number, ms: number, depth = DEPTH_OVER, alpha = 0.9): void {
-    if (this.rings >= FX.maxRings) return;
+    if (this.rings >= FX.maxRings * BattleFx.quality) return;
     this.rings++;
     const c = this.scene.add.circle(x, y, r0).setStrokeStyle(width, color, alpha).setDepth(depth);
     this.scene.tweens.add({
@@ -125,7 +130,7 @@ export class BattleFx {
    * 동시 꼬리 수가 상한을 넘으면 꼬리 없이(탄 자체는 그대로).
    */
   trail(img: Phaser.GameObjects.Image, colors: readonly number[] = FIRE): () => void {
-    if (this.trails >= FX.maxTrails) return () => {};
+    if (this.trails >= FX.maxTrails * BattleFx.quality) return () => {};
     this.trails++;
     const em = this.scene.add.particles(0, 0, 'fx-dot', {
       follow: img, lifespan: 150, frequency: 26, quantity: 1, maxAliveParticles: 6,
@@ -163,7 +168,7 @@ export class BattleFx {
 
   /** 일반 적 처치: 같은 그림이 줄어들며 사라짐 + 잔광 파편 */
   die(e: Phaser.GameObjects.Image, color = 0xffd8a8): void {
-    if (this.parts < FX.maxParts) {
+    if (this.parts < FX.maxParts * BattleFx.quality) {
       this.parts++;
       const g = this.scene.add.image(e.x, e.y, e.texture.key).setRotation(e.rotation).setScale(e.scaleX, e.scaleY).setDepth(6).setTint(0xffffff).setTintMode(Phaser.TintModes.FILL);
       g.setAlpha(0.85);

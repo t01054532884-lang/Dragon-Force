@@ -53,7 +53,9 @@ async function boot(): Promise<void> {
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
     physics: { default: 'arcade', arcade: { debug: false } },
     // 개발 서버 전용 ?timer=1: 화면이 숨겨진 미리보기 창에서도 게임이 돌게(requestAnimationFrame 대신 타이머) — 자동 확인용
-    ...(import.meta.env.DEV && new URLSearchParams(location.search).has('timer') ? { fps: { forceSetTimeOut: true, target: 30 } } : {}),
+    // 최적화(2026-11-26): 120Hz 화면(ProMotion 아이폰)에서도 초당 60번만 그린다 — 일이 절반, 발열로 느려지는 것(스로틀링) 예방.
+    // Phaser는 시간을 쌓아 넘기므로 60이 아니라 62로(60Hz 화면에서 16.6ms 프레임이 건너뛰어지지 않게).
+    fps: { limit: 62, ...(import.meta.env.DEV && new URLSearchParams(location.search).has('timer') ? { forceSetTimeOut: true, target: 30 } : {}) },
     scene: [TitleScene, LobbyScene, GameScene, LabScene, DragonsScene, ShopScene, EquipScene, MissionScene, EventScene, SkinScene, GiftScene, PassScene, RubyPassScene], // 첫 화면은 시작 화면(로고) → 로비
   });
 
