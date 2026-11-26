@@ -9,6 +9,7 @@ import { button, modal, text } from '../ui/kit';
 import { plate, tabs } from '../ui/kit2';
 import { screenFrame, toast, type ScreenFrame } from '../ui/screen';
 import { COLOR, TYPE } from '../ui/theme';
+import { getLang, tr } from '../i18n';
 
 /** 글자 앞 아이콘(루비는 이모지 없이 — 빨간 루비 그림은 따로 그린다) */
 const tag = (k: GiftKind) => (GIFT_LABEL[k].icon ? `${GIFT_LABEL[k].icon} ` : '');
@@ -193,6 +194,10 @@ function fmtDate(ms: number): string {
   return `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${p2(d.getUTCHours())}:${p2(d.getUTCMinutes())}`;
 }
 
+/** 긴 제목·내용 자르기. 영어 모드는 번역한 뒤에 자른다(자른 한국어는 사전에 없어 한글이 남았음, 2026-11-26) — 영어는 글자가 좁아 1.8배까지 */
 function clip(s: string, n: number): string {
-  return s.length > n ? `${s.slice(0, n)}…` : s;
+  const en = getLang() === 'en';
+  const t = en ? tr(s) : s;
+  const max = en ? Math.round(n * 1.8) : n;
+  return t.length > max ? `${t.slice(0, max)}…` : t;
 }

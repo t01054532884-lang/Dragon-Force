@@ -84,6 +84,10 @@ function build(): void {
 }
 
 function viaTemplate(s: string): string | null {
+  const ko = (x: string) => (x.match(/[가-힣]/g) ?? []).length;
+  // 한국어가 남는 결과는 바로 돌려주지 않고 다음 틀도 본다(2026-11-26: "어려움 {0}단계 — {1} {2}"가 먼저 걸려
+  // 단계 이름 "위험한 전장"을 두 낱말로 쪼개 번역에 실패 → "어려움 {0}단계 — {1}" 틀이면 통째로 번역됨)
+  let best: string | null = null;
   for (const t of tpls!) {
     if (t.probe && !s.includes(t.probe)) continue;
     const m = t.re.exec(s);
@@ -97,12 +101,12 @@ function viaTemplate(s: string): string | null {
     if (!KO.test(a)) return a;
     // 자리 경계를 다르게(앞 자리를 길게) 잡아 보고, 한국어가 덜 남는 쪽
     const mg = t.reG.exec(s);
-    if (!mg) return a;
-    const b = fill(mg);
-    const ko = (x: string) => (x.match(/[가-힣]/g) ?? []).length;
-    return ko(b) < ko(a) ? b : a;
+    const b = mg ? fill(mg) : a;
+    if (!KO.test(b)) return b;
+    const pick = ko(b) < ko(a) ? b : a;
+    if (best === null || ko(pick) < ko(best)) best = pick;
   }
-  return null;
+  return best;
 }
 
 const SEPS = ['\n', ' · ', ' — ', ' / ', ', '];
@@ -116,6 +120,7 @@ function units(t: string): string {
     .replace(/(\d)\s?일/g, '$1d')
     .replace(/(\d)\s?(개|마리|장|자루|송이|겹)/g, '$1')
     .replace(/(\d)\s?회/g, '$1x')
+    .replace(/(\d)\s?번/g, '$1x') // "암흑 빔 2번" → "Dark Beam 2x"(2026-11-26)
     .replace(/(\d)\s?단계/g, 'Stage $1');
 }
 

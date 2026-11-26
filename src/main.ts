@@ -83,6 +83,17 @@ async function boot(): Promise<void> {
   if (import.meta.env.DEV) {
     (window as unknown as { __game: Phaser.Game }).__game = game;
     void import('./dev/bot').then((m) => m.installBot(game)); // 자동 전투 측정 봇(개발 전용)
+    // 영어 모드 한글 검사(2026-11-26): 콘솔에서 __koScan() → 지금 화면(켜진 장면 전부)에 그려진 글자 중 한글이 남은 것
+    (window as unknown as { __koScan: () => string[] }).__koScan = () => {
+      const left: string[] = [];
+      const visit = (o: Phaser.GameObjects.GameObject): void => {
+        if (o instanceof Phaser.GameObjects.Text && o.visible && /[가-힣]/.test(o.text)) left.push(o.text);
+        const kids = (o as unknown as { list?: Phaser.GameObjects.GameObject[] }).list;
+        if (Array.isArray(kids)) kids.forEach(visit);
+      };
+      for (const sc of game.scene.getScenes(true)) sc.children.list.forEach(visit);
+      return [...new Set(left)];
+    };
   }
 }
 
