@@ -61,7 +61,7 @@ export function drawDragon(g: Phaser.GameObjects.Graphics, d: DragonDef, k: numb
   const horn = id === 'blue' ? 0xe3f4ff : id === 'white' || id === 'yellow' ? 0xd9b44a : id === 'stone' ? 0x6e5a44 : 0x8a6a4a;
   g.fillStyle(horn).fillTriangle(p(25), p(14), p(28), p(12), p(23), p(4)).fillTriangle(p(39), p(14), p(36), p(12), p(41), p(4));
   // 눈
-  const eye = { red: 0xffd34d, blue: 0x4fc3f7, yellow: 0xff8f00, green: 0xb388ff, white: 0xffc107, black: 0xd1a3ff, stone: 0xffb300, wind: 0x26a69a, water: 0x0277bd, arcane: 0xff80ab, sand: 0xff8f00, steel: 0xff6d00, bloom: 0xc2185b, howl: 0xe3f2fd, crimson: 0xffd54f, mirror: 0x4fc3f7, chrono: 0x7cf2c4, void: 0xbfe9ff, aurora: 0xff8de8 }[id]!;
+  const eye = { red: 0xffd34d, blue: 0x4fc3f7, yellow: 0xff8f00, green: 0xb388ff, white: 0xffc107, black: 0xd1a3ff, stone: 0xffb300, wind: 0x26a69a, water: 0x0277bd, arcane: 0xff80ab, sand: 0xff8f00, steel: 0xff6d00, bloom: 0xc2185b, howl: 0xe3f2fd, crimson: 0xffd54f, mirror: 0x4fc3f7, chrono: 0x7cf2c4, void: 0xbfe9ff, aurora: 0xff8de8, gears: 0xffb74d, silva: 0xc5e1a5, forge: 0xff7043, crystal: 0xe1f5fe, bahamut: 0xffd54f }[id]!;
   g.fillStyle(eye).fillCircle(p(28), p(17), p(2)).fillCircle(p(36), p(17), p(2));
 
   // 속성 장식
@@ -134,6 +134,28 @@ export function drawDragon(g: Phaser.GameObjects.Graphics, d: DragonDef, k: numb
     case 'aurora': // 날개 극광 띠
       g.fillStyle(0x7cf2c4, 0.8).fillTriangle(p(32), p(30), p(6), p(18), p(10), p(26)).fillTriangle(p(32), p(30), p(58), p(18), p(54), p(26));
       g.fillStyle(0xff8de8, 0.7).fillTriangle(p(32), p(32), p(8), p(26), p(12), p(32)).fillTriangle(p(32), p(32), p(56), p(26), p(52), p(32));
+      break;
+    // ── 신규 4묶음(2026-11-27, 그림이 오기 전 임시 도형) ──
+    case 'gears': // 등의 톱니바퀴 두 개
+      g.lineStyle(p(2), d.accent, 1).strokeCircle(p(26), p(34), p(5)).strokeCircle(p(38), p(36), p(4));
+      g.fillStyle(0x5d4037).fillCircle(p(26), p(34), p(1.5)).fillCircle(p(38), p(36), p(1.2));
+      break;
+    case 'silva': // 머리의 나뭇가지 뿔과 잎
+      g.lineStyle(p(1.5), 0x6d4c41, 1).lineBetween(p(28), p(12), p(24), p(4)).lineBetween(p(36), p(12), p(40), p(4));
+      g.fillStyle(0x9ccc65).fillCircle(p(24), p(5), p(2)).fillCircle(p(40), p(5), p(2)).fillCircle(p(14), p(30), p(2.5)).fillCircle(p(50), p(30), p(2.5));
+      break;
+    case 'forge': // 꼬리 망치와 달아오른 가슴
+      g.fillStyle(0x9e9e9e).fillRect(p(29), p(54), p(6), p(4));
+      g.fillStyle(0x6d4c41).fillRect(p(31), p(48), p(2), p(7));
+      g.fillStyle(d.accent, 0.9).fillCircle(p(32), p(36), p(3));
+      break;
+    case 'crystal': // 등의 수정 가시
+      g.fillStyle(0xb2ebf2).fillTriangle(p(28), p(30), p(30), p(20), p(32), p(30)).fillTriangle(p(32), p(34), p(34), p(24), p(36), p(34));
+      g.fillStyle(0xffffff, 0.8).fillTriangle(p(29), p(28), p(30), p(23), p(31), p(28));
+      break;
+    case 'bahamut': // 금빛 왕관 뿔과 가슴 빛
+      g.fillStyle(d.accent).fillTriangle(p(28), p(10), p(30), p(2), p(32), p(10)).fillTriangle(p(32), p(10), p(34), p(2), p(36), p(10));
+      g.fillStyle(0xfff59d, 0.9).fillCircle(p(32), p(36), p(3.5));
       break;
     case 'arcane': // 마법 결정과 고리
       g.lineStyle(p(1.5), d.accent, 0.9).strokeEllipse(p(32), p(36), p(44), p(14));
@@ -232,6 +254,34 @@ function drawBolts(g: Phaser.GameObjects.Graphics): void {
   g.fillStyle(0xff8de8, 0.8).fillEllipse(14, 7, 12, 5);
   g.fillStyle(0xffffff).fillCircle(18, 7, 2.5);
   g.generateTexture('bolt-aurora', 24, 14);
+  // ── 신규 4묶음(2026-11-27) ──
+  g.clear(); // 포탄(기어스)
+  g.fillStyle(0x5d4037).fillCircle(8, 8, 6);
+  g.fillStyle(0xffb74d).fillCircle(6, 6, 2.5);
+  g.generateTexture('bolt-gear', 16, 16);
+  g.clear(); // 소형 포탑(기어스): 원형 받침 + 포신(오른쪽)
+  g.fillStyle(0x4e342e).fillCircle(20, 20, 14);
+  g.lineStyle(3, 0xffb74d, 1).strokeCircle(20, 20, 14);
+  g.fillStyle(0x8d6e63).fillRect(20, 16, 18, 8);
+  g.fillStyle(0xffb74d).fillCircle(20, 20, 6);
+  g.generateTexture('turret-gear', 40, 40);
+  g.clear(); // 나뭇가지 탄(실바)
+  g.fillStyle(0x6d4c41).fillRect(0, 5, 20, 4);
+  g.fillStyle(0x9ccc65).fillEllipse(20, 7, 8, 6).fillEllipse(8, 3, 6, 4);
+  g.generateTexture('bolt-branch', 24, 14);
+  g.clear(); // 망치(포지)
+  g.fillStyle(0x6d4c41).fillRect(0, 10, 16, 4);
+  g.fillStyle(0x9e9e9e).fillRect(14, 2, 12, 20);
+  g.fillStyle(0xff7043, 0.9).fillRect(24, 4, 2, 16);
+  g.generateTexture('bolt-hammer', 28, 24);
+  g.clear(); // 수정 창(크리스탈)
+  g.fillStyle(0x4dd0e1).fillTriangle(0, 4, 0, 10, 30, 7);
+  g.fillStyle(0xe1f5fe).fillTriangle(4, 6, 4, 8, 24, 7);
+  g.generateTexture('bolt-crystal', 30, 14);
+  g.clear(); // 브레스(바하무트, 카드 아이콘 대용)
+  g.fillStyle(0xffd54f, 0.8).fillTriangle(0, 10, 22, 0, 22, 20);
+  g.fillStyle(0xfff59d).fillTriangle(4, 10, 18, 5, 18, 15);
+  g.generateTexture('bolt-breath', 24, 20);
 }
 
 /** 드래곤 64px(전투) · 192px(UI 초상) + 투사체 */

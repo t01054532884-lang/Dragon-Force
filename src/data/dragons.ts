@@ -12,15 +12,19 @@ export type DragonId = 'red' | 'blue' | 'yellow' | 'green' | 'white' | 'black' |
   // 신규 2묶음(2026-11-22)
   | 'howl' | 'crimson' | 'mirror'
   // 신규 3묶음(2026-11-22) — 전용 스킬 대신 "기본 공격 N회마다 자동 발동"(제작자 결정)
-  | 'chrono' | 'void' | 'aurora';
+  | 'chrono' | 'void' | 'aurora'
+  // 신규 4묶음(2026-11-27, 제작자 기획 — docs/NEW_DRAGONS_24.md)
+  | 'gears' | 'silva' | 'forge' | 'crystal' | 'bahamut';
 export type DragonRarity = 'starter' | 'common' | 'rare' | 'epic' | 'legendary';
-export type DragonElement = 'fire' | 'ice' | 'lightning' | 'poison' | 'light' | 'dark' | 'earth' | 'wind' | 'water' | 'arcane' | 'sand' | 'steel' | 'bloom' | 'sound' | 'blood' | 'mirror' | 'time' | 'gravity' | 'aurora';
+export type DragonElement = 'fire' | 'ice' | 'lightning' | 'poison' | 'light' | 'dark' | 'earth' | 'wind' | 'water' | 'arcane' | 'sand' | 'steel' | 'bloom' | 'sound' | 'blood' | 'mirror' | 'time' | 'gravity' | 'aurora'
+  | 'machine' | 'forest' | 'forge' | 'crystal' | 'dragonking';
 
 export const RARITY_LABEL: Record<DragonRarity, string> = { starter: '기본', common: '일반', rare: '희귀', epic: '영웅', legendary: '전설' };
 export const RARITY_COLOR: Record<DragonRarity, number> = { starter: 0xb0bec5, common: 0x9ccc65, rare: 0x4fc3f7, epic: 0xba68c8, legendary: 0xffb300 };
 export const ELEMENT_LABEL: Record<DragonElement, string> = {
   fire: '화염', ice: '얼음', lightning: '번개', poison: '독', light: '빛', dark: '암흑', earth: '대지', wind: '바람', water: '물', arcane: '신비',
   sand: '모래', steel: '강철', bloom: '꽃', sound: '음파', blood: '혈기', mirror: '거울', time: '시간', gravity: '중력', aurora: '극광',
+  machine: '기계', forest: '숲', forge: '대장간', crystal: '수정', dragonking: '용왕',
 };
 
 /** 기본 공격 한 레벨의 상태(앞 레벨 효과를 모두 포함한 누적값) */
@@ -57,6 +61,9 @@ export interface BasicLevel {
   root?: number; // 속박(ms): 일반 적은 이동 불가(공격은 함), 엘리트·보스는 15% 둔화 1초
   returning?: { dist: number; mult: number }; // 되돌아오는 원반: dist만큼 날아간 뒤 드래곤에게 돌아오며 다시 맞힘(돌아올 때 피해 ×mult)
   seed?: { delay: number; radius: number; flower?: boolean }; // 씨앗 폭탄: 적 발밑에 심고 delay 뒤 범위 폭발(flower = 터진 자리 회복 꽃)
+  // ── 신규 4묶음(2026-11-27) ──
+  turret?: { max: number; life: number; fire: number; range: number }; // 기어스: 공격 주기마다 발밑에 포탑 설치(최대 max대·life ms), 포탑이 fire ms마다 가까운 적에게 shots발(coef)
+  focus?: { every: number; coef: number; radius?: number }; // 실바: 같은 적을 every번 연속 맞히면 굵은 가지 추가 공격(coef, radius면 주변까지)
   // ── 신규 2묶음(하울·크림슨·미러) ──
   pulse?: { radius: number; layers: number; stunEvery?: number; stunMs?: number }; // 음파 고리: 드래곤 둘레로 퍼지는 고리(적마다 고리당 1회), layers겹, stunEvery번째 고리마다 일반 적 기절
   melee?: { range: number; arc: number; back?: boolean; spinEvery?: number }; // 근접 베기: 가장 가까운 적 쪽 부채꼴(arc 라디안) 안 모두, back = 뒤쪽도, spinEvery번째마다 360°(×1.5)
@@ -96,7 +103,14 @@ export interface BasicTraits {
   extraChain: number; // 천둥의 문장(장착형 특수 스킬): 연쇄가 있는 기본 공격의 연쇄 +n
   ringBonus?: number; // 하울: 고리가 맞힌 적 1마리당 그 고리 피해 +x(최대 10마리분)
   drain?: number; // 크림슨: 기본 공격 피해의 x만큼 회복(1초에 최대 HP 1%까지)
+  turretHaste?: number; // 기어스: 포탑 공격 속도 +x
+  focusBonus?: number; // 실바·바하무트: 같은 적을 연속으로 맞힐 때마다 기본 공격 피해 +x(최대 FOCUS_MAX_STACKS중첩)
+  splashBonus?: number; // 포지: 망치 충격파 피해 +x
+  pierceRamp?: number; // 크리스탈: 관통할 때마다(두 번째 적부터) 피해 +x
 }
+
+/** 실바·바하무트 연속 적중 보너스 최대 중첩 */
+export const FOCUS_MAX_STACKS = 5;
 
 export const NO_TRAITS: BasicTraits = { intervalMult: 1, poisonDurMult: 1, slowDurMult: 1, chainRelief: 0, killHealChance: 0, killHealPct: 0, healAdd: 0, executeBonus: 0, extraChain: 0 };
 
@@ -424,6 +438,74 @@ const AURORA = common('분광 빛살', '🌈', 'bolt-aurora', build(
 export const ATTACK_UP = 1.3;
 const B = (baseAttack: number, baseHp: number, baseMoveSpeed: number) => ({ baseAttack: Math.round(baseAttack * ATTACK_UP * 100) / 100, baseHp, baseMoveSpeed });
 
+
+// ───────── 신규 4묶음(2026-11-27, 제작자 기획 — 수치는 AI 1차안, 봇 측정 후 조정) ─────────
+// 기어스(희귀): 소형 포탑 설치 → 포탑이 자동 공격. 드래곤 자신은 쏘지 않는다(포탑 자리에서 사거리)
+const GEARS = common('소형 포탑', '⚙️', 'bolt-gear', build(
+  { ...STRAIGHT, speed: 640, shots: 1, coef: 0.35, levelMod: 1, interval: 2500, turret: { max: 2, life: 8000, fire: 900, range: 8 * M } },
+  [
+    { text: '발밑에 소형 포탑 설치(최대 2대, 8초) — 포탑이 0.9초마다 가까운 적에게 포탄(35%)' },
+    { levelMod: 1.2, text: '피해 +20%' },
+    { turret: { max: 3, life: 8000, fire: 900, range: 8 * M }, text: '포탑 최대 3대' },
+    { turret: { max: 3, life: 8000, fire: 750, range: 8 * M }, text: '포탑 사격 간격 0.9 → 0.75초' },
+    { levelMod: 1.45, text: '피해 +25%' },
+    { turret: { max: 4, life: 9000, fire: 750, range: 8.5 * M }, text: '포탑 최대 4대 · 9초 유지' },
+    { shots: 2, text: '진화 — 포탑이 2발씩 쏨' },
+  ],
+), { range: 9 * M });
+// 실바(영웅): 나뭇가지 탄, 같은 적을 연속으로 맞히면 굵은 가지가 뻗어 추가 공격
+const SILVA = common('나뭇가지 탄', '🌿', 'bolt-branch', build(
+  { ...STRAIGHT, speed: 620, shots: 1, coef: 1.0, levelMod: 1, interval: 1000, focus: { every: 3, coef: 1.2 } },
+  [
+    { text: '나뭇가지 탄 1발(100%) — 같은 적을 3번 연속 맞히면 굵은 가지가 뻗어 추가 공격(120%)' },
+    { levelMod: 1.15, text: '피해 +15%' },
+    { shots: 2, coef: 0.75, text: '나뭇가지 탄 2발(각 75%)' },
+    { focus: { every: 2, coef: 1.2 }, text: '2번 연속 맞히면 굵은 가지' },
+    { levelMod: 1.35, text: '피해 +20%' },
+    { interval: 850, text: '쏘는 간격 1.0 → 0.85초' },
+    { focus: { every: 2, coef: 2.0, radius: 1.5 * M }, text: '진화 — 굵은 가지 200% + 주변 1.5m까지' },
+  ],
+));
+// 포지(영웅): 거대한 망치를 던져 맞힌 자리에 충격파
+const FORGE = common('대장장이 망치', '🔨', 'bolt-hammer', build(
+  { ...STRAIGHT, speed: 430, shots: 1, coef: 1.2, levelMod: 1, interval: 1300, splash: { radius: 1.6 * M, coef: 0.5 } },
+  [
+    { text: '망치 1개(120%) — 맞힌 자리에 1.6m 충격파(50%)' },
+    { levelMod: 1.15, text: '피해 +15%' },
+    { splash: { radius: 2 * M, coef: 0.6 }, text: '충격파 2m(60%)' },
+    { shots: 2, coef: 0.9, text: '망치 2개(각 90%)' },
+    { levelMod: 1.35, text: '피해 +20%' },
+    { interval: 1100, text: '던지는 간격 1.3 → 1.1초' },
+    { splash: { radius: 2.4 * M, coef: 0.9, knock: 320 }, text: '진화 — 충격파 2.4m(90%) + 밀쳐냄' },
+  ],
+), { range: 10 * M, life: 1900 });
+// 크리스탈(영웅): 수정 창을 전방으로 연속 발사, 적 무리를 관통
+const CRYSTAL = common('수정 창', '🔷', 'bolt-crystal', build(
+  { ...STRAIGHT, speed: 780, shots: 1, coef: 0.9, levelMod: 1, interval: 1050, pierce: 2 },
+  [
+    { text: '수정 창 1발(90%) — 적 2명 관통' },
+    { levelMod: 1.15, text: '피해 +15%' },
+    { pierce: 4, text: '관통 4명' },
+    { shots: 2, coef: 0.7, text: '수정 창 2발(각 70%)' },
+    { levelMod: 1.35, text: '피해 +20%' },
+    { interval: 900, text: '쏘는 간격 1.05 → 0.9초' },
+    { pierce: 8, scale: 1.4, text: '진화 — 거대한 수정 창: 8명 관통 · 크기 +40%' },
+  ],
+), { range: 13 * M, life: 1500 });
+// 바하무트(전설): 에너지 브레스로 전방을 쓸어버림(부채꼴 범위 안 모든 적)
+const BAHAMUT = common('용왕의 브레스', '🐲', 'bolt-breath', build(
+  { ...STRAIGHT, speed: 0, shots: 1, coef: 1.0, levelMod: 1, interval: 900, melee: { range: 4 * M, arc: 1.2 } },
+  [
+    { text: '전방 4m 부채꼴 에너지 브레스(100%) — 범위 안 모든 적' },
+    { levelMod: 1.15, text: '피해 +15%' },
+    { melee: { range: 4.8 * M, arc: 1.4 }, text: '브레스 4.8m · 더 넓게' },
+    { levelMod: 1.3, text: '피해 +15%' },
+    { interval: 780, text: '브레스 간격 0.9 → 0.78초' },
+    { burn: true, text: '용왕의 열기: 맞은 적 화상' },
+    { melee: { range: 4.8 * M, arc: 1.4, spinEvery: 4 }, text: '진화 — 4번째마다 360° 브레스(×1.5)' },
+  ],
+), { range: 4.8 * M });
+
 export const DRAGONS: Record<DragonId, DragonDef> = {
   red: { id: 'red', name: '레드 드래곤', short: '레드', element: 'fire', rarity: 'starter', role: '안정적인 범용 딜러', color: 0xd23b2a, accent: 0xff9a3c, belly: 0xf3d6a2, ...B(10, 100, 260), trait: { id: 'burnBonus', text: '5성부터: 화상 상태 적에게 피해 +20%', value: 0.2 }, basic: RED },
   blue: { id: 'blue', name: '빙하 드래곤', short: '빙하', element: 'ice', rarity: 'epic', role: '둔화·빙결', color: 0x9cc8f0, accent: 0xe3f4ff, belly: 0xdcecff, ...B(11.5, 125, 260), trait: { id: 'slowBonus', text: '둔화된 적에게 추가 피해 +20%', value: 0.2 }, basic: BLUE },
@@ -444,9 +526,15 @@ export const DRAGONS: Record<DragonId, DragonDef> = {
   void: { id: 'void', name: '보이드 드래곤', short: '보이드', element: 'gravity', rarity: 'legendary', role: '묵직한 구슬·블랙홀', color: 0x3a3d45, accent: 0xbfe9ff, belly: 0x6b6f7a, ...B(14.5, 125, 255), trait: { id: 'fullHp', text: 'HP 70% 이상인 적에게 피해 +20%', value: 0.2 }, basic: VOID },
   aurora: { id: 'aurora', name: '오로라 드래곤', short: '오로라', element: 'aurora', rarity: 'legendary', role: '추적 빛살·극광 휩쓸기', color: 0x1e2a6e, accent: 0x7cf2c4, belly: 0xd9e6ff, ...B(13.3, 120, 275), trait: { id: 'allBonus', text: '모든 피해 +10%', value: 0.1 }, basic: AURORA },
   arcane: { id: 'arcane', name: '아케인 드래곤', short: '아케인', element: 'arcane', rarity: 'legendary', role: '분열·추가 발동', color: 0x9b6fe0, accent: 0xff8de8, belly: 0xe9d9ff, ...B(14, 120, 275), trait: { id: 'haste', text: '기본 공격 재사용 대기시간 −10%', value: 0.1 }, basic: ARCANE },
+  // 신규 4묶음(2026-11-27, 제작자 기획): 기본 능력치는 같은 등급과 비슷하게(AI 1차안)
+  gears: { id: 'gears', name: '기어스 드래곤', short: '기어스', element: 'machine', rarity: 'rare', role: '포탑 설치·자동 공격', color: 0x8d6e63, accent: 0xffb74d, belly: 0xd7ccc8, ...B(10.5, 115, 260), trait: { id: 'turretHaste', text: '포탑 공격 속도 +15%', value: 0.15 }, basic: GEARS },
+  silva: { id: 'silva', name: '실바 드래곤', short: '실바', element: 'forest', rarity: 'epic', role: '연속 적중·추가 가지', color: 0x558b2f, accent: 0xa1887f, belly: 0xdcedc8, ...B(12, 115, 265), trait: { id: 'focus', text: '같은 적을 연속으로 맞힐 때마다 피해 +4%(최대 5번)', value: 0.04 }, basic: SILVA },
+  forge: { id: 'forge', name: '포지 드래곤', short: '포지', element: 'forge', rarity: 'epic', role: '망치 투척·충격파', color: 0x5d4037, accent: 0xff7043, belly: 0xbcaaa4, ...B(13, 125, 250), trait: { id: 'splashBonus', text: '망치 충격파 피해 +25%', value: 0.25 }, basic: FORGE },
+  crystal: { id: 'crystal', name: '크리스탈 드래곤', short: '크리스탈', element: 'crystal', rarity: 'epic', role: '관통 수정 창', color: 0x4dd0e1, accent: 0xe1f5fe, belly: 0xb2ebf2, ...B(12.5, 110, 270), trait: { id: 'pierceRamp', text: '수정 창이 관통할 때마다 피해 +15%', value: 0.15 }, basic: CRYSTAL },
+  bahamut: { id: 'bahamut', name: '바하무트 드래곤', short: '바하무트', element: 'dragonking', rarity: 'legendary', role: '전방 광역 브레스', color: 0x263238, accent: 0xffd54f, belly: 0x90a4ae, ...B(14.5, 125, 270), trait: { id: 'focus', text: '브레스가 같은 적을 연속으로 맞힐 때마다 피해 +5%(최대 5번)', value: 0.05 }, basic: BAHAMUT },
 };
 
-export const DRAGON_ORDER: DragonId[] = ['red', 'blue', 'yellow', 'green', 'white', 'black', 'stone', 'wind', 'water', 'arcane', 'sand', 'steel', 'bloom', 'howl', 'crimson', 'mirror', 'chrono', 'void', 'aurora'];
+export const DRAGON_ORDER: DragonId[] = ['red', 'blue', 'yellow', 'green', 'white', 'black', 'stone', 'wind', 'water', 'arcane', 'sand', 'steel', 'bloom', 'howl', 'crimson', 'mirror', 'chrono', 'void', 'aurora', 'gears', 'silva', 'forge', 'crystal', 'bahamut'];
 
 /**
  * 출시 스위치(2026-11-22): 켜진 드래곤만 상점 뽑기·도감·로비·미션 고르기에 나온다. 저장 데이터는 모든 드래곤 칸을 갖는다.
@@ -458,6 +546,8 @@ export const DRAGON_RELEASED: Record<DragonId, boolean> = {
   sand: true, steel: true, bloom: true, howl: true, crimson: true,
   // 제작자 결정 2026-11-23 밤: 남은 4종(미러·크로노·보이드·오로라)도 첫 출시에 함께 → 19종 모두
   mirror: true, chrono: true, void: true, aurora: true,
+  // 신규 5종(2026-11-27): 그림(초상·전투·탄·필살기 영상)이 오기 전까지 숨김 — 시험은 ?newdragons
+  gears: false, silva: false, forge: false, crystal: false, bahamut: false,
 };
 const PREVIEW_NEW = typeof location !== 'undefined' && new URLSearchParams(location.search).has('newdragons');
 /** 화면·뽑기에 쓰는 드래곤 목록(출시된 것 + 시험 주소면 전부) */

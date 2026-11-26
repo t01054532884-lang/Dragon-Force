@@ -309,7 +309,9 @@ export class Signature {
       }
       // ── 전방형: 적이 많은 방향 자동 조준, 성장하면 그림자 분신이 빔 추가 ──
       case 'black':
-      case 'water': {
+      case 'water':
+      case 'crystal': // 수정의 폭발: 전방 수정 기둥(성장하면 줄 추가)
+      case 'bahamut': { // 용왕의 숨결: 전장을 가로지르는 브레스(성장하면 줄 추가)
         const len = d.length!;
         const half = d.width! * g.radius;
         for (let k = 0; k < g.count; k++) {
@@ -409,6 +411,36 @@ export class Signature {
         this.startTicks(dur, 500, (dps * R.singleSec) / (ticks * g.count));
         break;
       }
+      // ── 신규 4묶음(2026-11-27) ──
+      case 'silva': { // 세계수의 각성: 고목이 솟아 주변을 휩쓸고(밀쳐냄) 나무 파편이 범위 밖으로 튐
+        this.burst(x, y, rad, d.color, SIGART(this.scene, 'silva'));
+        const t = this.inCircle(x, y, rad);
+        const each = aoePerTarget(dps, t.length);
+        this.strike(t, each);
+        for (const e of t) e.knock(e.x - x || 1, e.y - y, d.knock!, 200);
+        this.chainOut(t, g.count, each * 0.5);
+        break;
+      }
+      case 'forge': { // 대지 강타: 바닥을 내리쳐 충격파(성장하면 여러 번)
+        for (let k = 0; k < g.count; k++) {
+          const wave = () => {
+            const px = this.h.player.x;
+            const py = this.h.player.y;
+            const t = this.inCircle(px, py, rad);
+            this.strike(t, aoePerTarget(dps, t.length) / (k === 0 ? 1 : 2));
+            for (const e of t) e.knock(e.x - px || 1, e.y - py, d.knock!, 200);
+            this.rockWave(px, py, rad);
+          };
+          if (k === 0) wave();
+          else this.later(k * 500, wave);
+        }
+        break;
+      }
+      case 'gears': { // 전술 포대: 포탑 3대가 엘리트·보스 우선 집중 포격
+        const dur = d.durationMs!;
+        this.startTicks(dur, dur / g.count, (dps * R.singleSec) / g.count);
+        break;
+      }
       // ── 단일: 엘리트·보스 우선 마력탄 ──
       case 'arcane': {
         const dur = d.durationMs!;
@@ -487,6 +519,17 @@ export class Signature {
       const hit = this.inCircle(x, y, r);
       this.strike(hit, this.tickDamage);
       if (hit.length) playSfx(this.scene, 'sfx-wind-blade', { pitch: 0.9 + Math.random() * 0.2 });
+    }
+    if (this.dragonId === 'gears') {
+      // 드래곤 둘레 세 곳(포탑 자리)에서 번갈아 쏜다
+      const k = this.tickLeft % 3;
+      const a = (k / 3) * Math.PI * 2 - Math.PI / 2;
+      const fx = x + Math.cos(a) * 70;
+      const fy = y + Math.sin(a) * 70;
+      const t = this.priorityTarget(fx, fy, this.def.radius!);
+      if (!t) return;
+      this.boltFx(fx, fy, t);
+      this.strike(this.inCircle(t.x, t.y, 1 * 50), this.tickDamage);
     }
     if (this.dragonId === 'arcane') {
       const t = this.priorityTarget(x, y, this.def.radius!);
