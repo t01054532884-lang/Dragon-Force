@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import type { Enemy } from '../objects/Enemy';
 import { RED_BASIC } from '../data/basicAttack';
-import { NO_TRAITS, type BasicLevel, type BasicSpec, type BasicTraits } from '../data/dragons';
+import { FOCUS_MAX_STACKS, NO_TRAITS, type BasicLevel, type BasicSpec, type BasicTraits } from '../data/dragons';
 export { NO_TRAITS, type BasicTraits };
 import type { CombatHost } from './CombatHost';
 import { applyPerm, PERM_RULES, ZERO_PERM, type PermState } from '../data/permGrowth';
@@ -63,6 +63,15 @@ interface Flower {
   g: Phaser.GameObjects.Image;
 }
 
+/** 기어스 소형 포탑: 설치한 자리에서 life 동안 가까운 적에게 포탄 */
+interface Turret {
+  x: number;
+  y: number;
+  left: number;
+  cd: number;
+  img: Phaser.GameObjects.Image;
+}
+
 interface Cloud {
   x: number;
   y: number;
@@ -92,6 +101,9 @@ export class BasicAttack {
   private flowers: Flower[] = [];
   private flowerHeals = 0; // 판당 회복 횟수(상한 FLOWER.maxHeals)
   private rings: Ring[] = [];
+  private turrets: Turret[] = [];
+  /** 같은 적 연속 적중(실바·바하무트): 적 uid → 마지막으로 맞힌 공격 주기·연속 횟수 */
+  private focusMap = new Map<number, { volley: number; stacks: number }>();
   private drainUsed = 0; // 크림슨 흡수: 이번 1초 동안 회복한 양(최대 HP 비율)
   private drainClock = 0;
 
@@ -128,6 +140,11 @@ export class BasicAttack {
    */
   singleTargetDps(): number {
     const L = this.L;
+    if (L.turret) {
+      // 기어스: 포탑(최대 2대가 같은 적을 쏜다고 보고) × 발 수 × 계수 ÷ 사격 간격(포탑 공격 속도 특성 포함)
+      const perShot = L.coef * L.levelMod * L.shots * Math.min(2, L.turret.max);
+      return (this.h.stats.attack * perShot) / ((L.turret.fire / (1 + (this.traits.turretHaste ?? 0))) * this.hasteMult / 1000);
+    }
     const perVolley = L.coef * L.levelMod * (1 + (L.shots - 1) * this.spec.sameVolley) * (L.returning ? 1 + L.returning.mult : 1) * (L.pulse ? L.pulse.layers : 1);
     const sec = (L.interval * this.traits.intervalMult * this.hasteMult) / 1000;
     return (this.h.stats.attack * perVolley) / sec;
@@ -143,7 +160,14 @@ export class BasicAttack {
     const L = this.L;
 
     this.timer -= delta;
-    if (this.timer <= 0 && (L.pulse || L.melee)) {
+    if (this.timer <= 0 && L.turret) {
+      // 기어스: 사거리 안에 적이 있으면 발밑에 포탑 설치(최대 수를 넘으면 가장 오래된 포탑을 걷어 냄)
+      if (this.selectDistinctFirst(this.spec.range, 1).length === 0) this.timer = 0;
+      else {
+        this.placeTurret(L);
+        this.timer += L.interval * this.traits.intervalMult * this.hasteMult;
+      }
+    } else if (this.timer <= 0 && (L.pulse || L.melee)) {
       // 하울 음파 고리 · 크림슨 근접 베기: 투사체 없이 드래곤 자리에서. 범위 안에 적이 없으면 준비된 채로 기다린다
       const fired = L.pulse ? this.firePulse(L) : this.fireMelee(L);
       if (!fired) this.timer = 0;
@@ -177,6 +201,7 @@ export class BasicAttack {
     this.updateSeeds(delta);
     this.updateFlowers(delta);
     this.updateRings(delta);
+    this.updateTurrets(delta);
     this.drainClock += delta;
     if (this.drainClock >= 1000) {
       this.drainClock -= 1000;
@@ -198,9 +223,9 @@ export class BasicAttack {
     return Array.from({ length: count }, (_, i) => inRange[i % inRange.length]);
   }
 
-  private spawnBullet(target: Enemy, volley: Volley, explode: boolean, index: number, all: Enemy[], blast = false): void {
+  private spawnBullet(target: Enemy, volley: Volley, explode: boolean, index: number, all: Enemy[], blast = false, from?: { x: number; y: number }): void {
     const L = this.L;
-    const { x, y } = this.h.player;
+    const { x, y } = from ?? this.h.player;
     const total = all.length;
     let spread: number;
     if (L.homing > 0) {
@@ -312,7 +337,10 @@ export class BasicAttack {
     }
     const ex = e.x;
     const ey = e.y;
-    this.h.hit(e, { source: 'basic', coef: b.coef, levelMod: L.levelMod, sameVolley: same, tag: b.tag });
+    // 크리스탈: 관통할 때마다(두 번째 적부터) 피해 +x
+    const ramp = this.traits.pierceRamp ? 1 + this.traits.pierceRamp * Math.max(0, b.hitSet.size - 1) : 1;
+    const focus = b.child ? 1 : this.focusHit(e, b.volley.index, L, enemies);
+    this.h.hit(e, { source: 'basic', coef: b.coef * ramp * focus, levelMod: L.levelMod, sameVolley: same, tag: b.tag });
     if (b.explode && L.explosion) this.explode(ex, ey, L.explosion.radius, L.explosion.coef, L.explosion.color, enemies);
     if (b.blast && L.blast) {
       b.blast = false;
@@ -383,7 +411,7 @@ export class BasicAttack {
       if (d >= r + e.def.radius) continue;
       if (L.slow) e.slow(L.slow.ratio, L.slow.ms * this.traits.slowDurMult);
       if (s.knock) e.knock(e.x - x || 1, e.y - y, s.knock, 150);
-      this.h.hit(e, { source: 'basic', coef: s.coef, tag: 'basic-splash' });
+      this.h.hit(e, { source: 'basic', coef: s.coef * (1 + (this.traits.splashBonus ?? 0)), tag: 'basic-splash' });
     }
     const c = this.h.scene.add.circle(x, y, r, this.tint(), 0.25).setStrokeStyle(3, this.tint(), 0.7).setDepth(8);
     this.h.scene.tweens.add({ targets: c, alpha: 0, scale: 1.15, duration: 250, onComplete: () => c.destroy() });
@@ -598,15 +626,17 @@ export class BasicAttack {
     const ang = Phaser.Math.Angle.Between(x, y, target.x, target.y);
     const dirs = spin ? [] : m.back ? [ang, ang + Math.PI] : [ang];
     const g = this.h.scene.add.graphics().setDepth(8);
-    // 그림(fx-crimson-slash, 19차분)이 있으면 베는 방향으로 초승달 그림, 부채꼴은 옅게 범위만
-    const art = this.h.scene.textures.exists('fx-crimson-slash');
-    g.fillStyle(0xc2185b, art ? 0.12 : 0.35).lineStyle(art ? 0 : 5, 0xff5c7a, 0.9);
+    // 그림(fx-crimson-slash, 19차분)이 있으면 베는 방향으로 초승달 그림, 부채꼴은 옅게 범위만. 바하무트 브레스는 금빛(그림 fx-breath가 오면 그것)
+    const breath = this.spec.texture === 'bolt-breath';
+    const artKey = breath ? 'fx-breath' : 'fx-crimson-slash';
+    const art = this.h.scene.textures.exists(artKey);
+    g.fillStyle(breath ? 0xffb300 : 0xc2185b, art ? 0.12 : breath ? 0.3 : 0.35).lineStyle(art ? 0 : 5, breath ? 0xfff176 : 0xff5c7a, 0.9);
     if (spin) g.strokeCircle(x, y, range).fillCircle(x, y, range);
     for (const a of dirs) {
       g.slice(x, y, range, a - m.arc / 2, a + m.arc / 2).fillPath();
       if (!art) g.strokePath();
       else {
-        const s = this.h.scene.add.image(x + Math.cos(a) * range * 0.55, y + Math.sin(a) * range * 0.55, 'fx-crimson-slash').setDepth(8).setRotation(a).setDisplaySize(range * 1.1, range * 1.1);
+        const s = this.h.scene.add.image(x + Math.cos(a) * range * 0.55, y + Math.sin(a) * range * 0.55, artKey).setDepth(8).setRotation(a).setDisplaySize(range * 1.1, range * 1.1);
         this.h.scene.tweens.add({ targets: s, alpha: 0, scale: s.scale * 1.15, duration: 220, onComplete: () => s.destroy() });
       }
     }
@@ -617,7 +647,8 @@ export class BasicAttack {
       if (d > range + e.def.radius) continue;
       const ea = Phaser.Math.Angle.Between(x, y, e.x, e.y);
       if (!spin && !dirs.some((a) => Math.abs(Phaser.Math.Angle.Wrap(ea - a)) <= m.arc / 2 + Math.atan2(e.def.radius, Math.max(1, d)))) continue;
-      const coef = L.coef * (spin ? 1.5 : 1);
+      const coef = L.coef * (spin ? 1.5 : 1) * this.focusHit(e, this.volleyCount, L, null);
+      if (L.burn) e.burn(RED_BASIC.burn.perSec * (L.burnMult ?? 1), RED_BASIC.burn.ms, RED_BASIC.burn.maxStacks);
       this.h.hit(e, { source: 'basic', coef, levelMod: L.levelMod, tag: 'basic-melee' });
       this.drain(coef * L.levelMod);
     }
@@ -737,6 +768,73 @@ export class BasicAttack {
     return best;
   }
 
+  // ───────── 같은 적 연속 적중(실바·바하무트, 2026-11-27) ─────────
+  /**
+   * 이 적을 바로 앞 공격 주기(또는 같은 주기)에도 맞혔으면 연속 횟수 +1, 아니면 1부터.
+   * 돌려주는 값 = 특성 피해 배율(1 + focusBonus × (연속−1), 최대 FOCUS_MAX_STACKS번). 실바는 every번째 연속마다 굵은 가지 추가 공격.
+   */
+  private focusHit(e: Enemy, volley: number, L: BasicLevel, enemies: Enemy[] | null): number {
+    const bonus = this.traits.focusBonus ?? 0;
+    if (!bonus && !L.focus) return 1;
+    const cur = this.focusMap.get(e.uid);
+    const stacks = cur && volley - cur.volley <= 1 ? (cur.volley === volley ? cur.stacks : cur.stacks + 1) : 1;
+    this.focusMap.set(e.uid, { volley, stacks });
+    if (this.focusMap.size > 400) this.focusMap.clear(); // 오래된 기록이 쌓이지 않게
+    if (L.focus && cur?.volley !== volley && stacks % L.focus.every === 0 && enemies) this.branch(e, L, enemies);
+    return 1 + bonus * Math.min(FOCUS_MAX_STACKS, stacks - 1);
+  }
+
+  /** 실바 굵은 가지: 그 적에게 추가 피해(Lv.7은 주변까지) + 가지가 뻗는 연출 */
+  private branch(e: Enemy, L: BasicLevel, enemies: Enemy[]): void {
+    const f = L.focus!;
+    const { x, y } = this.h.player;
+    const g = this.h.scene.add.graphics().setDepth(8);
+    g.lineStyle(7, 0x6d4c41, 1).lineBetween(x, y, e.x, e.y).lineStyle(3, 0x9ccc65, 1).lineBetween(x, y, e.x, e.y);
+    this.h.scene.tweens.add({ targets: g, alpha: 0, duration: 260, onComplete: () => g.destroy() });
+    const targets = f.radius ? enemies.filter((o) => o.active && Phaser.Math.Distance.Between(e.x, e.y, o.x, o.y) < this.area(f.radius!) + o.def.radius) : [e];
+    for (const t of targets) this.h.hit(t, { source: 'basic', coef: f.coef, levelMod: L.levelMod, tag: 'basic-branch' });
+  }
+
+  // ───────── 기어스 소형 포탑(2026-11-27) ─────────
+  private placeTurret(L: BasicLevel): void {
+    const t = L.turret!;
+    while (this.turrets.length >= t.max) this.turrets.shift()!.img.destroy();
+    const { x, y } = this.h.player;
+    const img = this.h.scene.add.image(x, y, this.h.scene.textures.exists('turret-gear') ? 'turret-gear' : this.spec.texture).setDepth(5).setScale(0.2);
+    this.h.scene.tweens.add({ targets: img, scale: 1, duration: 160, ease: 'Back.Out' });
+    this.turrets.push({ x, y, left: t.life, cd: 200, img });
+    this.h.onFire?.(0);
+  }
+
+  private updateTurrets(delta: number): void {
+    if (!this.turrets.length) return;
+    const L = this.L;
+    const t = L.turret;
+    const enemies = this.h.enemies().filter((e) => e.active);
+    this.turrets = this.turrets.filter((tu) => {
+      tu.left -= delta;
+      if (tu.left <= 0 || !t) {
+        tu.img.destroy();
+        return false;
+      }
+      if (tu.left < 1000) tu.img.setAlpha(Math.floor(tu.left / 120) % 2 ? 0.4 : 1); // 사라지기 1초 전 깜박임
+      tu.cd -= delta;
+      if (tu.cd > 0) return true;
+      const target = this.nearestTo(tu.x, tu.y, t.range, enemies);
+      if (!target) {
+        tu.cd = 0;
+        return true;
+      }
+      tu.cd += (t.fire / (1 + (this.traits.turretHaste ?? 0))) * this.hasteMult;
+      this.volleyCount++;
+      const volley: Volley = { hitUids: new Set(), index: this.volleyCount };
+      const shots = Array.from({ length: L.shots }, () => target);
+      shots.forEach((s, i) => this.spawnBullet(s, volley, false, i, shots, false, tu));
+      tu.img.setRotation(Phaser.Math.Angle.Between(tu.x, tu.y, target.x, target.y));
+      return true;
+    });
+  }
+
   private kill(b: Bullet): false {
     b.stopTrail?.();
     b.img.destroy();
@@ -751,6 +849,8 @@ export class BasicAttack {
     this.seeds.forEach((sd) => (sd.g.destroy(), sd.warn?.destroy()));
     this.rings.forEach((rg) => rg.g?.destroy());
     this.rings = [];
+    this.turrets.forEach((tu) => tu.img.destroy());
+    this.turrets = [];
     this.flowers.forEach((f) => f.g.destroy());
     this.seeds = [];
     this.flowers = [];

@@ -170,7 +170,7 @@ export const ART_FILES: Record<string, string> = {
   ...Object.fromEntries(['common', 'rare', 'epic', 'legendary'].map((g) => [`frame-${g}`, `frame/frame-${g}.webp`])),
   ...Object.fromEntries(['aura-enrage', 'aura-elite', 'zone-danger'].map((k) => [k, `hard/${k}.webp`])),
   // 13차분(v1.2 마지막 묶음, scripts/process_art_batch13.py): 어려움 배지·최초 클리어 카드 테두리·20단계 왕관·폭죽·보스 2마리 막대 틀
-  ...Object.fromEntries(['badge-hard', 'frame-hard', 'hard-clear-crown', 'fx-confetti', 'ui-boss-bar'].map((k) => [k, `hard/${k}.webp`])),
+  ...Object.fromEntries(['badge-hard', 'badge-extreme', 'fx-death-burst', 'fx-death-warn', 'frame-hard', 'hard-clear-crown', 'fx-confetti', 'ui-boss-bar'].map((k) => [k, `hard/${k}.webp`])),
   ...Object.fromEntries(['s', 'm', 'l'].map((k) => [`gold-pack-${k}`, `shop/gold-pack-${k}.webp`])),
   // UI 묶음(2026-11-26 Higgsfield, scripts/process_art_uiset.py): 루비 상품 5 · 연구소 메뉴 아이콘 · 업적 메달 4 · 우편 봉투 · 패스 받침대 · 결과 배너 2
   ...Object.fromEntries([1, 2, 3, 4, 5].map((k) => [`ruby-pack-${k}`, `shop/ruby-pack-${k}.webp`])),

@@ -164,7 +164,7 @@ describe('6-4 난이도·진행도', () => {
     expect(sum.reduce((s, r) => s + (r.gold ?? 0), 0)).toBe(50);
     expect(sum.map((r) => r.rubies)).toEqual([5, 5, STAGE_CLEAR_RUBIES]);
     // 어려울수록 100% 칸 루비도 많게(제작자 원칙 11/25): 쉬움 100 < 어려움 150 < 매우 어려움 200
-    expect([stageBoxReward('easy', 1, 3).rubies, stageBoxReward('hard', 1, 3).rubies, stageBoxReward('extreme', 1, 3).rubies]).toEqual([100, 150, 200]);
+    expect([stageBoxReward('easy', 1, 3).rubies, stageBoxReward('hard', 1, 3).rubies, stageBoxReward('extreme', 1, 3).rubies]).toEqual([100, 150, 300]); // 매우 어려움 300(11/27)
     expect(sum.map((r) => r.fragments?.count ?? 0)).toEqual([0, 0, 5]);
   });
   it('단계 상자 모두 받기: 20단계 × 3칸 합계 = 루비 2,200(100% 칸 100 × 20 + 25·50% 칸 200) · 골드 1,000 · 레드 조각 20(쉬움), 어려움은 2배', () => {
@@ -194,7 +194,7 @@ describe('6-4 난이도·진행도', () => {
     expect(p.difficulty.hard.unlocked).toEqual([]);
     p = clear(p, 10, 's10');
     expect(p.difficulty.hard.unlocked).toEqual([1]);
-    expect(p.difficulty.extreme.unlocked).toEqual([]); // 매우 어려움은 그대로 어려움 20개
+    expect(p.difficulty.extreme.unlocked).toEqual([]); // 매우 어려움은 어려움 10개(쉬움 클리어로는 안 열림)
   });
   it('어려움 해금 연출: 한 번만, 이미 어려움을 깬 예전 저장에는 안 띄움', () => {
     let p = defaultProgress();
@@ -327,19 +327,19 @@ describe('6-6 장비', () => {
     }
     p = { ...p, upgrades: { ...p.upgrades, attack: 5 } }; // 연구소 +10%
     const lo = loadout(p, 'red');
-    expect(lo.stats.attack).toBeCloseTo(10 * (1 + 0.1 + 0.07));
+    expect(lo.stats.attack).toBeCloseTo(DRAGONS.red.baseAttack * (1 + 0.1 + 0.07)); // 기본 공격력 13(10 × ATTACK_UP 1.3, 11/26)
     expect(lo.stats.maxHp).toBeCloseTo(100 * (1 + 0.232));
     expect(lo.permHpBonus).toBeCloseTo(23.2); // 장비 HP는 35% 상한 기준에서 뺀다
-    expect(lo.cp).toBeGreaterThan(1000);
-    expect(lo.cp).toBeLessThan(1300);
+    expect(lo.cp).toBeGreaterThan(1217);
+    expect(lo.cp).toBeLessThan(1550); // 공격력 ×1.3(11/26)
   });
   it('장비는 계정 공통 — 장착하면 어느 드래곤으로 출격해도 같은 장비 보너스', () => {
     const e = equipItem(withItems([item('a', 'sword', 'rare', 1)]), 'a');
     if (!e.ok) throw new Error();
     const red = loadout(e.progress, 'red');
     const blue = loadout(e.progress, 'water');
-    expect(red.stats.attack).toBeCloseTo(10 * 1.07);
-    expect(blue.stats.attack).toBeCloseTo(10 * 1.07);
+    expect(red.stats.attack).toBeCloseTo(DRAGONS.red.baseAttack * 1.07);
+    expect(blue.stats.attack).toBeCloseTo(DRAGONS.water.baseAttack * 1.07);
   });
   it('영웅·전설 추가 능력: 발톱 흡혈 1/2% · 갑주 가시 20/40% · 목걸이 치명타 피해 +20/40%p · 반지 경험치 +10/20%, 일반·희귀는 없음', () => {
     const gear = (rarity: string) => {
@@ -393,7 +393,7 @@ describe('6-7 → v1.2 룬(옛 장착형 특수 스킬)', () => {
     expect(p.specials.ancientEye).toEqual({ fragments: 30, unlocked: false, level: 0 });
     const lo = loadout(p, 'red');
     expect(lo.runes.attack).toBeCloseTo(0.02);
-    expect(lo.stats.attack).toBeCloseTo(loadout(defaultProgress(), 'red').stats.attack + 10 * 0.02);
+    expect(lo.stats.attack).toBeCloseTo(loadout(defaultProgress(), 'red').stats.attack + DRAGONS.red.baseAttack * 0.02);
   });
   it('룬 효과 묶음: 레벨 × 레벨당 값, 전투력 S에 레벨 합계 반영', () => {
     const e = runeEffects({ rage: 10, ancientEye: 5, treasure: 3 });
@@ -418,12 +418,12 @@ describe('6-7 → v1.2 룬(옛 장착형 특수 스킬)', () => {
 });
 
 describe('6-8 전투력', () => {
-  it('기본 레드 CP 1,000, 권장치(v1.3 임시) 1단계 900/1,350/1,980, 20단계 2,500', () => {
-    expect(loadout(defaultProgress(), 'red').cp).toBe(1000);
+  it('기본 레드 CP 1,000, 권장치(v1.3 임시) 1단계 900/1,620/1,701(어려움 ×1.2·매우 어려움 = 어려움 ×1.05, 11/27), 20단계 3,000', () => {
+    expect(loadout(defaultProgress(), 'red').cp).toBe(combatPower(13, 100, 260, 0)); // 기본 공격력 ×1.3(11/26) → 1,217
     expect(combatPower(10, 100, 260, 0)).toBe(1000);
-    expect([recommendedCp(1, 'easy'), recommendedCp(1, 'hard'), recommendedCp(1, 'extreme')]).toEqual([900, 1350, 1980]);
-    expect(recommendedCp(20, 'easy')).toBe(2500);
-    expect(recommendedCp(10, 'easy')).toBe(1550);
+    expect([recommendedCp(1, 'easy'), recommendedCp(1, 'hard'), recommendedCp(1, 'extreme')]).toEqual([900, 1620, 1701]);
+    expect(recommendedCp(20, 'easy')).toBe(3000); // 표 2,500 × 1.2(쉬움 6~20단계, 11/27)
+    expect(recommendedCp(10, 'easy')).toBe(1860); // 1,550 × 1.2
     expect(cpVerdict(1000, 900).text).toBe('권장 이상');
     expect(cpVerdict(800, 1000).text).toBe('도전 가능');
   });

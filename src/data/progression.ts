@@ -106,6 +106,10 @@ export function buildRunStats(
     executeBonus: (def.trait.id === 'execute' ? t : 0) + perm.executeAdd,
     ringBonus: def.trait.id === 'resonance' ? t : 0,
     drain: def.trait.id === 'drain' ? t : 0,
+    turretHaste: def.trait.id === 'turretHaste' ? t : 0,
+    focusBonus: def.trait.id === 'focus' ? t : 0,
+    splashBonus: def.trait.id === 'splashBonus' ? t : 0,
+    pierceRamp: def.trait.id === 'pierceRamp' ? t : 0,
   };
   // 35% 한 방 상한 기준 HP = 드래곤 기본 HP(종별). 연구소·영구 레벨·승급·장비로 오른 HP는 뺀다(v1.2 12장).
   return { stats, permHpBonus: stats.maxHp - baseHp, traitMult, traits, perm };

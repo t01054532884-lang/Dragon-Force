@@ -41,7 +41,8 @@ import { arenaLayout, clampToArena, hitsObstacle, makeArena, outsideArena, type 
 import { AURA_EVERY_MS, AURA_PAD, HAZARD_FROM_STAGE, HAZARD_RANGE, HAZARD_WARN_MS, obstacleTheme, type ObstacleHazard } from '../data/obstacleThemes';
 import { enterBattle } from '../ui/entry';
 import { attackTheme, BURST_CAP } from '../data/attackThemes';
-import { hardStage, type HardStageDef } from '../data/hardStages';
+import { type HardStageDef } from '../data/hardStages';
+import { DEATH_BURST, stageRule } from '../data/veryHardStages';
 import { fullH, offY } from '../ui/layout';
 import { playUltCutscene, playUltSweep, preloadUlt } from '../ui/UltCutscene';
 import { getLang } from '../i18n';
@@ -114,6 +115,13 @@ export class GameScene extends Phaser.Scene {
   private hard: HardStageDef | null = null;
   /** 어려움 8단계: 보스 공격 뒤 남는 위험 지대 */
   private dangerZones: { x: number; y: number; r: number; left: number; dmg: number; src: Enemy; g: Phaser.GameObjects.Arc | Phaser.GameObjects.Image }[] = [];
+  /**
+   * 매우 어려움 전용 "처치 시 폭발"(2026-11-27): 원 하나를 미리 만들어 두고 다시 쓰는 풀(새로 만들고 지우지 않음).
+   * 동시에 떠 있는 폭발은 DEATH_BURST.maxActive개까지 — 넘으면 그 처치는 폭발 없음(렉·화면 뒤덮임 방지). 트윈·흔들림·파티클 없음.
+   */
+  private bursts: { warn: Phaser.GameObjects.Image | Phaser.GameObjects.Arc; blast: Phaser.GameObjects.Image | Phaser.GameObjects.Arc; on: boolean; x: number; y: number; r: number; left: number; total: number; flash: number; dmg: number; src: Enemy }[] = [];
+  /** 성능 측정용: 만든 폭발·상한 때문에 건너뛴 수·동시 최대 */
+  burstStats = { spawned: 0, skipped: 0, maxActive: 0 };
   private bossTexts: Phaser.GameObjects.Text[] = [];
   /** 보스 2마리 체력 막대 틀 그림(ui-boss-bar, 어려움 요청서 6 ⑤) — 그림이 있을 때만 */
   private bossFrames: Phaser.GameObjects.Image[] = [];
@@ -286,10 +294,12 @@ export class GameScene extends Phaser.Scene {
     this.pendingLevelUps = 0;
     this.choiceQueue = [];
     // 어려움: 단계별 설정(전장 크기·적 배율·엘리트/보스 수·기믹). 쉬움은 기존 그대로
-    this.hard = this.difficulty === 'hard' ? hardStage(this.stage.id) : null;
+    this.hard = stageRule(this.difficulty, this.stage.id); // 어려움·매우 어려움(2026-11-26)은 단계 표, 쉬움은 null
     // 전장 모양(2026-11-24): 단계마다 원형/정사각형 + 장애물(src/data/arenas.ts)
     this.arena = makeArena(WORLD_SIZE / 2, WORLD_SIZE / 2, ARENA_R * (this.hard?.arenaSizeMultiplier ?? 1), arenaLayout(this.stage.id));
     this.dangerZones = [];
+    this.bursts = [];
+    this.burstStats = { spawned: 0, skipped: 0, maxActive: 0 };
     this.bossTexts = [];
     this.bossFrames = [];
     this.itemRng = new Phaser.Math.RandomDataGenerator([`${this.seed}:items`]);
@@ -497,7 +507,9 @@ export class GameScene extends Phaser.Scene {
     if (!tipSeen('battle-move')) this.showMoveTip();
     // 맵 기믹은 안내하지 않는다(제작자 2026-11-25: "말 안 해야 더 재밌어")
     // 어려움 기믹 설명 줄은 뺌(제작자 2026-11-25: 큰 글씨로 알려줄 필요 없음 — 맵 기믹 안내를 뺀 것과 같은 이유)
-    this.banner(this.hard ? `어려움 ${this.stage.id}단계 — ${this.hard.title}` : `${this.stage.id}단계 — ${this.stage.name}${this.difficulty === 'easy' ? '' : ` (${DIFFICULTY_LABEL[this.difficulty]})`}`, this.hard ? '#ff8a80' : '#e0e0e0');
+    this.banner(this.hard ? (this.difficulty === 'extreme' ? `매우 어려움 ${this.stage.id}단계 — ${this.hard.title}` : `어려움 ${this.stage.id}단계 — ${this.hard.title}`) : `${this.stage.id}단계 — ${this.stage.name}${this.difficulty === 'easy' ? '' : ` (${DIFFICULTY_LABEL[this.difficulty]})`}`, this.hard ? (this.difficulty === 'extreme' ? '#d59bff' : '#ff8a80') : '#e0e0e0');
+    // 매우 어려움 전용 규칙 안내(2026-11-27): 처치 시 작은 폭발
+    if (this.hard?.specialMechanic.deathBurst) this.time.delayedCall(2200, () => this.banner('쓰러진 적이 작게 폭발해요!\n빨간 원을 피하세요', '#ff8fb0'));
     // 어려움: 전투 시작 직후 스킬 카드 3번 고르기(시간 정지, 경험치 추가 없음)
     if (this.hard) {
       for (let k = 0; k < this.hard.startingSkillChoices; k++) this.choiceQueue.push('start');
@@ -1189,6 +1201,7 @@ export class GameScene extends Phaser.Scene {
       z.g.setAlpha(Math.min(1, z.left / 500));
       return true;
     });
+    this.updateDeathBursts(delta);
     // 어려움 8단계 위험 지대: 안에 있으면 피해(일반 무적 시간 적용), 시간이 지나면 사라짐
     this.dangerZones = this.dangerZones.filter((z) => {
       z.left -= delta;
@@ -1209,6 +1222,68 @@ export class GameScene extends Phaser.Scene {
       f.obj.setPosition(f.target.x, f.target.y);
       return true;
     });
+  }
+
+  /**
+   * 매우 어려움 "처치 시 폭발"(2026-11-27): 풀에서 한 칸을 꺼내 쓴다(새로 만들고 지우지 않음, 동시 DEATH_BURST.maxActive개).
+   * 예고(ms): 가시 고리 그림(fx-death-warn)이 조여 들며 진해지고 천천히 돈다 → 판정 → 폭발 그림(fx-death-burst)이 커지며 사라짐(flashMs).
+   * 그림이 없으면 예전처럼 원. 트윈·파티클·흔들림 없이 프레임마다 크기·투명도만 바꾼다(렉 방지).
+   */
+  private spawnDeathBurst(enemy: Enemy, b: { r: number; ms: number; dmgMult: number }): void {
+    const active = this.bursts.filter((x) => x.on).length;
+    if (active >= DEATH_BURST.maxActive) {
+      this.burstStats.skipped++;
+      return;
+    }
+    let slot = this.bursts.find((x) => !x.on);
+    if (!slot) {
+      const warn: Phaser.GameObjects.Image | Phaser.GameObjects.Arc = this.textures.exists('fx-death-warn')
+        ? this.add.image(0, 0, 'fx-death-warn').setDepth(4)
+        : this.add.circle(0, 0, b.r, DEATH_BURST.color, 0.12).setStrokeStyle(3, DEATH_BURST.color, 0.9).setDepth(4);
+      const blast: Phaser.GameObjects.Image | Phaser.GameObjects.Arc = this.textures.exists('fx-death-burst')
+        ? this.add.image(0, 0, 'fx-death-burst').setDepth(6).setBlendMode(Phaser.BlendModes.ADD)
+        : this.add.circle(0, 0, b.r, 0xffffff, 0.55).setDepth(6);
+      warn.setVisible(false);
+      blast.setVisible(false);
+      slot = { warn, blast, on: false, x: 0, y: 0, r: b.r, left: 0, total: 0, flash: 0, dmg: 0, src: enemy };
+      this.bursts.push(slot);
+    }
+    Object.assign(slot, { on: true, x: enemy.x, y: enemy.y, r: b.r, left: b.ms, total: b.ms, flash: 0, dmg: enemy.def.contactDamage * b.dmgMult * enemy.damageMult, src: enemy });
+    slot.warn.setPosition(enemy.x, enemy.y).setRotation(Math.random() * Math.PI).setAlpha(0.3).setVisible(true);
+    slot.warn.setDisplaySize(b.r * 2 * 1.5, b.r * 2 * 1.5);
+    slot.blast.setVisible(false);
+    this.burstStats.spawned++;
+    this.burstStats.maxActive = Math.max(this.burstStats.maxActive, active + 1);
+  }
+
+  private updateDeathBursts(delta: number): void {
+    for (const s of this.bursts) {
+      if (!s.on) continue;
+      if (s.flash > 0) {
+        // 폭발: 판정 반지름의 1.1배 → 2.6배로 커지며 사라짐(밝은 덧셈 합성)
+        s.flash -= delta;
+        const q = 1 - Math.max(0, s.flash) / DEATH_BURST.flashMs;
+        const d = s.r * 2 * (1.1 + 1.5 * q);
+        s.blast.setDisplaySize(d, d).setAlpha(1 - q * q).setRotation(s.blast.rotation + delta * 0.002);
+        if (s.flash <= 0) {
+          s.on = false;
+          s.blast.setVisible(false);
+        }
+        continue;
+      }
+      s.left -= delta;
+      // 예고: 1.5배 크기에서 판정 크기(1.15배 — 가시 끝까지)로 조여 들고, 점점 진해지며 천천히 돈다. 마지막 0.15초는 깜박임
+      const p = 1 - Math.max(0, s.left) / s.total;
+      const d = s.r * 2 * (1.5 - 0.35 * p);
+      const blink = s.left < 150 ? (Math.floor(s.left / 50) % 2 ? 0.55 : 1) : 1;
+      s.warn.setDisplaySize(d, d).setAlpha((0.3 + 0.65 * p) * blink).setRotation(s.warn.rotation + delta * 0.0015);
+      if (s.left > 0) continue;
+      if (Phaser.Math.Distance.Between(s.x, s.y, this.player.x, this.player.y) < s.r + 14) this.damagePlayer(s.dmg, s.src, true);
+      s.flash = DEATH_BURST.flashMs;
+      s.warn.setVisible(false);
+      s.blast.setPosition(s.x, s.y).setRotation(Math.random() * Math.PI).setAlpha(1).setVisible(true);
+      s.blast.setDisplaySize(s.r * 2.2, s.r * 2.2);
+    }
   }
 
   /** 드래곤 둔화(서리 발톱·눈보라): 가장 센 값 하나, 시간은 갱신 */
@@ -1761,6 +1836,11 @@ export class GameScene extends Phaser.Scene {
       this.dropGem(enemy.x, enemy.y, enemy.def.xp);
       // 처치마다 한 번, 최대 1종. 오래 안 나오면 천장, 체력이 낮으면 물약 확률 ×2, 물약은 판당 상한
       let drop = decideDrop(this.dropState, this.itemRng.frac(), this.hp / this.stats.maxHp);
+      // 매우 어려움 후보: 한 판 물약 상한을 낮춤(기본 6, 설정 없으면 그대로)
+      if (drop === 'potion' && this.hard?.potionCap !== undefined && this.dropState.potions > this.hard.potionCap) drop = null;
+      // 매우 어려움 후보 수식어: 일반 적 처치 시 확률로 예고 뒤 작은 폭발(설정 없으면 꺼짐)
+      const burst = this.hard?.specialMechanic.deathBurst;
+      if (burst && this.itemRng.frac() < burst.chance) this.spawnDeathBurst(enemy, burst);
       if (this.firstMagnetPending && this.elapsed >= ITEM_RULES.firstMagnetAtMs && drop !== 'magnet') {
         drop = 'magnet'; // 첫 판: 자석 확정 1번(주우면 다시 안 나옴)
         this.firstMagnetPending = false;
@@ -1888,7 +1968,7 @@ export class GameScene extends Phaser.Scene {
     }
     if (choices.some((u) => u.kind === 'basic')) this.basicEverOffered = true;
     if (k === 1) playSfx(this, 'sfx-hard-start');
-    this.showCards(`시작 스킬 ${k}/${total}`, '어려움: 전투 전에 스킬을 하나씩 골라요', choices, false);
+    this.showCards(`시작 스킬 ${k}/${total}`, this.difficulty === 'extreme' ? '매우 어려움: 전투 전에 스킬을 하나씩 골라요' : '어려움: 전투 전에 스킬을 하나씩 골라요', choices, false);
   }
 
   /** 스킬 강화 상자: 이미 가진 기본공격·액티브 중 더 올릴 수 있는 것 최대 3개 (새 스킬 없음) */
@@ -2289,7 +2369,7 @@ export class GameScene extends Phaser.Scene {
         this.tweens.add({ targets: piece, alpha: 0, duration: 500, delay: 2500 + i * 120, onComplete: () => piece.destroy() });
       }
     }
-    this.time.delayedCall(600, () => this.banner('드래곤의 최종 시련 정복!', '#ffd34d'));
+    this.time.delayedCall(600, () => this.banner(this.difficulty === 'extreme' ? '용의 종말 정복! 매우 어려움 완주!' : '드래곤의 최종 시련 정복!', '#ffd34d'));
     playSfx(this, 'sfx-hard-clear');
   }
 
@@ -2478,7 +2558,7 @@ export class GameScene extends Phaser.Scene {
     // ── 결과 화면(종합 개선 기획서 v1.1 3장): 정보 한 판 → 성장 목표 한 줄 → 피해 상위 3 → 작은 골드 정산 ──
     const mmss = (ms: number) => `${String(Math.floor(ms / 60000)).padStart(2, '0')}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`;
     const secTxt = (ms: number | null | undefined) => (ms == null ? '—' : `${Math.round(ms / 1000)}초`);
-    const stageLabel = this.hard ? `어려움 ${this.stage.id}단계 ${this.hard.title}` : `${this.stage.id}단계 ${this.stage.name}`;
+    const stageLabel = this.hard ? (this.difficulty === 'extreme' ? `매우 어려움 ${this.stage.id}단계 ${this.hard.title}` : `어려움 ${this.stage.id}단계 ${this.hard.title}`) : `${this.stage.id}단계 ${this.stage.name}`;
     const head = clear ? `클리어 ${mmss(this.elapsed)}` : reason === 'timeout' ? '시간 초과' : reason === 'quit' ? `포기 ${mmss(this.elapsed)}` : `생존 ${mmss(this.elapsed)}`;
     const cards = this.runRewards.reduce((a, r) => a + (r.cards?.count ?? 0), 0);
     const rubies = this.runRewards.reduce((a, r) => a + (r.rubies ?? 0), 0);

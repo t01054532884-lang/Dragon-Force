@@ -20,7 +20,7 @@ const dps = (id: DragonId, lv: number): number => {
 
 describe('출시 스위치', () => {
   it('데이터 19종 모두 첫 출시(2026-11-23 밤 제작자 결정: 미러·전설 3종도 함께)', () => {
-    expect(DRAGON_ORDER).toHaveLength(19);
+    expect(DRAGON_ORDER).toHaveLength(24); // 2026-11-27 신규 5종(그림 오기 전까지 숨김)
     expect(releasedDragons()).toHaveLength(19);
     const added: DragonId[] = ['sand', 'steel', 'bloom', 'howl', 'crimson', 'mirror', 'chrono', 'void', 'aurora'];
     for (const id of added) {

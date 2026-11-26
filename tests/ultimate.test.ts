@@ -10,15 +10,15 @@ describe('필살기 규칙', () => {
     expect(ultCooldown('arcane')).toBe(120_000);
     expect(ultCooldown('red')).toBe(150_000);
   });
-  it('엘리트·보스 배율: 일반·희귀 4 · 영웅 5 · 전설 6, 레드(기본)는 일반', () => {
-    const want: Record<string, number> = { starter: 4, common: 4, rare: 4, epic: 5, legendary: 6 };
+  it('엘리트·보스 배율(2026-11-26 상향): 일반 10 · 희귀 11 · 영웅 13 · 전설 15, 레드(기본)는 일반', () => {
+    const want: Record<string, number> = { starter: 10, common: 10, rare: 11, epic: 13, legendary: 15 };
     for (const id of DRAGON_ORDER) expect(ultMult(id), id).toBe(want[DRAGONS[id].rarity]);
-    expect(ultMult('red')).toBe(4);
-    expect(ultMult('aurora')).toBe(6);
+    expect(ultMult('red')).toBe(10);
+    expect(ultMult('aurora')).toBe(15);
   });
-  it('한 번 상한: 보스 24%·엘리트 75%(60초 스킬 3번 몫), 일반 몬스터는 상한 없음(모두 처치)', () => {
-    expect(ultCap('boss', 1000)).toBeCloseTo(240);
-    expect(ultCap('elite', 1000)).toBeCloseTo(750);
+  it('한 번 상한: 보스 35%·엘리트 100%(11/26, 예전 24%·75%), 일반 몬스터는 상한 없음(모두 처치)', () => {
+    expect(ultCap('boss', 1000)).toBeCloseTo(350);
+    expect(ultCap('elite', 1000)).toBeCloseTo(1000);
     expect(ultCap('normal', 1000)).toBe(Infinity);
     expect(ULT_RULES.cutsceneMs).toBe(3000);
   });

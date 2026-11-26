@@ -87,6 +87,12 @@ export const SIGNATURES: Record<DragonId, SignatureDef> = {
   // 신규 3묶음(전설): 60초 전용 스킬 대신 기본 공격 N회마다 자동 발동하는 고유 공격(제작자 결정 2026-11-22)
   chrono: { name: '시계 폭탄', icon: '⏰', text: '기본 공격 5회마다 시계를 던져 3초 뒤 폭발', detail: '자동: 기본 공격 5회마다 적이 많은 곳에 시계 폭탄 → 3초 뒤 2.6m 폭발, 적마다 DPS×2.5초', kind: 'counter', cooldownMs: 0, every: 5, radius: 2.6 * M, durationMs: 3000, perTargetSec: 2.5, color: 0xe0a14a },
   void: { name: '중력 붕괴', icon: '🕳️', text: '기본 공격 10회마다 블랙홀로 끌어당김', detail: '자동: 기본 공격 10회마다 적이 많은 곳에 3m 블랙홀 2.5초 — 일반 적을 가운데로 끌어당기며 적마다 총 DPS×4초(엘리트·보스는 끌리지 않음)', kind: 'counter', cooldownMs: 0, every: 10, radius: 3 * M, durationMs: 2500, perTargetSec: 4, color: 0x7c4dff },
+  // 신규 4묶음(2026-11-27, 제작자 기획의 필살기를 전용 스킬 효과로 — 같은 예산 규칙)
+  gears: { name: '전술 포대', icon: '🛠️', text: '포탑 여러 대가 집중 포격', detail: `단일: 3초 동안 포탑 3대가 엘리트·보스 우선 집중 포격, 합계 DPS×${R.singleSec}초`, kind: 'single', cooldownMs: CD, durationMs: 3000, radius: 10 * M, color: 0xffb74d },
+  silva: { name: '세계수의 각성', icon: '🌳', text: '거대한 고목이 솟아 주변을 휩쓸고 파편을 흩뿌림', detail: `광역: 주변 5.5m, 적마다 DPS×${R.aoePerTargetSec}초 + 밀쳐냄 + 나무 파편이 범위 밖 적에게 튐`, kind: 'aoe', cooldownMs: CD, radius: 5.5 * M, knock: 420, color: 0x8bc34a },
+  forge: { name: '대지 강타', icon: '🔨', text: '망치로 바닥을 내리쳐 넓은 충격파', detail: `광역: 주변 5.8m 충격파, 적마다 DPS×${R.aoePerTargetSec}초 + 밀쳐냄`, kind: 'aoe', cooldownMs: CD, radius: 5.8 * M, knock: 520, color: 0xff7043 },
+  crystal: { name: '수정의 폭발', icon: '💠', text: '전방 넓은 범위에 거대한 수정 기둥', detail: `광역: 적이 가장 많은 방향으로 10m·폭 6m, 적마다 DPS×${R.aoePerTargetSec}초 + 30% 둔화 2초`, kind: 'beam', cooldownMs: CD, length: 10 * M, width: 3 * M, slow: { ratio: 0.3, ms: 2000 }, color: 0x4dd0e1 },
+  bahamut: { name: '용왕의 숨결', icon: '🐲', text: '전장을 가로지르는 브레스', detail: `광역: 적이 가장 많은 방향으로 16m·폭 6.4m, 적마다 DPS×${R.aoePerTargetSec}초 + 화상`, kind: 'beam', cooldownMs: CD, length: 16 * M, width: 3.2 * M, burn: true, color: 0xffd54f },
   aurora: { name: '극광의 장막', icon: '🌌', text: '기본 공격 20회마다 바라보는 방향으로 극광이 휩쓺', detail: '자동: 기본 공격 20회마다 드래곤이 바라보는 방향 14m·폭 4.4m 극광 휩쓸기, 적마다 DPS×6초', kind: 'counter', cooldownMs: 0, every: 20, length: 14 * M, width: 2.2 * M, perTargetSec: 6, color: 0x7cf2c4 },
   arcane: { name: '마력 폭주', icon: '🔮', text: '짧은 시간 추가 마력탄', detail: `단일: 4초 동안 마력탄 10발, 엘리트·보스 우선, 합계 DPS×${R.singleSec}초`, kind: 'single', cooldownMs: CD, durationMs: 4000, ticks: 10, radius: 11 * M, color: 0xb693ff },
 };
@@ -95,20 +101,21 @@ export const SIGNATURES: Record<DragonId, SignatureDef> = {
  * 필살기(2026-11-25 제작자 확정, docs/ULTIMATE.md): 60초 전용 스킬 → 3초 컷신이 나오는 필살기.
  * - 쿨타임: 일반~영웅 150초(제작자 2026-11-26: 3분 → 2분 30초), 전설 120초. 전설 3종(크로노·보이드·오로라)의 "기본 공격 N회마다 자동"은 없애고 버튼 필살기로.
  * - 컷신이 끝나는 순간: 화면에 보이는 **일반 몬스터는 모두 처치**, 엘리트·보스는 D × 등급 배율
- *   (D = 지금 기본 공격 DPS × 광역 대상당 초 = 60초 스킬 한 번의 대상당 피해) — 일반·희귀 4배, 영웅 5배, 전설 6배(레드는 일반).
- *   체력이 많으면 살아남는다. 한 번 상한은 60초 스킬 3번 몫(보스 24%·엘리트 75%, 임시 — 봇으로 측정).
+ *   (D = 지금 기본 공격 DPS × 광역 대상당 초 = 60초 스킬 한 번의 대상당 피해) — 일반 10 · 희귀 11 · 영웅 13 · 전설 15배(레드는 일반).
+ *   (2026-11-26 제작자: 매우 어려움과 함께 4~6배 → 10~15배. 수치는 AI 1차안)
+ *   체력이 많으면 살아남는다. 한 번 상한 보스 35%·엘리트 100%(예전 24%·75% — 배율을 올려도 상한에 막히지 않게 같이 올림, 임시).
  * - 그 드래곤의 원래 전용 스킬 효과(화상·빙결·회복 등)도 같이 나간다(원래 상한 그대로).
  */
 export const ULT_RULES = {
   cooldownMs: 150_000,
   legendaryCooldownMs: 120_000,
-  mult: { starter: 4, common: 4, rare: 4, epic: 5, legendary: 6 } as Record<string, number>,
-  bossCapPct: 0.24,
-  eliteCapPct: 0.75,
+  mult: { starter: 10, common: 10, rare: 11, epic: 13, legendary: 15 } as Record<string, number>,
+  bossCapPct: 0.35,
+  eliteCapPct: 1,
   cutsceneMs: 3000,
 };
 export const ultCooldown = (id: DragonId): number => (DRAGONS[id].rarity === 'legendary' ? ULT_RULES.legendaryCooldownMs : ULT_RULES.cooldownMs);
-export const ultMult = (id: DragonId): number => ULT_RULES.mult[DRAGONS[id].rarity] ?? 4;
+export const ultMult = (id: DragonId): number => ULT_RULES.mult[DRAGONS[id].rarity] ?? 10;
 /** 필살기가 엘리트·보스에게 한 번에 넣는 피해 상한 */
 export const ultCap = (rank: 'normal' | 'elite' | 'boss', maxHp: number): number =>
   rank === 'boss' ? maxHp * ULT_RULES.bossCapPct : rank === 'elite' ? maxHp * ULT_RULES.eliteCapPct : Infinity;
@@ -126,6 +133,7 @@ export const ULT_NAMES: Record<DragonId, string> = {
   white: '성광의 기둥', black: '그림자 포식', stone: '운석 낙하', bloom: '천화의 만개', howl: '천지의 포효',
   wind: '대폭풍', water: '심해의 격류', crimson: '핏빛 초승달', mirror: '거울 세계',
   chrono: '시간 정지', void: '사건의 지평선', aurora: '극광의 심판', arcane: '마력 강림',
+  gears: '전술 포대', silva: '세계수의 각성', forge: '대지 강타', crystal: '수정의 폭발', bahamut: '용왕의 숨결',
 };
 
 /** 광역형 한 마리당 피해: 대상당 DPS × 4초, 맞은 적이 많으면 총합 DPS × 24초를 나눈다 */
@@ -178,6 +186,11 @@ export function sigGrowth(id: DragonId, tier: number): SigGrowth {
     case 'chrono': return { dmg, radius: 1 + 0.08 * t, count: 0, lingerMs: 0 }; // 시계 폭탄 범위
     case 'void': return { dmg, radius: 1 + 0.08 * t, count: 0, lingerMs: 2500 + 500 * t }; // 블랙홀 범위·유지
     case 'aurora': return { dmg, radius: 1 + 0.1 * t, count: 0, lingerMs: 0 }; // 극광 폭
+    case 'gears': return { dmg, radius: 1, count: 12 + 3 * t, lingerMs: 0 }; // 포격 수
+    case 'silva': return { dmg, radius: 1 + 0.08 * t, count: 4 + 2 * t, lingerMs: 0 }; // 나무 파편 수
+    case 'forge': return { dmg, radius: 1 + 0.08 * t, count: t >= 3 ? 3 : t >= 2 ? 2 : 1, lingerMs: 0 }; // 충격파 횟수
+    case 'crystal': return { dmg, radius: 1 + 0.08 * t, count: 1 + Math.ceil(t / 2), lingerMs: 0 }; // 수정 기둥 줄 수
+    case 'bahamut': return { dmg, radius: 1 + 0.08 * t, count: 1 + Math.ceil(t / 2), lingerMs: 0 }; // 브레스 줄 수
   }
 }
 
@@ -190,8 +203,8 @@ export function sigGrowthLines(id: DragonId, tier: number): Record<string, strin
   if (d.radius) out['범위'] = m(d.radius);
   if (d.length) out['길이·폭'] = `${m(d.length)} · ${m(d.width! * 2)}`;
   if (d.kind === 'counter') out['발동'] = `기본 공격 ${d.every}회마다`;
-  const label: Partial<Record<DragonId, string>> = { yellow: '연쇄 번개', black: '암흑 빔', stone: '바위 파동', wind: '바람 칼날', water: '해일', arcane: '마력탄', steel: '강철 검', bloom: '가시 꽃', howl: '포효', mirror: '거울 분신' };
-  const unit: Partial<Record<DragonId, string>> = { yellow: '갈래', arcane: '개', wind: '개', steel: '자루', bloom: '송이', howl: '겹', mirror: '개' };
+  const label: Partial<Record<DragonId, string>> = { gears: '포격', silva: '나무 파편', forge: '충격파', crystal: '수정 기둥', bahamut: '브레스', yellow: '연쇄 번개', black: '암흑 빔', stone: '바위 파동', wind: '바람 칼날', water: '해일', arcane: '마력탄', steel: '강철 검', bloom: '가시 꽃', howl: '포효', mirror: '거울 분신' };
+  const unit: Partial<Record<DragonId, string>> = { gears: '발', silva: '개', crystal: '줄', bahamut: '줄', yellow: '갈래', arcane: '개', wind: '개', steel: '자루', bloom: '송이', howl: '겹', mirror: '개' };
   if (label[id]) out[label[id]!] = `${g.count}${unit[id] ?? '번'}`;
   const linger: Partial<Record<DragonId, string>> = { red: '남는 불길', blue: '냉기 장판', green: '독구름', white: '보호막', wind: '질주 추가', sand: '모래 늪', bloom: '꽃 유지', mirror: '분신 유지', void: '블랙홀 유지' };
   if (linger[id] && g.lingerMs) out[linger[id]!] = `${(g.lingerMs / 1000).toFixed(1)}초`;

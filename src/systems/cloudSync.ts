@@ -20,6 +20,8 @@ export interface SaveSummary {
   dragons: number; // 보유 드래곤 수
   easyStage: number; // 쉬움 최고 해금 단계
   hardStage: number;
+  /** 매우 어려움 최고 해금 단계(2026-11-26 추가 — 예전 서버 요약엔 없음) */
+  extremeStage?: number;
   updatedAt: number;
 }
 
@@ -51,6 +53,7 @@ export function summarize(p: PlayerProgress, now = Date.now()): SaveSummary {
     dragons: Object.values(p.dragons ?? {}).filter((d) => d?.unlocked).length,
     easyStage: Math.max(0, ...p.difficulty.easy.unlocked),
     hardStage: Math.max(0, ...p.difficulty.hard.unlocked),
+    extremeStage: Math.max(0, ...(p.difficulty.extreme?.unlocked ?? [])),
     updatedAt: now,
   };
 }
@@ -59,6 +62,7 @@ export function summarize(p: PlayerProgress, now = Date.now()): SaveSummary {
 export function summaryLine(s: SaveSummary): string {
   const parts = [`쉬움 ${s.easyStage}단계`];
   if (s.hardStage) parts.push(`어려움 ${s.hardStage}단계`);
+  if (s.extremeStage) parts.push(`매우 어려움 ${s.extremeStage}단계`);
   parts.push(`드래곤 ${s.dragons}`, `골드 ${s.gold.toLocaleString()}`, `루비 ${s.rubies.toLocaleString()}`);
   return parts.join(' · ');
 }

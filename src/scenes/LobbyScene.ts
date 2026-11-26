@@ -4,7 +4,7 @@ import { STAGES } from '../data/stages';
 import { DRAGONS, ELEMENT_LABEL, RARITY_COLOR, RARITY_LABEL } from '../data/dragons';
 import { DIFFICULTIES, DIFFICULTY_LABEL, DIFFICULTY_RELEASED, DIFFICULTY_UNLOCK_AT, STAGE_COUNT, type Difficulty } from '../data/economy';
 import { cpVerdict, recommendedCp } from '../data/power';
-import { hardStage } from '../data/hardStages';
+import { stageRule } from '../data/veryHardStages';
 import { attendanceActive, attendedToday, pendingDifficultyUnlock, CHEST_TIERS, claimableMissions, claimableStageBoxes, eventActive, eventState, progressPct, Progress, spinsAvailable, stageChestState, stageReach } from '../systems/Progress';
 import { loadout } from '../systems/Loadout';
 import { pendingGifts, staminaNow } from '../systems/Mailbox';
@@ -12,10 +12,11 @@ import { STAMINA, formatLeft, nextRegenIn } from '../systems/Stamina';
 import { devMode, devQuery, gameNow } from '../ui/widgets';
 import { enterBattle } from '../ui/entry';
 import { drawLobbyBackdrop, makeArtPlaceholders, preloadArt } from '../ui/art';
+import { releaseBattleArt } from '../ui/artMemory';
 import { button, modal, navBar, text, type KitButton } from '../ui/kit';
 import { applySound, loadSettings, markTip, saveSettings, tipSeen } from '../systems/Settings';
 import { PACKAGES } from '../data/economy';
-import { RUNE_MILESTONES, RUNE_MILESTONE_TICKETS, runeGiftId } from '../systems/Mailbox';
+import { RUNE_MILESTONES, runeGiftId, runeMilestoneTickets } from '../systems/Mailbox';
 import { passValuePct } from '../data/pass';
 import { playSfx, preloadSfx, UI_SFX_FILES } from '../systems/Sfx';
 import { playMusic, preloadMusic, refreshMusic } from '../systems/Music';
@@ -110,6 +111,7 @@ export class LobbyScene extends Phaser.Scene {
     this.settingsUi = null;
     if (!this.textures.exists('dragon-red')) makeTextures(this);
     makeArtPlaceholders(this);
+    releaseBattleArt(this); // 1.0.3 메모리: 전투 전용 그림·필살기 영상 캐시를 내림(다음 전투가 다시 읽음)
     const dev = devMode();
     const now = gameNow();
     // 테스터 링크(?dev=1, 웹만): 로비에 올 때마다 루비·골드 20,000 이상 + 만든 단계 전부 열기
@@ -152,7 +154,7 @@ export class LobbyScene extends Phaser.Scene {
     wingBanner(this, 360, 222, 430, `${this.stageId}단계 · ${s0 ? s0.name : '준비 중'}`, {
       sub: `${DIFFICULTY_LABEL[curDiff]} · 왕국 정복 ${p.difficulty[curDiff].cleared.length}/${STAGE_COUNT} (${progressPct(p, curDiff)}%)`,
       // 어려움이면 배너 문장을 어려움 배지로(badge-hard, 요청서 6 ⑤)
-      emblem: curDiff === 'hard' && this.textures.exists('badge-hard') ? 'badge-hard' : 'ic-banner',
+      emblem: curDiff === 'hard' && this.textures.exists('badge-hard') ? 'badge-hard' : curDiff === 'extreme' && this.textures.exists('badge-extreme') ? 'badge-extreme' : 'ic-banner', // 매우 어려움 배지(2026-11-27 Higgsfield)
     });
 
     // ── 양옆 바로가기
@@ -271,12 +273,13 @@ export class LobbyScene extends Phaser.Scene {
     const cleared = p.difficulty[curDiff].cleared.includes(this.stageId);
     stageText.setText(`${this.stageId}단계 — ${s ? s.name : '준비 중'}`);
     // 어려움: 단계 이름·특수 기믹·최초 클리어 루비·최고 기록(기획서 9장)
-    const hs = curDiff === 'hard' ? hardStage(this.stageId) : null;
+    const hs = stageRule(curDiff, this.stageId); // 어려움·매우 어려움(2026-11-26)
     const bestMs = p.difficulty[curDiff].best?.[String(this.stageId)];
     const bestTxt = bestMs ? ` · 최고 ${Math.floor(bestMs / 60000)}:${String(Math.floor(bestMs / 1000) % 60).padStart(2, '0')}` : '';
     if (hs) {
-      stageText.setText(`어려움 ${this.stageId} — ${hs.title}`);
-      if (this.textures.exists('badge-hard')) this.add.image(360 - stageText.width / 2 - 24, 976, 'badge-hard').setDisplaySize(38, 38);
+      stageText.setText(curDiff === 'extreme' ? `매우 어려움 ${this.stageId} — ${hs.title}` : `어려움 ${this.stageId} — ${hs.title}`);
+      const badgeKey = curDiff === 'extreme' ? 'badge-extreme' : 'badge-hard';
+      if (this.textures.exists(badgeKey)) this.add.image(360 - stageText.width / 2 - 24, 976, badgeKey).setDisplaySize(38, 38);
     }
     const rec = recommendedCp(this.stageId, curDiff);
     const v = cpVerdict(lo.cp, rec);
@@ -389,12 +392,12 @@ export class LobbyScene extends Phaser.Scene {
   private maybeRuneGiftPopup(then: () => void): void {
     if (DEMO) return then();
     const p = Progress.load();
-    const LABEL: Record<string, string> = { easy: '쉬움', hard: '어려움' };
+    const LABEL: Record<string, string> = { easy: '쉬움', hard: '어려움', extreme: '매우 어려움' };
     const due = RUNE_MILESTONES.filter((m) => p.mailbox.granted.includes(runeGiftId(m.difficulty, m.stageId)) && !tipSeen(`rune-pop-${runeGiftId(m.difficulty, m.stageId)}`));
     if (!due.length) return then();
     for (const m of due) markTip(`rune-pop-${runeGiftId(m.difficulty, m.stageId)}`);
     const names = due.map((m) => `${LABEL[m.difficulty] ?? m.difficulty} ${m.stageId}단계`);
-    const total = due.length * RUNE_MILESTONE_TICKETS;
+    const total = due.reduce((s, m) => s + runeMilestoneTickets(m.difficulty, m.stageId), 0);
     playSfx(this, 'sfx-reward-rare');
     const m = modal(this, 660, 760, `${names[names.length - 1]} 클리어!`, { closeOnBackdrop: true, ribbonColor: 0x7b3fe4, depth: 900 });
     if (this.textures.exists('rune-reward-pop')) {

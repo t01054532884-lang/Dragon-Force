@@ -16,7 +16,7 @@ export interface BotOpt {
   hp?: number;
   sig?: boolean;
   maxSec?: number;
-  difficulty?: 'easy' | 'hard';
+  difficulty?: 'easy' | 'hard' | 'extreme';
   /** false면 11~20단계 맵 기믹(근접 피해·방해 요소)을 끄고 잰다(비교용) */
   hazards?: boolean;
   /** true면 쓰러져도 끝내지 않고 HP를 다시 채워 계속(쓰러진 시각을 기록) — 한 판 전체의 받는 피해를 재는 용도(2026-11-25) */
@@ -56,6 +56,7 @@ function play(g: Any, s: Any, opt: BotOpt, resolve: (v: unknown) => void): void 
     g.headlessStep(t, 16.667);
   };
   if (opt.hazards === false) s.mapHazardsOff = true;
+  s.revived = true; // 광고 부활 창(1.0.2)을 건너뛰고 바로 쓰러짐 처리(창에서 멈추지 않게, 2026-11-26)
   if (opt.atk) s.stats.attack *= opt.atk;
   if (opt.hp) {
     s.stats.maxHp *= opt.hp;

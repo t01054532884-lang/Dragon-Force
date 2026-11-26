@@ -10,9 +10,9 @@ describe('어려움 1~20단계 데이터(기획서 v1.0)', () => {
   it('20단계 모두, 원문 권장 전투력 배율 ×1.50 → ×2.00', () => {
     expect(HARD_STAGES).toHaveLength(20);
     expect(HARD_STAGES.map((h) => h.recommendedPowerMultiplier)).toEqual([1.5, 1.5, 1.55, 1.55, 1.6, 1.6, 1.65, 1.65, 1.7, 1.7, 1.75, 1.75, 1.8, 1.8, 1.85, 1.85, 1.9, 1.9, 1.95, 2.0]);
-    // 예: 쉬움 10단계 1,550 → 어려움 ×1.70 = 2,635
-    expect(recommendedCp(10, 'hard')).toBe(Math.round(RECOMMENDED_EASY[9] * 1.7));
-    expect(recommendedCp(10, 'easy')).toBe(RECOMMENDED_EASY[9]);
+    // 예: 쉬움 10단계 1,550 → 어려움 ×1.70 × 1.2(2026-11-27 권장 상향) = 3,162
+    expect(recommendedCp(10, 'hard')).toBe(Math.round(RECOMMENDED_EASY[9] * 1.7 * 1.2));
+    expect(recommendedCp(10, 'easy')).toBe(Math.round(RECOMMENDED_EASY[9] * 1.2));
   });
   it('전장 크기 95% → 70%(줄어들기만), 적 체력·공격력 배율은 단계마다 같거나 증가', () => {
     expect([1, 4, 7, 10, 13, 16, 19].map((s) => hardStage(s).arenaSizeMultiplier)).toEqual([0.95, 0.9, 0.85, 0.8, 0.75, 0.72, 0.7]);

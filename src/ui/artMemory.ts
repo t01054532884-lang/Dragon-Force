@@ -11,10 +11,40 @@ import { ART_FILES, LAZY_ART } from './art';
  */
 const BATTLE_UNUSED = /^(scrbg-|att-|rubypass-|lvup-|rune-reward-|medal-|ruby-pack-|mail-open|lobby-bg|title-deco|skin-board-bg|chest-|sigil-|portrait-|equip-|pass-|event-|pkg-|logo-|skin-icon-)/;
 
+/**
+ * 드래곤마다 하나씩 있는 그림(2026-11-27 1.0.3 메모리 최적화): 전투에서는 출격 드래곤 것만 쓴다
+ * — 전용 스킬 그림(sigart-)·전용 스킬 효과(sigfx-)·필살기 버튼 아이콘(sig-)·기본 공격 카드 아이콘(basic-)
+ */
+const PER_DRAGON = /^(sigart|sigfx|sig|basic)-([a-z]+)$/;
+/** 전투에서 안 쓰는 그림 더(2026-11-27): 룬 아이콘(연구소·상점·보상), 로비 단계 배경(로비가 돌아오면 다시 읽음) */
+const BATTLE_UNUSED_MORE = /^(sp-|lobby-bg-\d+$)/;
+
 /** 전투에서 안 쓰는 그림인가(탑다운은 출격 드래곤과 블랙 — 다른 드래곤 필살기 연출이 빌려 씀 — 만 씀) */
 function battleUnused(key: string, dragonId: string): boolean {
   if (key.startsWith('top-')) return key !== `top-${dragonId}` && key !== 'top-black';
-  return BATTLE_UNUSED.test(key);
+  const per = PER_DRAGON.exec(key);
+  if (per) return per[2] !== dragonId;
+  return BATTLE_UNUSED.test(key) || BATTLE_UNUSED_MORE.test(key);
+}
+
+/**
+ * 로비·메뉴에서 안 쓰는 전투 전용 그림·영상(2026-11-27 1.0.3 메모리 최적화).
+ * 전투 preload(preloadBattleArt·preloadUlt)가 없는 것만 다시 읽으므로 내려도 다음 전투에 저절로 올라온다.
+ * - 적 그림(art-), 어려움 오라·위험 지대, 처치 시 폭발 그림, 필살기 배경·효과 그림
+ * - 필살기 영상·소리 캐시(드래곤을 바꿔 가며 싸우면 드래곤마다 쌓이던 것)
+ */
+const LOBBY_UNUSED = /^(art-|aura-enrage$|aura-elite$|zone-danger$|fx-death-|ult-bg$|ult-fx-)/;
+export function releaseBattleArt(scene: Phaser.Scene): number {
+  let n = 0;
+  for (const key of scene.textures.getTextureKeys()) {
+    // 파일에서 읽은 그림만(도형으로 만든 대체 그림은 다시 만들 수 없으니 건드리지 않음)
+    if (!LOBBY_UNUSED.test(key) || !(scene.textures.get(key).getSourceImage() instanceof HTMLImageElement)) continue;
+    scene.textures.remove(key);
+    n++;
+  }
+  for (const key of scene.cache.video.getKeys()) if (key.startsWith('ult-')) (scene.cache.video.remove(key), n++);
+  for (const key of scene.cache.audio.getKeys()) if (/^ult-.+-(sfx|ko|en)$/.test(key)) (scene.cache.audio.remove(key), n++);
+  return n;
 }
 
 /** 전투 preload: 전투에서 쓰는 그림 중 아직 없는 것만(다시 도전할 때 내린 그림을 또 읽지 않게) */
@@ -30,7 +60,7 @@ export function releaseLobbyArt(scene: Phaser.Scene, dragonId: string): number {
   const tm = scene.textures;
   let n = 0;
   for (const key of Object.keys(ART_FILES)) {
-    if ((LAZY_ART.test(key) && !key.startsWith('scrbg-')) || !tm.exists(key) || !battleUnused(key, dragonId)) continue; // 화면 배경은 따로 읽지만 전투에선 내림
+    if ((LAZY_ART.test(key) && !key.startsWith('scrbg-') && !/^lobby-bg-\d+$/.test(key)) || !tm.exists(key) || !battleUnused(key, dragonId)) continue; // 화면 배경·로비 단계 배경은 따로 읽지만 전투에선 내림
     tm.remove(key);
     n++;
   }

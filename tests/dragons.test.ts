@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DRAGONS, GROWTH, levelBonus, releasedDragons, starBonus, traitMultFor } from '../src/data/dragons';
+import { ATTACK_UP, DRAGONS, GROWTH, levelBonus, releasedDragons, starBonus, traitMultFor } from '../src/data/dragons';
 
 // 기존 10종 기준 — 신규 드래곤은 tests/newdragons.test.ts
 const DRAGON_ORDER = releasedDragons().slice(0, 10);
@@ -37,16 +37,18 @@ describe('드래곤 데이터', () => {
   });
   it('v1.2 종별 기본 능력치(공격력·HP·속도)', () => {
     const t = Object.fromEntries(DRAGON_ORDER.map((id) => [id, [DRAGONS[id].baseAttack, DRAGONS[id].baseHp, DRAGONS[id].baseMoveSpeed]]));
-    expect(t).toEqual({
+    // 표의 원래 값 × ATTACK_UP(1.3, 2026-11-26 모든 드래곤 기본 공격력 상향)
+    const up = (a: number) => Math.round(a * ATTACK_UP * 100) / 100;
+    expect(t).toEqual(Object.fromEntries(Object.entries({
       red: [10, 100, 260], blue: [11.5, 125, 260], yellow: [10.5, 95, 270], green: [9.8, 110, 255], white: [10.8, 120, 255],
       black: [12, 100, 260], stone: [10.5, 135, 240], wind: [12, 105, 285], water: [10, 105, 255], arcane: [14, 120, 275],
-    });
+    }).map(([k, [a, h, v]]) => [k, [up(a), h, v]])));
   });
 });
 
 describe('능력치 합산', () => {
   it('연구소 Lv.0 · 영구 Lv.1 · 1성 레드 = 4·5단계 BASE_STATS', () => {
-    expect(buildRunStats(DRAGONS.red, NOUP, { level: 1, stars: 1 }).stats).toEqual(BASE_STATS);
+    expect(buildRunStats(DRAGONS.red, NOUP, { level: 1, stars: 1 }).stats).toEqual({ ...BASE_STATS, attack: BASE_STATS.attack * ATTACK_UP }); // 공격력만 ×1.3(11/26)
   });
   it('기획서 예: 100 × (1 + 연구소 0.20 + 레벨 0.10 + 승급 0.05) = 135', () => {
     const s = buildRunStats({ ...DRAGONS.red, baseAttack: 100 }, { ...NOUP, attack: 10 }, { level: 11, stars: 2 }).stats;

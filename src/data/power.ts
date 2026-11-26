@@ -1,5 +1,7 @@
 import type { Difficulty } from './economy';
 import { hardStage } from './hardStages';
+import { veryHardStage } from './veryHardStages';
+import { REC_UP } from './hardStages';
 
 // 개발 6단계 v1.2 10·11장 — 전투력(CP)과 권장 전투력. 진입 제한이 아닌 안내 수치.
 // CP = 1000 × (A÷10)^0.75 × (H÷100)^0.35 × (V÷260)^0.15 × (1 + S)   (원문)
@@ -22,10 +24,15 @@ export function combatPower(A: number, H: number, V: number, S: number): number 
 export const RECOMMENDED_EASY = [900, 960, 1020, 1080, 1150, 1220, 1300, 1380, 1460, 1550, 1640, 1730, 1820, 1920, 2020, 2120, 2220, 2320, 2410, 2500];
 const DIFF_MULT: Record<Difficulty, number> = { easy: 1, hard: 1.5, extreme: 2.2 };
 
-/** 어려움은 단계별 배율 ×1.50~×2.00(어려움 기획서 4장, 2026-11-21). 매우 어려움은 아직 일괄 ×2.2(미출시) */
+/**
+ * 어려움은 단계별 배율 ×1.50~×2.00(어려움 기획서 4장, 2026-11-21) × 1.2, 쉬움 6~20단계 × 1.2(2026-11-27 REC_UP),
+ * 매우 어려움 = 어려움 × 1.05(표에 이미 곱해 둠).
+ */
 export function recommendedCp(stageId: number, d: Difficulty): number {
   const s = Math.max(1, Math.min(20, stageId));
-  const m = d === 'hard' ? hardStage(s).recommendedPowerMultiplier : DIFF_MULT[d];
+  const m = d === 'hard' ? hardStage(s).recommendedPowerMultiplier * REC_UP.mult
+    : d === 'extreme' ? veryHardStage(s).recommendedPowerMultiplier
+    : DIFF_MULT[d] * (s >= REC_UP.easyFrom ? REC_UP.mult : 1);
   return Math.round(RECOMMENDED_EASY[s - 1] * m);
 }
 

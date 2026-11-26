@@ -118,7 +118,7 @@ function units(t: string): string {
     .replace(/(\d)\s?분/g, '$1 min')
     .replace(/(\d)\s?시간/g, '$1h')
     .replace(/(\d)\s?일/g, '$1d')
-    .replace(/(\d)\s?(개|마리|장|자루|송이|겹)/g, '$1')
+    .replace(/(\d)\s?(개|마리|장|자루|송이|겹|발|줄)/g, '$1')
     .replace(/(\d)\s?회/g, '$1x')
     .replace(/(\d)\s?번/g, '$1x') // "암흑 빔 2번" → "Dark Beam 2x"(2026-11-26)
     .replace(/(\d)\s?단계/g, 'Stage $1');
