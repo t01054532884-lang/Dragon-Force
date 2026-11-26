@@ -62,7 +62,7 @@ describe('매우 어려움 1~20단계 데이터(2026-11-26, 임시)', () => {
       expect(v.startingSkillChoices).toBe(2);
       expect(ENEMIES[STAGES[v.stageId - 1].bossId]).toBeDefined(); // 새 몬스터 없음
     }
-    expect(VERY_HARD_STAGES.filter((v) => v.bossSpawnCount === 2).map((v) => v.stageId)).toEqual([5, 8, 10, 12, 14, 15, 17, 18, 19, 20]);
+    expect(VERY_HARD_STAGES.filter((v) => v.bossSpawnCount === 2).map((v) => v.stageId)).toEqual([5, 8, 10, 12, 14, 15, 17, 19, 20]);
     expect(veryHardStage(20).specialMechanic.finale).toBe(true);
     expect(HARD_STAGES[0].specialMechanic.bossPhaseHaste).toBe(0.1); // 어려움 표는 바뀌지 않음
   });

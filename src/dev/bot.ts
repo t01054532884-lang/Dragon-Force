@@ -56,6 +56,7 @@ function play(g: Any, s: Any, opt: BotOpt, resolve: (v: unknown) => void): void 
     g.headlessStep(t, 16.667);
   };
   if (opt.hazards === false) s.mapHazardsOff = true;
+  s.revived = true; // 광고 부활 창(1.0.2)을 건너뛰고 바로 쓰러짐 처리(창에서 멈추지 않게, 2026-11-26)
   if (opt.atk) s.stats.attack *= opt.atk;
   if (opt.hp) {
     s.stats.maxHp *= opt.hp;
