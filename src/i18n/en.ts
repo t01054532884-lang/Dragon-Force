@@ -1851,5 +1851,6 @@ export const EN: Record<string, string> = {
  "+ 보스 50% 가속": "+ Boss speeds up at 50%",
  "+ 보스 범위 +10%": "+ Boss area +10%",
  "+ 엘리트 강화·보스 범위 +10%": "+ Elite enrage · Boss area +10%",
- "+ 보스 광폭화·엘리트 강화·범위 +10%": "+ Boss enrage · Elite enrage · Area +10%"
+ "+ 보스 광폭화·엘리트 강화·범위 +10%": "+ Boss enrage · Elite enrage · Area +10%",
+ "룬 상자 {0}회권": "{0} Rune Chest Tickets"
 };

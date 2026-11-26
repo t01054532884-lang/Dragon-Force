@@ -41,7 +41,7 @@ export type Difficulty = 'easy' | 'hard' | 'extreme';
 export const DIFFICULTY_REWARD: Record<Difficulty, { gold: number; clearRubies: number; cards: { first: number; repeat: number }; stamina: number }> = {
   easy: { gold: 1, clearRubies: 100, cards: { first: 2, repeat: 1 }, stamina: 20 },
   hard: { gold: 1.5, clearRubies: 150, cards: { first: 3, repeat: 2 }, stamina: 30 },
-  extreme: { gold: 2, clearRubies: 200, cards: { first: 4, repeat: 3 }, stamina: 40 },
+  extreme: { gold: 2.5, clearRubies: 300, cards: { first: 5, repeat: 3 }, stamina: 50 }, // 2026-11-27 제작자: 매우 어려움 보상 늘림(docs/VERY_HARD.md 7절)
 };
 export const DIFFICULTIES: Difficulty[] = ['easy', 'hard', 'extreme'];
 export const DIFFICULTY_LABEL: Record<Difficulty, string> = { easy: '쉬움', hard: '어려움', extreme: '매우 어려움' };
@@ -71,7 +71,7 @@ export type RewardBundle = { gold?: number; rubies?: number; fragments?: { drago
 export const STAGE_BOX: Record<Difficulty, { gold: number; rubies: number; fragments: number }> = {
   easy: { gold: 50, rubies: 15, fragments: 5 },
   hard: { gold: 100, rubies: 30, fragments: 10 },
-  extreme: { gold: 200, rubies: 60, fragments: 20 },
+  extreme: { gold: 400, rubies: 100, fragments: 40 }, // 2026-11-27 늘림
 };
 export const STAGE_BOX_FRAGMENT_EVERY = 5;
 /** 100% 칸(단계 클리어) 루비는 난이도와 상관없이 100개(제작자 결정 2026-11-24: 초반 루비가 너무 적다는 테스터 피드백 → 쉬움 20 + 어려움 20 = 4,000개). 25·50% 칸은 그대로 */

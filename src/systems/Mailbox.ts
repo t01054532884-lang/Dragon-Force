@@ -83,16 +83,20 @@ export function grantClearGift<P extends WalletLike>(p: P, difficulty: string, s
  * 10·20단계 클리어 보상(제작자 2026-11-26: "룬 해금이 생각보다 어렵다"): 쉬움·어려움 10·20단계를 처음 깨면 룬 상자 10회권을 선물함에.
  * id `rune10:<난이도>:<단계>` — 한 번만. 로비가 이 id를 보고 축하 팝업을 한 번 띄운다.
  */
-export const RUNE_MILESTONES: { difficulty: string; stageId: number }[] = [
+export const RUNE_MILESTONES: { difficulty: string; stageId: number; tickets?: number }[] = [
   { difficulty: 'easy', stageId: 10 }, { difficulty: 'easy', stageId: 20 }, { difficulty: 'hard', stageId: 10 }, { difficulty: 'hard', stageId: 20 },
-  { difficulty: 'extreme', stageId: 10 }, { difficulty: 'extreme', stageId: 20 }, // 매우 어려움(2026-11-26, 임시)
+  // 매우 어려움(2026-11-27 제작자: 보상을 늘림) — 10단계 10회권, 20단계 20회권
+  { difficulty: 'extreme', stageId: 10 }, { difficulty: 'extreme', stageId: 20, tickets: 20 },
 ];
 export const RUNE_MILESTONE_TICKETS = 10;
+/** 그 단계 클리어 선물의 룬 상자 개봉권 수(없으면 10) */
+export const runeMilestoneTickets = (difficulty: string, stageId: number): number =>
+  RUNE_MILESTONES.find((m) => m.difficulty === difficulty && m.stageId === stageId)?.tickets ?? RUNE_MILESTONE_TICKETS;
 export const runeGiftId = (difficulty: string, stageId: number) => `rune10:${difficulty}:${stageId}`;
 export function grantRuneMilestoneGift<P extends WalletLike>(p: P, difficulty: string, stageId: number, label: string, now: number): { added: boolean; progress: P } {
   if (!RUNE_MILESTONES.some((m) => m.difficulty === difficulty && m.stageId === stageId)) return { added: false, progress: p };
   return addGift(p, {
-    id: runeGiftId(difficulty, stageId), kind: 'runeTickets', amount: RUNE_MILESTONE_TICKETS, title: '룬 상자 10회권',
+    id: runeGiftId(difficulty, stageId), kind: 'runeTickets', amount: runeMilestoneTickets(difficulty, stageId), title: `룬 상자 ${runeMilestoneTickets(difficulty, stageId)}회권`,
     body: `${label} 클리어 축하 선물`, source: `${label} 클리어 보상`, sender: 'system', createdAt: now, expiresAt: null,
   });
 }

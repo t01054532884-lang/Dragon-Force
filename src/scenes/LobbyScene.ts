@@ -15,7 +15,7 @@ import { drawLobbyBackdrop, makeArtPlaceholders, preloadArt } from '../ui/art';
 import { button, modal, navBar, text, type KitButton } from '../ui/kit';
 import { applySound, loadSettings, markTip, saveSettings, tipSeen } from '../systems/Settings';
 import { PACKAGES } from '../data/economy';
-import { RUNE_MILESTONES, RUNE_MILESTONE_TICKETS, runeGiftId } from '../systems/Mailbox';
+import { RUNE_MILESTONES, runeGiftId, runeMilestoneTickets } from '../systems/Mailbox';
 import { passValuePct } from '../data/pass';
 import { playSfx, preloadSfx, UI_SFX_FILES } from '../systems/Sfx';
 import { playMusic, preloadMusic, refreshMusic } from '../systems/Music';
@@ -394,7 +394,7 @@ export class LobbyScene extends Phaser.Scene {
     if (!due.length) return then();
     for (const m of due) markTip(`rune-pop-${runeGiftId(m.difficulty, m.stageId)}`);
     const names = due.map((m) => `${LABEL[m.difficulty] ?? m.difficulty} ${m.stageId}단계`);
-    const total = due.length * RUNE_MILESTONE_TICKETS;
+    const total = due.reduce((s, m) => s + runeMilestoneTickets(m.difficulty, m.stageId), 0);
     playSfx(this, 'sfx-reward-rare');
     const m = modal(this, 660, 760, `${names[names.length - 1]} 클리어!`, { closeOnBackdrop: true, ribbonColor: 0x7b3fe4, depth: 900 });
     if (this.textures.exists('rune-reward-pop')) {

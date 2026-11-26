@@ -164,7 +164,7 @@ describe('6-4 난이도·진행도', () => {
     expect(sum.reduce((s, r) => s + (r.gold ?? 0), 0)).toBe(50);
     expect(sum.map((r) => r.rubies)).toEqual([5, 5, STAGE_CLEAR_RUBIES]);
     // 어려울수록 100% 칸 루비도 많게(제작자 원칙 11/25): 쉬움 100 < 어려움 150 < 매우 어려움 200
-    expect([stageBoxReward('easy', 1, 3).rubies, stageBoxReward('hard', 1, 3).rubies, stageBoxReward('extreme', 1, 3).rubies]).toEqual([100, 150, 200]);
+    expect([stageBoxReward('easy', 1, 3).rubies, stageBoxReward('hard', 1, 3).rubies, stageBoxReward('extreme', 1, 3).rubies]).toEqual([100, 150, 300]); // 매우 어려움 300(11/27)
     expect(sum.map((r) => r.fragments?.count ?? 0)).toEqual([0, 0, 5]);
   });
   it('단계 상자 모두 받기: 20단계 × 3칸 합계 = 루비 2,200(100% 칸 100 × 20 + 25·50% 칸 200) · 골드 1,000 · 레드 조각 20(쉬움), 어려움은 2배', () => {

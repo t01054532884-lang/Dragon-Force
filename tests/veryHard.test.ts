@@ -99,14 +99,15 @@ describe('매우 어려움 출시·해금·보상·저장', () => {
     expect(p.difficulty.extreme.unlocked).toEqual([1]);
     expect(p.difficulty.hard.cleared).toHaveLength(11);
   });
-  it('최초 클리어 루비 150(20단계 +500, 합계 3,500) 한 번만, 진행도 분모 20, 최고 기록·선택 난이도 저장', () => {
+  it('최초 클리어 루비 200(5·10·15단계 +300, 20단계 +800, 합계 5,700 — 11/27 줄인 안) 한 번만, 진행도 분모 20, 최고 기록·선택 난이도 저장', () => {
     let p = defaultProgress();
     p = { ...p, difficulty: { ...p.difficulty, extreme: { ...p.difficulty.extreme, unlocked: [1, 2] } } };
     const a = settleRun(p, 'x1', 0, 2, { stageId: 1, cleared: true, elapsedMs: 420_000, normalKills: 100, eliteKills: 4, difficulty: 'extreme', dragonId: 'red' });
-    expect(a.rewards.find((r) => r.id === 'extreme-first:1')?.rubies).toBe(150);
+    expect(a.rewards.find((r) => r.id === 'extreme-first:1')?.rubies).toBe(200);
     expect(a.rewards.some((r) => r.id.startsWith('hard-first'))).toBe(false);
-    expect(VERY_HARD_STAGES.reduce((s, v) => s + v.clearReward.rubies, 0)).toBe(3500);
-    expect(veryHardStage(20).clearReward).toEqual({ rubies: 650, milestone: true });
+    expect(VERY_HARD_STAGES.reduce((s, v) => s + v.clearReward.rubies, 0)).toBe(5700);
+    expect(veryHardStage(20).clearReward).toEqual({ rubies: 1000, milestone: true });
+    expect([5, 10, 15].map((s) => veryHardStage(s).clearReward.rubies)).toEqual([500, 500, 500]);
     const b = settleRun(a.progress, 'x2', 0, 2, { stageId: 1, cleared: true, elapsedMs: 400_000, normalKills: 100, eliteKills: 4, difficulty: 'extreme', dragonId: 'red' });
     expect(b.rewards.some((r) => r.id === 'extreme-first:1')).toBe(false);
     expect(progressPct(b.progress, 'extreme')).toBe(5);
@@ -178,5 +179,19 @@ describe('성장 최대 드래곤으로 깰 수 있는 권장치(2026-11-26 제�
     const cps = DRAGON_ORDER.map((id) => loadout(p, id).cp);
     expect(loadout(p, 'red').cp).toBeGreaterThanOrEqual(rec);
     expect(Math.min(...cps)).toBeGreaterThanOrEqual(rec);
+  });
+});
+
+describe('매우 어려움 보상 늘림(2026-11-27 제작자)', () => {
+  it('단계 상자·카드·행동력·골드·개봉권: 새 안 그대로', async () => {
+    const { runeMilestoneTickets } = await import('../src/systems/Mailbox');
+    expect(STAGE_BOX.extreme).toEqual({ gold: 400, rubies: 100, fragments: 40 });
+    expect(DIFFICULTY_REWARD.extreme).toEqual({ gold: 2.5, clearRubies: 300, cards: { first: 5, repeat: 3 }, stamina: 50 });
+    expect([runeMilestoneTickets('extreme', 10), runeMilestoneTickets('extreme', 20), runeMilestoneTickets('hard', 20), runeMilestoneTickets('easy', 10)]).toEqual([10, 20, 10, 10]);
+    // 매우 어려움 20단계 첫 클리어 → 20회권 선물
+    let p = defaultProgress();
+    p = { ...p, difficulty: { ...p.difficulty, extreme: { ...p.difficulty.extreme, unlocked: [20] } } };
+    const a = settleRun(p, 'r20', 0, 21, { stageId: 20, cleared: true, elapsedMs: 500_000, normalKills: 100, eliteKills: 4, difficulty: 'extreme', dragonId: 'red' });
+    expect(a.progress.mailbox.gifts.find((g) => g.id === runeGiftId('extreme', 20))?.amount).toBe(20);
   });
 });
