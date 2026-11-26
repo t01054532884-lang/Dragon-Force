@@ -12,6 +12,7 @@ import { STAMINA, formatLeft, nextRegenIn } from '../systems/Stamina';
 import { devMode, devQuery, gameNow } from '../ui/widgets';
 import { enterBattle } from '../ui/entry';
 import { drawLobbyBackdrop, makeArtPlaceholders, preloadArt } from '../ui/art';
+import { releaseBattleArt } from '../ui/artMemory';
 import { button, modal, navBar, text, type KitButton } from '../ui/kit';
 import { applySound, loadSettings, markTip, saveSettings, tipSeen } from '../systems/Settings';
 import { PACKAGES } from '../data/economy';
@@ -110,6 +111,7 @@ export class LobbyScene extends Phaser.Scene {
     this.settingsUi = null;
     if (!this.textures.exists('dragon-red')) makeTextures(this);
     makeArtPlaceholders(this);
+    releaseBattleArt(this); // 1.0.3 메모리: 전투 전용 그림·필살기 영상 캐시를 내림(다음 전투가 다시 읽음)
     const dev = devMode();
     const now = gameNow();
     // 테스터 링크(?dev=1, 웹만): 로비에 올 때마다 루비·골드 20,000 이상 + 만든 단계 전부 열기
