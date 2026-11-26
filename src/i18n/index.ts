@@ -19,6 +19,9 @@ export function setLang(l: Lang): void {
 }
 
 const KO = /[가-힣]/;
+const ANDROID = import.meta.env.VITE_PLATFORM === 'android';
+/** "App Store" → "Google Play"(안드로이드 빌드에서만 쓰임). 번역 전 한국어 원문에 적용하고, 영어 사전의 App Store 문장도 같은 규칙으로 바뀐다 */
+export const toPlayStore = (s: string): string => (s.includes('App Store') ? s.split('App Store').join('Google Play') : s);
 const cache = new Map<string, string>();
 
 interface Tpl {
@@ -182,6 +185,8 @@ export function installTextTranslation(P: typeof Phaser): void {
       if (t.__fitBase != null) t.setFontSize(t.__fitBase); // 전에 줄였던 글자는 원래 크기로 돌린 뒤 다시 잰다
       fitDirty.set(t, performance.now());
     }
+    // 안드로이드(Google Play) 빌드: 결제·업데이트 안내의 "App Store"를 "Google Play"로(번역 뒤에 바꿔 한국어·영어 모두, 2026-11-26)
+    if (ANDROID && v != null) v = Array.isArray(v) ? v.map((x) => toPlayStore(String(x))) : toPlayStore(String(v));
     return orig.call(this, v);
   };
 }

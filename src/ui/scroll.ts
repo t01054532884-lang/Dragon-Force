@@ -23,6 +23,29 @@ export function makeScroll(scene: Phaser.Scene, before: Set<Phaser.GameObjects.G
   const mask = scene.make.graphics({}, false).fillStyle(0xffffff).fillRect(0, top, 720, viewBottom - top);
   box.enableFilters();
   box.filters?.external.addMask(mask, false, scene.cameras.main);
+  // 화면 밖 내용 숨기기(2026-11-26 제작자: 패스 스크롤이 살짝 끊김). 패스는 칸 90개를 마스크(필터)로 매 프레임 다시 그려서 무거웠다.
+  // 판이 움직일 때만, 보이는 범위 ±CULL_PAD 밖의 내용물을 숨긴다. 다시 보이게 하는 것은 여기서 숨긴 것만
+  // (상점이 개봉권 버튼 등을 일부러 숨기는 것과 섞이지 않게).
+  const CULL_PAD = 320;
+  type Pos = Phaser.GameObjects.GameObject & { y: number; visible: boolean; setVisible(v: boolean): unknown };
+  const hiddenByScroll = new Set<Pos>();
+  let lastY = Number.NaN;
+  const cull = () => {
+    if (box.y === lastY) return;
+    lastY = box.y;
+    const lo = top - CULL_PAD - box.y;
+    const hi = viewBottom + CULL_PAD - box.y;
+    for (const o of box.list as Pos[]) {
+      if (!o.active || typeof o.y !== 'number') continue;
+      const inView = o.y > lo && o.y < hi;
+      if (!inView && o.visible) {
+        o.setVisible(false);
+        hiddenByScroll.add(o);
+      } else if (inView && hiddenByScroll.delete(o)) o.setVisible(true);
+    }
+  };
+  scene.events.on('update', cull);
+  scene.events.once('shutdown', () => scene.events.off('update', cull));
   const minY = Math.min(0, viewBottom - bottom);
   const clamp = (v: number) => Phaser.Math.Clamp(v, minY, 0);
   let dragged = false;

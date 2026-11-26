@@ -12,7 +12,7 @@ import { CONTENT } from '../ui/screen';
 import { makeScroll, type Scroller } from '../ui/scroll';
 import { offY } from '../ui/layout';
 import { RUNE_BOX } from '../data/runes';
-import { popWord, toast } from '../ui/screen';
+import { popPurchase, popWord, PURCHASE_POP_MS, toast } from '../ui/screen';
 import { equipDef, SLOT_ICON, SLOT_LABEL } from '../data/equipment';
 import { specialDef } from '../data/specials';
 import { poolOf, Progress, type BoxResult, type Reward } from '../systems/Progress';
@@ -373,10 +373,10 @@ export class ShopScene extends Phaser.Scene {
       .then((r) => {
         if (!this.sys.isActive()) return;
         if (r.ok) {
-          popWord(this, grantLine(r.delivered.total) || '구매 완료', 640);
+          popPurchase(this, grantLine(r.delivered.total) || '구매 완료');
           this.frame.refresh();
           // 지급 글자를 잠깐 보여 준 뒤 남은 구매 횟수·개봉권을 다시 그리기
-          this.time.delayedCall(1100, () => this.scene.restart({ dealTab: this.dealTab, scrollY: this.content?.y ?? 0 }));
+          this.time.delayedCall(PURCHASE_POP_MS, () => this.scene.restart({ dealTab: this.dealTab, scrollY: this.content?.y ?? 0 }));
           return;
         }
         const msg = buyFailText(r.reason);

@@ -129,6 +129,46 @@ export function toast(scene: Phaser.Scene, msg: string, color: number = COLOR.te
 }
 
 /** 성공 연출(강화!·해금! 등): 크게 떠올랐다 사라지는 금색 글자 */
+/**
+ * 결제 지급 알림(2026-11-26 제작자: 실제 결제 뒤 "루비 100" 노란 글씨가 너무 금방 사라져 잘 안 보임).
+ * 어두운 띠 + 퍼지는 빛 고리 + 반짝이 + 큰 금색 글씨, 약 1.6초 머문 뒤 사라진다. 화면 위치는 카메라 기준(스크롤과 무관).
+ */
+export const PURCHASE_POP_MS = 1700;
+export function popPurchase(scene: Phaser.Scene, word: string, title = '구매 완료!'): void {
+  playSfx(scene, 'sfx-upgrade');
+  const cam = scene.cameras.main;
+  const cx = cam.width / 2;
+  const cy = cam.height / 2 - 40;
+  const D = 1000;
+  const parts: Phaser.GameObjects.GameObject[] = [];
+  const fix = <T extends Phaser.GameObjects.GameObject>(o: T): T => {
+    (o as unknown as { setScrollFactor: (n: number) => void; setDepth: (n: number) => void }).setScrollFactor(0);
+    (o as unknown as { setDepth: (n: number) => void }).setDepth(D);
+    parts.push(o);
+    return o;
+  };
+  const band = fix(scene.add.rectangle(cx, cy, cam.width, 190, 0x12061f, 0.82));
+  band.setScale(1, 0);
+  scene.tweens.add({ targets: band, scaleY: 1, duration: 140, ease: 'Quad.Out' });
+  const ring = fix(scene.add.circle(cx, cy, 60, 0xffd54a, 0).setStrokeStyle(8, 0xffd54a, 0.9));
+  scene.tweens.add({ targets: ring, scale: 4, alpha: 0, duration: 700, ease: 'Cubic.Out' });
+  const glow = fix(scene.add.circle(cx, cy, 150, 0xffc23a, 0.25));
+  scene.tweens.add({ targets: glow, alpha: 0.05, yoyo: true, repeat: 2, duration: 260 });
+  for (let i = 0; i < 18; i++) {
+    const a = (i / 18) * Math.PI * 2;
+    const s = fix(scene.add.star(cx, cy, 4, 4, 12, i % 3 ? 0xffe27a : 0xff5f7a));
+    scene.tweens.add({ targets: s, x: cx + Math.cos(a) * (170 + (i % 4) * 40), y: cy + Math.sin(a) * (90 + (i % 3) * 30), angle: 180, alpha: 0, duration: 900, ease: 'Cubic.Out' });
+  }
+  fix(text(scene, cx, cy - 46, title, TYPE.caption, COLOR.text, true, true).setOrigin(0.5));
+  const t = fix(text(scene, cx, cy + 18, word, 58, COLOR.gold, true, true).setOrigin(0.5));
+  t.setScale(0.4);
+  scene.tweens.add({ targets: t, scale: 1, duration: 260, ease: 'Back.Out' });
+  scene.tweens.add({ targets: t, scale: 1.06, yoyo: true, repeat: 1, delay: 300, duration: 220 });
+  scene.time.delayedCall(PURCHASE_POP_MS - 350, () =>
+    scene.tweens.add({ targets: parts.filter((p) => p.active), alpha: 0, duration: 330, onComplete: () => parts.forEach((p) => p.destroy()) }),
+  );
+}
+
 export function popWord(scene: Phaser.Scene, word: string, y = 600): void {
   playSfx(scene, 'sfx-upgrade'); // 성공(레벨 업·승급·강화 등) — 2026-11-26 Higgsfield 강화 소리
   const t = text(scene, 360, y, word, 46, COLOR.gold, true, true).setOrigin(0.5).setDepth(1000);

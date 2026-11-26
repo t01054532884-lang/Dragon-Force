@@ -3,7 +3,7 @@ import { RUBY_PRODUCTS } from '../data/economy';
 import { buyFailText, buyProduct, grantLine, PAY_NOTICE, purchases, restoreAll, type RubyProduct } from '../systems/Purchases';
 import { button, modal, text } from './kit';
 import { plate } from './kit2';
-import { toast } from './screen';
+import { popPurchase, toast } from './screen';
 import { COLOR, TYPE } from './theme';
 
 /**
@@ -34,7 +34,7 @@ export function openRubyShop(scene: Phaser.Scene, onChanged?: () => void): { clo
         void buyProduct(def.productId)
           .then((r) => {
             if (r.ok) {
-              toast(scene, `${grantLine(r.delivered.total) || '루비'} 충전 완료`, COLOR.ok);
+              popPurchase(scene, grantLine(r.delivered.total) || '루비', '충전 완료!');
               onChanged?.();
               return;
             }

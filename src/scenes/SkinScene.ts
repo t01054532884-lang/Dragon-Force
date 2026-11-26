@@ -5,11 +5,11 @@ import { SKIN_ROULETTE as R, skinDef } from '../data/skins';
 import { Progress } from '../systems/Progress';
 import { applyServerSpin, boardSlots, nextRotationAt, resetLeftText, skinOdds, slotLabel, spinSkinRoulette, syncServerSkinState, syncSkinBoard, type BoardSlot, type SkinSpinResult } from '../systems/Skins';
 import type { ServerSkinState } from '../data/skinRoulette';
-import { buyFailText, buyProduct, PAY_NOTICE, purchases } from '../systems/Purchases';
+import { buyFailText, buyProduct, grantLine, PAY_NOTICE, purchases } from '../systems/Purchases';
 import { preloadArt } from '../ui/art';
 import { rewardPopup, type RewardItem } from '../ui/celebrate';
 import { button, modal, text, type KitButton } from '../ui/kit';
-import { screenFrame, toast, type ScreenFrame } from '../ui/screen';
+import { popPurchase, screenFrame, toast, type ScreenFrame } from '../ui/screen';
 import { COLOR, TYPE } from '../ui/theme';
 import { FONT, gameNow, devMode } from '../ui/widgets';
 import { tr } from '../i18n';
@@ -298,7 +298,7 @@ export class SkinScene extends Phaser.Scene {
       .then((r) => {
         if (!this.sys.isActive()) return;
         if (r.ok) {
-          toast(this, '열쇠를 받았어요', COLOR.ok);
+          popPurchase(this, grantLine(r.delivered.total) || '스킨 열쇠');
           this.refresh();
           void this.syncServer(); // 남은 열쇠는 서버 기준
           return;
