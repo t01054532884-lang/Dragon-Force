@@ -107,7 +107,7 @@ export class SkinScene extends Phaser.Scene {
     if (this.shownWeekEnd && now >= this.shownWeekEnd && !this.busy) return this.refresh();
     if (!this.timerText?.active) return;
     const left = Math.max(0, this.shownWeekEnd - now);
-    this.timerText.setText(`초기화까지 ${resetLeftText(left)}`);
+    this.timerText.setText(`새 판까지 ${resetLeftText(left)}`);
   }
 
   private refresh(): void {

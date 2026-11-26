@@ -41,6 +41,7 @@ import { rotationIndex, syncSkinBoard } from '../systems/Skins';
 import { SKIN_ROULETTE } from '../data/skins';
 import { makeSkinTextures, skinIconKey } from '../ui/skinArt';
 import { offY } from '../ui/layout';
+import { takeDeepLink } from '../systems/DeepLink';
 
 /** 처리방침·약관 공개 주소(GitHub Pages, public/*.html) */
 const LEGAL_BASE = 'https://t01054532884-lang.github.io/Dragon-Force/';
@@ -156,6 +157,10 @@ export class LobbyScene extends Phaser.Scene {
 
     // ── 양옆 바로가기
     const live = eventActive(now);
+    // 딥 링크(1.0.1): App Store 이벤트 카드 "열기" 등으로 들어왔으면 그 화면으로(이벤트는 기간 중에만, 룰렛은 결제가 될 때만)
+    const deep = takeDeepLink();
+    const deepOk = deep === 'event' ? live : deep === 'skins' ? purchases.available : deep === 'shop';
+    if (deep && deepOk) this.time.delayedCall(0, () => this.scene.start(deep));
     const evAlert = live && (spinsAvailable(eventState(p)) > 0 || (attendanceActive(now) && !attendedToday(p, now)));
     // 2026-11-22 제작자 요청: 왼쪽 이벤트·미션·업적·출석, 오른쪽 우편함·설정. 진행도 상자는 드래곤 아래에서 바로 받기
     const t0 = gameNow();

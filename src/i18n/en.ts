@@ -1496,7 +1496,7 @@ export const EN: Record<string, string> = {
  "첫 번째 시련": "The First Trial",
  "첫 출격: 30초 이상 전투": "First Deploy: fight for 30s or more",
  "체력 30% 회복": "Restore 30% HP",
- "초기화까지 {0}": "Resets in {0}",
+ "새 판까지 {0}": "New board in {0}",
  "총 획득{0}": "Total{0}",
  "최고 단계 — 모든 성장 효과 적용 중": "Top tier — all growth effects active",
  "최고 이득": "Best Value",
