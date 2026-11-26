@@ -70,3 +70,16 @@
 ## 6. 결정 필요
 - 넣을지 말지, 넣는다면 4절 자리 중 어디까지(추천: 행동력 + 전투 골드 ×2 두 곳부터)
 - 보상량·하루 한도
+
+## 1.0.2 App Store 개인정보 라벨 변경안 (2026-11-27, 제작자 확인 대기)
+지금(1.0.1): 사용자 ID·구입 내역·기타 데이터 — 모두 앱 기능, 신원 연결, 추적 아님.
+AdMob(맞춤 광고 끔·ATT 없음 → IDFA 없음) 때문에 더할 것(Google AdMob 데이터 공개 안내 기준, 모두 **신원에 연결 안 됨 · 추적 아님**):
+| 데이터 유형 | 사용 목적 |
+|---|---|
+| 위치 → 대략적인 위치(IP 기반) | 제3자 광고 |
+| 식별자 → 기기 ID(IDFV) | 제3자 광고, 분석 |
+| 사용 데이터 → 제품 상호작용 | 제3자 광고, 분석 |
+| 사용 데이터 → 광고 데이터 | 제3자 광고 |
+| 진단 → 충돌 데이터·성능 데이터 | 분석 |
+- 라벨은 저장하면 바로 공개된다(버전과 무관) → 1.0.2 제출 직전에 바꾼다.
+- 심사 메모: "No ads, no tracking" → "Optional rewarded ads only (Google AdMob, non-personalized; revive once per run, 100 rubies once per day). No tracking, no ATT prompt. Ads appear only after the AdMob account is approved."
