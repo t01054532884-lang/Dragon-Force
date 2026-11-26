@@ -105,6 +105,9 @@ export const ART_FILES: Record<string, string> = {
   ...Object.fromEntries(['sand', 'steel', 'bloom', 'howl', 'crimson', 'mirror', 'chrono', 'void', 'aurora'].map((id) => [`portrait-${id}`, `portrait-${id}.webp`])),
   ...Object.fromEntries(['sand', 'steel', 'bloom', 'howl', 'crimson', 'mirror', 'chrono', 'void', 'aurora'].map((id) => [`top-${id}`, `top/top-${id}.webp`])), // 전투 탑다운(확정)
   ...Object.fromEntries(['sand', 'steel', 'bloom', 'howl', 'crimson', 'mirror', 'chrono', 'void', 'aurora'].map((id) => [`sig-${id}`, `sig/sig-${id}.webp`])), // 전용 스킬 배지(확정)
+  // 신규 4묶음(2026-11-27, 1.0.4): 제작자 ChatGPT 확정 초상·필살기 아이콘(scripts/process_art_newdragons.py). 스틸 아이콘도 둥근 사각형 금테로 교체
+  ...Object.fromEntries(['gears', 'silva', 'forge', 'crystal', 'bahamut'].map((id) => [`portrait-${id}`, `portrait-${id}.webp`])),
+  ...Object.fromEntries(['gears', 'silva', 'forge', 'crystal', 'bahamut'].map((id) => [`sig-${id}`, `sig/sig-${id}.webp`])),
   ...Object.fromEntries(['sand', 'steel', 'bloom'].map((el) => [`sigil-${el}`, `sigil/sigil-${el}.webp`])), // 해금 마법진(합본에서 잘라 냄, 속성 이름 = 드래곤 이름)
   // 2묶음: 속성 이름(음파·혈기·거울) → 드래곤 이름 파일
   'sigil-sound': 'sigil/sigil-howl.webp',
