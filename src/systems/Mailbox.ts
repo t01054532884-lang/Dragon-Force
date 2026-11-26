@@ -85,6 +85,7 @@ export function grantClearGift<P extends WalletLike>(p: P, difficulty: string, s
  */
 export const RUNE_MILESTONES: { difficulty: string; stageId: number }[] = [
   { difficulty: 'easy', stageId: 10 }, { difficulty: 'easy', stageId: 20 }, { difficulty: 'hard', stageId: 10 }, { difficulty: 'hard', stageId: 20 },
+  { difficulty: 'extreme', stageId: 10 }, { difficulty: 'extreme', stageId: 20 }, // 매우 어려움(2026-11-26, 임시)
 ];
 export const RUNE_MILESTONE_TICKETS = 10;
 export const runeGiftId = (difficulty: string, stageId: number) => `rune10:${difficulty}:${stageId}`;

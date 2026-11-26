@@ -4,7 +4,7 @@ import { STAGES } from '../data/stages';
 import { DRAGONS, ELEMENT_LABEL, RARITY_COLOR, RARITY_LABEL } from '../data/dragons';
 import { DIFFICULTIES, DIFFICULTY_LABEL, DIFFICULTY_RELEASED, DIFFICULTY_UNLOCK_AT, STAGE_COUNT, type Difficulty } from '../data/economy';
 import { cpVerdict, recommendedCp } from '../data/power';
-import { hardStage } from '../data/hardStages';
+import { stageRule } from '../data/veryHardStages';
 import { attendanceActive, attendedToday, pendingDifficultyUnlock, CHEST_TIERS, claimableMissions, claimableStageBoxes, eventActive, eventState, progressPct, Progress, spinsAvailable, stageChestState, stageReach } from '../systems/Progress';
 import { loadout } from '../systems/Loadout';
 import { pendingGifts, staminaNow } from '../systems/Mailbox';
@@ -271,12 +271,12 @@ export class LobbyScene extends Phaser.Scene {
     const cleared = p.difficulty[curDiff].cleared.includes(this.stageId);
     stageText.setText(`${this.stageId}단계 — ${s ? s.name : '준비 중'}`);
     // 어려움: 단계 이름·특수 기믹·최초 클리어 루비·최고 기록(기획서 9장)
-    const hs = curDiff === 'hard' ? hardStage(this.stageId) : null;
+    const hs = stageRule(curDiff, this.stageId); // 어려움·매우 어려움(2026-11-26)
     const bestMs = p.difficulty[curDiff].best?.[String(this.stageId)];
     const bestTxt = bestMs ? ` · 최고 ${Math.floor(bestMs / 60000)}:${String(Math.floor(bestMs / 1000) % 60).padStart(2, '0')}` : '';
     if (hs) {
-      stageText.setText(`어려움 ${this.stageId} — ${hs.title}`);
-      if (this.textures.exists('badge-hard')) this.add.image(360 - stageText.width / 2 - 24, 976, 'badge-hard').setDisplaySize(38, 38);
+      stageText.setText(curDiff === 'extreme' ? `매우 어려움 ${this.stageId} — ${hs.title}` : `어려움 ${this.stageId} — ${hs.title}`);
+      if (curDiff === 'hard' && this.textures.exists('badge-hard')) this.add.image(360 - stageText.width / 2 - 24, 976, 'badge-hard').setDisplaySize(38, 38);
     }
     const rec = recommendedCp(this.stageId, curDiff);
     const v = cpVerdict(lo.cp, rec);
@@ -389,7 +389,7 @@ export class LobbyScene extends Phaser.Scene {
   private maybeRuneGiftPopup(then: () => void): void {
     if (DEMO) return then();
     const p = Progress.load();
-    const LABEL: Record<string, string> = { easy: '쉬움', hard: '어려움' };
+    const LABEL: Record<string, string> = { easy: '쉬움', hard: '어려움', extreme: '매우 어려움' };
     const due = RUNE_MILESTONES.filter((m) => p.mailbox.granted.includes(runeGiftId(m.difficulty, m.stageId)) && !tipSeen(`rune-pop-${runeGiftId(m.difficulty, m.stageId)}`));
     if (!due.length) return then();
     for (const m of due) markTip(`rune-pop-${runeGiftId(m.difficulty, m.stageId)}`);

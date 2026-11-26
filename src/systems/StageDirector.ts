@@ -136,7 +136,7 @@ export class StageDirector {
 
   /** 웨이브 처치 목표(어려움은 HARD_PACE 배율) */
   waveGoal(i: number): number {
-    return Math.round(this.stage.waveKills[i] * (this.hard ? HARD_PACE.waveKills : 1));
+    return Math.round(this.stage.waveKills[i] * (this.hard ? (this.hard.pace ?? HARD_PACE).waveKills : 1));
   }
 
   /** 일반 몬스터(보상 있는 것)를 잡을 때마다 장면이 부른다 */
@@ -209,7 +209,7 @@ export class StageDirector {
         const pts = this.eliteSpawnPoints[i];
         const n = pts.length;
         const mech = this.hard?.specialMechanic ?? {};
-        const each = (n > 1 ? this.hard!.eliteHpEachMultiplier : 1) * (this.hard ? HARD_PACE.eliteHp : 1);
+        const each = (n > 1 ? this.hard!.eliteHpEachMultiplier : 1) * (this.hard ? (this.hard.pace ?? HARD_PACE).eliteHp : 1);
         const hpMult = this.diff.hp * rankHpMult(this.stage, i === 0 ? 'elite1' : 'elite2') * pace(this.stage.id).eliteHp * each;
         const group = pts.map((p, k) => {
           const en = this.h.spawn(e.eliteId, p.x, p.y, hpMult);
@@ -330,7 +330,7 @@ export class StageDirector {
     });
     if (this.bossBuffs.length) this.h.emit('boss:absorb-elites', { buffs: this.bossBuffs });
     const n = this.bossSpawnPoints.length;
-    const each = (n > 1 ? this.hard!.bossHpMultiplier : 1) * (this.hard ? HARD_PACE.bossHp : 1);
+    const each = (n > 1 ? this.hard!.bossHpMultiplier : 1) * (this.hard ? (this.hard.pace ?? HARD_PACE).bossHp : 1);
     const mech = this.hard?.specialMechanic ?? {};
     this.bosses = this.bossSpawnPoints.map((p, k) => {
       const boss = this.h.spawn(s.bossId, p.x, p.y, this.diff.hp * rankHpMult(s, 'boss') * pace(s.id).bossHp * hpBuff * each);
@@ -366,7 +366,7 @@ export class StageDirector {
       const [ox, oy] = off[k % off.length];
       const x = b0.x + ox * a.r * 0.3;
       const y = b0.y + oy * a.r * 0.3;
-      const hp = this.diff.hp * rankHpMult(s, slot === 0 ? 'elite1' : 'elite2') * pace(s.id).eliteHp * (this.hard ? HARD_PACE.eliteHp : 1) * BOSS_ESCORT.hpMult;
+      const hp = this.diff.hp * rankHpMult(s, slot === 0 ? 'elite1' : 'elite2') * pace(s.id).eliteHp * (this.hard ? (this.hard.pace ?? HARD_PACE).eliteHp : 1) * BOSS_ESCORT.hpMult;
       const en = this.h.spawn(s.eliteSpawns[slot].eliteId, x, y, hp);
       en.damageMult = this.diff.damage;
       en.spawnedAtMs = elapsed;

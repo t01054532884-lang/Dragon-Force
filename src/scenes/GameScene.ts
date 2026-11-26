@@ -41,7 +41,8 @@ import { arenaLayout, clampToArena, hitsObstacle, makeArena, outsideArena, type 
 import { AURA_EVERY_MS, AURA_PAD, HAZARD_FROM_STAGE, HAZARD_RANGE, HAZARD_WARN_MS, obstacleTheme, type ObstacleHazard } from '../data/obstacleThemes';
 import { enterBattle } from '../ui/entry';
 import { attackTheme, BURST_CAP } from '../data/attackThemes';
-import { hardStage, type HardStageDef } from '../data/hardStages';
+import { type HardStageDef } from '../data/hardStages';
+import { stageRule } from '../data/veryHardStages';
 import { fullH, offY } from '../ui/layout';
 import { playUltCutscene, playUltSweep, preloadUlt } from '../ui/UltCutscene';
 import { getLang } from '../i18n';
@@ -286,7 +287,7 @@ export class GameScene extends Phaser.Scene {
     this.pendingLevelUps = 0;
     this.choiceQueue = [];
     // 어려움: 단계별 설정(전장 크기·적 배율·엘리트/보스 수·기믹). 쉬움은 기존 그대로
-    this.hard = this.difficulty === 'hard' ? hardStage(this.stage.id) : null;
+    this.hard = stageRule(this.difficulty, this.stage.id); // 어려움·매우 어려움(2026-11-26)은 단계 표, 쉬움은 null
     // 전장 모양(2026-11-24): 단계마다 원형/정사각형 + 장애물(src/data/arenas.ts)
     this.arena = makeArena(WORLD_SIZE / 2, WORLD_SIZE / 2, ARENA_R * (this.hard?.arenaSizeMultiplier ?? 1), arenaLayout(this.stage.id));
     this.dangerZones = [];
@@ -497,7 +498,7 @@ export class GameScene extends Phaser.Scene {
     if (!tipSeen('battle-move')) this.showMoveTip();
     // 맵 기믹은 안내하지 않는다(제작자 2026-11-25: "말 안 해야 더 재밌어")
     // 어려움 기믹 설명 줄은 뺌(제작자 2026-11-25: 큰 글씨로 알려줄 필요 없음 — 맵 기믹 안내를 뺀 것과 같은 이유)
-    this.banner(this.hard ? `어려움 ${this.stage.id}단계 — ${this.hard.title}` : `${this.stage.id}단계 — ${this.stage.name}${this.difficulty === 'easy' ? '' : ` (${DIFFICULTY_LABEL[this.difficulty]})`}`, this.hard ? '#ff8a80' : '#e0e0e0');
+    this.banner(this.hard ? (this.difficulty === 'extreme' ? `매우 어려움 ${this.stage.id}단계 — ${this.hard.title}` : `어려움 ${this.stage.id}단계 — ${this.hard.title}`) : `${this.stage.id}단계 — ${this.stage.name}${this.difficulty === 'easy' ? '' : ` (${DIFFICULTY_LABEL[this.difficulty]})`}`, this.hard ? (this.difficulty === 'extreme' ? '#d59bff' : '#ff8a80') : '#e0e0e0');
     // 어려움: 전투 시작 직후 스킬 카드 3번 고르기(시간 정지, 경험치 추가 없음)
     if (this.hard) {
       for (let k = 0; k < this.hard.startingSkillChoices; k++) this.choiceQueue.push('start');
@@ -1888,7 +1889,7 @@ export class GameScene extends Phaser.Scene {
     }
     if (choices.some((u) => u.kind === 'basic')) this.basicEverOffered = true;
     if (k === 1) playSfx(this, 'sfx-hard-start');
-    this.showCards(`시작 스킬 ${k}/${total}`, '어려움: 전투 전에 스킬을 하나씩 골라요', choices, false);
+    this.showCards(`시작 스킬 ${k}/${total}`, this.difficulty === 'extreme' ? '매우 어려움: 전투 전에 스킬을 하나씩 골라요' : '어려움: 전투 전에 스킬을 하나씩 골라요', choices, false);
   }
 
   /** 스킬 강화 상자: 이미 가진 기본공격·액티브 중 더 올릴 수 있는 것 최대 3개 (새 스킬 없음) */
@@ -2289,7 +2290,7 @@ export class GameScene extends Phaser.Scene {
         this.tweens.add({ targets: piece, alpha: 0, duration: 500, delay: 2500 + i * 120, onComplete: () => piece.destroy() });
       }
     }
-    this.time.delayedCall(600, () => this.banner('드래곤의 최종 시련 정복!', '#ffd34d'));
+    this.time.delayedCall(600, () => this.banner(this.difficulty === 'extreme' ? '용의 종말 정복! 매우 어려움 완주!' : '드래곤의 최종 시련 정복!', '#ffd34d'));
     playSfx(this, 'sfx-hard-clear');
   }
 
@@ -2478,7 +2479,7 @@ export class GameScene extends Phaser.Scene {
     // ── 결과 화면(종합 개선 기획서 v1.1 3장): 정보 한 판 → 성장 목표 한 줄 → 피해 상위 3 → 작은 골드 정산 ──
     const mmss = (ms: number) => `${String(Math.floor(ms / 60000)).padStart(2, '0')}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`;
     const secTxt = (ms: number | null | undefined) => (ms == null ? '—' : `${Math.round(ms / 1000)}초`);
-    const stageLabel = this.hard ? `어려움 ${this.stage.id}단계 ${this.hard.title}` : `${this.stage.id}단계 ${this.stage.name}`;
+    const stageLabel = this.hard ? (this.difficulty === 'extreme' ? `매우 어려움 ${this.stage.id}단계 ${this.hard.title}` : `어려움 ${this.stage.id}단계 ${this.hard.title}`) : `${this.stage.id}단계 ${this.stage.name}`;
     const head = clear ? `클리어 ${mmss(this.elapsed)}` : reason === 'timeout' ? '시간 초과' : reason === 'quit' ? `포기 ${mmss(this.elapsed)}` : `생존 ${mmss(this.elapsed)}`;
     const cards = this.runRewards.reduce((a, r) => a + (r.cards?.count ?? 0), 0);
     const rubies = this.runRewards.reduce((a, r) => a + (r.rubies ?? 0), 0);

@@ -11,7 +11,7 @@ describe('테스터 링크(?dev=1)', () => {
     expect(p.gold).toBe(20000);
     expect(p.difficulty.easy.unlocked).toEqual(ALL);
     expect(p.difficulty.hard.unlocked).toEqual(ALL);
-    expect(p.difficulty.extreme.unlocked).toEqual(base.difficulty.extreme.unlocked); // 출시 전 난이도는 그대로
+    expect(p.difficulty.extreme.unlocked).toEqual(ALL); // 매우 어려움도 출시(2026-11-26)
     expect(p.unlockedStages).toEqual(ALL);
     expect(p.difficulty.easy.cleared).toEqual([]);
   });

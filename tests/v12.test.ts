@@ -194,7 +194,7 @@ describe('6-4 난이도·진행도', () => {
     expect(p.difficulty.hard.unlocked).toEqual([]);
     p = clear(p, 10, 's10');
     expect(p.difficulty.hard.unlocked).toEqual([1]);
-    expect(p.difficulty.extreme.unlocked).toEqual([]); // 매우 어려움은 그대로 어려움 20개
+    expect(p.difficulty.extreme.unlocked).toEqual([]); // 매우 어려움은 어려움 10개(쉬움 클리어로는 안 열림)
   });
   it('어려움 해금 연출: 한 번만, 이미 어려움을 깬 예전 저장에는 안 띄움', () => {
     let p = defaultProgress();
@@ -418,10 +418,10 @@ describe('6-7 → v1.2 룬(옛 장착형 특수 스킬)', () => {
 });
 
 describe('6-8 전투력', () => {
-  it('기본 레드 CP 1,000, 권장치(v1.3 임시) 1단계 900/1,350/1,980, 20단계 2,500', () => {
+  it('기본 레드 CP 1,000, 권장치(v1.3 임시) 1단계 900/1,350/1,800(매우 어려움 ×2.0, 11/26), 20단계 2,500', () => {
     expect(loadout(defaultProgress(), 'red').cp).toBe(1000);
     expect(combatPower(10, 100, 260, 0)).toBe(1000);
-    expect([recommendedCp(1, 'easy'), recommendedCp(1, 'hard'), recommendedCp(1, 'extreme')]).toEqual([900, 1350, 1980]);
+    expect([recommendedCp(1, 'easy'), recommendedCp(1, 'hard'), recommendedCp(1, 'extreme')]).toEqual([900, 1350, 1800]);
     expect(recommendedCp(20, 'easy')).toBe(2500);
     expect(recommendedCp(10, 'easy')).toBe(1550);
     expect(cpVerdict(1000, 900).text).toBe('권장 이상');

@@ -1,4 +1,4 @@
-import { hardStage } from '../data/hardStages';
+import { stageRule } from '../data/veryHardStages';
 import { newStamina, type StaminaState } from './Stamina';
 import {
   newMailbox, sanitizeMailbox, sanitizeStamina, grantClearGift, grantRuneMilestoneGift, claimOne, claimAll, spendStamina, syncCampaigns, pruneMailbox,
@@ -635,10 +635,14 @@ export function settleRun(
       const prevBest = bestNow[String(run.stageId)];
       if (!prevBest || run.elapsedMs < prevBest) next = setDiff(next, diff, { ...next.difficulty[diff], best: { ...bestNow, [String(run.stageId)]: Math.round(run.elapsedMs) } });
       // 어려움 최초 클리어 루비(기본 클리어 보상과 따로, 1회만 — 5·10·15·20단계는 특별 보상 포함)
-      if (first && diff === 'hard') {
-        const cr = hardStage(run.stageId).clearReward;
+      const rule = first ? stageRule(diff, run.stageId) : null; // 어려움·매우 어려움(2026-11-26)
+      if (rule) {
+        const cr = rule.clearReward;
         next = { ...next, rubies: next.rubies + cr.rubies };
-        rewards.push({ id: `hard-first:${run.stageId}`, text: `어려움 ${run.stageId}단계 최초 클리어${cr.milestone ? ' 특별 보상' : ''}`, rubies: cr.rubies });
+        const sp = cr.milestone ? ' 특별 보상' : '';
+        rewards.push(diff === 'extreme'
+          ? { id: `extreme-first:${run.stageId}`, text: `매우 어려움 ${run.stageId}단계 최초 클리어${sp}`, rubies: cr.rubies }
+          : { id: `hard-first:${run.stageId}`, text: `어려움 ${run.stageId}단계 최초 클리어${sp}`, rubies: cr.rubies });
       }
       // 8단계: 스테이지·난이도별 최초 클리어 → 행동력 20을 선물함으로(바로 더하지 않음, 1회만)
       const gift = grantClearGift(next, diff, run.stageId, `${DIFFICULTY_LABEL[diff]} ${run.stageId}단계`, now);

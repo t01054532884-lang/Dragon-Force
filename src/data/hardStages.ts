@@ -59,6 +59,10 @@ export interface HardStageDef {
   mechanicText: string;
   /** 최초 클리어 보상(기본 클리어 보상과 따로) — 수량은 AI 1차안, 경제 확인 후 확정 */
   clearReward: { rubies: number; milestone?: boolean };
+  /** 전투 길이 보정(없으면 HARD_PACE) — 매우 어려움은 VERY_HARD_PACE(2026-11-26) */
+  pace?: { waveKills: number; bossHp: number; eliteHp: number };
+  /** 화면 난이도 이름(없으면 '어려움') */
+  label?: string;
 }
 
 const ELITE_EACH = 0.75;
