@@ -8,6 +8,13 @@
   - 토스: 콘솔 광고 그룹(보상형) ID → `VITE_TOSS_AD_REWARDED`
   - AdMob: 앱 ID(iOS `Info.plist` GADApplicationIdentifier · 안드로이드 `AndroidManifest` APPLICATION_ID — 지금은 Google 시험용 ID), 보상형 광고 단위 → `VITE_ADMOB_REWARDED_IOS` / `_ANDROID`(Codemagic 환경 변수 그룹 firebase). 시험 빌드는 `VITE_ADMOB_TEST=1`이면 Google 시험 광고.
   - 맞춤 광고 끔(npa) → ATT 팝업 없음.
+- **AdMob 설정 완료(2026-11-26 밤)**: 계정 t01054532884@gmail.com, 게시자 `pub-1538981463091871`.
+  - iOS 앱 "드래곤 특공대"(App Store 6837190960 연결) 앱 ID `~5530802817`, 보상형 단위 `rewarded_ios` `/6269169414`
+  - 안드로이드 앱 "Dragon Force Android"(스토어 미연결 — Play 출시 뒤 연결) 앱 ID `~1260385313`, 보상형 단위 `rewarded_android` `/9427097052`
+  - `app-ads.txt`: 새 저장소 `t01054532884-lang/t01054532884-lang.github.io`(사이트 최상위, 로컬 `C:\Users\t0105\dragon-force-site`) → https://t01054532884-lang.github.io/app-ads.txt. AdMob 앱 인증은 크롤링 대기.
+  - 남은 것: **지급 세부정보(이름·주소·계좌) — 제작자 직접**. 이게 없으면 광고가 나오지 않는다. 앱 인증 완료 전에도 광고가 제한된다.
+  - 시험: 내 폰을 AdMob 설정 → 테스트 기기에 등록(실광고 클릭 금지 정책).
+  - 부활 창은 광고가 실제로 불러와졌을 때만 뜬다(승인 전에는 그냥 결과 화면).
 - 출시 전 바꿀 것: App Store 개인정보 라벨(광고 데이터·기기 ID 등 '제3자 광고'), 심사 메모의 "No ads", 처리방침(한·영) 광고 항목, Google Play 데이터 보안·'광고 포함', `app-ads.txt`(GitHub Pages 루트).
 
 ## Meta 앱 설치 광고 측정(2026-11-26 밤, 홍보 세션과 연계)

@@ -9,10 +9,10 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
 
-        <!-- AdMob 앱 ID(보상형 광고, 2026-11-26). 지금은 Google 시험용 ID — AdMob 계정에서 앱을 등록하면 진짜 ID로 바꾼다 -->
+        <!-- AdMob 앱 ID(보상형 광고, 2026-11-26). AdMob 앱 "Dragon Force Android"(2026-11-26 등록) -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-3940256099942544~3347511713" />
+            android:value="ca-app-pub-1538981463091871~1260385313" />
 
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"

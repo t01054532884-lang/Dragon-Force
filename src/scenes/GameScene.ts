@@ -2156,7 +2156,8 @@ export class GameScene extends Phaser.Scene {
   /** 체력이 0: 광고를 쓸 수 있고 이번 판에 아직 부활하지 않았으면 부활 창, 아니면 실패 */
   private onDown(): void {
     if (this.mode !== 'play') return this.fail('dead');
-    if (this.revived || !ads.supported()) return this.fail('dead');
+    // 광고를 지금 바로 보여 줄 수 있을 때만 창을 띄운다(AdMob 승인 전·광고 재고 없음이면 바로 결과로)
+    if (this.revived || !ads.ready()) return this.fail('dead');
     this.hp = 0;
     this.mode = 'revive';
     this.physics.pause();

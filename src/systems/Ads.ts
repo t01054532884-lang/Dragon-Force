@@ -5,8 +5,8 @@ import { PLATFORM } from '../platform';
  * 사용자가 스스로 버튼을 눌러 끝까지 본 경우에만 보상 — 전면·배너 광고는 넣지 않는다(docs/TOSS_ADS.md).
  * - 자리: 'revive' 전투에서 쓰러졌을 때 부활(판당 1회) · 'ruby' 루비 상점 루비 100(하루 1회)
  * - 토스: 앱인토스 SDK(GoogleAdMob.*AppsInTossAdMob), 콘솔에서 만든 광고 그룹 ID = VITE_TOSS_AD_REWARDED
- * - iOS·안드로이드: AdMob(@capacitor-community/admob), 광고 단위 ID = VITE_ADMOB_REWARDED_IOS / _ANDROID
- *   ID가 없으면 광고 버튼이 나오지 않는다(아직 AdMob 계정 전). VITE_ADMOB_TEST=1이면 Google 시험 광고 단위로.
+ * - iOS·안드로이드: AdMob(@capacitor-community/admob), 광고 단위 = 아래 LIVE_UNIT(환경 변수 VITE_ADMOB_REWARDED_IOS / _ANDROID로 덮어쓰기 가능)
+ *   VITE_ADMOB_TEST=1이면 Google 시험 광고 단위로(TestFlight 시험용).
  *   맞춤 광고는 쓰지 않는다(npa: 비개인 맞춤) → 앱 추적 투명성(ATT) 팝업 없음.
  * - 웹: 개발 모드(?dev=1)에서만 가짜 광고(0.8초 뒤 보상)로 시험, 배포 웹은 광고 없음
  */
@@ -17,6 +17,10 @@ const env = import.meta.env as Record<string, string | undefined>;
 const TEST = env.VITE_ADMOB_TEST === '1';
 // Google 공식 시험용 보상형 광고 단위(실제 수익 없음)
 const TEST_UNIT = { ios: 'ca-app-pub-3940256099942544/1712485313', android: 'ca-app-pub-3940256099942544/5224354917' };
+// 실제 보상형 광고 단위(AdMob 게시자 pub-1538981463091871, 2026-11-26 생성). 앱 안에 들어가는 공개 값.
+// 앱 ID는 iOS Info.plist GADApplicationIdentifier(~5530802817) · 안드로이드 AndroidManifest(~1260385313).
+// 개발·TestFlight 시험 중 내 폰에서는 AdMob '테스트 기기'로 등록하거나 VITE_ADMOB_TEST=1(시험 광고)로 — 내 실제 광고를 눌러 보면 정책 위반.
+const LIVE_UNIT = { ios: 'ca-app-pub-1538981463091871/6269169414', android: 'ca-app-pub-1538981463091871/9427097052' };
 
 interface AdImpl {
   ready(): boolean;
@@ -114,7 +118,7 @@ export async function initAds(dev: boolean): Promise<void> {
       const id = env.VITE_TOSS_AD_REWARDED;
       if (id) impl = await tossAds(id);
     } else if (PLATFORM === 'ios' || PLATFORM === 'android') {
-      const unit = (PLATFORM === 'ios' ? env.VITE_ADMOB_REWARDED_IOS : env.VITE_ADMOB_REWARDED_ANDROID) || (TEST ? TEST_UNIT[PLATFORM] : '');
+      const unit = TEST ? TEST_UNIT[PLATFORM] : (PLATFORM === 'ios' ? env.VITE_ADMOB_REWARDED_IOS : env.VITE_ADMOB_REWARDED_ANDROID) || LIVE_UNIT[PLATFORM];
       if (unit) impl = await admobAds(unit);
     } else if (dev) impl = fakeAds();
   } catch (e) {
