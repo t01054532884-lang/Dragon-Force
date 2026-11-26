@@ -2,6 +2,7 @@
 // 몬스터·테마·웨이브는 쉬움 1~20단계 그대로, 새 기믹 코드는 없음 — 어려움에서 이미 만든 기믹을 단계마다 겹쳐 쓴다.
 // **수치는 모두 AI 1차안(임시)** — 제작자 확인 전. 표·이유는 docs/VERY_HARD.md.
 import { hardStage, HARD_PACE, REC_UP, type HardMechanics, type HardStageDef } from './hardStages';
+import { M } from './stats';
 
 /**
  * 매우 어려움 권장 전투력 = 같은 단계 어려움 권장 × 1.05(2026-11-27 제작자: 순서 쉬움 < 어려움 < 매우 어려움을 지킨다).
@@ -9,6 +10,12 @@ import { hardStage, HARD_PACE, REC_UP, type HardMechanics, type HardStageDef } f
  * 적 수치는 권장 5,200 기준 봇 측정으로 맞춘 그대로 → 권장치에 닿으면 측정 때보다 여유 있게 깬다.
  */
 export const VERY_HARD_OVER_HARD = 1.05;
+
+/**
+ * 매우 어려움 전용 규칙 "처치 시 폭발"(2026-11-27 제작자 1순위, 범위는 작게): 일반 몹이 죽을 때 확률로 그 자리에 작은 폭발.
+ * 0.7초 예고(빨간 테두리 + 차오르는 안쪽) 뒤 판정, 피해 = 그 몹 접촉 피해. 렉 방지: 원을 다시 쓰는 풀 + 동시 최대 maxActive개(넘으면 그 처치는 폭발 없음).
+ */
+export const DEATH_BURST = { r: 0.9 * M, ms: 700, dmgMult: 1, chanceEarly: 0.1, chanceLate: 0.15, lateFrom: 11, maxActive: 6, flashMs: 120, color: 0xff3d71 };
 
 /** 매우 어려움 전투 길이 보정(어려움 웨이브 ×1.3·보스 ×1.25·엘리트 ×1.15보다 한 단계 위) */
 export const VERY_HARD_PACE = { waveKills: 1.4, bossHp: 1.35, eliteHp: 1.2 };
@@ -90,6 +97,8 @@ export const VERY_HARD_STAGES: HardStageDef[] = ROWS.map(([title, rec, arena, hp
       eliteStaggerMs: STAGGER,
       ...(two ? { bossKillHaste: h.specialMechanic.bossKillHaste ?? 0.1 } : { bossKillHaste: undefined, bossRoleSplit: undefined, finalEnrage: undefined }),
       ...(id === 20 ? { finale: true } : {}),
+      // 매우 어려움 전용 규칙: 처치 시 작은 폭발(1~10단계 10%, 11~20단계 15%, 반지름 0.9m)
+      deathBurst: { chance: id >= DEATH_BURST.lateFrom ? DEATH_BURST.chanceLate : DEATH_BURST.chanceEarly, r: DEATH_BURST.r, ms: DEATH_BURST.ms, dmgMult: DEATH_BURST.dmgMult },
     },
     // 15단계: 챕터 보스(체력 ×1.8)가 1마리라 보스전이 4~5분·시간 초과까지 나와(봇 측정 2026-11-26) 체력 75%
     ...(id === 15 ? { soloBossHpMultiplier: 0.75 } : {}),

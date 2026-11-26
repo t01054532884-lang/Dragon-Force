@@ -204,3 +204,21 @@ describe('매우 어려움 보상 늘림(2026-11-27 제작자)', () => {
     expect(a.progress.mailbox.gifts.find((g) => g.id === runeGiftId('extreme', 20))?.amount).toBe(20);
   });
 });
+
+describe('매우 어려움 전용 규칙: 처치 시 작은 폭발(2026-11-27 제작자 1순위)', () => {
+  it('매우 어려움 20단계 모두 켜짐(1~10단계 10%, 11~20단계 15%), 반지름 1m 이하, 어려움·쉬움에는 없음, 동시 상한 있음', async () => {
+    const { DEATH_BURST } = await import('../src/data/veryHardStages');
+    for (const v of VERY_HARD_STAGES) {
+      const b = v.specialMechanic.deathBurst!;
+      expect(b, String(v.stageId)).toBeDefined();
+      expect(b.chance).toBe(v.stageId >= 11 ? 0.15 : 0.1);
+      expect(b.r).toBeLessThanOrEqual(50); // 1m = 50px
+      expect(b.ms).toBeGreaterThanOrEqual(600); // 예고 시간은 피할 수 있게
+    }
+    expect(HARD_STAGES.every((h) => !h.specialMechanic.deathBurst)).toBe(true);
+    expect(stageRule('easy', 5)).toBeNull();
+    expect(DEATH_BURST.maxActive).toBeGreaterThan(0);
+    expect(DEATH_BURST.maxActive).toBeLessThanOrEqual(8);
+  });
+});
+

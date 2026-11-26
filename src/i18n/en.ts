@@ -1974,5 +1974,8 @@ export const EN: Record<string, string> = {
  "+ 보스 범위 +10%": "+ Boss area +10%",
  "+ 엘리트 강화·보스 범위 +10%": "+ Elite enrage · Boss area +10%",
  "+ 보스 광폭화·엘리트 강화·범위 +10%": "+ Boss enrage · Elite enrage · Area +10%",
- "룬 상자 {0}회권": "{0} Rune Chest Tickets"
+ "룬 상자 {0}회권": "{0} Rune Chest Tickets",
+ "쓰러진 적이 작게 폭발해요!\n빨간 원을 피하세요": "Defeated enemies explode!\nDodge the red circles",
+ "쓰러진 적이 작게 폭발해요!": "Defeated enemies explode!",
+ "빨간 원을 피하세요": "Dodge the red circles"
 };

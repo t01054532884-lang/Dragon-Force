@@ -42,7 +42,7 @@ import { AURA_EVERY_MS, AURA_PAD, HAZARD_FROM_STAGE, HAZARD_RANGE, HAZARD_WARN_M
 import { enterBattle } from '../ui/entry';
 import { attackTheme, BURST_CAP } from '../data/attackThemes';
 import { type HardStageDef } from '../data/hardStages';
-import { stageRule } from '../data/veryHardStages';
+import { DEATH_BURST, stageRule } from '../data/veryHardStages';
 import { fullH, offY } from '../ui/layout';
 import { playUltCutscene, playUltSweep, preloadUlt } from '../ui/UltCutscene';
 import { getLang } from '../i18n';
@@ -115,6 +115,13 @@ export class GameScene extends Phaser.Scene {
   private hard: HardStageDef | null = null;
   /** 어려움 8단계: 보스 공격 뒤 남는 위험 지대 */
   private dangerZones: { x: number; y: number; r: number; left: number; dmg: number; src: Enemy; g: Phaser.GameObjects.Arc | Phaser.GameObjects.Image }[] = [];
+  /**
+   * 매우 어려움 전용 "처치 시 폭발"(2026-11-27): 원 하나를 미리 만들어 두고 다시 쓰는 풀(새로 만들고 지우지 않음).
+   * 동시에 떠 있는 폭발은 DEATH_BURST.maxActive개까지 — 넘으면 그 처치는 폭발 없음(렉·화면 뒤덮임 방지). 트윈·흔들림·파티클 없음.
+   */
+  private bursts: { arc: Phaser.GameObjects.Arc; on: boolean; x: number; y: number; r: number; left: number; total: number; flash: number; dmg: number; src: Enemy }[] = [];
+  /** 성능 측정용: 만든 폭발·상한 때문에 건너뛴 수·동시 최대 */
+  burstStats = { spawned: 0, skipped: 0, maxActive: 0 };
   private bossTexts: Phaser.GameObjects.Text[] = [];
   /** 보스 2마리 체력 막대 틀 그림(ui-boss-bar, 어려움 요청서 6 ⑤) — 그림이 있을 때만 */
   private bossFrames: Phaser.GameObjects.Image[] = [];
@@ -291,6 +298,8 @@ export class GameScene extends Phaser.Scene {
     // 전장 모양(2026-11-24): 단계마다 원형/정사각형 + 장애물(src/data/arenas.ts)
     this.arena = makeArena(WORLD_SIZE / 2, WORLD_SIZE / 2, ARENA_R * (this.hard?.arenaSizeMultiplier ?? 1), arenaLayout(this.stage.id));
     this.dangerZones = [];
+    this.bursts = [];
+    this.burstStats = { spawned: 0, skipped: 0, maxActive: 0 };
     this.bossTexts = [];
     this.bossFrames = [];
     this.itemRng = new Phaser.Math.RandomDataGenerator([`${this.seed}:items`]);
@@ -499,6 +508,8 @@ export class GameScene extends Phaser.Scene {
     // 맵 기믹은 안내하지 않는다(제작자 2026-11-25: "말 안 해야 더 재밌어")
     // 어려움 기믹 설명 줄은 뺌(제작자 2026-11-25: 큰 글씨로 알려줄 필요 없음 — 맵 기믹 안내를 뺀 것과 같은 이유)
     this.banner(this.hard ? (this.difficulty === 'extreme' ? `매우 어려움 ${this.stage.id}단계 — ${this.hard.title}` : `어려움 ${this.stage.id}단계 — ${this.hard.title}`) : `${this.stage.id}단계 — ${this.stage.name}${this.difficulty === 'easy' ? '' : ` (${DIFFICULTY_LABEL[this.difficulty]})`}`, this.hard ? (this.difficulty === 'extreme' ? '#d59bff' : '#ff8a80') : '#e0e0e0');
+    // 매우 어려움 전용 규칙 안내(2026-11-27): 처치 시 작은 폭발
+    if (this.hard?.specialMechanic.deathBurst) this.time.delayedCall(2200, () => this.banner('쓰러진 적이 작게 폭발해요!\n빨간 원을 피하세요', '#ff8fb0'));
     // 어려움: 전투 시작 직후 스킬 카드 3번 고르기(시간 정지, 경험치 추가 없음)
     if (this.hard) {
       for (let k = 0; k < this.hard.startingSkillChoices; k++) this.choiceQueue.push('start');
@@ -1190,6 +1201,7 @@ export class GameScene extends Phaser.Scene {
       z.g.setAlpha(Math.min(1, z.left / 500));
       return true;
     });
+    this.updateDeathBursts(delta);
     // 어려움 8단계 위험 지대: 안에 있으면 피해(일반 무적 시간 적용), 시간이 지나면 사라짐
     this.dangerZones = this.dangerZones.filter((z) => {
       z.left -= delta;
@@ -1210,6 +1222,46 @@ export class GameScene extends Phaser.Scene {
       f.obj.setPosition(f.target.x, f.target.y);
       return true;
     });
+  }
+
+  /** 매우 어려움 "처치 시 폭발": 풀에서 원 하나를 꺼내 예고(테두리 + 차오르는 안쪽) → 끝나는 순간 판정 → 짧게 번쩍 → 숨김 */
+  private spawnDeathBurst(enemy: Enemy, b: { r: number; ms: number; dmgMult: number }): void {
+    const active = this.bursts.filter((x) => x.on).length;
+    if (active >= DEATH_BURST.maxActive) {
+      this.burstStats.skipped++;
+      return;
+    }
+    let slot = this.bursts.find((x) => !x.on);
+    if (!slot) {
+      const arc = this.add.circle(0, 0, b.r, DEATH_BURST.color, 0).setStrokeStyle(3, DEATH_BURST.color, 0.9).setDepth(4);
+      slot = { arc, on: false, x: 0, y: 0, r: b.r, left: 0, total: 0, flash: 0, dmg: 0, src: enemy };
+      this.bursts.push(slot);
+    }
+    Object.assign(slot, { on: true, x: enemy.x, y: enemy.y, r: b.r, left: b.ms, total: b.ms, flash: 0, dmg: enemy.def.contactDamage * b.dmgMult * enemy.damageMult, src: enemy });
+    slot.arc.setPosition(enemy.x, enemy.y).setRadius(b.r).setFillStyle(DEATH_BURST.color, 0.08).setStrokeStyle(3, DEATH_BURST.color, 0.9).setVisible(true);
+    this.burstStats.spawned++;
+    this.burstStats.maxActive = Math.max(this.burstStats.maxActive, active + 1);
+  }
+
+  private updateDeathBursts(delta: number): void {
+    for (const s of this.bursts) {
+      if (!s.on) continue;
+      if (s.flash > 0) {
+        s.flash -= delta;
+        s.arc.setAlpha(Math.max(0, s.flash / DEATH_BURST.flashMs));
+        if (s.flash <= 0) {
+          s.on = false;
+          s.arc.setVisible(false).setAlpha(1);
+        }
+        continue;
+      }
+      s.left -= delta;
+      s.arc.setFillStyle(DEATH_BURST.color, 0.08 + 0.32 * (1 - Math.max(0, s.left) / s.total));
+      if (s.left > 0) continue;
+      if (Phaser.Math.Distance.Between(s.x, s.y, this.player.x, this.player.y) < s.r + 14) this.damagePlayer(s.dmg, s.src, true);
+      s.flash = DEATH_BURST.flashMs;
+      s.arc.setFillStyle(0xffffff, 0.55).setStrokeStyle(0, 0, 0);
+    }
   }
 
   /** 드래곤 둔화(서리 발톱·눈보라): 가장 센 값 하나, 시간은 갱신 */
@@ -1766,9 +1818,7 @@ export class GameScene extends Phaser.Scene {
       if (drop === 'potion' && this.hard?.potionCap !== undefined && this.dropState.potions > this.hard.potionCap) drop = null;
       // 매우 어려움 후보 수식어: 일반 적 처치 시 확률로 예고 뒤 작은 폭발(설정 없으면 꺼짐)
       const burst = this.hard?.specialMechanic.deathBurst;
-      if (burst && this.itemRng.frac() < burst.chance) {
-        this.doEnemyAction(enemy, { kind: 'circleHit', x: enemy.x, y: enemy.y, r: burst.r, ms: burst.ms, damage: enemy.def.contactDamage * burst.dmgMult });
-      }
+      if (burst && this.itemRng.frac() < burst.chance) this.spawnDeathBurst(enemy, burst);
       if (this.firstMagnetPending && this.elapsed >= ITEM_RULES.firstMagnetAtMs && drop !== 'magnet') {
         drop = 'magnet'; // 첫 판: 자석 확정 1번(주우면 다시 안 나옴)
         this.firstMagnetPending = false;
