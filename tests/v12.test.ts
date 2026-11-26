@@ -418,12 +418,12 @@ describe('6-7 → v1.2 룬(옛 장착형 특수 스킬)', () => {
 });
 
 describe('6-8 전투력', () => {
-  it('기본 레드 CP 1,000, 권장치(v1.3 임시) 1단계 900/1,350/1,710(매우 어려움 ×1.9, 11/26), 20단계 2,500', () => {
+  it('기본 레드 CP 1,000, 권장치(v1.3 임시) 1단계 900/1,620/1,701(어려움 ×1.2·매우 어려움 = 어려움 ×1.05, 11/27), 20단계 3,000', () => {
     expect(loadout(defaultProgress(), 'red').cp).toBe(combatPower(13, 100, 260, 0)); // 기본 공격력 ×1.3(11/26) → 1,217
     expect(combatPower(10, 100, 260, 0)).toBe(1000);
-    expect([recommendedCp(1, 'easy'), recommendedCp(1, 'hard'), recommendedCp(1, 'extreme')]).toEqual([900, 1350, 1710]);
-    expect(recommendedCp(20, 'easy')).toBe(2500);
-    expect(recommendedCp(10, 'easy')).toBe(1550);
+    expect([recommendedCp(1, 'easy'), recommendedCp(1, 'hard'), recommendedCp(1, 'extreme')]).toEqual([900, 1620, 1701]);
+    expect(recommendedCp(20, 'easy')).toBe(3000); // 표 2,500 × 1.2(쉬움 6~20단계, 11/27)
+    expect(recommendedCp(10, 'easy')).toBe(1860); // 1,550 × 1.2
     expect(cpVerdict(1000, 900).text).toBe('권장 이상');
     expect(cpVerdict(800, 1000).text).toBe('도전 가능');
   });

@@ -1,7 +1,14 @@
 // 매우 어려움 1~20단계(2026-11-26, 다음 업데이트). 어려움(`hardStages.ts`)과 같은 틀(HardStageDef)을 그대로 쓰고 한 단계 위로 잡는다.
 // 몬스터·테마·웨이브는 쉬움 1~20단계 그대로, 새 기믹 코드는 없음 — 어려움에서 이미 만든 기믹을 단계마다 겹쳐 쓴다.
 // **수치는 모두 AI 1차안(임시)** — 제작자 확인 전. 표·이유는 docs/VERY_HARD.md.
-import { hardStage, HARD_PACE, type HardMechanics, type HardStageDef } from './hardStages';
+import { hardStage, HARD_PACE, REC_UP, type HardMechanics, type HardStageDef } from './hardStages';
+
+/**
+ * 매우 어려움 권장 전투력 = 같은 단계 어려움 권장 × 1.05(2026-11-27 제작자: 순서 쉬움 < 어려움 < 매우 어려움을 지킨다).
+ * 20단계 약 6,300 — 전설 드래곤은 성장 최대면 넘고, 일반·희귀는 다음 성장 확장에서 따라잡는다(30·40단계 대비).
+ * 적 수치는 권장 5,200 기준 봇 측정으로 맞춘 그대로 → 권장치에 닿으면 측정 때보다 여유 있게 깬다.
+ */
+export const VERY_HARD_OVER_HARD = 1.05;
 
 /** 매우 어려움 전투 길이 보정(어려움 웨이브 ×1.3·보스 ×1.25·엘리트 ×1.15보다 한 단계 위) */
 export const VERY_HARD_PACE = { waveKills: 1.4, bossHp: 1.35, eliteHp: 1.2 };
@@ -66,7 +73,8 @@ export const VERY_HARD_STAGES: HardStageDef[] = ROWS.map(([title, rec, arena, hp
   return {
     stageId: id,
     title,
-    recommendedPowerMultiplier: rec,
+    // 표의 rec 열은 처음 측정 때 쓴 값(기록용). 실제 권장 = 어려움 배율 × 1.2 × 1.05
+    recommendedPowerMultiplier: Math.round(h.recommendedPowerMultiplier * REC_UP.mult * VERY_HARD_OVER_HARD * 1000) / 1000,
     arenaSizeMultiplier: arena,
     enemyHpMultiplier: hp,
     enemyDamageMultiplier: dmg,

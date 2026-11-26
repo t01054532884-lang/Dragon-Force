@@ -116,6 +116,12 @@ export const HARD_STAGES: HardStageDef[] = ROWS.map(([title, rec, arena, hp, dmg
   clearReward: { rubies: RUBY + (MILESTONE[i + 1] ?? 0), milestone: !!MILESTONE[i + 1] },
 }));
 
+/**
+ * 권장 전투력 상향(2026-11-27 제작자): 모든 드래곤 기본 공격력 ×1.3으로 같은 육성의 전투력이 약 22% 올라서
+ * 쉬움 6~20단계·어려움 1~20단계 권장 전투력 ×1.2(쉬움 1~5단계는 쉽게 깰 수 있게 그대로). 표의 배율은 그대로 두고 recommendedCp에서 곱한다.
+ */
+export const REC_UP = { mult: 1.2, easyFrom: 6 };
+
 export const hardStage = (stageId: number): HardStageDef => HARD_STAGES[Math.max(1, Math.min(20, stageId)) - 1];
 
 /**

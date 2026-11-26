@@ -14,12 +14,18 @@ const clear = (p: PlayerProgress, d: 'easy' | 'hard' | 'extreme', stage: number,
   settleRun(p, id, 0, stage + 1, { stageId: stage, cleared: true, elapsedMs: 400_000, normalKills: 50, eliteKills: 2, difficulty: d, dragonId: 'red' }).progress;
 
 describe('매우 어려움 1~20단계 데이터(2026-11-26, 임시)', () => {
-  it('20단계, 권장 전투력 배율 ×1.90 → ×2.08(어려움 같은 단계보다 항상 높음), 20단계 5,200 < 성장 최대 레드', () => {
+  it('권장 전투력: 쉬움 1~5 그대로 · 쉬움 6~20·어려움 ×1.2 · 매우 어려움 = 어려움 × 1.05(2026-11-27), 순서 쉬움 < 어려움 < 매우 어려움', () => {
     expect(VERY_HARD_STAGES).toHaveLength(20);
-    expect(veryHardStage(1).recommendedPowerMultiplier).toBe(1.9);
-    expect(veryHardStage(20).recommendedPowerMultiplier).toBe(2.08);
-    expect(recommendedCp(1, 'extreme')).toBe(1710);
-    expect(recommendedCp(20, 'extreme')).toBe(5200);
+    expect(recommendedCp(1, 'extreme')).toBe(1701);
+    expect(recommendedCp(20, 'extreme')).toBe(6300);
+    expect(recommendedCp(20, 'hard')).toBe(6000);
+    for (let s = 1; s <= 5; s++) expect(recommendedCp(s, 'easy')).toBe(RECOMMENDED_EASY[s - 1]);
+    for (let s = 6; s <= 20; s++) expect(recommendedCp(s, 'easy')).toBe(Math.round(RECOMMENDED_EASY[s - 1] * 1.2));
+    for (let s = 1; s <= 20; s++) {
+      expect(recommendedCp(s, 'hard')).toBe(Math.round(RECOMMENDED_EASY[s - 1] * hardStage(s).recommendedPowerMultiplier * 1.2));
+      expect(recommendedCp(s, 'hard')).toBeGreaterThan(recommendedCp(s, 'easy'));
+      expect(recommendedCp(s, 'extreme')).toBeGreaterThanOrEqual(Math.round(recommendedCp(s, 'hard') * 1.05) - 1);
+    }
     for (let s = 1; s <= 20; s++) expect(recommendedCp(s, 'extreme')).toBeGreaterThan(recommendedCp(s, 'hard'));
   });
   it('어려움보다 한 단계 위: 같은 단계에서 적 체력·공격력·엘리트·보스 수·전투 길이 모두 같거나 높음', () => {
@@ -160,8 +166,8 @@ describe('클라우드 저장 요약', () => {
   });
 });
 
-describe('성장 최대 드래곤으로 깰 수 있는 권장치(2026-11-26 제작자: 끝판 목표 아님)', () => {
-  it('연구소 40·영구 Lv.40·5성·룬 10·전설 장비 Lv.10이면 레드도 매우 어려움 20단계 권장 전투력 이상', async () => {
+describe('성장 최대 드래곤으로 깰 수 있는 권장치(2026-11-27 제작자: 전설은 성장 최대면 매우 어려움 20단계 이상, 일반·희귀는 다음 성장 확장에서)', () => {
+  it('연구소 40·영구 Lv.40·5성·룬 10·전설 장비 Lv.10이면 전설 드래곤 모두 매우 어려움 20단계 권장 전투력 이상', async () => {
     const { DRAGON_ORDER } = await import('../src/data/dragons');
     const { SPECIAL_IDS } = await import('../src/data/specials');
     const { equipItem } = await import('../src/systems/Progress');
@@ -175,10 +181,13 @@ describe('성장 최대 드래곤으로 깰 수 있는 권장치(2026-11-26 제�
       const e = equipItem(p, `u${i}`);
       if (e.ok) p = e.progress;
     }
+    const { DRAGONS } = await import('../src/data/dragons');
     const rec = recommendedCp(20, 'extreme');
-    const cps = DRAGON_ORDER.map((id) => loadout(p, id).cp);
-    expect(loadout(p, 'red').cp).toBeGreaterThanOrEqual(rec);
-    expect(Math.min(...cps)).toBeGreaterThanOrEqual(rec);
+    const legends = DRAGON_ORDER.filter((id) => DRAGONS[id].rarity === 'legendary');
+    expect(legends.length).toBeGreaterThanOrEqual(4);
+    for (const id of legends) expect(loadout(p, id).cp, id).toBeGreaterThanOrEqual(rec);
+    // 레드(기본)는 아직 못 미침 — 다음 성장 확장(연구소·장비 상한)에서 따라잡는다
+    expect(loadout(p, 'red').cp).toBeLessThan(rec);
   });
 });
 

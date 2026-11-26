@@ -54,7 +54,8 @@ describe('7단계 시즌 1 데이터', () => {
     expect([1, 4, 5, 8, 9, 13, 17, 20].map((s) => chapterOf(s).id)).toEqual([1, 1, 2, 2, 3, 4, 5, 5]);
   });
   it('권장 전투력 v1.3 임시표 900 → 2,500, 쉬움·어려움·매우 어려움 출시', () => {
-    expect([1, 5, 10, 15, 20].map((s) => recommendedCp(s, 'easy'))).toEqual([900, 1150, 1550, 2020, 2500]);
+    // 쉬움 1~5단계는 표 그대로, 6~20단계 ×1.2(2026-11-27 제작자)
+    expect([1, 5, 6, 10, 15, 20].map((s) => recommendedCp(s, 'easy'))).toEqual([900, 1150, 1464, 1860, 2424, 3000]);
     expect(DIFFICULTY_RELEASED).toEqual({ easy: true, hard: true, extreme: true }); // 2026-11-21 어려움 · 2026-11-26 매우 어려움 출시
   });
 });

@@ -6,6 +6,7 @@
 설정은 모두 데이터 한 곳: **`src/data/hardStages.ts`** (원문 12장의 항목 이름 그대로 — `recommendedPowerMultiplier`·`arenaSizeMultiplier`·`enemyHpMultiplier`·`enemyDamageMultiplier`·`startingSkillChoices`·`eliteSpawnCount`·`bossSpawnCount`·`bossHpMultiplier`·`specialMechanic`·`clearReward`).
 
 ## 0. 해금 (2026-11-24 제작자 결정)
+- (2026-11-27) 권장 전투력: 쉬움 6~20단계·어려움 ×1.2 → 쉬움 10단계 1,860 > 어려움 1단계 1,620(같은 관계 유지). `REC_UP`(hardStages.ts), `docs/VERY_HARD.md` 6-0.
 - **쉬움 서로 다른 단계 10개 클리어 → 어려움 1단계 열림**(예전 20개). 값은 `DIFFICULTY_UNLOCK_AT.hard`(`src/data/economy.ts`). 근거: 쉬움 10단계 권장 전투력 1,550 > 어려움 1단계 1,350(115%, "권장 이상"), 5단계(1,150, 85%)는 열리자마자 막힐 수 있어 제외.
 - 처음 열린 뒤 로비에 오면 **"어려움 모드 해금!" 연출** 한 번(붉은 빛줄기·자물쇠·불꽃 조각·화면 흔들림·해금 소리, 권장 전투력 안내, 확인 / 도전하기). 도전하기 = 어려움 1단계를 고른 로비. 연출 뒤 출석 팝업. 본 기록은 `claimed`의 `unlock-seen-hard`(클라우드 저장과 함께). 이미 어려움을 1판 이상 깬 예전 저장에는 띄우지 않음. 코드 `pendingDifficultyUnlock`(`src/systems/Progress.ts`), `difficultyUnlock`(`src/ui/celebrate.ts`).
 - 잠긴 어려움 탭을 누르면 "쉬움 10단계를 깨면 열려요".
