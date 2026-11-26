@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { makeTextures } from '../textures';
 import { DRAGONS, RARITY_COLOR, RARITY_LABEL } from '../data/dragons';
 import { BOXES, DEALS, DRAGON_BOX, EQUIPMENT_BOX, ESSENCE, FREE_DAILY_GIFT, GOLD_OFFERS, PACKAGES, RARITIES, RUBY_PRODUCTS, type BoxId, type PackageDef } from '../data/economy';
-import { buyFailText, buyProduct, CASH_SHOP, claimFreeDaily, freeDailyClaimed, grantLine, packageBought, PAY_NOTICE, purchases, restoreAll, type RubyProduct } from '../systems/Purchases';
+import { AD_RUBY, adRubyClaimed, buyFailText, buyProduct, CASH_SHOP, claimAdRuby, claimFreeDaily, freeDailyClaimed, grantLine, packageBought, PAY_NOTICE, purchases, restoreAll, type RubyProduct } from '../systems/Purchases';
 import { rewardPopup } from '../ui/celebrate';
 import { gameNow } from '../ui/widgets';
 import { tabs } from '../ui/kit2';
@@ -13,6 +13,7 @@ import { makeScroll, type Scroller } from '../ui/scroll';
 import { offY } from '../ui/layout';
 import { RUNE_BOX } from '../data/runes';
 import { popPurchase, popWord, PURCHASE_POP_MS, toast } from '../ui/screen';
+import { ads } from '../systems/Ads';
 import { equipDef, SLOT_ICON, SLOT_LABEL } from '../data/equipment';
 import { specialDef } from '../data/specials';
 import { poolOf, Progress, type BoxResult, type Reward } from '../systems/Progress';
@@ -224,10 +225,13 @@ export class ShopScene extends Phaser.Scene {
   private rubySection(y0: number): number {
     this.sectionY.ruby = y0;
     this.section(y0, 'ui-ruby', '루비 구매', '보너스 루비 포함');
+    // 광고 보고 루비(2026-11-26): 둘째 줄 빈자리(상품 5개 → 3+2)에 광고 칸을 넣어 3+3
+    const withAd = ads.supported();
+    if (withAd) this.adRubyCard(360 + 230, y0 + 160 + 250, 216, 236);
     RUBY_PRODUCTS.forEach((def, i) => {
       const row = Math.floor(i / 3);
       const col = i % 3;
-      const perRow = row === 0 ? 3 : RUBY_PRODUCTS.length - 3;
+      const perRow = row === 0 || withAd ? 3 : RUBY_PRODUCTS.length - 3;
       const x = 360 + (col - (perRow - 1) / 2) * 230;
       const cy = y0 + 160 + row * 250;
       const card = plate(this, x, cy, 216, 236, { r: 22, fill: i >= 3 ? 0x3a2370 : 0x2b2442, gold: i === RUBY_PRODUCTS.length - 1 });
@@ -266,7 +270,17 @@ export class ShopScene extends Phaser.Scene {
     card.add(text(this, -196, 18, `골드 ${FREE_DAILY_GIFT.gold.toLocaleString()} + 루비 ${FREE_DAILY_GIFT.rubies}`, TYPE.caption, COLOR.text, true, true).setOrigin(0, 0.5));
     const fb = button(this, 360 + 236, y, 160, 62, got ? '내일 또' : '무료 받기', () => this.claimFree(), { kind: got ? 'secondary' : 'growth', size: TYPE.caption });
     fb.setEnabled(!got);
-    return y + 110;
+    if (!ads.supported()) return y + 110;
+    // 토스판: 광고 보고 루비 100(하루 1번) — 루비 구매 칸이 없으니 무료 선물 아래 넓은 칸으로
+    const ay = y + 146;
+    const adGot = adRubyClaimed(p, gameNow());
+    const ac = plate(this, 360, ay, 680, 128, { r: 24, fill: 0x2b2442, gold: !adGot });
+    ac.add(this.add.image(-262, 0, 'ui-ruby').setDisplaySize(80, 80));
+    ac.add(text(this, -196, -24, '광고 보고 루비', TYPE.body, COLOR.gold, true, true).setOrigin(0, 0.5));
+    ac.add(text(this, -196, 18, `루비 ${AD_RUBY.rubies} · 하루 1번`, TYPE.caption, COLOR.text, true, true).setOrigin(0, 0.5));
+    const ab = button(this, 360 + 236, ay, 160, 62, adGot ? '내일 또' : '▶ 광고', () => this.watchAdRuby(), { kind: adGot ? 'secondary' : 'growth', size: TYPE.caption });
+    ab.setEnabled(!adGot);
+    return ay + 110;
   }
 
   private packageSection(y0: number): number {
@@ -329,6 +343,39 @@ export class ShopScene extends Phaser.Scene {
   }
 
   /** 무료 일일 선물 받기 → 보상 팝업 */
+  /** 광고 보고 루비 100 칸(하루 1번). 오늘 받았으면 "내일 또" */
+  private adRubyCard(x: number, cy: number, w: number, h: number): void {
+    const got = adRubyClaimed(Progress.load(), gameNow());
+    const card = plate(this, x, cy, w, h, { r: 22, fill: 0x1f4a2a, gold: !got });
+    if (this.textures.exists('ruby-pack-2')) card.add(this.add.image(0, -56, 'ruby-pack-2').setDisplaySize(110, 110));
+    else card.add(this.add.image(0, -52, 'ui-ruby').setDisplaySize(64, 64));
+    card.add(text(this, 0, 14, AD_RUBY.rubies.toLocaleString(), TYPE.heading, COLOR.text, true, true).setOrigin(0.5));
+    card.add(text(this, 0, 46, '광고 보고 무료', TYPE.tiny, COLOR.gold, true, true).setOrigin(0.5));
+    const b = button(this, x, cy + 88, w - 36, 58, got ? '내일 또' : '▶ 광고 보기', () => this.watchAdRuby(), { kind: got ? 'secondary' : 'growth', size: TYPE.caption });
+    b.setEnabled(!got);
+  }
+
+  private watchAdRuby(): void {
+    if (this.dragged || this.payBusy) return;
+    if (adRubyClaimed(Progress.load(), gameNow())) return toast(this, '오늘은 이미 받았어요', COLOR.textSub);
+    if (!ads.ready()) return toast(this, '지금 볼 수 있는 광고가 없어요. 잠시 뒤 다시 시도해 주세요', COLOR.textSub);
+    this.payBusy = true;
+    void ads.show('ruby').then((r) => {
+      this.payBusy = false;
+      if (!this.sys.isActive()) return;
+      if (r !== 'rewarded') {
+        if (r === 'unavailable') toast(this, '광고를 불러오지 못했어요. 잠시 뒤 다시 시도해 주세요', COLOR.textSub);
+        return;
+      }
+      const c = claimAdRuby(Progress.load(), gameNow());
+      if (!c.ok) return;
+      Progress.save(c.progress);
+      popPurchase(this, `루비 ${AD_RUBY.rubies}`, '광고 보상!');
+      this.frame.refresh();
+      this.time.delayedCall(PURCHASE_POP_MS, () => this.scene.restart({ dealTab: this.dealTab, scrollY: this.content?.y ?? 0 }));
+    });
+  }
+
   private claimFree(): void {
     if (this.dragged) return;
     const r = claimFreeDaily(Progress.load(), gameNow());

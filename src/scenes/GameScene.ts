@@ -15,6 +15,7 @@ import { preloadStageArt } from '../ui/art';
 import { preloadBattleArt, releaseLobbyArt } from '../ui/artMemory';
 import { badge, button as kitButton, ribbon, text as ktext } from '../ui/kit';
 import { plate } from '../ui/kit2';
+import { ads } from '../systems/Ads';
 import { COLOR, TYPE } from '../ui/theme';
 import { resolveDamage, type HitSpec } from '../systems/Damage';
 import type { CombatHost } from '../systems/CombatHost';
@@ -80,7 +81,7 @@ function upgradeIcon(u: Upgrade, dragonId: string): string | null {
 /** 카드 종류 색(그림 요청서 3: 기본공격 주황 · 액티브 남보라 · 패시브 청록) */
 const KIND_COLOR = { basic: 0xff8a3d, active: 0x6d5bd0, passive: 0x22b8a8, filler: 0x8a8f9e } as const;
 const KIND_LABEL = { basic: '기본 공격', active: '액티브', passive: '패시브', filler: '보급' } as const;
-type Mode = 'play' | 'choose' | 'paused' | 'clearing' | 'result' | 'ult'; // ult = 필살기 컷신 3초(게임 멈춤)
+type Mode = 'play' | 'choose' | 'paused' | 'clearing' | 'result' | 'ult' | 'revive'; // ult = 필살기 컷신 3초(게임 멈춤), revive = 쓰러짐 → 광고 부활 선택 창
 
 interface Hazard {
   left: number;
@@ -136,6 +137,9 @@ export class GameScene extends Phaser.Scene {
   private upgradeLevels = new Map<string, number>();
   private basicEverOffered = false;
   private invincibleUntil = 0;
+  /** 광고 부활(2026-11-26): 판당 1회 */
+  private revived = false;
+  private reviveBusy = false;
   private invulnerable = false; // 클리어 연출 중 무적
   private elapsed = 0; // 판 시작 후 지난 시간(ms). 카드 고르는 동안은 멈춘다.
   private timeScale = 1; // 보스 처치 순간 0.35배 슬로모션
@@ -300,6 +304,8 @@ export class GameScene extends Phaser.Scene {
     this.basicEverOffered = false;
     this.invincibleUntil = 0;
     this.invulnerable = false;
+    this.revived = false;
+    this.reviveBusy = false;
     this.elapsed = 0;
     this.timeScale = 1;
     this.kills = 0;
@@ -2142,7 +2148,70 @@ export class GameScene extends Phaser.Scene {
     // 연출(기획 7.4): 그림 층만 붉게 80~120ms, 화면 흔들림은 큰 피해(최대 HP 15% 이상)만·300ms 간격
     this.fx.playerHit(this.skin, dmg >= this.stats.maxHp * 0.15);
     playSfx(this, 'sfx-player-hit');
-    if (this.hp <= 0) this.fail('dead');
+    if (this.hp <= 0) this.onDown();
+  }
+
+  // ───────────────────────── 광고 보고 부활 (2026-11-26 제작자 요청) ─────────────────────────
+
+  /** 체력이 0: 광고를 쓸 수 있고 이번 판에 아직 부활하지 않았으면 부활 창, 아니면 실패 */
+  private onDown(): void {
+    if (this.mode !== 'play') return this.fail('dead');
+    if (this.revived || !ads.supported()) return this.fail('dead');
+    this.hp = 0;
+    this.mode = 'revive';
+    this.physics.pause();
+    this.time.paused = true;
+    this.releaseStick();
+    this.player.setVelocity(0, 0);
+    this.drawRevive();
+  }
+
+  private drawRevive(note = ''): void {
+    this.pauseLayer.forEach((o) => o.destroy());
+    this.pauseLayer = [];
+    const oy = offY(this);
+    const add = <T extends Phaser.GameObjects.GameObject & { setScrollFactor: (n: number) => T; setDepth: (n: number) => T }>(o: T): T => {
+      this.pauseLayer.push(o);
+      (o as unknown as { y: number }).y += oy;
+      return o.setScrollFactor(0).setDepth(UI_DEPTH + 50);
+    };
+    add(this.add.rectangle(360, 640, 720, fullH(this), 0x000000, 0.72));
+    add(plate(this, 360, 680, 620, 560, { r: 28 }));
+    add(ribbon(this, 360, 420, 420, '쓰러졌어요!', COLOR.danger, 74));
+    add(ktext(this, 360, 540, '광고를 보면 체력 50%로\n이 자리에서 다시 싸울 수 있어요', TYPE.body, COLOR.text, true, true).setOrigin(0.5).setAlign('center').setLineSpacing(10));
+    add(ktext(this, 360, 618, '한 판에 한 번', TYPE.caption, COLOR.gold, true, true).setOrigin(0.5));
+    if (note) add(ktext(this, 360, 660, note, TYPE.tiny, COLOR.textSub, true, true).setOrigin(0.5));
+    add(kitButton(this, 360, 740, 460, 96, '▶ 광고 보고 부활', () => this.doRevive(), { kind: 'cta', size: TYPE.heading }).root);
+    add(kitButton(this, 360, 860, 460, 80, '결과 보기', () => this.giveUpRevive(), { kind: 'secondary', size: TYPE.body }).root);
+  }
+
+  private doRevive(): void {
+    if (this.reviveBusy || this.mode !== 'revive') return;
+    if (!ads.ready()) return this.drawRevive('지금 볼 수 있는 광고가 없어요. 잠시 뒤 다시 눌러 주세요');
+    this.reviveBusy = true;
+    void ads.show('revive').then((r) => {
+      this.reviveBusy = false;
+      if (!this.sys.isActive() || this.mode !== 'revive') return;
+      if (r !== 'rewarded') return this.drawRevive(r === 'cancelled' ? '광고를 끝까지 봐야 부활해요' : '광고를 불러오지 못했어요. 잠시 뒤 다시 눌러 주세요');
+      this.pauseLayer.forEach((o) => o.destroy());
+      this.pauseLayer = [];
+      this.revived = true;
+      this.hp = this.stats.maxHp * 0.5;
+      this.mode = 'play';
+      this.physics.resume();
+      this.time.paused = false;
+      this.invincibleUntil = this.time.now + 3000; // 다시 일어난 뒤 3초 무적(바로 또 쓰러지지 않게)
+      this.stageLog.push({ name: 'stage:revive', at: Math.round(this.elapsed), data: {} });
+      this.popText(this.player.x, this.player.y - 60, '부활!', '#ffd34d', 40);
+      this.cameras.main.flash(250, 255, 230, 150);
+    });
+  }
+
+  private giveUpRevive(): void {
+    if (this.reviveBusy) return;
+    this.pauseLayer.forEach((o) => o.destroy());
+    this.pauseLayer = [];
+    this.fail('dead');
   }
 
   // ───────────────────────── 클리어·실패 ─────────────────────────

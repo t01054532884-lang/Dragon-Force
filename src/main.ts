@@ -18,6 +18,8 @@ import { STORAGE_KEYS } from './systems/Progress';
 import { applySound, loadSettings, SETTINGS_KEY } from './systems/Settings';
 import { installTextFit, installTextTranslation, setLang } from './i18n';
 import { installDeepLinks } from './systems/DeepLink';
+import { initAds } from './systems/Ads';
+import { devMode } from './ui/widgets';
 import { ACCOUNT_KEY, account } from './systems/Account';
 import { cloud } from './systems/Cloud';
 import { CLOUD_KEY } from './systems/cloudSync';
@@ -34,6 +36,7 @@ export interface PlatformAware {
 async function boot(): Promise<void> {
   // 저장소·안전 영역·세로 고정을 먼저 맞춘 뒤 게임을 만든다(저장된 진행을 동기로 읽기 위해)
   await initPlatform([...STORAGE_KEYS, SETTINGS_KEY, ACCOUNT_KEY, CLOUD_KEY]);
+  void initAds(devMode()); // 보상형 광고(부활·루비) — 기다리지 않는다(광고 준비가 늦어도 게임은 바로 시작)
   // 언어(2026-11-25): 저장된 설정(없으면 기기 언어) → 영어면 모든 글자를 그릴 때 영어 사전으로(src/i18n)
   setLang(loadSettings().lang);
   installTextTranslation(Phaser);

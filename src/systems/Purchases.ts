@@ -257,6 +257,14 @@ export function grantLine(t: IapGrant): string {
 
 /** 무료 일일 선물: KST 하루 1번 골드·루비 */
 export const freeDailyClaimed = (p: PlayerProgress, now: number) => p.shopLog.includes(`free@${dealPeriodKey('daily', now)}`);
+/** 광고 보고 루비(2026-11-26 제작자: 루비 상점에서 광고 보면 100개, 하루 1번, KST 0시 초기화) */
+export const AD_RUBY = { rubies: 100, perDay: 1 };
+export const adRubyClaimed = (p: PlayerProgress, now: number) => p.shopLog.includes(`adruby@${dealPeriodKey('daily', now)}`);
+export function claimAdRuby(p: PlayerProgress, now: number): Result {
+  if (adRubyClaimed(p, now)) return { ok: false, reason: 'claimed' };
+  return { ok: true, progress: { ...p, rubies: p.rubies + AD_RUBY.rubies, shopLog: [...p.shopLog, `adruby@${dealPeriodKey('daily', now)}`].slice(-300) } };
+}
+
 export function claimFreeDaily(p: PlayerProgress, now: number): Result {
   if (freeDailyClaimed(p, now)) return { ok: false, reason: 'claimed' };
   return {

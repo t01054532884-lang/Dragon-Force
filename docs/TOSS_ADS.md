@@ -1,3 +1,18 @@
+# 보상형 광고 — 2026-11-26
+
+## 확정(제작자, 2026-11-26 밤)
+- **토스·App Store·Google Play 모두 보상형 광고**(아래 1절의 '토스판만' 제안은 바뀜). 전면·배너는 넣지 않는다.
+- 자리 2곳: ① 전투에서 쓰러지면 **광고 보고 부활(체력 50%, 판당 1회, 부활 뒤 3초 무적)** ② 루비 상점 **광고 보고 루비 100(하루 1번, KST 0시)**. 토스판은 루비 상점이 없어 무료 선물 아래 칸.
+- 코드: `src/systems/Ads.ts`(토스 = 앱인토스 SDK, iOS·안드로이드 = AdMob `@capacitor-community/admob@8.3.0`, 웹 개발 모드 = 가짜 광고), 규칙 `claimAdRuby`(Purchases.ts), 부활 `GameScene.onDown`.
+- 광고 ID가 없으면 광고 칸·부활 창이 나오지 않는다(지금 상태). 넣을 값:
+  - 토스: 콘솔 광고 그룹(보상형) ID → `VITE_TOSS_AD_REWARDED`
+  - AdMob: 앱 ID(iOS `Info.plist` GADApplicationIdentifier · 안드로이드 `AndroidManifest` APPLICATION_ID — 지금은 Google 시험용 ID), 보상형 광고 단위 → `VITE_ADMOB_REWARDED_IOS` / `_ANDROID`(Codemagic 환경 변수 그룹 firebase). 시험 빌드는 `VITE_ADMOB_TEST=1`이면 Google 시험 광고.
+  - 맞춤 광고 끔(npa) → ATT 팝업 없음.
+- 출시 전 바꿀 것: App Store 개인정보 라벨(광고 데이터·기기 ID 등 '제3자 광고'), 심사 메모의 "No ads", 처리방침(한·영) 광고 항목, Google Play 데이터 보안·'광고 포함', `app-ads.txt`(GitHub Pages 루트).
+
+---
+(아래는 처음 검토 — 토스판만 기준)
+
 # 앱인토스(토스판) 인앱 광고 검토 — 2026-11-26
 
 제작자 요청: 토스 공지(인앱 광고 운영 정책 변경)를 보고 "토스판에 광고를 넣을지 검토".
