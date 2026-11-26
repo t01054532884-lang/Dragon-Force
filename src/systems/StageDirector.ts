@@ -330,7 +330,7 @@ export class StageDirector {
     });
     if (this.bossBuffs.length) this.h.emit('boss:absorb-elites', { buffs: this.bossBuffs });
     const n = this.bossSpawnPoints.length;
-    const each = (n > 1 ? this.hard!.bossHpMultiplier : 1) * (this.hard ? (this.hard.pace ?? HARD_PACE).bossHp : 1);
+    const each = (n > 1 ? this.hard!.bossHpMultiplier : (this.hard?.soloBossHpMultiplier ?? 1)) * (this.hard ? (this.hard.pace ?? HARD_PACE).bossHp : 1);
     const mech = this.hard?.specialMechanic ?? {};
     this.bosses = this.bossSpawnPoints.map((p, k) => {
       const boss = this.h.spawn(s.bossId, p.x, p.y, this.diff.hp * rankHpMult(s, 'boss') * pace(s.id).bossHp * hpBuff * each);

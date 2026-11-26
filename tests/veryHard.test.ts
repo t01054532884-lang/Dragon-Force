@@ -62,8 +62,12 @@ describe('매우 어려움 1~20단계 데이터(2026-11-26, 임시)', () => {
       expect(v.startingSkillChoices).toBe(2);
       expect(ENEMIES[STAGES[v.stageId - 1].bossId]).toBeDefined(); // 새 몬스터 없음
     }
-    expect(VERY_HARD_STAGES.filter((v) => v.bossSpawnCount === 2).map((v) => v.stageId)).toEqual([5, 8, 10, 12, 14, 15, 17, 19, 20]);
+    expect(VERY_HARD_STAGES.filter((v) => v.bossSpawnCount === 2).map((v) => v.stageId)).toEqual([5, 8, 10, 12, 14, 17, 19, 20]);
     expect(veryHardStage(20).specialMechanic.finale).toBe(true);
+    // 15단계: 챕터 보스 1마리 체력 75%(봇 측정에서 보스전 4~5분·시간 초과, 2026-11-26), 다른 단계는 기본 1
+    expect([veryHardStage(15).bossSpawnCount, veryHardStage(15).soloBossHpMultiplier]).toEqual([1, 0.75]);
+    expect(VERY_HARD_STAGES.filter((v) => v.soloBossHpMultiplier !== undefined).map((v) => v.stageId)).toEqual([15]);
+    expect(HARD_STAGES.every((h) => h.soloBossHpMultiplier === undefined)).toBe(true);
     expect(HARD_STAGES[0].specialMechanic.bossPhaseHaste).toBe(0.1); // 어려움 표는 바뀌지 않음
   });
   it('단계 규칙: 쉬움 null · 어려움 · 매우 어려움', () => {

@@ -61,6 +61,8 @@ export interface HardStageDef {
   clearReward: { rubies: number; milestone?: boolean };
   /** 전투 길이 보정(없으면 HARD_PACE) — 매우 어려움은 VERY_HARD_PACE(2026-11-26) */
   pace?: { waveKills: number; bossHp: number; eliteHp: number };
+  /** 보스가 1마리일 때 체력 배율(없으면 1) — 매우 어려움 15단계(챕터 보스 ×1.8)용(2026-11-26) */
+  soloBossHpMultiplier?: number;
   /** 화면 난이도 이름(없으면 '어려움') */
   label?: string;
 }
