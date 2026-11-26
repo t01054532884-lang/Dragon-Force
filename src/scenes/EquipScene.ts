@@ -231,7 +231,9 @@ export class EquipScene extends Phaser.Scene {
         this.refresh();
       });
     });
-    if (list.length === 0) A(text(this, 360, 820, `${SLOT_LABEL[this.slot]}가 없어요`, TYPE.caption, COLOR.textDim, true).setOrigin(0.5).setAlign('center'));
+    // 빈 슬롯 문구(조사를 슬롯마다 맞춤 — '발톱 장식이', 영어 사전에 문장째 있음, 2026-11-26)
+    const EMPTY: Record<Slot, string> = { weapon: '발톱 장식이 없어요', armor: '비늘 갑주가 없어요', necklace: '목걸이가 없어요', ring: '반지가 없어요' };
+    if (list.length === 0) A(text(this, 360, 820, EMPTY[this.slot], TYPE.caption, COLOR.textDim, true).setOrigin(0.5).setAlign('center'));
 
     // 고른 장비 판: 이름·능력치 + 장착·강화·잠금·합성
     const it = p.equipment.items.find((x) => x.uid === this.selected && equipDef(x.itemId)!.slot === this.slot);
