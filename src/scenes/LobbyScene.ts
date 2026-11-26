@@ -543,7 +543,8 @@ export class LobbyScene extends Phaser.Scene {
       });
     }, { kind: 'primary', size: TYPE.caption }); // 버튼은 "Apple로 연결"만(제작자 11/25: 아래 회색 안내 문구와 겹침)
     link.setEnabled(acc.provider !== 'apple');
-    if (PLATFORM !== 'toss') {
+    // Apple 연결은 iOS에서만(안드로이드·웹은 버튼 없음 — 안드로이드는 Google 로그인을 붙이기 전까지 기기 저장 + 게스트 클라우드)
+    if (PLATFORM !== 'toss' && (account.canLinkApple || devMode())) {
       m.body(link.root);
       m.body(text(this, -240, 50, '연결하면 기기를 바꾸거나 앱을 다시 설치해도 이어서 할 수 있어요', 15, COLOR.textDim, true).setOrigin(0, 0.5));
     } else link.root.destroy();

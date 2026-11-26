@@ -1,6 +1,6 @@
 // 플랫폼 공통 창구. 게임 코드는 이 인터페이스만 보고, 웹·iOS(Capacitor)·앱인토스 차이는 구현 파일이 맡는다.
-// 빌드할 때 VITE_PLATFORM(web | ios | toss)에 따라 하나만 번들에 들어간다(src/platform/index.ts).
-export type PlatformId = 'web' | 'ios' | 'toss';
+// 빌드할 때 VITE_PLATFORM(web | ios | toss | android)에 따라 하나만 번들에 들어간다(src/platform/index.ts).
+export type PlatformId = 'web' | 'ios' | 'toss' | 'android';
 
 export interface Insets {
   top: number;
