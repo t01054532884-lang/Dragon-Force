@@ -10,6 +10,11 @@
   - 맞춤 광고 끔(npa) → ATT 팝업 없음.
 - 출시 전 바꿀 것: App Store 개인정보 라벨(광고 데이터·기기 ID 등 '제3자 광고'), 심사 메모의 "No ads", 처리방침(한·영) 광고 항목, Google Play 데이터 보안·'광고 포함', `app-ads.txt`(GitHub Pages 루트).
 
+## Meta 앱 설치 광고 측정(2026-11-26 밤, 홍보 세션과 연계)
+- 홍보용 "지금 설치" 광고 = Meta 광고 관리자의 **앱 설치 캠페인**(App Store ID 6837190960을 Meta 앱 'Dragon Force Promo'에 iOS 플랫폼으로 등록).
+- 1단계(넣음): iOS `Info.plist` SKAdNetworkItems에 Meta ID `v9wttpbfk9`, `n38lu8286q`(+ Google `cstr6suwn9`). Apple이 설치를 광고 네트워크에 익명으로 알려 주는 방식 — **SDK·추적 동의(ATT) 팝업·개인정보 라벨 변경 없음**.
+- 2단계(보류): Meta SDK(앱 이벤트·더 정확한 최적화). 넣으면 ATT 팝업, 개인정보 라벨 '추적', 처리방침·심사 메모의 "no tracking" 변경이 필요 → 광고비를 실제로 써 보고 측정이 부족할 때 결정.
+
 ---
 (아래는 처음 검토 — 토스판만 기준)
 
