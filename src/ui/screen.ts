@@ -13,6 +13,7 @@ import { gameNow } from './widgets';
 import { playMusic } from '../systems/Music';
 import { openStaminaShop } from './staminaShop';
 import { playSfx } from '../systems/Sfx';
+import { CASH_SHOP } from '../systems/Purchases';
 import { navAlerts } from './alerts';
 import { fullH, offY } from './layout';
 
@@ -97,7 +98,7 @@ export function screenFrame(scene: Phaser.Scene, opts: { title: string; nav: str
         // 2026-11-26 제작자: 행동력 + = 행동력 구매 창, 골드·루비 + = 상점의 그 칸으로(상점 안이면 그 칸으로 스크롤)
         { icon: 'ui-energy', value: '', onPlus: () => openStaminaShop(scene, () => draw()) },
         { icon: 'ui-gold', value: p.gold, onPlus: () => scene.scene.start('shop', { focus: 'gold' }) },
-        { icon: 'ui-ruby', value: p.rubies, onPlus: () => scene.scene.start('shop', { focus: 'ruby' }) },
+        { icon: 'ui-ruby', value: p.rubies, onPlus: CASH_SHOP ? () => scene.scene.start('shop', { focus: 'ruby' }) : undefined }, // 앱인토스: 루비 구매 칸 없음
       ],
     });
     barRoot = bar.root.setDepth(40).setY(-offY(scene)); // 머리줄은 실제 화면 맨 위에

@@ -1,4 +1,12 @@
 import type { ServerSkinState, ServerSpin } from '../data/skinRoulette';
+import { PLATFORM } from '../platform';
+
+/**
+ * 현금 상품(루비 구매·패키지·특혜·구매 복원)을 화면에 보일지(2026-11-26).
+ * 앱인토스는 디지털 상품을 토스 인앱결제로만 팔 수 있고 다른 결제·다른 앱 안내("App Store에서…")가 금지라,
+ * 토스 인앱결제를 붙이기 전까지 토스 빌드에서는 현금 상품 칸을 아예 숨긴다. iOS·웹은 그대로.
+ */
+export const CASH_SHOP = PLATFORM !== 'toss';
 import { DEALS, FREE_DAILY_GIFT, PACKAGES, RUBY_PRODUCTS, type PackageDef } from '../data/economy';
 import { iapProduct, passSeasonOf, type IapGrant, type ServerGrant } from '../data/iap';
 import { grantVerifiedPass } from './Pass';
