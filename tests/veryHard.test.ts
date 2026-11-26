@@ -14,12 +14,12 @@ const clear = (p: PlayerProgress, d: 'easy' | 'hard' | 'extreme', stage: number,
   settleRun(p, id, 0, stage + 1, { stageId: stage, cleared: true, elapsedMs: 400_000, normalKills: 50, eliteKills: 2, difficulty: d, dragonId: 'red' }).progress;
 
 describe('매우 어려움 1~20단계 데이터(2026-11-26, 임시)', () => {
-  it('20단계, 권장 전투력 배율 ×2.00 → ×2.50(어려움 같은 단계보다 항상 높음)', () => {
+  it('20단계, 권장 전투력 배율 ×1.90 → ×2.08(어려움 같은 단계보다 항상 높음), 20단계 5,200 < 성장 최대 레드', () => {
     expect(VERY_HARD_STAGES).toHaveLength(20);
-    expect(veryHardStage(1).recommendedPowerMultiplier).toBe(2.0);
-    expect(veryHardStage(20).recommendedPowerMultiplier).toBe(2.5);
-    expect(recommendedCp(1, 'extreme')).toBe(1800);
-    expect(recommendedCp(20, 'extreme')).toBe(Math.round(RECOMMENDED_EASY[19] * 2.5));
+    expect(veryHardStage(1).recommendedPowerMultiplier).toBe(1.9);
+    expect(veryHardStage(20).recommendedPowerMultiplier).toBe(2.08);
+    expect(recommendedCp(1, 'extreme')).toBe(1710);
+    expect(recommendedCp(20, 'extreme')).toBe(5200);
     for (let s = 1; s <= 20; s++) expect(recommendedCp(s, 'extreme')).toBeGreaterThan(recommendedCp(s, 'hard'));
   });
   it('어려움보다 한 단계 위: 같은 단계에서 적 체력·공격력·엘리트·보스 수·전투 길이 모두 같거나 높음', () => {
@@ -152,5 +152,27 @@ describe('클라우드 저장 요약', () => {
     p = { ...p, difficulty: { ...p.difficulty, hard: { ...p.difficulty.hard, unlocked: [1, 2, 3] }, extreme: { ...p.difficulty.extreme, unlocked: [1, 2] } } };
     expect(summaryLine(summarize(p, 0))).toContain('어려움 3단계 · 매우 어려움 2단계');
     expect(summaryLine({ gold: 0, rubies: 0, dragons: 1, easyStage: 1, hardStage: 0, updatedAt: 0 })).toBe('쉬움 1단계 · 드래곤 1 · 골드 0 · 루비 0');
+  });
+});
+
+describe('성장 최대 드래곤으로 깰 수 있는 권장치(2026-11-26 제작자: 끝판 목표 아님)', () => {
+  it('연구소 40·영구 Lv.40·5성·룬 10·전설 장비 Lv.10이면 레드도 매우 어려움 20단계 권장 전투력 이상', async () => {
+    const { DRAGON_ORDER } = await import('../src/data/dragons');
+    const { SPECIAL_IDS } = await import('../src/data/specials');
+    const { equipItem } = await import('../src/systems/Progress');
+    const { loadout } = await import('../src/systems/Loadout');
+    let p = defaultProgress();
+    p = { ...p, upgrades: { attack: 40, hp: 40, speed: 40, pickup: 40 } };
+    p = { ...p, dragons: Object.fromEntries(DRAGON_ORDER.map((id) => [id, { ...p.dragons[id], unlocked: true, level: 40, stars: 5 }])) as typeof p.dragons };
+    p = { ...p, specials: Object.fromEntries(SPECIAL_IDS.map((id) => [id, { fragments: 0, unlocked: true, level: 10 }])) as typeof p.specials };
+    p = { ...p, equipment: { ...p.equipment, items: ['sword', 'plate', 'fang', 'ember'].map((itemId, i) => ({ uid: `u${i}`, itemId, rarity: 'legendary', level: 10, locked: false })) } as typeof p.equipment };
+    for (let i = 0; i < 4; i++) {
+      const e = equipItem(p, `u${i}`);
+      if (e.ok) p = e.progress;
+    }
+    const rec = recommendedCp(20, 'extreme');
+    const cps = DRAGON_ORDER.map((id) => loadout(p, id).cp);
+    expect(loadout(p, 'red').cp).toBeGreaterThanOrEqual(rec);
+    expect(Math.min(...cps)).toBeGreaterThanOrEqual(rec);
   });
 });

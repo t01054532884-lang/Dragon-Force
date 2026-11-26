@@ -95,20 +95,21 @@ export const SIGNATURES: Record<DragonId, SignatureDef> = {
  * 필살기(2026-11-25 제작자 확정, docs/ULTIMATE.md): 60초 전용 스킬 → 3초 컷신이 나오는 필살기.
  * - 쿨타임: 일반~영웅 150초(제작자 2026-11-26: 3분 → 2분 30초), 전설 120초. 전설 3종(크로노·보이드·오로라)의 "기본 공격 N회마다 자동"은 없애고 버튼 필살기로.
  * - 컷신이 끝나는 순간: 화면에 보이는 **일반 몬스터는 모두 처치**, 엘리트·보스는 D × 등급 배율
- *   (D = 지금 기본 공격 DPS × 광역 대상당 초 = 60초 스킬 한 번의 대상당 피해) — 일반·희귀 4배, 영웅 5배, 전설 6배(레드는 일반).
- *   체력이 많으면 살아남는다. 한 번 상한은 60초 스킬 3번 몫(보스 24%·엘리트 75%, 임시 — 봇으로 측정).
+ *   (D = 지금 기본 공격 DPS × 광역 대상당 초 = 60초 스킬 한 번의 대상당 피해) — 일반 10 · 희귀 11 · 영웅 13 · 전설 15배(레드는 일반).
+ *   (2026-11-26 제작자: 매우 어려움과 함께 4~6배 → 10~15배. 수치는 AI 1차안)
+ *   체력이 많으면 살아남는다. 한 번 상한 보스 35%·엘리트 100%(예전 24%·75% — 배율을 올려도 상한에 막히지 않게 같이 올림, 임시).
  * - 그 드래곤의 원래 전용 스킬 효과(화상·빙결·회복 등)도 같이 나간다(원래 상한 그대로).
  */
 export const ULT_RULES = {
   cooldownMs: 150_000,
   legendaryCooldownMs: 120_000,
-  mult: { starter: 4, common: 4, rare: 4, epic: 5, legendary: 6 } as Record<string, number>,
-  bossCapPct: 0.24,
-  eliteCapPct: 0.75,
+  mult: { starter: 10, common: 10, rare: 11, epic: 13, legendary: 15 } as Record<string, number>,
+  bossCapPct: 0.35,
+  eliteCapPct: 1,
   cutsceneMs: 3000,
 };
 export const ultCooldown = (id: DragonId): number => (DRAGONS[id].rarity === 'legendary' ? ULT_RULES.legendaryCooldownMs : ULT_RULES.cooldownMs);
-export const ultMult = (id: DragonId): number => ULT_RULES.mult[DRAGONS[id].rarity] ?? 4;
+export const ultMult = (id: DragonId): number => ULT_RULES.mult[DRAGONS[id].rarity] ?? 10;
 /** 필살기가 엘리트·보스에게 한 번에 넣는 피해 상한 */
 export const ultCap = (rank: 'normal' | 'elite' | 'boss', maxHp: number): number =>
   rank === 'boss' ? maxHp * ULT_RULES.bossCapPct : rank === 'elite' ? maxHp * ULT_RULES.eliteCapPct : Infinity;

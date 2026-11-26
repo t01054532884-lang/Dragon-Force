@@ -417,7 +417,12 @@ const AURORA = common('분광 빛살', '🌈', 'bolt-aurora', build(
 // 2026-11-23 밤 19종 봇 측정(10단계·시드 3개, docs/SKINS.md 9절)으로 기본 공격력 조정(AI 1차안):
 // 하울 9.5→10.5 · 스틸 10→11 · 샌드 10.2→11(느린 쪽, 하울은 3판 중 2판 시간 초과) / 미러 12→11.3 · 오로라 14→13.3(전설·영웅 중 너무 빠름).
 // 스톤도 느리지만 기획서 v1.2 확정 값이라 그대로(3판 모두 클리어한 방어형). 기존 10종 값은 건드리지 않음.
-const B = (baseAttack: number, baseHp: number, baseMoveSpeed: number) => ({ baseAttack, baseHp, baseMoveSpeed });
+/**
+ * 모든 드래곤 기본 공격력 상향(2026-11-26 제작자 결정, 매우 어려움과 함께 — docs/VERY_HARD.md 6절). 표의 숫자는 그대로 두고 여기서 곱한다.
+ * 공격력이 오르면 전투력(CP)도 함께 오른다(CP ∝ 공격력^0.75). 수치는 AI 1차안.
+ */
+export const ATTACK_UP = 1.3;
+const B = (baseAttack: number, baseHp: number, baseMoveSpeed: number) => ({ baseAttack: Math.round(baseAttack * ATTACK_UP * 100) / 100, baseHp, baseMoveSpeed });
 
 export const DRAGONS: Record<DragonId, DragonDef> = {
   red: { id: 'red', name: '레드 드래곤', short: '레드', element: 'fire', rarity: 'starter', role: '안정적인 범용 딜러', color: 0xd23b2a, accent: 0xff9a3c, belly: 0xf3d6a2, ...B(10, 100, 260), trait: { id: 'burnBonus', text: '5성부터: 화상 상태 적에게 피해 +20%', value: 0.2 }, basic: RED },

@@ -52,7 +52,7 @@ export const DIFFICULTY_RELEASED: Record<Difficulty, boolean> = { easy: true, ha
 /**
  * 다음 난이도 1단계가 열리는 조건: 앞 난이도에서 서로 다른 단계 n개 클리어.
  * 어려움 = 쉬움 10개(제작자 결정 2026-11-24, 예전 20). 쉬움 10단계 권장 전투력 1,550 > 어려움 1단계 1,350.
- * 매우 어려움 = 어려움 10개(2026-11-26 AI 제안, 같은 규칙 — 제작자 확인 대기). 어려움 10단계 권장 2,635 > 매우 어려움 1단계 1,800.
+ * 매우 어려움 = 어려움 10개(2026-11-26 제작자 확정, 같은 규칙). 어려움 10단계 권장 2,635 > 매우 어려움 1단계 1,800.
  */
 export const DIFFICULTY_UNLOCK_AT: Record<Exclude<Difficulty, 'easy'>, number> = { hard: 10, extreme: 10 };
 export const DIFFICULTY_MULT: Record<Difficulty, { hp: number; damage: number }> = {
