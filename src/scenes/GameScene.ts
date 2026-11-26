@@ -119,7 +119,7 @@ export class GameScene extends Phaser.Scene {
    * 매우 어려움 전용 "처치 시 폭발"(2026-11-27): 원 하나를 미리 만들어 두고 다시 쓰는 풀(새로 만들고 지우지 않음).
    * 동시에 떠 있는 폭발은 DEATH_BURST.maxActive개까지 — 넘으면 그 처치는 폭발 없음(렉·화면 뒤덮임 방지). 트윈·흔들림·파티클 없음.
    */
-  private bursts: { arc: Phaser.GameObjects.Arc; on: boolean; x: number; y: number; r: number; left: number; total: number; flash: number; dmg: number; src: Enemy }[] = [];
+  private bursts: { warn: Phaser.GameObjects.Image | Phaser.GameObjects.Arc; blast: Phaser.GameObjects.Image | Phaser.GameObjects.Arc; on: boolean; x: number; y: number; r: number; left: number; total: number; flash: number; dmg: number; src: Enemy }[] = [];
   /** 성능 측정용: 만든 폭발·상한 때문에 건너뛴 수·동시 최대 */
   burstStats = { spawned: 0, skipped: 0, maxActive: 0 };
   private bossTexts: Phaser.GameObjects.Text[] = [];
@@ -1224,7 +1224,11 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  /** 매우 어려움 "처치 시 폭발": 풀에서 원 하나를 꺼내 예고(테두리 + 차오르는 안쪽) → 끝나는 순간 판정 → 짧게 번쩍 → 숨김 */
+  /**
+   * 매우 어려움 "처치 시 폭발"(2026-11-27): 풀에서 한 칸을 꺼내 쓴다(새로 만들고 지우지 않음, 동시 DEATH_BURST.maxActive개).
+   * 예고(ms): 가시 고리 그림(fx-death-warn)이 조여 들며 진해지고 천천히 돈다 → 판정 → 폭발 그림(fx-death-burst)이 커지며 사라짐(flashMs).
+   * 그림이 없으면 예전처럼 원. 트윈·파티클·흔들림 없이 프레임마다 크기·투명도만 바꾼다(렉 방지).
+   */
   private spawnDeathBurst(enemy: Enemy, b: { r: number; ms: number; dmgMult: number }): void {
     const active = this.bursts.filter((x) => x.on).length;
     if (active >= DEATH_BURST.maxActive) {
@@ -1233,12 +1237,21 @@ export class GameScene extends Phaser.Scene {
     }
     let slot = this.bursts.find((x) => !x.on);
     if (!slot) {
-      const arc = this.add.circle(0, 0, b.r, DEATH_BURST.color, 0).setStrokeStyle(3, DEATH_BURST.color, 0.9).setDepth(4);
-      slot = { arc, on: false, x: 0, y: 0, r: b.r, left: 0, total: 0, flash: 0, dmg: 0, src: enemy };
+      const warn: Phaser.GameObjects.Image | Phaser.GameObjects.Arc = this.textures.exists('fx-death-warn')
+        ? this.add.image(0, 0, 'fx-death-warn').setDepth(4)
+        : this.add.circle(0, 0, b.r, DEATH_BURST.color, 0.12).setStrokeStyle(3, DEATH_BURST.color, 0.9).setDepth(4);
+      const blast: Phaser.GameObjects.Image | Phaser.GameObjects.Arc = this.textures.exists('fx-death-burst')
+        ? this.add.image(0, 0, 'fx-death-burst').setDepth(6).setBlendMode(Phaser.BlendModes.ADD)
+        : this.add.circle(0, 0, b.r, 0xffffff, 0.55).setDepth(6);
+      warn.setVisible(false);
+      blast.setVisible(false);
+      slot = { warn, blast, on: false, x: 0, y: 0, r: b.r, left: 0, total: 0, flash: 0, dmg: 0, src: enemy };
       this.bursts.push(slot);
     }
     Object.assign(slot, { on: true, x: enemy.x, y: enemy.y, r: b.r, left: b.ms, total: b.ms, flash: 0, dmg: enemy.def.contactDamage * b.dmgMult * enemy.damageMult, src: enemy });
-    slot.arc.setPosition(enemy.x, enemy.y).setRadius(b.r).setFillStyle(DEATH_BURST.color, 0.08).setStrokeStyle(3, DEATH_BURST.color, 0.9).setVisible(true);
+    slot.warn.setPosition(enemy.x, enemy.y).setRotation(Math.random() * Math.PI).setAlpha(0.3).setVisible(true);
+    slot.warn.setDisplaySize(b.r * 2 * 1.5, b.r * 2 * 1.5);
+    slot.blast.setVisible(false);
     this.burstStats.spawned++;
     this.burstStats.maxActive = Math.max(this.burstStats.maxActive, active + 1);
   }
@@ -1247,20 +1260,29 @@ export class GameScene extends Phaser.Scene {
     for (const s of this.bursts) {
       if (!s.on) continue;
       if (s.flash > 0) {
+        // 폭발: 판정 반지름의 1.1배 → 2.6배로 커지며 사라짐(밝은 덧셈 합성)
         s.flash -= delta;
-        s.arc.setAlpha(Math.max(0, s.flash / DEATH_BURST.flashMs));
+        const q = 1 - Math.max(0, s.flash) / DEATH_BURST.flashMs;
+        const d = s.r * 2 * (1.1 + 1.5 * q);
+        s.blast.setDisplaySize(d, d).setAlpha(1 - q * q).setRotation(s.blast.rotation + delta * 0.002);
         if (s.flash <= 0) {
           s.on = false;
-          s.arc.setVisible(false).setAlpha(1);
+          s.blast.setVisible(false);
         }
         continue;
       }
       s.left -= delta;
-      s.arc.setFillStyle(DEATH_BURST.color, 0.08 + 0.32 * (1 - Math.max(0, s.left) / s.total));
+      // 예고: 1.5배 크기에서 판정 크기(1.15배 — 가시 끝까지)로 조여 들고, 점점 진해지며 천천히 돈다. 마지막 0.15초는 깜박임
+      const p = 1 - Math.max(0, s.left) / s.total;
+      const d = s.r * 2 * (1.5 - 0.35 * p);
+      const blink = s.left < 150 ? (Math.floor(s.left / 50) % 2 ? 0.55 : 1) : 1;
+      s.warn.setDisplaySize(d, d).setAlpha((0.3 + 0.65 * p) * blink).setRotation(s.warn.rotation + delta * 0.0015);
       if (s.left > 0) continue;
       if (Phaser.Math.Distance.Between(s.x, s.y, this.player.x, this.player.y) < s.r + 14) this.damagePlayer(s.dmg, s.src, true);
       s.flash = DEATH_BURST.flashMs;
-      s.arc.setFillStyle(0xffffff, 0.55).setStrokeStyle(0, 0, 0);
+      s.warn.setVisible(false);
+      s.blast.setPosition(s.x, s.y).setRotation(Math.random() * Math.PI).setAlpha(1).setVisible(true);
+      s.blast.setDisplaySize(s.r * 2.2, s.r * 2.2);
     }
   }
 

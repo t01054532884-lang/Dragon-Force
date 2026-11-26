@@ -15,7 +15,7 @@ export const VERY_HARD_OVER_HARD = 1.05;
  * 매우 어려움 전용 규칙 "처치 시 폭발"(2026-11-27 제작자 1순위, 범위는 작게): 일반 몹이 죽을 때 확률로 그 자리에 작은 폭발.
  * 0.7초 예고(빨간 테두리 + 차오르는 안쪽) 뒤 판정, 피해 = 그 몹 접촉 피해. 렉 방지: 원을 다시 쓰는 풀 + 동시 최대 maxActive개(넘으면 그 처치는 폭발 없음).
  */
-export const DEATH_BURST = { r: 0.9 * M, ms: 700, dmgMult: 1, chanceEarly: 0.1, chanceLate: 0.15, lateFrom: 11, maxActive: 6, flashMs: 120, color: 0xff3d71 };
+export const DEATH_BURST = { r: 0.9 * M, ms: 700, dmgMult: 1, chanceEarly: 0.1, chanceLate: 0.15, lateFrom: 11, maxActive: 5, flashMs: 260, color: 0xff3d71 }; // 동시 5개(2026-11-27 제작자: 메모리·렉 여유), 폭발 그림 260ms
 
 /** 매우 어려움 전투 길이 보정(어려움 웨이브 ×1.3·보스 ×1.25·엘리트 ×1.15보다 한 단계 위) */
 export const VERY_HARD_PACE = { waveKills: 1.4, bossHp: 1.35, eliteHp: 1.2 };
