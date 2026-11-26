@@ -488,7 +488,7 @@ export class StageDirector {
   }
 
   private updateSpawns(elapsed: number, delta: number): void {
-    let rate = this.spawnRate() * this.diff.spawnRate;
+    let rate = this.spawnRate() * this.diff.spawnRate * (this.hard?.spawnMult ?? 1); // 매우 어려움 후보: 생성 속도 배율(기본 1)
     if (rate <= 0) return;
     // 적을 빨리 비우면 다음 무리를 바로(강한 이용자가 웨이브 목표를 빨리 채움). 전체 수는 여전히 기존보다 적다
     if (this.wave >= 0 && this.h.enemyCount() < TIMELINE.refillBelow) rate *= TIMELINE.refillRate;

@@ -1762,6 +1762,13 @@ export class GameScene extends Phaser.Scene {
       this.dropGem(enemy.x, enemy.y, enemy.def.xp);
       // 처치마다 한 번, 최대 1종. 오래 안 나오면 천장, 체력이 낮으면 물약 확률 ×2, 물약은 판당 상한
       let drop = decideDrop(this.dropState, this.itemRng.frac(), this.hp / this.stats.maxHp);
+      // 매우 어려움 후보: 한 판 물약 상한을 낮춤(기본 6, 설정 없으면 그대로)
+      if (drop === 'potion' && this.hard?.potionCap !== undefined && this.dropState.potions > this.hard.potionCap) drop = null;
+      // 매우 어려움 후보 수식어: 일반 적 처치 시 확률로 예고 뒤 작은 폭발(설정 없으면 꺼짐)
+      const burst = this.hard?.specialMechanic.deathBurst;
+      if (burst && this.itemRng.frac() < burst.chance) {
+        this.doEnemyAction(enemy, { kind: 'circleHit', x: enemy.x, y: enemy.y, r: burst.r, ms: burst.ms, damage: enemy.def.contactDamage * burst.dmgMult });
+      }
       if (this.firstMagnetPending && this.elapsed >= ITEM_RULES.firstMagnetAtMs && drop !== 'magnet') {
         drop = 'magnet'; // 첫 판: 자석 확정 1번(주우면 다시 안 나옴)
         this.firstMagnetPending = false;

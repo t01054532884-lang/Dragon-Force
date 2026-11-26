@@ -37,6 +37,11 @@ export interface HardMechanics {
   bossEcho?: boolean;
   /** 20: 전용 클리어 연출 */
   finale?: boolean;
+  /**
+   * 매우 어려움 후보 수식어(2026-11-27, 제작자 선택 대기 — 기본 꺼짐): 일반 적이 죽을 때 chance 확률로 그 자리에
+   * ms 예고 뒤 반지름 r(px) 폭발, 피해 = 그 적 접촉 피해 × dmgMult. 예고가 있어 피할 수 있다.
+   */
+  deathBurst?: { chance: number; r: number; ms: number; dmgMult: number };
 }
 
 export interface HardStageDef {
@@ -61,6 +66,10 @@ export interface HardStageDef {
   clearReward: { rubies: number; milestone?: boolean };
   /** 전투 길이 보정(없으면 HARD_PACE) — 매우 어려움은 VERY_HARD_PACE(2026-11-26) */
   pace?: { waveKills: number; bossHp: number; eliteHp: number };
+  /** 일반 적 생성 속도 배율(없으면 1) — 매우 어려움 후보(2026-11-27, 기본 꺼짐) */
+  spawnMult?: number;
+  /** 한 판 회복 물약 최대 개수(없으면 기본 6) — 매우 어려움 후보(2026-11-27, 기본 꺼짐) */
+  potionCap?: number;
   /** 보스가 1마리일 때 체력 배율(없으면 1) — 매우 어려움 15단계(챕터 보스 ×1.8)용(2026-11-26) */
   soloBossHpMultiplier?: number;
   /** 화면 난이도 이름(없으면 '어려움') */
