@@ -152,7 +152,7 @@ export class LobbyScene extends Phaser.Scene {
     wingBanner(this, 360, 222, 430, `${this.stageId}단계 · ${s0 ? s0.name : '준비 중'}`, {
       sub: `${DIFFICULTY_LABEL[curDiff]} · 왕국 정복 ${p.difficulty[curDiff].cleared.length}/${STAGE_COUNT} (${progressPct(p, curDiff)}%)`,
       // 어려움이면 배너 문장을 어려움 배지로(badge-hard, 요청서 6 ⑤)
-      emblem: curDiff === 'hard' && this.textures.exists('badge-hard') ? 'badge-hard' : 'ic-banner',
+      emblem: curDiff === 'hard' && this.textures.exists('badge-hard') ? 'badge-hard' : curDiff === 'extreme' && this.textures.exists('badge-extreme') ? 'badge-extreme' : 'ic-banner', // 매우 어려움 배지(2026-11-27 Higgsfield)
     });
 
     // ── 양옆 바로가기
@@ -276,7 +276,8 @@ export class LobbyScene extends Phaser.Scene {
     const bestTxt = bestMs ? ` · 최고 ${Math.floor(bestMs / 60000)}:${String(Math.floor(bestMs / 1000) % 60).padStart(2, '0')}` : '';
     if (hs) {
       stageText.setText(curDiff === 'extreme' ? `매우 어려움 ${this.stageId} — ${hs.title}` : `어려움 ${this.stageId} — ${hs.title}`);
-      if (curDiff === 'hard' && this.textures.exists('badge-hard')) this.add.image(360 - stageText.width / 2 - 24, 976, 'badge-hard').setDisplaySize(38, 38);
+      const badgeKey = curDiff === 'extreme' ? 'badge-extreme' : 'badge-hard';
+      if (this.textures.exists(badgeKey)) this.add.image(360 - stageText.width / 2 - 24, 976, badgeKey).setDisplaySize(38, 38);
     }
     const rec = recommendedCp(this.stageId, curDiff);
     const v = cpVerdict(lo.cp, rec);
