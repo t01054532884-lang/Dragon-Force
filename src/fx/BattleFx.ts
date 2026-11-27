@@ -25,6 +25,31 @@ export const FX = {
   maxTrails: 24,
 } as const;
 
+/**
+ * 보스 처치 폭죽(2026-11-27 제작자 결정, 1.0.4): 금색 고리·노란 원 대신 작은 폭죽 몇 개.
+ * 보스 둘레 count곳에서 gapMs 간격으로 하나씩 터지고, 불꽃이 원형으로 퍼졌다가 아래로 살짝 떨어지며 사라진다.
+ * 마지막 폭죽까지 totalMs 안에 끝남(클리어 슬로모션과 상관없이 실제 시간 기준). 불꽃은 풀에서 다시 씀(최대 maxSparks).
+ */
+export const FIREWORK = {
+  count: 4,
+  gapMs: 150,
+  sparkMs: 440, // (count−1)×gap + sparkMs = 890ms ≤ 0.9초
+  sparks: 12,
+  fall: 22, // 끝날 때 아래로 떨어지는 거리(px)
+  maxSparks: 60,
+  colors: [0xffc94d, 0xffffff, 0xff8a2a] as const, // 금·흰·주황(폭죽마다 한 색)
+} as const;
+
+interface FwSpark {
+  img: Phaser.GameObjects.Image;
+  x0: number;
+  y0: number;
+  dx: number;
+  dy: number;
+  size: number;
+  start: number;
+}
+
 const FIRE = [0xffe08a, 0xffb347, 0xff7a1a];
 
 /** 드래곤별 적중 불꽃 색(기획 8장 속성 팔레트). 첫 색이 충격 링 */
@@ -63,6 +88,9 @@ export class BattleFx {
   private rings = 0;
   private trails = 0;
   private lastShake = -1e9;
+  /** 보스 처치 폭죽 불꽃 풀(쉬는 것) · 날고 있는 것 */
+  private fwPool: Phaser.GameObjects.Image[] = [];
+  private fwLive: FwSpark[] = [];
 
   constructor(private scene: Phaser.Scene) {
     BattleFx.textures(scene);
@@ -185,9 +213,59 @@ export class BattleFx {
 
   /** 보스 처치: 중심 소멸 + 충격파 3겹(700~1000ms) */
   bossDie(x: number, y: number, radius: number): void {
-    for (let i = 0; i < 3; i++) this.scene.time.delayedCall(i * 160, () => this.ring(x, y, radius * 0.5, radius * 3, i === 0 ? 0xffffff : 0xffc94d, 8 - i * 2, FX.bossDieMs - i * 160));
-    this.part(x, y, 0xfff3c4, radius * 2.4, DEPTH_OVER, 500);
-    this.sparks(x, y, 14, radius * 2.2, FX.bossDieMs * 0.7, [0xffc94d, 0xffffff, 0xff7a1a], 22);
+    // 보스 둘레 여러 곳에서 작은 폭죽이 차례로 터짐(첫 폭죽은 보스 자리 가까이)
+    const n = BattleFx.quality < 1 ? FIREWORK.count - 1 : FIREWORK.count;
+    const base = Math.random() * Math.PI * 2;
+    for (let i = 0; i < n; i++) {
+      const a = base + (i / n) * Math.PI * 2;
+      const d = i === 0 ? radius * 0.3 : radius * (0.9 + Math.random() * 0.6);
+      const color = FIREWORK.colors[i % FIREWORK.colors.length];
+      this.scene.time.delayedCall(i * FIREWORK.gapMs, () => this.firework(x + Math.cos(a) * d, y + Math.sin(a) * d - radius * 0.3, color, Math.max(36, radius * 1.1)));
+    }
+  }
+
+  /** 작은 폭죽 하나: 가운데 짧은 반짝임 + 불꽃이 원형으로 퍼졌다 떨어짐 */
+  private firework(x: number, y: number, color: number, dist: number): void {
+    this.part(x, y, 0xffffff, 26, DEPTH_OVER, 140);
+    const now = this.scene.time.now;
+    const n = Math.round(FIREWORK.sparks * (BattleFx.quality < 1 ? 0.6 : 1));
+    for (let i = 0; i < n; i++) {
+      if (this.fwLive.length >= FIREWORK.maxSparks) break; // 넘치면 장식만 생략
+      const img = this.fwPool.pop() ?? this.scene.add.image(0, 0, 'fx-dot').setBlendMode(Phaser.BlendModes.ADD).setDepth(DEPTH_OVER);
+      const a = (i / n) * Math.PI * 2 + Math.random() * 0.3;
+      const d = dist * (0.75 + Math.random() * 0.35);
+      const size = 9 + Math.random() * 5;
+      img.setTint(i % 4 === 0 ? 0xffffff : color).setPosition(x, y).setAlpha(1).setDisplaySize(size, size).setVisible(true);
+      this.fwLive.push({ img, x0: x, y0: y, dx: Math.cos(a) * d, dy: Math.sin(a) * d, size, start: now });
+    }
+    if (this.fwLive.length && !this.fwOn) {
+      this.fwOn = true;
+      this.scene.events.on(Phaser.Scenes.Events.UPDATE, this.updateFireworks, this);
+    }
+  }
+
+  private fwOn = false;
+
+  /** 실제 시간 기준(클리어 슬로모션과 무관)으로 불꽃 위치·투명도 갱신, 끝난 불꽃은 풀로 */
+  private updateFireworks(): void {
+    const now = this.scene.time.now;
+    this.fwLive = this.fwLive.filter((s) => {
+      const t = (now - s.start) / FIREWORK.sparkMs;
+      if (t >= 1 || !s.img.active) {
+        if (s.img.active) this.fwPool.push(s.img.setVisible(false));
+        return false;
+      }
+      const e = 1 - (1 - t) * (1 - t); // 빠르게 퍼졌다 느려짐
+      s.img.setPosition(s.x0 + s.dx * e, s.y0 + s.dy * e + FIREWORK.fall * t * t);
+      s.img.setAlpha(t < 0.6 ? 1 : 1 - (t - 0.6) / 0.4);
+      const sz = s.size * (1 - t * 0.5);
+      s.img.setDisplaySize(sz, sz);
+      return true;
+    });
+    if (!this.fwLive.length) {
+      this.fwOn = false;
+      this.scene.events.off(Phaser.Scenes.Events.UPDATE, this.updateFireworks, this);
+    }
   }
 
   /** 경험치 획득 반짝임(드래곤 위치) */

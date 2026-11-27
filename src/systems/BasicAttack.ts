@@ -6,6 +6,7 @@ export { NO_TRAITS, type BasicTraits };
 import type { CombatHost } from './CombatHost';
 import { applyPerm, PERM_RULES, ZERO_PERM, type PermState } from '../data/permGrowth';
 import { playSfx } from './Sfx';
+import { M } from '../data/stats';
 
 interface Volley {
   hitUids: Set<number>; // 이 묶음이 이미 맞힌 적(두 번째부터 50%, 화상·중독도 1중첩만)
@@ -72,6 +73,15 @@ interface Turret {
   img: Phaser.GameObjects.Image;
 }
 
+/** 실바 식물: 드래곤 둘레(ang)를 따라다니며 cd마다 잎 */
+interface Plant {
+  ang: number;
+  cd: number;
+  img: Phaser.GameObjects.Image;
+  x: number;
+  y: number;
+}
+
 interface Cloud {
   x: number;
   y: number;
@@ -102,6 +112,8 @@ export class BasicAttack {
   private flowerHeals = 0; // 판당 회복 횟수(상한 FLOWER.maxHeals)
   private rings: Ring[] = [];
   private turrets: Turret[] = [];
+  private plants: Plant[] = [];
+  private plantSpin = 0;
   /** 같은 적 연속 적중(실바·바하무트): 적 uid → 마지막으로 맞힌 공격 주기·연속 횟수 */
   private focusMap = new Map<number, { volley: number; stacks: number }>();
   private drainUsed = 0; // 크림슨 흡수: 이번 1초 동안 회복한 양(최대 HP 비율)
@@ -140,6 +152,10 @@ export class BasicAttack {
    */
   singleTargetDps(): number {
     const L = this.L;
+    if (L.plant) {
+      // 실바: 식물 수 × 잎 × 계수 ÷ 잎 간격
+      return (this.h.stats.attack * L.coef * L.levelMod * L.shots * L.plant.count) / ((L.plant.fire * this.hasteMult) / 1000);
+    }
     if (L.turret) {
       // 기어스: 포탑(최대 2대가 같은 적을 쏜다고 보고) × 발 수 × 계수 ÷ 사격 간격(포탑 공격 속도 특성 포함)
       const perShot = L.coef * L.levelMod * L.shots * Math.min(2, L.turret.max);
@@ -160,7 +176,9 @@ export class BasicAttack {
     const L = this.L;
 
     this.timer -= delta;
-    if (this.timer <= 0 && L.turret) {
+    if (L.plant) {
+      this.timer = 0; // 실바: 드래곤은 쏘지 않고 식물이 쏜다(updatePlants)
+    } else if (this.timer <= 0 && L.turret) {
       // 기어스: 사거리 안에 적이 있으면 발밑에 포탑 설치(최대 수를 넘으면 가장 오래된 포탑을 걷어 냄)
       if (this.selectDistinctFirst(this.spec.range, 1).length === 0) this.timer = 0;
       else {
@@ -202,6 +220,7 @@ export class BasicAttack {
     this.updateFlowers(delta);
     this.updateRings(delta);
     this.updateTurrets(delta);
+    this.updatePlants(delta);
     this.drainClock += delta;
     if (this.drainClock >= 1000) {
       this.drainClock -= 1000;
@@ -341,6 +360,8 @@ export class BasicAttack {
     const ramp = this.traits.pierceRamp ? 1 + this.traits.pierceRamp * Math.max(0, b.hitSet.size - 1) : 1;
     const focus = b.child ? 1 : this.focusHit(e, b.volley.index, L, enemies);
     this.h.hit(e, { source: 'basic', coef: b.coef * ramp * focus, levelMod: L.levelMod, sameVolley: same, tag: b.tag });
+    if (L.turret) this.h.fx?.burst(ex, ey, [0xffcc80, 0xffffff, 0x80cbc4], L.shots > 1 ? 6 : 4, 26, 11); // 기어스 포탄 착탄 불꽃
+    else if (L.plant) this.h.fx?.burst(ex, ey, [0xc5e1a5, 0x9ccc65, 0xffffff], 3, 18, 9); // 실바 잎 적중
     if (b.explode && L.explosion) this.explode(ex, ey, L.explosion.radius, L.explosion.coef, L.explosion.color, enemies);
     if (b.blast && L.blast) {
       b.blast = false;
@@ -800,8 +821,15 @@ export class BasicAttack {
     const t = L.turret!;
     while (this.turrets.length >= t.max) this.turrets.shift()!.img.destroy();
     const { x, y } = this.h.player;
-    const img = this.h.scene.add.image(x, y, this.h.scene.textures.exists('turret-gear') ? 'turret-gear' : this.spec.texture).setDepth(5).setScale(0.2);
-    this.h.scene.tweens.add({ targets: img, scale: 1, duration: 160, ease: 'Back.Out' });
+    // 포탑 업그레이드 느낌: 레벨이 오르면 포탑이 커지고, 진화(2발)는 쌍포 그림(turret-gear-2, 없으면 금빛)
+    const lv = this.lv;
+    const evo = L.shots > 1;
+    const key = evo && this.h.scene.textures.exists('turret-gear-2') ? 'turret-gear-2' : this.h.scene.textures.exists('turret-gear') ? 'turret-gear' : this.spec.texture;
+    const size = lv >= 7 ? 1.25 : lv >= 6 ? 1.15 : lv >= 3 ? 1.05 : 0.9;
+    const img = this.h.scene.add.image(x, y, key).setDepth(5).setScale(0.2);
+    if (evo && key !== 'turret-gear-2') img.setTint(0xfff3c4);
+    this.h.scene.tweens.add({ targets: img, scale: size, duration: 160, ease: 'Back.Out' });
+    this.h.fx?.burst(x, y + 10, [0xcfd8dc, 0x80cbc4, 0xffffff], 6, 30, 10); // 설치 먼지
     this.turrets.push({ x, y, left: t.life, cd: 200, img });
     this.h.onFire?.(0);
   }
@@ -830,8 +858,52 @@ export class BasicAttack {
       const volley: Volley = { hitUids: new Set(), index: this.volleyCount };
       const shots = Array.from({ length: L.shots }, () => target);
       shots.forEach((s, i) => this.spawnBullet(s, volley, false, i, shots, false, tu));
-      tu.img.setRotation(Phaser.Math.Angle.Between(tu.x, tu.y, target.x, target.y));
+      const ang = Phaser.Math.Angle.Between(tu.x, tu.y, target.x, target.y);
+      tu.img.setFlipX(Math.cos(ang) < 0); // 포탑 그림은 옆모습(포신이 오른쪽) — 돌리지 않고 좌우만 뒤집는다
+      this.h.fx?.muzzle(tu.x, tu.y, ang, 18 * tu.img.scale); // 포구 섬광
       return true;
+    });
+  }
+
+  // ───────── 실바 식물(2026-11-27 제작자 결정: 자이라처럼 주변에 식물 소환) ─────────
+  private updatePlants(delta: number): void {
+    const p = this.L.plant;
+    if (!p) {
+      if (this.plants.length) {
+        this.plants.forEach((pl) => pl.img.destroy());
+        this.plants = [];
+      }
+      return;
+    }
+    const L = this.L;
+    const sc = this.h.scene;
+    // 강화로 식물 수가 늘면 새 식물이 돋아남(둘레에 고르게)
+    while (this.plants.length < p.count) {
+      const img = sc.add.image(this.h.player.x, this.h.player.y, sc.textures.exists('plant-silva') ? 'plant-silva' : 'plant-silva-shape').setDepth(9.5).setScale(0.1);
+      sc.tweens.add({ targets: img, scale: 1, duration: 260, ease: 'Back.Out' });
+      this.plants.push({ ang: 0, cd: 300 + this.plants.length * 250, img, x: this.h.player.x, y: this.h.player.y });
+      this.h.fx?.burst(this.h.player.x, this.h.player.y, [0xc5e1a5, 0x9ccc65], 6, 34, 10);
+    }
+    this.plantSpin += delta * 0.0006; // 천천히 돈다
+    const orbit = 1.25 * M;
+    const enemies = this.h.enemies().filter((e) => e.active);
+    this.plants.forEach((pl, i) => {
+      pl.ang = this.plantSpin + (i / this.plants.length) * Math.PI * 2;
+      pl.x = this.h.player.x + Math.cos(pl.ang) * orbit;
+      pl.y = this.h.player.y + Math.sin(pl.ang) * orbit * 0.8;
+      pl.img.setPosition(pl.x, pl.y);
+      pl.cd -= delta;
+      if (pl.cd > 0) return;
+      const target = this.nearestTo(pl.x, pl.y, p.range, enemies);
+      if (!target) {
+        pl.cd = 0;
+        return;
+      }
+      pl.cd += p.fire * this.hasteMult;
+      this.volleyCount++;
+      const volley: Volley = { hitUids: new Set(), index: this.volleyCount };
+      const shots = Array.from({ length: L.shots }, () => target);
+      shots.forEach((s, k) => this.spawnBullet(s, volley, false, k, shots, false, pl));
     });
   }
 
@@ -851,6 +923,8 @@ export class BasicAttack {
     this.rings = [];
     this.turrets.forEach((tu) => tu.img.destroy());
     this.turrets = [];
+    this.plants.forEach((pl) => pl.img.destroy());
+    this.plants = [];
     this.flowers.forEach((f) => f.g.destroy());
     this.seeds = [];
     this.flowers = [];

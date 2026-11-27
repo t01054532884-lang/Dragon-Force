@@ -39,6 +39,12 @@ export const ULT_VIDEO: Partial<Record<DragonId, { from: number; to: number }>> 
   void: { from: 0.6, to: 3.9 },
   aurora: { from: 0.6, to: 3.9 },
   arcane: { from: 0.6, to: 3.9 },
+  // 신규 5종(2026-11-28, 같은 배경·같은 흐름)
+  gears: { from: 0.6, to: 3.9 },
+  silva: { from: 0.6, to: 3.9 },
+  forge: { from: 0.6, to: 3.9 },
+  crystal: { from: 0.6, to: 3.9 },
+  bahamut: { from: 0.6, to: 3.9 },
 };
 export const ULT_VIDEO_READY = Object.keys(ULT_VIDEO) as DragonId[];
 /** 필살기 외침 목소리(public/sfx/ult/ult-<id>-ko.mp3 · -en.mp3)가 들어온 드래곤. 효과음은 영상 소리, 이 파일은 언어별 외침 */
@@ -64,6 +70,8 @@ const ULT_FX: Partial<Record<DragonId, { add: boolean; motion?: FxMotion }>> = {
   red: { add: true, motion: 'flame' }, blue: { add: true }, yellow: { add: true }, green: { add: false }, sand: { add: true, motion: 'rift' }, steel: { add: false },
   white: { add: true }, black: { add: false, motion: 'enclose' }, stone: { add: false }, bloom: { add: false }, howl: { add: true }, wind: { add: true },
   water: { add: false, motion: 'vortex' }, crimson: { add: true }, mirror: { add: true }, chrono: { add: true }, void: { add: false }, aurora: { add: true }, arcane: { add: true, motion: 'circle' },
+  // 신규 5종: 포격·충격파·다이아몬드는 빛(더하기), 나무뿌리·흑요석은 어두운 색이 중요(보통 섞기)
+  gears: { add: true }, silva: { add: false }, forge: { add: true, motion: 'rift' }, crystal: { add: true }, bahamut: { add: false },
 };
 export const ULT_FX_READY = Object.keys(ULT_FX) as DragonId[];
 const ultFxKey = (id: DragonId) => `ult-fx-${id}`;

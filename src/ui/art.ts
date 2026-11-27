@@ -105,6 +105,14 @@ export const ART_FILES: Record<string, string> = {
   ...Object.fromEntries(['sand', 'steel', 'bloom', 'howl', 'crimson', 'mirror', 'chrono', 'void', 'aurora'].map((id) => [`portrait-${id}`, `portrait-${id}.webp`])),
   ...Object.fromEntries(['sand', 'steel', 'bloom', 'howl', 'crimson', 'mirror', 'chrono', 'void', 'aurora'].map((id) => [`top-${id}`, `top/top-${id}.webp`])), // 전투 탑다운(확정)
   ...Object.fromEntries(['sand', 'steel', 'bloom', 'howl', 'crimson', 'mirror', 'chrono', 'void', 'aurora'].map((id) => [`sig-${id}`, `sig/sig-${id}.webp`])), // 전용 스킬 배지(확정)
+  // 신규 4묶음(2026-11-27, 1.0.4): 제작자 ChatGPT 확정 초상·필살기 아이콘(scripts/process_art_newdragons.py). 스틸 아이콘도 둥근 사각형 금테로 교체
+  ...Object.fromEntries(['gears', 'silva', 'forge', 'crystal', 'bahamut'].map((id) => [`portrait-${id}`, `portrait-${id}.webp`])),
+  ...Object.fromEntries(['gears', 'silva', 'forge', 'crystal', 'bahamut'].map((id) => [`sig-${id}`, `sig/sig-${id}.webp`])),
+  // 게임용 세트(2026-11-28 Higgsfield, scripts/process_art_newdragons_hf.py): 전투 탑다운·기본 공격 아이콘·전용 스킬 효과·해금 마법진(속성 이름)
+  ...Object.fromEntries(['gears', 'silva', 'forge', 'crystal', 'bahamut'].map((id) => [`top-${id}`, `top/top-${id}.webp`])),
+  ...Object.fromEntries(['gears', 'silva', 'forge', 'crystal', 'bahamut'].map((id) => [`basic-${id}`, `skill/basic-${id}.webp`])),
+  ...Object.fromEntries(['gears', 'silva', 'forge', 'crystal', 'bahamut'].map((id) => [`sigart-${id}`, `sigfx/sigart-${id}.webp`])),
+  ...Object.fromEntries(['machine', 'forest', 'forge', 'crystal', 'dragonking'].map((el) => [`sigil-${el}`, `sigil/sigil-${el}.webp`])),
   ...Object.fromEntries(['sand', 'steel', 'bloom'].map((el) => [`sigil-${el}`, `sigil/sigil-${el}.webp`])), // 해금 마법진(합본에서 잘라 냄, 속성 이름 = 드래곤 이름)
   // 2묶음: 속성 이름(음파·혈기·거울) → 드래곤 이름 파일
   'sigil-sound': 'sigil/sigil-howl.webp',
@@ -206,6 +214,8 @@ export const ART_FILES: Record<string, string> = {
   // 20차분(2026-11-24, scripts/process_art_batch20.py): 탄 수정본(아래 같은 파일 덮어씀) + 신규 9종 전용 스킬 전투 연출 512px(Signature.ts SIGART)
   ...Object.fromEntries(['aurora', 'void', 'chrono', 'mirror', 'howl', 'crimson', 'sand', 'steel', 'bloom'].map((id) => [`sigart-${id}`, `sigfx/sigart-${id}.webp`])),
   ...Object.fromEntries(['proj-aurora', 'proj-mirror', 'proj-chrono', 'proj-void', 'proj-sand', 'proj-steel', 'proj-bloom', 'fx-sound-ring', 'fx-crimson-slash'].map((k) => [k, `proj/${k}.webp`])),
+  // 신규 5종 전투 이펙트(2026-11-28): 포탄·포탑·쌍포·잎·식물·망치·수정 창 + 바하무트 브레스(fx-breath, BasicAttack이 직접 씀)
+  ...Object.fromEntries(['proj-gears', 'proj-turret', 'proj-turret2', 'proj-silva', 'proj-plant', 'proj-forge', 'proj-crystal', 'fx-breath'].map((k) => [k, `proj/${k}.webp`])),
 };
 
 /** 필요한 그림만 읽는다(키가 ART_FILES에 없거나 이미 읽었으면 건너뜀). 화면별 preload()에서 쓴다 */
