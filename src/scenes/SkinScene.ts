@@ -189,7 +189,10 @@ export class SkinScene extends Phaser.Scene {
     else if (slot.epicEssence) key = 'ui-essence';
     if (key && this.textures.exists(key)) this.A(this.add.image(x, y - (skin ? 4 : 12), key).setDisplaySize(iconSize, iconSize));
     const amount = slot.rubies ? `×${slot.rubies.toLocaleString()}` : slot.gold ? `×${slot.gold.toLocaleString()}` : slot.dragonTickets ? `×${slot.dragonTickets}` : slot.equipTickets ? `×${slot.equipTickets}` : slot.epicEssence ? '영웅 랜덤 정수' : '';
-    if (amount) this.A(text(this, x + size / 2 - 12, y + size / 2 - 14, amount, slot.center ? 30 : 24, COLOR.text, true, true).setOrigin(1, 1));
+    // 정수는 숫자가 아니라 이름이라 칸 가운데에 두고 칸 폭 안에서 줄 바꿈(1.0.5: 영어 "Random Epic Essence"가 칸 밖으로 나가던 것)
+    if (slot.epicEssence && !slot.rubies && !slot.gold && !slot.dragonTickets && !slot.equipTickets)
+      this.A(text(this, x, y + size / 2 - 12, amount, slot.center ? 26 : 18, COLOR.text, true, true).setOrigin(0.5, 1).setAlign('center').setWordWrapWidth(size - 20));
+    else if (amount) this.A(text(this, x + size / 2 - 12, y + size / 2 - 14, amount, slot.center ? 30 : 24, COLOR.text, true, true).setOrigin(1, 1));
     if (skin) {
       this.A(text(this, x, y + size / 2 - 18, skin.name, slot.center ? 24 : 17, COLOR.text, true, true).setOrigin(0.5));
       if (slot.center) {

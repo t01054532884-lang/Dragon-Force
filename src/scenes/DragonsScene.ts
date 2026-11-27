@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { makeTextures } from '../textures';
 import {
-  DRAGON_ORDER, releasedDragons, DRAGONS, ELEMENT_LABEL, GROWTH, RARITY_COLOR, RARITY_LABEL, traitMultFor, type DragonId,
+  DRAGON_ORDER, releasedDragons, DRAGONS, ELEMENT_LABEL, GROWTH, RARITY_COLOR, RARITY_LABEL, traitLine, type DragonId,
 } from '../data/dragons';
 import { PERM_TIER_LEVELS, PERM_TIERS } from '../data/permGrowth';
 import { SIG_TIER_LEVELS, sigGrowthLines, sigTier, SIGNATURES, ULT_NAMES, ultCooldown, ultEffectText, ultSummary } from '../data/signature';
@@ -161,9 +161,7 @@ export class DragonsScene extends Phaser.Scene {
     T(214, top + 122, `공격력 ${lo.stats.attack.toFixed(1)} · HP ${Math.round(lo.stats.maxHp)} · 속도 ${Math.round(lo.stats.speed)}`, 17);
     T(214, top + 148, `전투력 ${lo.cp.toLocaleString()}`, TYPE.caption, COLOR.gold, true, true);
 
-    const tm = traitMultFor(d.id, o.stars);
-    const traitNote = d.id === 'red' ? (tm > 0 ? ' (활성)' : ' (1~4성 비활성)') : tm > 1 ? ` (승급 강화 ×${tm})` : '';
-    this.A(text(this, 46, top + 206, `고유 특성: ${d.trait.text}${traitNote}`, 16, COLOR.ok, true).setOrigin(0, 0).setWordWrapWidth(628).setAlign('left'));
+    this.A(text(this, 46, top + 206, traitLine(d.id, o.stars), 16, COLOR.ok, true).setOrigin(0, 0).setWordWrapWidth(628).setAlign('left'));
     // 전용 스킬: 지금 단계와 다음 성장(영구 Lv.10·20·30)에서 무엇이 바뀌는지 숫자로(2026-11-21 기획서 5.2)
     const sg = SIGNATURES[d.id];
     const tier = sigTier(o.level);

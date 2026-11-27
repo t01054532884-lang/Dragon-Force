@@ -1165,7 +1165,7 @@ export const EN: Record<string, string> = {
  "엘리트·보스·클리어": "Elite · Boss · Clear",
  "엘리트·보스에게 피해 +15%": "+15% damage to Elites and Bosses",
  "엘리트가 번갈아 주기적 범위 공격": "Elites take turns with periodic area attacks",
- "엘리트를 쓰러뜨리면 다음 웨이브": "Defeat the Elite to start the next Wave",
+ "엘리트를 쓰러뜨리면 다음 웨이브": "Defeat the Elite to advance",
  "엘리트의 반격": "Elite Counterattack",
  "역병 폭발": "Plague Burst",
  "연결됨": "Linked",
@@ -2095,5 +2095,8 @@ export const EN: Record<string, string> = {
  "선물 코드 보상 루비 {0}": "Gift code reward: {0} rubies",
  "선물 코드 보상 루비 {0}개가 선물함에 도착했어요": "{0} rubies from your gift code arrived in your Mailbox",
  "선물 코드 창을 열지 못했어요. 잠시 뒤 다시 시도해 주세요": "Couldn't open the gift code screen. Please try again shortly",
- "선물 코드 루비 2,000": "Gift Code 2,000 Rubies"
+ "선물 코드 루비 2,000": "Gift Code 2,000 Rubies",
+ "고유 특성: {0} (승급 강화 ×{1})": "Trait: {0} (Star Up bonus ×{1})",
+ "고유 특성: {0} (1~4성 비활성)": "Trait: {0} (inactive at 1–4★)",
+ "고유 특성: {0} (활성)": "Trait: {0} (active)"
 };

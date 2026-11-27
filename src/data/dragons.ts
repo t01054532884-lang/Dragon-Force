@@ -587,6 +587,17 @@ export function traitMultFor(id: DragonId, stars: number): number {
   return starBonus(stars).traitMult;
 }
 
+/**
+ * 드래곤 화면의 고유 특성 한 줄(1.0.5: 영어에서 "(승급 강화 ×2)"가 붙으면 번역 틀이 깨져 한영이 섞이던 것 —
+ * 특성 문장과 꼬리를 같은 틀로 만들어 사전 틀 "고유 특성: {0} (승급 강화 ×{1})" 등이 통째로 잡게 한다)
+ */
+export function traitLine(id: DragonId, stars: number): string {
+  const d = DRAGONS[id];
+  const tm = traitMultFor(id, stars);
+  const note = id === 'red' ? (tm > 0 ? ' (활성)' : ' (1~4성 비활성)') : tm > 1 ? ` (승급 강화 ×${tm})` : '';
+  return `고유 특성: ${d.trait.text}${note}`;
+}
+
 export function levelBonus(level: number): { attack: number; hp: number } {
   const n = Math.max(0, Math.min(GROWTH.maxLevel, level) - 1);
   return { attack: n * GROWTH.attackPerLevel, hp: n * GROWTH.hpPerLevel };
