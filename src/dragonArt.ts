@@ -61,7 +61,7 @@ export function drawDragon(g: Phaser.GameObjects.Graphics, d: DragonDef, k: numb
   const horn = id === 'blue' ? 0xe3f4ff : id === 'white' || id === 'yellow' ? 0xd9b44a : id === 'stone' ? 0x6e5a44 : 0x8a6a4a;
   g.fillStyle(horn).fillTriangle(p(25), p(14), p(28), p(12), p(23), p(4)).fillTriangle(p(39), p(14), p(36), p(12), p(41), p(4));
   // 눈
-  const eye = { red: 0xffd34d, blue: 0x4fc3f7, yellow: 0xff8f00, green: 0xb388ff, white: 0xffc107, black: 0xd1a3ff, stone: 0xffb300, wind: 0x26a69a, water: 0x0277bd, arcane: 0xff80ab, sand: 0xff8f00, steel: 0xff6d00, bloom: 0xc2185b, howl: 0xe3f2fd, crimson: 0xffd54f, mirror: 0x4fc3f7, chrono: 0x7cf2c4, void: 0xbfe9ff, aurora: 0xff8de8, gears: 0xffb74d, silva: 0xc5e1a5, forge: 0xff7043, crystal: 0xe1f5fe, bahamut: 0xffd54f }[id]!;
+  const eye = { red: 0xffd34d, blue: 0x4fc3f7, yellow: 0xff8f00, green: 0xb388ff, white: 0xffc107, black: 0xd1a3ff, stone: 0xffb300, wind: 0x26a69a, water: 0x0277bd, arcane: 0xff80ab, sand: 0xff8f00, steel: 0xff6d00, bloom: 0xc2185b, howl: 0xe3f2fd, crimson: 0xffd54f, mirror: 0x4fc3f7, chrono: 0x7cf2c4, void: 0xbfe9ff, aurora: 0xff8de8, gears: 0x80cbc4, silva: 0xc5e1a5, forge: 0xff7043, crystal: 0xe1f5fe, bahamut: 0xffd54f }[id]!;
   g.fillStyle(eye).fillCircle(p(28), p(17), p(2)).fillCircle(p(36), p(17), p(2));
 
   // 속성 장식
@@ -255,16 +255,29 @@ function drawBolts(g: Phaser.GameObjects.Graphics): void {
   g.fillStyle(0xffffff).fillCircle(18, 7, 2.5);
   g.generateTexture('bolt-aurora', 24, 14);
   // ── 신규 4묶음(2026-11-27) ──
-  g.clear(); // 포탄(기어스)
-  g.fillStyle(0x5d4037).fillCircle(8, 8, 6);
-  g.fillStyle(0xffb74d).fillCircle(6, 6, 2.5);
-  g.generateTexture('bolt-gear', 16, 16);
-  g.clear(); // 소형 포탑(기어스): 원형 받침 + 포신(오른쪽)
-  g.fillStyle(0x4e342e).fillCircle(20, 20, 14);
-  g.lineStyle(3, 0xffb74d, 1).strokeCircle(20, 20, 14);
-  g.fillStyle(0x8d6e63).fillRect(20, 16, 18, 8);
-  g.fillStyle(0xffb74d).fillCircle(20, 20, 6);
+  g.clear(); // 포탄(기어스, 청록·은 — 확정 초상 색): 은빛 탄 + 주황 불꼬리
+  g.fillStyle(0xff9800, 0.55).fillEllipse(5, 8, 10, 6);
+  g.fillStyle(0xcfd8dc).fillEllipse(12, 8, 10, 8);
+  g.fillStyle(0xffffff).fillCircle(14, 6, 2);
+  g.generateTexture('bolt-gear', 20, 16);
+  g.clear(); // 소형 포탑(기어스): 청록 받침 + 은빛 포신(오른쪽) — 그림(turret-gear)이 오면 교체
+  g.fillStyle(0x00695c).fillCircle(20, 20, 14);
+  g.lineStyle(3, 0xcfd8dc, 1).strokeCircle(20, 20, 14);
+  g.fillStyle(0xb0bec5).fillRect(20, 16, 18, 8);
+  g.fillStyle(0x4db6ac).fillCircle(20, 20, 6);
   g.generateTexture('turret-gear', 40, 40);
+  g.clear(); // 잎(실바 식물이 쏘는 잎)
+  g.fillStyle(0x7cb342).fillEllipse(11, 6, 20, 9);
+  g.fillStyle(0xc5e1a5).fillEllipse(13, 5, 10, 3);
+  g.lineStyle(1, 0x33691e, 1).lineBetween(2, 6, 20, 6);
+  g.generateTexture('bolt-leaf', 22, 12);
+  g.clear(); // 식물(실바가 소환) — 그림(plant-silva)이 오면 교체
+  g.fillStyle(0x000000, 0.25).fillEllipse(18, 33, 24, 7);
+  g.fillStyle(0x6d4c41).fillRect(16, 16, 4, 17);
+  g.fillStyle(0x7cb342).fillEllipse(10, 18, 14, 8).fillEllipse(26, 15, 14, 8);
+  g.fillStyle(0x9ccc65).fillCircle(18, 10, 8);
+  g.fillStyle(0xf8bbd0).fillCircle(18, 9, 3);
+  g.generateTexture('plant-silva-shape', 36, 36);
   g.clear(); // 나뭇가지 탄(실바)
   g.fillStyle(0x6d4c41).fillRect(0, 5, 20, 4);
   g.fillStyle(0x9ccc65).fillEllipse(20, 7, 8, 6).fillEllipse(8, 3, 6, 4);

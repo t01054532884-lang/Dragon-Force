@@ -108,6 +108,11 @@ export const ART_FILES: Record<string, string> = {
   // 신규 4묶음(2026-11-27, 1.0.4): 제작자 ChatGPT 확정 초상·필살기 아이콘(scripts/process_art_newdragons.py). 스틸 아이콘도 둥근 사각형 금테로 교체
   ...Object.fromEntries(['gears', 'silva', 'forge', 'crystal', 'bahamut'].map((id) => [`portrait-${id}`, `portrait-${id}.webp`])),
   ...Object.fromEntries(['gears', 'silva', 'forge', 'crystal', 'bahamut'].map((id) => [`sig-${id}`, `sig/sig-${id}.webp`])),
+  // 게임용 세트(2026-11-28 Higgsfield, scripts/process_art_newdragons_hf.py): 전투 탑다운·기본 공격 아이콘·전용 스킬 효과·해금 마법진(속성 이름)
+  ...Object.fromEntries(['gears', 'silva', 'forge', 'crystal', 'bahamut'].map((id) => [`top-${id}`, `top/top-${id}.webp`])),
+  ...Object.fromEntries(['gears', 'silva', 'forge', 'crystal', 'bahamut'].map((id) => [`basic-${id}`, `skill/basic-${id}.webp`])),
+  ...Object.fromEntries(['gears', 'silva', 'forge', 'crystal', 'bahamut'].map((id) => [`sigart-${id}`, `sigfx/sigart-${id}.webp`])),
+  ...Object.fromEntries(['machine', 'forest', 'forge', 'crystal', 'dragonking'].map((el) => [`sigil-${el}`, `sigil/sigil-${el}.webp`])),
   ...Object.fromEntries(['sand', 'steel', 'bloom'].map((el) => [`sigil-${el}`, `sigil/sigil-${el}.webp`])), // 해금 마법진(합본에서 잘라 냄, 속성 이름 = 드래곤 이름)
   // 2묶음: 속성 이름(음파·혈기·거울) → 드래곤 이름 파일
   'sigil-sound': 'sigil/sigil-howl.webp',

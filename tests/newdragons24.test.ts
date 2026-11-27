@@ -28,9 +28,9 @@ describe('신규 5종 데이터(제작자 기획)', () => {
     expect(NEW5.map((id) => ULT_NAMES[id])).toEqual(['전술 포대', '세계수의 각성', '대지 강타', '수정의 폭발', '용왕의 숨결']);
     expect(ultMult('bahamut')).toBeGreaterThan(ultMult('silva'));
   });
-  it('전투 방식이 기획대로: 포탑 · 연속 적중 가지 · 망치 충격파 · 관통 창 · 전방 브레스', () => {
+  it('전투 방식이 기획대로: 포탑 · 식물 소환(1→2→3) · 망치 충격파 · 관통 창 · 전방 브레스', () => {
     expect(DRAGONS.gears.basic.levels[0].turret).toBeDefined();
-    expect(DRAGONS.silva.basic.levels[0].focus?.every).toBe(3);
+    expect(DRAGONS.silva.basic.levels.map((l) => l.plant?.count)).toEqual([1, 1, 2, 2, 2, 3, 3]);
     expect(DRAGONS.forge.basic.levels[0].splash?.radius).toBeGreaterThan(0);
     expect(DRAGONS.crystal.basic.levels[0].pierce).toBeGreaterThanOrEqual(2);
     expect(DRAGONS.bahamut.basic.levels[0].melee?.range).toBeGreaterThan(0);
