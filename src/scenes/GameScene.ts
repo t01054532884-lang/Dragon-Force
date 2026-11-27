@@ -812,6 +812,14 @@ export class GameScene extends Phaser.Scene {
         }
       });
       this.bossText.setText(two ? '' : `${boss.def.name}${d.enraged ? ' — 격노!' : boss.phase === 2 ? ' — 분노' : ''}`);
+      // 1.0.5: 보스 이름이 길면(영어 "Eirgon, Seal Guardian Dragon — Rage") 필살기 버튼 아래 이름표와 겹침 →
+      // 가운데 정렬로 겹치면 왼쪽 정렬(보스 막대 왼쪽 끝 위)로 옮긴다
+      this.bossText.setOrigin(0.5, 1).setX(360);
+      if (this.bossText.text && this.sigText.text) {
+        const bb = this.bossText.getBounds();
+        const sb = this.sigText.getBounds();
+        if (bb.right > sb.x - 6 && bb.bottom > sb.y && bb.y < sb.bottom) this.bossText.setOrigin(0, 1).setX(24);
+      }
       this.eliteText.setText(d.bossBuffs.length ? `잔존 엘리트: ${d.bossBuffs.join(' · ')}` : '');
       this.eliteText.setY(292);
       this.eliteNames.forEach((t) => t.setText(''));
