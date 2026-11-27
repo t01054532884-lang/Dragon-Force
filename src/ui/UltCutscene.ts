@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { MOTION14, playMotion14, type Motion14 } from './ultFx14';
 import type { DragonId } from '../data/dragons';
 import { ULT_RULES } from '../data/signature';
 import { soundOn, voiceLang } from '../systems/Settings';
@@ -65,11 +66,12 @@ const ultSfxKey = (id: DragonId) => `ult-${id}-sfx`;
  * motion(2026-11-25 제작자 결정 — 비슷한 4쌍을 움직임부터 다르게): 없으면 위→아래 쓸기(sweep).
  * vortex 가운데 소용돌이(워터) · rift 가운데서 바깥으로 갈라짐(샌드) · circle 마법진 + 빛기둥(아케인) · enclose 양옆에서 조여 옴(블랙)
  */
-type FxMotion = 'sweep' | 'vortex' | 'rift' | 'circle' | 'enclose' | 'flame' | 'erupt' | 'barrage' | 'grow' | 'quake' | 'beam';
+type FxMotion = 'sweep' | 'vortex' | 'rift' | 'circle' | 'enclose' | 'flame' | 'erupt' | 'barrage' | 'grow' | 'quake' | 'beam' | Motion14;
 const ULT_FX: Partial<Record<DragonId, { add: boolean; motion?: FxMotion }>> = {
-  red: { add: true, motion: 'flame' }, blue: { add: true }, yellow: { add: true }, green: { add: false }, sand: { add: true, motion: 'rift' }, steel: { add: false },
-  white: { add: true }, black: { add: false, motion: 'enclose' }, stone: { add: false }, bloom: { add: false }, howl: { add: true }, wind: { add: true },
-  water: { add: false, motion: 'vortex' }, crimson: { add: true }, mirror: { add: true }, chrono: { add: true }, void: { add: false }, aurora: { add: true }, arcane: { add: true, motion: 'circle' },
+  // 1.0.5(2026-11-28 제작자 승인, docs/ULT_FX_PLAN.md): 예전엔 14종이 모두 위→아래 띠(sweep) — 드래곤마다 다른 움직임으로(src/ui/ultFx14.ts)
+  red: { add: true, motion: 'flame' }, blue: { add: true, motion: 'freeze' }, yellow: { add: true, motion: 'net' }, green: { add: false, motion: 'rain' }, sand: { add: true, motion: 'rift' }, steel: { add: false, motion: 'swords' },
+  white: { add: true, motion: 'cross' }, black: { add: false, motion: 'enclose' }, stone: { add: false, motion: 'meteor' }, bloom: { add: false, motion: 'bloom' }, howl: { add: true, motion: 'pulse' }, wind: { add: true, motion: 'tornado' },
+  water: { add: false, motion: 'vortex' }, crimson: { add: true, motion: 'xslash' }, mirror: { add: true, motion: 'mirror' }, chrono: { add: true, motion: 'timestop' }, void: { add: false, motion: 'collapse' }, aurora: { add: true, motion: 'curtain' }, arcane: { add: true, motion: 'circle' },
   // 신규 5종: 포격·충격파·다이아몬드는 빛(더하기), 나무뿌리·흑요석은 어두운 색이 중요(보통 섞기)
   // 2026-11-28 제작자: "신규도 기존과 달리 개성 있게, 모두 광역" — 크리스탈은 노틸러스 E처럼 드래곤에서 바깥으로 수정이 줄지어 솟음
   gears: { add: true, motion: 'barrage' }, silva: { add: false, motion: 'grow' }, forge: { add: true, motion: 'quake' }, crystal: { add: true, motion: 'erupt' }, bahamut: { add: false, motion: 'beam' },
@@ -103,6 +105,7 @@ export function playUltSweep(scene: Phaser.Scene, id: DragonId, color: number, d
     else if (motion === 'grow') fxGrow(scene, id, key, color, add, W, H, fix, center);
     else if (motion === 'quake') fxQuake(scene, id, key, color, add, W, H, fix, center);
     else if (motion === 'beam') fxBeam(scene, key, color, add, W, H, fix);
+    else if ((MOTION14 as string[]).includes(motion)) playMotion14(motion as Motion14, scene, key, color, add, W, H, fix, center);
     else fxEnclose(scene, key, color, add, W, H, fix);
     return;
   }
