@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vite';
 
@@ -9,4 +10,6 @@ export default defineConfig({
   base: './',
   server: { port: 5173 },
   define: { __APP_VERSION__: JSON.stringify(pkg.version) },
+  // 테스트 제한 시간 5초 → 15초(2026-11-28): 확률 수렴 시뮬레이션(10만~500만 회)·소스 전체 검사가 웹 빌드와 동시에 돌면 느려져 가끔 시간 초과
+  test: { testTimeout: 15_000 },
 });

@@ -19,11 +19,15 @@ describe('랜덤 조각', () => {
     const n = 100_000;
     const count = { common: 0, rare: 0, epic: 0, legendary: 0 };
     const released = new Set(releasedDragons());
+    // 2026-11-28: 반복마다 expect(10만 번)를 부르면 부하가 걸린 PC에서 약 6초 → 기본 제한 5초를 넘겨 가끔 실패했다
+    // (시드 고정이라 결과는 늘 같음, 느린 것만 문제). 출시 여부는 모아서 한 번만 검사한다.
+    const outside = new Set<string>();
     for (let i = 0; i < n; i++) {
       const id = randomFragmentDragon(rng);
-      expect(released.has(id)).toBe(true);
+      if (!released.has(id)) outside.add(id);
       count[econRarity(DRAGONS[id].rarity)]++;
     }
+    expect([...outside]).toEqual([]);
     const total = Object.values(RANDOM_FRAGMENT_RARITY).reduce((a, b) => a + b, 0);
     for (const k of Object.keys(count) as (keyof typeof count)[]) {
       expect(count[k] / n).toBeCloseTo(RANDOM_FRAGMENT_RARITY[k] / total, 2);
