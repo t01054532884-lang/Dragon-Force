@@ -73,7 +73,7 @@ Claude 미리보기는 `.claude/launch.json`의 `dragon-force` 설정으로 연�
 | `public/privacy.html` · `.github/workflows/pages.yml` | 개인정보처리방침, GitHub Pages 배포 |
 
 ## 확정된 결정 (요약)
-- **팀 구조(2026-11-26 제작자 결정): 드래곤포스 = 세 팀, 각자 Claude 세션.** 관리자팀(총괄: 개발 결과 최종 확인·main 합치기·스토어 제출·광고·결제) · 개발팀(새 콘텐츠·성능(렉·메모리)·Higgsfield 그림, 별도 worktree에서 작업, 개발 관제실 localhost:5179) · 홍보팀(SNS·홍보 기획, 홍보 관제실 localhost:5178). 팀 상태는 `C:\Users\t0105\dragonforce-hq\status\{admin,dev,promo}.json`에 각자 기록 → 관리자팀의 '드래곤포스 본사'(localhost:5180, `C:\Users\t0105\dragonforce-hq`)가 가상 사무실로 모아 보여 준다. main 합치기와 제출은 관리자팀만.
+- **팀 구조(2026-11-26 제작자 결정): 드래곤포스 = 세 팀, 각자 Claude 세션.** 관리자팀(총괄: 개발 결과 최종 확인·main 합치기·스토어 제출·광고·결제) · 개발팀(새 콘텐츠·성능(렉·메모리)·Higgsfield 그림, 별도 worktree에서 작업, 개발 관제실 localhost:5179) · 홍보팀(SNS·홍보 기획, 홍보 관제실 localhost:5178) · 분석팀(2026-11-28 추가: 다운로드·광고비 대비 유입·SNS 성과 분석, 분석 관제실 localhost:5181). 팀 상태는 `C:\Users\t0105\dragonforce-hq\status\{admin,dev,promo,analytics}.json`에 각자 기록 → 관리자팀의 '드래곤포스 본사'(localhost:5180, `C:\Users\t0105\dragonforce-hq`)가 가상 사무실로 모아 보여 준다. main 합치기와 제출은 관리자팀만.
 - **업데이트 주기(2026-11-26 제작자 결정, 같은 날 수정): 출시 초기에는 버그·렉이 많으니 고칠 것이 모이면 요일과 상관없이 수시로 업데이트한다.** 한 번에: 수정 → 테스트 → Codemagic 빌드 → TestFlight로 폰 확인 → 심사 제출(승인되면 자동 출시) → `public/version.json`의 latest 올리기. 안정되면 매주 월요일 정기 출시(스킨 룰렛 새 판과 같은 날, 목~금 제출·수동 출시)로 바꾼다. 다음 1.0.2(결제 지급 연출·패스 스크롤 최적화·안드로이드 문구)는 1.0.1 승인 바로 뒤에 제출.
 - **2026-11-23 밤(`docs/SKINS.md`)**: 드래곤 19종 모두 출시. 로비 단계 상자 = 고른 단계마다 25(첫 엘리트)·50(두 번째 엘리트)·100%(클리어) 3개, 받은 상자는 열린 채(저장 `chests`·`reach`). 스킨 룰렛 열쇠는 현금 결제만(iOS), 장비 착용 모습은 레드 먼저 4부위(`wear-red-<부위>`). 결정 대기 5건은 SKINS.md 4절.
 - 슬롯: 고유 기본공격 1 + 액티브 6 + 패시브 4. 6단계부터 드래곤 10종(레드 기본 지급 + 소환 9종).
