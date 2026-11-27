@@ -40,6 +40,7 @@ import { chapterOf, SEASON1_FINALE } from '../data/season1';
 import { arenaLayout, clampToArena, hitsObstacle, makeArena, outsideArena, type ArenaGeom, type Obstacle } from '../data/arenas';
 import { AURA_EVERY_MS, AURA_PAD, HAZARD_FROM_STAGE, HAZARD_RANGE, HAZARD_WARN_MS, obstacleTheme, type ObstacleHazard } from '../data/obstacleThemes';
 import { enterBattle } from '../ui/entry';
+import { createEntryGate, nextStageData, retryData, type BattleRun } from '../systems/battleEntry';
 import { attackTheme, BURST_CAP } from '../data/attackThemes';
 import { type HardStageDef } from '../data/hardStages';
 import { DEATH_BURST, stageRule } from '../data/veryHardStages';
@@ -255,10 +256,16 @@ export class GameScene extends Phaser.Scene {
 
   /** 개발 전용(측정 봇): 보유하지 않은 드래곤도 그대로 출격(저장은 건드리지 않음). 배포본에서는 무시 */
   private anyDragon = false;
+  /** 행동력을 쓰지 않는 판(개발용 잠긴 난이도 시험) — 재도전·다음 단계도 무료 */
+  private free = false;
+  /** 결과 화면에서 입장은 한 번만(재도전·다음 단계 두 번 눌림·R 키 겹침으로 행동력이 두 번 빠지지 않게) */
+  private entryGate = createEntryGate();
 
-  init(data: { stageId?: number; seed?: number; dragonId?: DragonId; difficulty?: Difficulty; anyDragon?: boolean }): void {
+  init(data: { stageId?: number; seed?: number; dragonId?: DragonId; difficulty?: Difficulty; anyDragon?: boolean; free?: boolean }): void {
     this.forcedDragon = data?.dragonId;
     this.anyDragon = import.meta.env.DEV && !!data?.anyDragon;
+    this.free = !!data?.free;
+    this.entryGate = createEntryGate();
     this.difficulty = data?.difficulty ?? Progress.load().selectedDifficulty;
     this.stage = STAGES.find((s) => s.id === (data?.stageId ?? 1)) ?? STAGES[0];
     // 시드: 주소에 ?seed=123 이 있으면 그 값, 아니면 무작위. 같은 시드면 적 생성·위치가 똑같이 재현된다.
@@ -2676,7 +2683,7 @@ export class GameScene extends Phaser.Scene {
       // 마지막 단계(20)를 깨면 "21단계 해금(준비 중)" 대신 로비로(예전엔 없는 단계를 비활성 버튼으로 보여 줌)
       const last = this.stage.id === STAGES[STAGES.length - 1].id;
       if (!next && last) button(360, 1065, 600, '모든 단계 클리어! 로비로', true, toLobby);
-      else button(360, 1065, 600, next ? `다음 단계 — ${next.name}` : `${this.stage.id + 1}단계 해금 (준비 중)`, !!next, () => enterBattle(this, { stageId: next!.id, difficulty: this.difficulty }, { restart: true }));
+      else button(360, 1065, 600, next ? `다음 단계 — ${next.name}` : `${this.stage.id + 1}단계 해금 (준비 중)`, !!next, () => this.entryGate.tryEnter(() => enterBattle(this, nextStageData(this.currentRun(), next!.id), { restart: true, free: this.free })));
       button(160, 1180, 196, '재도전', true, () => this.retry(), 'primary');
       button(360, 1180, 196, '성장 연구소', true, toLab, 'growth');
       button(560, 1180, 196, '로비', true, toLobby, 'secondary');
@@ -2729,8 +2736,17 @@ export class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: tip, y: y - 54, scale: 1.08, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
   }
 
+  /** 이번 판(재도전·다음 단계의 기준): 실제로 싸운 드래곤·단계·난이도 */
+  private currentRun(): BattleRun {
+    return { stageId: this.stage.id, difficulty: this.difficulty, dragonId: this.dragon.id, anyDragon: this.anyDragon, free: this.free };
+  }
+
+  /**
+   * 재도전(2026-11-28 제작자 제보 수정): 예전에는 단계·난이도만 넘겨 "저장된 출격 드래곤"으로 다시 시작했다 —
+   * 이번 판 드래곤이 출격 드래곤과 다르면(시험 출격 등) 다른 드래곤이 나옴. 이제 이번 판 드래곤 그대로. 행동력은 입장과 같이 5(한 번만).
+   */
   private retry(): void {
-    enterBattle(this, { stageId: this.stage.id, difficulty: this.difficulty }, { restart: true });
+    this.entryGate.tryEnter(() => enterBattle(this, retryData(this.currentRun()), { restart: true, free: this.free }));
   }
 }
 
