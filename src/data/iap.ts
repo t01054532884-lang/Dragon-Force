@@ -10,7 +10,7 @@ import { SKIN_ROULETTE } from './skins';
  * - 이 파일은 순수 데이터·함수만(Progress·플랫폼을 불러오지 않음 → 서버 번들에 그대로 들어감).
  */
 
-export type IapKind = 'ruby' | 'package' | 'pass' | 'skinkey' | 'rubypass' | 'gift';
+export type IapKind = 'ruby' | 'package' | 'pass' | 'skinkey' | 'rubypass';
 /** 구매 제한 기간: 일일·주간·월간(KST) · 계정당 1번(once) · 패스 시즌 · 제한 없음(루비) */
 export type IapPeriod = 'daily' | 'weekly' | 'monthly' | 'once' | 'season' | 'none';
 
@@ -68,14 +68,6 @@ export const IAP_PRODUCTS: IapProduct[] = [
   { productId: RUBY_PASS.productId, kind: 'rubypass', name: '루비 패스', krw: RUBY_PASS.price, grant: { ...emptyGrant, rubyPass: true }, period: 'once', limit: 1 },
   { productId: SKIN_ROULETTE.keyProductId, kind: 'skinkey', name: '스킨 룰렛 열쇠', krw: SKIN_ROULETTE.keyKrw, grant: { ...emptyGrant, skinKeys: 1 }, period: 'none', limit: Infinity },
 ];
-
-/**
- * 선물 코드(1.0.5, 2026-11-28 제작자 승인): Apple 오퍼 코드로만 받는 소모성 상품 — 상점 목록에는 없다(RUBY_PRODUCTS에 넣지 않음).
- * App Store 가이드라인 3.1.1: 게임 재화를 앱 자체 코드로 열 수 없어 Apple 공식 오퍼 코드를 쓴다(코드별 횟수 제한·계정당 1회는 Apple이 막음).
- * 지급은 결제와 같은 서버 장부 흐름, 앱에서는 선물함에 "선물 코드 보상 루비 2,000"으로 들어간다(Purchases.applyServerGrant).
- */
-export const GIFT_CODE = { productId: 'ruby_2000_gift', rubies: 2000 } as const;
-IAP_PRODUCTS.push({ productId: GIFT_CODE.productId, kind: 'gift', name: '선물 코드 루비 2,000', krw: 0, grant: { ...emptyGrant, rubies: GIFT_CODE.rubies }, period: 'none', limit: Infinity });
 
 export const iapProduct = (productId: string): IapProduct | undefined => IAP_PRODUCTS.find((x) => x.productId === productId);
 

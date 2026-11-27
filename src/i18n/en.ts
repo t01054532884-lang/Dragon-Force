@@ -2089,13 +2089,6 @@ export const EN: Record<string, string> = {
  "잎 쏘는 간격 1.0 → 0.85초": "Leaf interval 1.0 → 0.85s",
  "식물 3개(잎 각 45%)": "3 plants (45% per leaf)",
  "진화 — 큰 잎: 2명 관통 · 크기 +30%": "Evolution — big leaves: pierce 2 · size +30%",
- "선물 코드": "Gift Code",
- "SNS에 공개되는 오늘의 코드를 입력하면 루비 2,000개.\n코드마다 선착순 정해진 인원, Apple 계정당 1회.\n이 이벤트는 드래곤 특공대가 진행하며 Apple은 후원·관련이 없습니다.": "Enter today's code from our social media to get 2,000 rubies.\nEach code is limited to a set number of people, once per Apple Account.\nThis event is run by Dragon Squad. Apple is not a sponsor and is not involved.",
- "선물 코드 보상": "Gift Code Reward",
- "선물 코드 보상 루비 {0}": "Gift code reward: {0} rubies",
- "선물 코드 보상 루비 {0}개가 선물함에 도착했어요": "{0} rubies from your gift code arrived in your Mailbox",
- "선물 코드 창을 열지 못했어요. 잠시 뒤 다시 시도해 주세요": "Couldn't open the gift code screen. Please try again shortly",
- "선물 코드 루비 2,000": "Gift Code 2,000 Rubies",
  "고유 특성: {0} (승급 강화 ×{1})": "Trait: {0} (Star Up bonus ×{1})",
  "고유 특성: {0} (1~4성 비활성)": "Trait: {0} (inactive at 1–4★)",
  "고유 특성: {0} (활성)": "Trait: {0} (active)"

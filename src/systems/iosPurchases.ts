@@ -72,8 +72,6 @@ const RevenueCatPurchases: PurchaseProvider = {
   skinAck: async (ids) => {
     await cloud.call('skinAck', { ids });
   },
-  // 선물 코드(1.0.5): iOS 14+ Apple 오퍼 코드 입력 창(안드로이드는 이 SDK 기능이 없어 버튼을 숨김 — LobbyScene)
-  redeemCode: () => Purchases.presentCodeRedemptionSheet(),
 };
 
 /** RevenueCat 시작(Firebase UID로) → 결제 창구 교체 → 못 받은 지급 확인. 계정이 바뀌면 RevenueCat 사용자도 바꾼다 */

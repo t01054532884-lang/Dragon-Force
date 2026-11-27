@@ -37,7 +37,7 @@ import { claimableRubyPass } from '../systems/RubyPass';
 import { rubyPassValuePct } from '../data/rubyPass';
 import { ATTENDANCE_28, activityRewardIcon, activityRewardText } from '../data/activity';
 import { fullH } from '../ui/layout';
-import { CASH_SHOP, purchases, redeemGiftCode } from '../systems/Purchases';
+import { CASH_SHOP, purchases } from '../systems/Purchases';
 import { rotationIndex, syncSkinBoard } from '../systems/Skins';
 import { SKIN_ROULETTE } from '../data/skins';
 import { makeSkinTextures, skinIconKey } from '../ui/skinArt';
@@ -507,18 +507,12 @@ export class LobbyScene extends Phaser.Scene {
   private openSettings(): void {
     this.closeSettings();
     const st = loadSettings();
-    // 선물 코드(1.0.5): iOS 결제가 켜져 있을 때만(웹·토스·안드로이드는 숨김) — 칸이 늘어나는 만큼 창을 키우고 아래 버튼을 내린다
-    // 개발 주소 ?dev=1&giftcode=1 은 웹에서 배치만 확인(누르면 아무 일 없음)
-    const gift = (PLATFORM === 'ios' && purchases.available && !!purchases.redeemCode) || (devQuery() && new URLSearchParams(location.search).has('giftcode'));
-    const dy = gift ? 180 : 0;
-    const m = modal(this, 600, 820 + dy, '설정', { closeOnBackdrop: true, ribbonColor: COLOR.violet });
-    // 칸이 늘면 내용 전체를 dy/2만큼 올려 위아래 여백을 예전과 같게
-    const body = (o: Phaser.GameObjects.GameObject) => { (o as unknown as { y: number }).y -= dy / 2; return m.body(o); };
-    body(text(this, -240, -300, '소리', TYPE.heading, COLOR.text, true, true).setOrigin(0, 0.5));
+    const m = modal(this, 600, 820, '설정', { closeOnBackdrop: true, ribbonColor: COLOR.violet });
+    m.body(text(this, -240, -300, '소리', TYPE.heading, COLOR.text, true, true).setOrigin(0, 0.5));
     // 로비 설정은 효과음·배경 음악을 함께 켜고 끈다(따로는 전투 일시정지 화면에서)
     const on = st.sound || st.music;
-    body(text(this, -240, -256, `효과음 ${st.sound ? '켜짐' : '꺼짐'} · 배경 음악 ${st.music ? '켜짐' : '꺼짐'}`, TYPE.tiny, COLOR.textSub, true).setOrigin(0, 0.5));
-    body(
+    m.body(text(this, -240, -256, `효과음 ${st.sound ? '켜짐' : '꺼짐'} · 배경 음악 ${st.music ? '켜짐' : '꺼짐'}`, TYPE.tiny, COLOR.textSub, true).setOrigin(0, 0.5));
+    m.body(
       button(this, 170, -284, 170, 76, on ? '켜짐' : '꺼짐', () => {
         saveSettings({ ...st, sound: !on, music: !on });
         applySound(this.game);
@@ -529,10 +523,10 @@ export class LobbyScene extends Phaser.Scene {
     );
     // 언어(2026-11-25): 누를 때마다 한국어 ↔ English — 글자 전체와 필살기 외침이 바뀐다. 모든 화면을 다시 그리려고 새로 불러온다
     if (PLATFORM !== 'toss') {
-      body(text(this, -240, -190, '언어 / Language', TYPE.body, COLOR.text, true, true).setOrigin(0, 0.5));
+      m.body(text(this, -240, -190, '언어 / Language', TYPE.body, COLOR.text, true, true).setOrigin(0, 0.5));
       // 밑줄은 두 언어 이름을 그대로(번역 안 됨) — 어느 언어로 보고 있어도 여기서 바꿀 수 있다는 걸 알게(제작자 2026-11-25)
-      body(text(this, -240, -152, 'Korean / English', TYPE.tiny, COLOR.gold, true).setOrigin(0, 0.5));
-      body(
+      m.body(text(this, -240, -152, 'Korean / English', TYPE.tiny, COLOR.gold, true).setOrigin(0, 0.5));
+      m.body(
         button(this, 170, -178, 170, 70, st.lang === 'en' ? 'English' : '한국어', () => {
           saveSettings({ ...st, lang: st.lang === 'en' ? 'ko' : 'en' });
           setTimeout(() => location.reload(), 150);
@@ -541,9 +535,9 @@ export class LobbyScene extends Phaser.Scene {
     }
     // 계정(첫 출시: 게스트 자동 + Apple 연결, 앱 안 계정 삭제 — 애플 심사 5.1.1(v))
     const acc = account.current();
-    body(this.add.rectangle(0, -110, 520, 2, COLOR.line));
-    body(text(this, -240, -70, '계정', TYPE.heading, COLOR.text, true, true).setOrigin(0, 0.5));
-    body(text(this, -240, -26, `${acc.provider === 'apple' ? 'Apple 연결됨' : '게스트'} · ${shortId(acc.uid)}`, TYPE.tiny, COLOR.textSub, true).setOrigin(0, 0.5));
+    m.body(this.add.rectangle(0, -110, 520, 2, COLOR.line));
+    m.body(text(this, -240, -70, '계정', TYPE.heading, COLOR.text, true, true).setOrigin(0, 0.5));
+    m.body(text(this, -240, -26, `${acc.provider === 'apple' ? 'Apple 연결됨' : '게스트'} · ${shortId(acc.uid)}`, TYPE.tiny, COLOR.textSub, true).setOrigin(0, 0.5));
     // 앱인토스: Apple 연결 없음(토스 안에서 다른 로그인 안내 금지) — 기기 저장 + 게스트 클라우드만
     const link = button(this, 170, -50, 220, 76, acc.provider === 'apple' ? '연결됨' : 'Apple로 연결', () => {
       account.linkApple().then((r) => {
@@ -559,40 +553,19 @@ export class LobbyScene extends Phaser.Scene {
     link.setEnabled(acc.provider !== 'apple');
     // Apple 연결은 iOS에서만(안드로이드·웹은 버튼 없음 — 안드로이드는 Google 로그인을 붙이기 전까지 기기 저장 + 게스트 클라우드)
     if (PLATFORM !== 'toss' && (account.canLinkApple || devMode())) {
-      body(link.root);
-      body(text(this, -240, 50, '연결하면 기기를 바꾸거나 앱을 다시 설치해도 이어서 할 수 있어요', 15, COLOR.textDim, true).setOrigin(0, 0.5));
+      m.body(link.root);
+      m.body(text(this, -240, 50, '연결하면 기기를 바꾸거나 앱을 다시 설치해도 이어서 할 수 있어요', 15, COLOR.textDim, true).setOrigin(0, 0.5));
     } else link.root.destroy();
-    body(text(this, -240, 82, `☁ ${cloudLine()}`, 15, cloud.status === 'error' || cloud.status === 'conflict' ? COLOR.danger : COLOR.textSub, true).setOrigin(0, 0.5));
-    if (gift) {
-      body(this.add.rectangle(0, 112, 520, 2, COLOR.line));
-      body(button(this, 0, 156, 300, 66, '선물 코드', () => this.redeemGift(), { kind: 'primary', size: TYPE.caption }).root);
-      body(
-        text(this, 0, 226, 'SNS에 공개되는 오늘의 코드를 입력하면 루비 2,000개.\n코드마다 선착순 정해진 인원, Apple 계정당 1회.\n이 이벤트는 드래곤 특공대가 진행하며 Apple은 후원·관련이 없습니다.', 14, COLOR.textDim, true)
-          .setOrigin(0.5).setAlign('center').setLineSpacing(4),
-      );
-    }
-    body(button(this, 0, 140 + dy, 300, 66, '계정 삭제', () => this.confirmDelete(), { kind: 'danger', size: TYPE.caption }).root);
+    m.body(text(this, -240, 82, `☁ ${cloudLine()}`, 15, cloud.status === 'error' || cloud.status === 'conflict' ? COLOR.danger : COLOR.textSub, true).setOrigin(0, 0.5));
+    m.body(button(this, 0, 140, 300, 66, '계정 삭제', () => this.confirmDelete(), { kind: 'danger', size: TYPE.caption }).root);
     // 처리방침·약관(애플 심사 5.1.1(i): 앱 안에서 처리방침을 열 수 있어야 함). 영어 모드면 -en 페이지. 토스는 외부 링크 금지라 뺌
     if (PLATFORM !== 'toss') {
       const legal = (page: string) => () => window.open(`${LEGAL_BASE}${page}${st.lang === 'en' ? '-en' : ''}.html`, '_system');
-      body(button(this, -135, 220 + dy, 250, 56, '개인정보처리방침', legal('privacy'), { kind: 'secondary', size: TYPE.tiny }).root);
-      body(button(this, 135, 220 + dy, 250, 56, '이용약관', legal('terms'), { kind: 'secondary', size: TYPE.tiny }).root);
+      m.body(button(this, -135, 220, 250, 56, '개인정보처리방침', legal('privacy'), { kind: 'secondary', size: TYPE.tiny }).root);
+      m.body(button(this, 135, 220, 250, 56, '이용약관', legal('terms'), { kind: 'secondary', size: TYPE.tiny }).root);
     }
-    body(button(this, 0, 300 + dy, 220, 70, '닫기', () => this.closeSettings(), { kind: 'secondary', size: TYPE.caption }).root);
+    m.body(button(this, 0, 300, 220, 70, '닫기', () => this.closeSettings(), { kind: 'secondary', size: TYPE.caption }).root);
     this.settingsUi = m;
-  }
-
-  /** 선물 코드: Apple 코드 입력 창 → 지급되면 선물함 안내(코드가 안 맞거나 닫으면 아무것도 안 함 — Apple 창이 직접 안내) */
-  private redeemGift(): void {
-    this.closeSettings();
-    void redeemGiftCode((d) => {
-      if (!this.scene.isActive()) return;
-      this.toast(`선물 코드 보상 루비 ${d.total.rubies.toLocaleString()}개가 선물함에 도착했어요`);
-      this.scene.restart();
-    }).catch((e) => {
-      console.warn('gift code sheet failed', e);
-      this.toast('선물 코드 창을 열지 못했어요. 잠시 뒤 다시 시도해 주세요');
-    });
   }
 
   /**
