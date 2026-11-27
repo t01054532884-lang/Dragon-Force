@@ -3,6 +3,7 @@ import { Progress } from '../systems/Progress';
 import { staminaNow } from '../systems/Mailbox';
 import { STAMINA, formatLeft, nextRegenIn } from '../systems/Stamina';
 import { FONT, gameNow } from './widgets';
+import { runEntry } from '../systems/battleEntry';
 
 /**
  * 전투 입장(8단계): 행동력 5를 먼저 빼고 전투를 시작한다. 부족하면 아무것도 바뀌지 않고 안내만 띄운다.
@@ -12,20 +13,17 @@ import { FONT, gameNow } from './widgets';
  */
 export function enterBattle(
   scene: Phaser.Scene,
-  data: { stageId: number; difficulty?: string },
+  data: { stageId: number; difficulty?: string; dragonId?: string; anyDragon?: boolean; free?: boolean },
   opts: { restart?: boolean; free?: boolean } = {},
 ): boolean {
-  if (!opts.free) {
-    const now = gameNow();
-    const r = Progress.spendEntry(now);
-    if (!r.ok) {
-      showStaminaShort(scene, now);
-      return false;
-    }
-  }
-  if (opts.restart) scene.scene.restart(data);
-  else scene.scene.start('game', data);
-  return true;
+  const free = !!opts.free;
+  const now = gameNow();
+  // 무료 판(개발용 시험)이라는 표시를 전투에도 넘겨, 그 판의 재도전·다음 단계도 무료로 이어지게 한다
+  const d = free ? { ...data, free: true } : data;
+  return runEntry(free, () => Progress.spendEntry(now), () => showStaminaShort(scene, now), () => {
+    if (opts.restart) scene.scene.restart(d);
+    else scene.scene.start('game', d);
+  });
 }
 
 /** 행동력 부족 안내(화면 가운데 2.5초) */
