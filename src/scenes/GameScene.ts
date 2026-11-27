@@ -46,6 +46,8 @@ import { type HardStageDef } from '../data/hardStages';
 import { DEATH_BURST, stageRule } from '../data/veryHardStages';
 import { fullH, offY } from '../ui/layout';
 import { playUltCutscene, playUltSweep, preloadUlt } from '../ui/UltCutscene';
+/** 필살기 영상이 걷힌 뒤 피해·전장 연출까지 텀(ms) */
+const ULT_FX_GAP_MS = 350;
 import { getLang } from '../i18n';
 import { capeKey, makeSkinTextures, trailKey } from '../ui/skinArt';
 import { skinDef } from '../data/skins';
@@ -718,23 +720,31 @@ export class GameScene extends Phaser.Scene {
       from,
       onHit: () => {
         if (this.mode !== 'ult') return; // 컷신 중 판이 끝난 경우 등
-        this.mode = 'play';
-        this.physics.resume();
-        this.time.paused = false;
-        this.skin.setVisible(wasVisible);
-        if (this.signature.cast()) {
-          // 필살기 피해는 화면 전체 → 효과도 화면 전체(레드: Higgsfield 불의 파도 그림이 위→아래로 쓸고 지나감)
-          // 신규 5종 중 드래곤 자리에서 퍼지는 연출(크리스탈·실바·포지)을 위해 화면 위 드래곤 위치를 넘김
-          const cam = this.cameras.main;
-          playUltSweep(this, this.dragon.id, this.signature.def.color, UI_DEPTH - 1, { x: (this.player.x - cam.worldView.x) * cam.zoom, y: (this.player.y - cam.worldView.y) * cam.zoom });
-          const ss = SIGNATURE_SFX[this.dragon.id];
-          if (ss) playSfx(this, ss);
-          this.cameras.main.shake(260, 0.006);
-          this.stageLog.push({ name: 'signature:cast', at: Math.round(this.elapsed) });
-        }
+        // 2026-11-28 제작자: "영상 끝나고 텀을 두고 써야" — 섬광 뒤 영상이 걷히는 0.35초 동안 게임은 멈춘 채로 두고, 그다음 피해·전장 연출
+        // (게임 시계는 멈춰 있으므로 트윈 카운터로 잰다)
+        this.tweens.addCounter({ from: 0, to: 1, duration: ULT_FX_GAP_MS, onComplete: () => this.ultLand(wasVisible) });
       },
       onDone: () => {},
     });
+  }
+
+  /** 필살기 착지: 게임 재개 + 피해 + 전장 연출 */
+  private ultLand(wasVisible: boolean): void {
+    if (this.mode !== 'ult') return;
+    this.mode = 'play';
+    this.physics.resume();
+    this.time.paused = false;
+    this.skin.setVisible(wasVisible);
+    if (this.signature.cast()) {
+      // 필살기 피해는 화면 전체 → 효과도 화면 전체(레드: Higgsfield 불의 파도 그림이 위→아래로 쓸고 지나감)
+      // 신규 5종 중 드래곤 자리에서 퍼지는 연출(크리스탈·실바·포지)을 위해 화면 위 드래곤 위치를 넘김
+      const cam = this.cameras.main;
+      playUltSweep(this, this.dragon.id, this.signature.def.color, UI_DEPTH - 1, { x: (this.player.x - cam.worldView.x) * cam.zoom, y: (this.player.y - cam.worldView.y) * cam.zoom });
+      const ss = SIGNATURE_SFX[this.dragon.id];
+      if (ss) playSfx(this, ss);
+      this.cameras.main.shake(260, 0.006);
+      this.stageLog.push({ name: 'signature:cast', at: Math.round(this.elapsed) });
+    }
   }
 
   /** 전투 중 공격력 배율: 암흑의 계약 룬(HP 50% 이하) */

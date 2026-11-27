@@ -567,6 +567,16 @@ export function playUltCutscene(scene: Phaser.Scene, o: UltCutsceneOpts): void {
             }
           };
           scene.events.on('update', showWhenReady);
+          // 영상이 늦게 준비되면(느린 기기·느린 서버) 배경만 보이던 문제(2026-11-28 제작자 제보, 크리스탈):
+          // 0.5초 안에 영상이 안 보이면 그 밑에 대체 연출(드래곤 + 색 효과)을 깔고, 영상이 준비되면 그 위로 덮는다
+          scene.tweens.addCounter({
+            from: 0, to: 1, duration: 500,
+            onComplete: () => {
+              if (!video || !video.active || video.visible) return;
+              drawFallback(scene, scene2, o, W, H);
+              scene2.bringToTop(video);
+            },
+          });
           // 화면을 덮게(세로 9:16 영상, 긴 화면이면 위아래 기준으로 키움)
           const fit = () => {
             const vw = video!.width || 720;
