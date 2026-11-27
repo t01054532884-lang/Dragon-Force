@@ -126,6 +126,8 @@ export class GameScene extends Phaser.Scene {
   /** 성능 측정용: 만든 폭발·상한 때문에 건너뛴 수·동시 최대 */
   burstStats = { spawned: 0, skipped: 0, maxActive: 0 };
   private bossTexts: Phaser.GameObjects.Text[] = [];
+  /** 엘리트 2·3번째 이름(1번째는 eliteText) — 이름마다 자기 체력바 바로 위 */
+  private eliteNames: Phaser.GameObjects.Text[] = [];
   /** 보스 2마리 체력 막대 틀 그림(ui-boss-bar, 어려움 요청서 6 ⑤) — 그림이 있을 때만 */
   private bossFrames: Phaser.GameObjects.Image[] = [];
   private items!: Phaser.Physics.Arcade.Group;
@@ -310,6 +312,7 @@ export class GameScene extends Phaser.Scene {
     this.bursts = [];
     this.burstStats = { spawned: 0, skipped: 0, maxActive: 0 };
     this.bossTexts = [];
+    this.eliteNames = [];
     this.bossFrames = [];
     this.itemRng = new Phaser.Math.RandomDataGenerator([`${this.seed}:items`]);
     this.shieldUntil = 0;
@@ -811,19 +814,32 @@ export class GameScene extends Phaser.Scene {
       this.bossText.setText(two ? '' : `${boss.def.name}${d.enraged ? ' — 격노!' : boss.phase === 2 ? ' — 분노' : ''}`);
       this.eliteText.setText(d.bossBuffs.length ? `잔존 엘리트: ${d.bossBuffs.join(' · ')}` : '');
       this.eliteText.setY(292);
+      this.eliteNames.forEach((t) => t.setText(''));
     } else {
       this.bossText.setText('');
       // 엘리트: 보스바보다 작은 전용 체력바(살아 있는 엘리트마다)
       const alive = d.elites.filter((e): e is Enemy => !!e?.active);
-      alive.forEach((e, i) => {
-        const y = 244 + i * 40;
+      // 1.0.5: 이름을 한 덩어리(아래 맞춤)로 쓰니 2마리일 때 1번 이름이 위로 붙고 2번 이름이 1번 막대 위에 앉던 것 →
+      // 이름마다 자기 막대 바로 위, 막대 간격 40 → 52
+      const ELITE_GAP = 52;
+      alive.slice(0, 3).forEach((e, i) => {
+        const y = 244 + i * ELITE_GAP;
         const r = Phaser.Math.Clamp(e.hp / e.maxHp, 0, 1);
         g.fillStyle(0x000000, 0.7).fillRect(160, y, 400, 14);
         g.fillStyle(0xff9800).fillRect(162, y + 2, 396 * r, 10);
       });
       // 엘리트 여러 마리: 막대는 마리마다, 이름 줄은 너무 길어지지 않게 3줄까지
-      this.eliteText.setY(240).setText(alive.slice(0, 3).map((e) => `엘리트 ${e.eliteSlot} · ${e.def.name}`).join('\n'));
-      this.eliteText.setLineSpacing(18);
+      const name = (e: Enemy | undefined) => (e ? `엘리트 ${e.eliteSlot} · ${e.def.name}` : '');
+      this.eliteText.setY(240).setLineSpacing(0).setText(name(alive[0]));
+      for (let i = 1; i < 3; i++) {
+        let t = this.eliteNames[i - 1];
+        if (!t && alive[i]) {
+          t = this.eliteNames[i - 1] = this.add
+            .text(360, 0, '', { fontFamily: 'sans-serif', fontSize: '20px', color: '#ffffff', stroke: '#000000', strokeThickness: 5, align: 'center' })
+            .setOrigin(0.5, 1).setScrollFactor(0).setDepth(UI_DEPTH + 1);
+        }
+        t?.setY(240 + i * ELITE_GAP).setText(name(alive[i]));
+      }
     }
 
     // 화면 밖 등장 위치를 가리키는 가장자리 화살표
