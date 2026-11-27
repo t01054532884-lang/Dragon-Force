@@ -7,6 +7,7 @@ import { plate } from './kit2';
 import { COLOR, TYPE } from './theme';
 import { fullH } from './layout';
 import type { RewardBundle } from '../data/economy';
+import { ART_FILES } from './art';
 
 // 보상 획득 팝업 · 드래곤 해금 축하(2026-11-21 종합 개선 기획서 12·13장).
 // 그림이 오면(그림·소리 요청서 5) frame-<등급>·sigil-<속성>·fx-unlock-rays를 쓰고, 없으면 도형으로 그린다.
@@ -108,6 +109,21 @@ export function dragonUnlock(scene: Phaser.Scene, ids: DragonId[], onDone?: () =
   }
   const [id, ...rest] = ids;
   const d = DRAGONS[id];
+  // 1.0.5 메모리: 속성 문양은 메뉴에서 미리 읽지 않는다 → 축하를 띄우기 전에 그 한 장만 읽고 시작(빈 그림·도형 대체가 보이지 않게)
+  const sigilFile = ART_FILES[`sigil-${d.element}`];
+  if (sigilFile && !scene.textures.exists(`sigil-${d.element}`) && !scene.load.isLoading()) {
+    let started = false;
+    const go = () => {
+      if (started || !scene.sys.isActive()) return;
+      started = true;
+      dragonUnlock(scene, ids, onDone);
+    };
+    scene.load.image(`sigil-${d.element}`, `art/${sigilFile}`);
+    scene.load.once(Phaser.Loader.Events.COMPLETE, go);
+    scene.load.start();
+    scene.time.delayedCall(1500, go); // 못 읽으면 1.5초 뒤 도형 문양으로라도 진행
+    return;
+  }
   const sig = SIGNATURES[id];
   const layer: Phaser.GameObjects.GameObject[] = [];
   const add = <T extends Phaser.GameObjects.GameObject>(o: T): T => {

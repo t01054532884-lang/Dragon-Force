@@ -33,7 +33,9 @@ function battleUnused(key: string, dragonId: string): boolean {
  * - 적 그림(art-), 어려움 오라·위험 지대, 처치 시 폭발 그림, 필살기 배경·효과 그림
  * - 필살기 영상·소리 캐시(드래곤을 바꿔 가며 싸우면 드래곤마다 쌓이던 것)
  */
-const LOBBY_UNUSED = /^(art-|aura-enrage$|aura-elite$|zone-danger$|fx-death-|ult-bg$|ult-fx-)/;
+// 1.0.5: 전투 전용 스킬 그림·효과 그림과 해금 축하용 속성 문양도 로비로 돌아오면 내린다(메뉴 preload는 MENU_LAZY라 다시 안 읽음)
+// 1.0.5: 단계별 바닥·공격 예고·장애물·위험 지대·적 탄 그림도(단계마다 약 2.5MB가 로비에 쌓이던 것 — 전투 preloadStageArt가 그 단계 것만 다시 읽음)
+const LOBBY_UNUSED = /^(art-|aura-enrage$|aura-elite$|zone-danger$|fx-(?!unlock-rays$)|ult-bg$|ult-fx-|sigart-|sigfx-|sigil-|floor-s\d+$|atk-s\d+$|obstacle-(pillar|rock)-s\d+$|zone-s\d+$|shot-(thorn|moon|fire|ice|ghost|gold)$)/;
 export function releaseBattleArt(scene: Phaser.Scene): number {
   let n = 0;
   for (const key of scene.textures.getTextureKeys()) {
