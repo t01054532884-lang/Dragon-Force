@@ -724,7 +724,9 @@ export class GameScene extends Phaser.Scene {
         this.skin.setVisible(wasVisible);
         if (this.signature.cast()) {
           // 필살기 피해는 화면 전체 → 효과도 화면 전체(레드: Higgsfield 불의 파도 그림이 위→아래로 쓸고 지나감)
-          playUltSweep(this, this.dragon.id, this.signature.def.color, UI_DEPTH - 1);
+          // 신규 5종 중 드래곤 자리에서 퍼지는 연출(크리스탈·실바·포지)을 위해 화면 위 드래곤 위치를 넘김
+          const cam = this.cameras.main;
+          playUltSweep(this, this.dragon.id, this.signature.def.color, UI_DEPTH - 1, { x: (this.player.x - cam.worldView.x) * cam.zoom, y: (this.player.y - cam.worldView.y) * cam.zoom });
           const ss = SIGNATURE_SFX[this.dragon.id];
           if (ss) playSfx(this, ss);
           this.cameras.main.shake(260, 0.006);

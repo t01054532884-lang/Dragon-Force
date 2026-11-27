@@ -97,7 +97,8 @@ export function topBar(scene: Phaser.Scene, opts: { portrait: string; level: num
     root.add(sub);
     values.push(v);
     subs.push(sub);
-    if (c.onPlus) root.add(button(scene, cx + w / 2 - 12, 42, 36, 36, '+', c.onPlus, { kind: 'cta', size: 28 }).root);
+    // + 버튼(2026-11-28 제작자: "+가 커서 옆 칸을 침범") — 36 → 28px, 칸 오른쪽 끝 안쪽으로(예전엔 칸 밖으로 나가 옆 재화 아이콘과 겹침)
+    if (c.onPlus) root.add(button(scene, cx + w / 2 - 20, 45, 28, 28, '+', c.onPlus, { kind: 'cta', size: 22 }).root);
   });
   if (scene.textures.exists('ic-swords')) root.add(scene.add.image(168, 108, 'ic-swords').setDisplaySize(36, 36));
   root.add(text(scene, 190, 108, `전투력 ${opts.cp}`, TYPE.tiny, COLOR.gold, true, true).setOrigin(0, 0.5));

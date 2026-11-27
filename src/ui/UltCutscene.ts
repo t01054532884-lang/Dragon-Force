@@ -65,13 +65,14 @@ const ultSfxKey = (id: DragonId) => `ult-${id}-sfx`;
  * motion(2026-11-25 제작자 결정 — 비슷한 4쌍을 움직임부터 다르게): 없으면 위→아래 쓸기(sweep).
  * vortex 가운데 소용돌이(워터) · rift 가운데서 바깥으로 갈라짐(샌드) · circle 마법진 + 빛기둥(아케인) · enclose 양옆에서 조여 옴(블랙)
  */
-type FxMotion = 'sweep' | 'vortex' | 'rift' | 'circle' | 'enclose' | 'flame';
+type FxMotion = 'sweep' | 'vortex' | 'rift' | 'circle' | 'enclose' | 'flame' | 'erupt' | 'barrage' | 'grow' | 'quake' | 'beam';
 const ULT_FX: Partial<Record<DragonId, { add: boolean; motion?: FxMotion }>> = {
   red: { add: true, motion: 'flame' }, blue: { add: true }, yellow: { add: true }, green: { add: false }, sand: { add: true, motion: 'rift' }, steel: { add: false },
   white: { add: true }, black: { add: false, motion: 'enclose' }, stone: { add: false }, bloom: { add: false }, howl: { add: true }, wind: { add: true },
   water: { add: false, motion: 'vortex' }, crimson: { add: true }, mirror: { add: true }, chrono: { add: true }, void: { add: false }, aurora: { add: true }, arcane: { add: true, motion: 'circle' },
   // 신규 5종: 포격·충격파·다이아몬드는 빛(더하기), 나무뿌리·흑요석은 어두운 색이 중요(보통 섞기)
-  gears: { add: true }, silva: { add: false }, forge: { add: true, motion: 'rift' }, crystal: { add: true }, bahamut: { add: false },
+  // 2026-11-28 제작자: "신규도 기존과 달리 개성 있게, 모두 광역" — 크리스탈은 노틸러스 E처럼 드래곤에서 바깥으로 수정이 줄지어 솟음
+  gears: { add: true, motion: 'barrage' }, silva: { add: false, motion: 'grow' }, forge: { add: true, motion: 'quake' }, crystal: { add: true, motion: 'erupt' }, bahamut: { add: false, motion: 'beam' },
 };
 export const ULT_FX_READY = Object.keys(ULT_FX) as DragonId[];
 const ultFxKey = (id: DragonId) => `ult-fx-${id}`;
@@ -81,7 +82,7 @@ const ultFxKey = (id: DragonId) => `ult-fx-${id}`;
  * 그림이 있으면 거대한 파도가 위에서 아래로 화면을 덮으며 지나가고, 지나간 자리에 색 빛이 남았다 사라지며 불씨가 흩날린다.
  * 그림이 없으면 같은 흐름을 색 띠로. 화면 고정(카메라 기준), 깊이는 전투 화면 위·UI 아래.
  */
-export function playUltSweep(scene: Phaser.Scene, id: DragonId, color: number, depth: number): void {
+export function playUltSweep(scene: Phaser.Scene, id: DragonId, color: number, depth: number, center?: { x: number; y: number }): void {
   const W = scene.scale.width;
   const H = scene.scale.height;
   const fix = <G extends Phaser.GameObjects.GameObject>(g: G): G => {
@@ -97,6 +98,11 @@ export function playUltSweep(scene: Phaser.Scene, id: DragonId, color: number, d
     else if (motion === 'rift') fxRift(scene, key, color, add, W, H, fix);
     else if (motion === 'circle') fxCircle(scene, key, color, add, W, H, fix);
     else if (motion === 'flame') fxFlameWave(scene, key, color, add, W, H, fix);
+    else if (motion === 'erupt') fxErupt(scene, id, key, color, add, W, H, fix, center);
+    else if (motion === 'barrage') fxBarrage(scene, id, key, color, add, W, H, fix);
+    else if (motion === 'grow') fxGrow(scene, id, key, color, add, W, H, fix, center);
+    else if (motion === 'quake') fxQuake(scene, id, key, color, add, W, H, fix, center);
+    else if (motion === 'beam') fxBeam(scene, key, color, add, W, H, fix);
     else fxEnclose(scene, key, color, add, W, H, fix);
     return;
   }
@@ -280,6 +286,187 @@ function fxEnclose(scene: Phaser.Scene, key: string, color: number, add: boolean
     p.setAlpha(0).setBlendMode(Phaser.BlendModes.ADD);
     scene.tweens.add({ targets: p, alpha: { from: 1, to: 0 }, x: cx + Math.cos(a) * d, y: cy + Math.sin(a) * d, delay: 480, duration: Phaser.Math.Between(500, 800), ease: 'Quad.Out', onComplete: () => p.destroy() });
   }
+}
+
+// ───────── 신규 5종 전장 연출(2026-11-28) — 기존 19종과 겹치지 않는 움직임, 모두 화면 전체(광역) ─────────
+const sigartKey = (id: DragonId) => `sigart-${id}`;
+const centerOf = (W: number, H: number, c?: { x: number; y: number }) => ({ cx: c?.x ?? W / 2, cy: c?.y ?? H / 2 });
+
+/**
+ * 크리스탈 수정의 폭발(노틸러스 E처럼): 드래곤 자리에서 바깥으로 수정 기둥이 고리 모양으로 줄지어 솟는다 — 3겹이 차례로 더 멀리.
+ * 기둥 = 전장 효과 그림(수정 기둥 줄)을 작게 잘라 바깥을 향해 세운 것. 가운데는 전용 스킬 그림이 터짐.
+ */
+function fxErupt(scene: Phaser.Scene, id: DragonId, key: string, color: number, add: boolean, W: number, H: number, fix: Fix, c?: { x: number; y: number }): void {
+  const { cx, cy } = centerOf(W, H, c);
+  const far = Math.hypot(Math.max(cx, W - cx), Math.max(cy, H - cy));
+  fxTint(scene, 0xe8f4ff, 0.18, W, H, fix, 0, 500);
+  if (scene.textures.exists(sigartKey(id))) {
+    const core = fix(scene.add.image(cx, cy, sigartKey(id)).setBlendMode(Phaser.BlendModes.ADD));
+    core.setScale(0.1).setAlpha(1);
+    scene.tweens.add({ targets: core, scale: 0.9, alpha: 0, duration: 650, ease: 'Expo.Out', onComplete: () => core.destroy() });
+  }
+  const rings = [
+    { r: far * 0.22, n: 8, delay: 0, s: 0.16 },
+    { r: far * 0.5, n: 12, delay: 200, s: 0.2 },
+    { r: far * 0.8, n: 16, delay: 400, s: 0.24 },
+  ];
+  rings.forEach((g, gi) => {
+    // 고리 하나: 하얀 충격 고리가 퍼지고, 그 자리에서 수정 기둥이 바깥을 향해 솟았다 부서짐
+    const ring = fix(scene.add.circle(cx, cy, 20, 0xffffff, 0).setStrokeStyle(6, color, 1).setBlendMode(Phaser.BlendModes.ADD));
+    ring.setAlpha(0);
+    scene.tweens.add({ targets: ring, alpha: { from: 0.9, to: 0 }, scale: g.r / 20, delay: Math.max(0, g.delay - 120), duration: 380, ease: 'Quad.Out', onComplete: () => ring.destroy() });
+    for (let k = 0; k < g.n; k++) {
+      const a = (k / g.n) * Math.PI * 2 + gi * 0.3;
+      const x = cx + Math.cos(a) * g.r, y = cy + Math.sin(a) * g.r;
+      const sp = fix(scene.add.image(x, y, key).setOrigin(0.5, 1));
+      if (add) sp.setBlendMode(Phaser.BlendModes.ADD);
+      const sc = (W * g.s) / sp.width;
+      sp.setRotation(a + Math.PI / 2).setScale(sc, 0).setAlpha(1);
+      scene.tweens.add({ targets: sp, scaleY: sc * 1.6, delay: g.delay + k * 8, duration: 170, ease: 'Back.Out' });
+      scene.tweens.add({ targets: sp, alpha: 0, scaleX: sc * 0.6, delay: g.delay + 420, duration: 360, onComplete: () => sp.destroy() });
+    }
+    scene.time.delayedCall(g.delay, () => scene.cameras.main.shake(140, 0.004 + gi * 0.002));
+  });
+  // 반짝이는 파편이 바깥으로
+  for (let i = 0; i < 30; i++) {
+    const a = Math.random() * Math.PI * 2, d = Phaser.Math.Between(80, Math.round(far));
+    const p = fix(scene.add.rectangle(cx, cy, 6, 12, i % 3 ? 0xffffff : color, 1).setBlendMode(Phaser.BlendModes.ADD).setRotation(a));
+    p.setAlpha(0);
+    scene.tweens.add({ targets: p, alpha: { from: 1, to: 0 }, x: cx + Math.cos(a) * d, y: cy + Math.sin(a) * d, delay: (d / far) * 400, duration: 520, ease: 'Quad.Out', onComplete: () => p.destroy() });
+  }
+}
+
+/** 기어스 전술 포대: 하늘에서 포탄이 비처럼 꽂히고, 꽂힌 자리마다 차례로 폭발(화면 곳곳 + 잦은 작은 흔들림) */
+function fxBarrage(scene: Phaser.Scene, id: DragonId, key: string, color: number, add: boolean, W: number, H: number, fix: Fix): void {
+  const DUR = 1000;
+  const boom = scene.textures.exists(sigartKey(id)) ? sigartKey(id) : key;
+  fxTint(scene, 0x1a2a28, 0.25, W, H, fix, 0, DUR);
+  for (let i = 0; i < 22; i++) {
+    const x = Phaser.Math.Between(30, W - 30), y = Phaser.Math.Between(Math.round(H * 0.12), H - 40);
+    const delay = (i / 22) * DUR + Phaser.Math.Between(0, 60);
+    // 떨어지는 포탄 줄기(위에서 비스듬히)
+    const trail = fix(scene.add.rectangle(x - 60, y - 220, 6, 70, 0xfff3c4, 0.95).setBlendMode(Phaser.BlendModes.ADD).setAngle(-15));
+    trail.setAlpha(0);
+    scene.tweens.add({ targets: trail, x, y, alpha: { from: 1, to: 1 }, delay, duration: 150, ease: 'Quad.In', onComplete: () => trail.destroy() });
+    // 폭발
+    const ex = fix(scene.add.image(x, y, boom));
+    if (add) ex.setBlendMode(Phaser.BlendModes.ADD);
+    const s = (Phaser.Math.Between(150, 230)) / ex.width;
+    ex.setScale(s * 0.2).setAlpha(0).setAngle(Phaser.Math.Between(0, 359));
+    scene.tweens.add({ targets: ex, scale: s, alpha: { from: 1, to: 1 }, delay: delay + 150, duration: 160, ease: 'Back.Out' });
+    scene.tweens.add({ targets: ex, alpha: 0, delay: delay + 360, duration: 320, onComplete: () => ex.destroy() });
+    const ring = fix(scene.add.circle(x, y, 14, 0xffffff, 0).setStrokeStyle(4, color, 1).setBlendMode(Phaser.BlendModes.ADD));
+    ring.setAlpha(0);
+    scene.tweens.add({ targets: ring, alpha: { from: 1, to: 0 }, scale: 5, delay: delay + 150, duration: 380, ease: 'Quad.Out', onComplete: () => ring.destroy() });
+    if (i % 4 === 0) scene.time.delayedCall(delay + 150, () => scene.cameras.main.shake(90, 0.005));
+  }
+}
+
+/** 실바 세계수의 각성: 드래곤 자리에서 거대한 뿌리·가지가 사방으로 뻗어 나가고(자라나는 선), 화면에 잎이 흩날려 떨어짐 */
+function fxGrow(scene: Phaser.Scene, id: DragonId, key: string, color: number, add: boolean, W: number, H: number, fix: Fix, c?: { x: number; y: number }): void {
+  const { cx, cy } = centerOf(W, H, c);
+  const far = Math.hypot(Math.max(cx, W - cx), Math.max(cy, H - cy));
+  fxTint(scene, 0x1f4d12, 0.22, W, H, fix, 0, 800);
+  // 뿌리 6갈래: 전장 효과 그림(뿌리·가지 띠)을 왼쪽 끝을 드래곤에 붙여 바깥으로 자라게
+  for (let k = 0; k < 6; k++) {
+    const a = (k / 6) * Math.PI * 2 + Math.random() * 0.4;
+    const im = fix(scene.add.image(cx, cy, key).setOrigin(0, 0.5).setRotation(a));
+    if (add) im.setBlendMode(Phaser.BlendModes.ADD);
+    const sx = (far * 1.05) / im.width;
+    const sy = sx * 0.55;
+    im.setScale(0, sy).setAlpha(1);
+    scene.tweens.add({ targets: im, scaleX: sx, delay: k * 40, duration: 520, ease: 'Cubic.Out' });
+    scene.tweens.add({ targets: im, scaleY: sy * 1.25, delay: 400, duration: 300, yoyo: true });
+    scene.tweens.add({ targets: im, alpha: 0, delay: 1000, duration: 500, onComplete: () => im.destroy() });
+  }
+  if (scene.textures.exists(sigartKey(id))) {
+    const core = fix(scene.add.image(cx, cy, sigartKey(id)));
+    core.setScale(0).setAlpha(1);
+    scene.tweens.add({ targets: core, scale: (far * 0.9) / core.width, angle: 40, duration: 700, ease: 'Back.Out' });
+    scene.tweens.add({ targets: core, alpha: 0, delay: 900, duration: 500, onComplete: () => core.destroy() });
+  }
+  scene.cameras.main.shake(500, 0.004);
+  // 잎비: 위에서 흔들리며 떨어짐
+  for (let i = 0; i < 34; i++) {
+    const x = Phaser.Math.Between(0, W), y0 = Phaser.Math.Between(-80, Math.round(H * 0.4));
+    const leaf = fix(scene.add.ellipse(x, y0, 16, 8, i % 3 ? color : 0xc5e1a5, 0.95).setAngle(Phaser.Math.Between(0, 359)));
+    leaf.setAlpha(0);
+    scene.tweens.add({ targets: leaf, alpha: { from: 1, to: 0 }, y: y0 + Phaser.Math.Between(260, 520), x: x + Phaser.Math.Between(-80, 80), angle: leaf.angle + 300, delay: 200 + Math.random() * 600, duration: 1100, ease: 'Sine.InOut', onComplete: () => leaf.destroy() });
+  }
+}
+
+/** 포지 대지 강타: 드래곤 자리에 망치가 내려꽂히듯 구덩이가 패이고, 주황 충격파 3겹이 화면 끝까지 퍼지며 바위가 튀어 오름(강한 흔들림) */
+function fxQuake(scene: Phaser.Scene, id: DragonId, key: string, color: number, add: boolean, W: number, H: number, fix: Fix, c?: { x: number; y: number }): void {
+  const { cx, cy } = centerOf(W, H, c);
+  const far = Math.hypot(Math.max(cx, W - cx), Math.max(cy, H - cy));
+  const flash = fix(scene.add.circle(cx, cy, 60, 0xfff1a8, 1).setBlendMode(Phaser.BlendModes.ADD));
+  scene.tweens.add({ targets: flash, alpha: 0, scale: 3, duration: 260, onComplete: () => flash.destroy() });
+  scene.cameras.main.shake(600, 0.014);
+  fxTint(scene, 0x3a1606, 0.3, W, H, fix, 80, 500);
+  if (scene.textures.exists(sigartKey(id))) {
+    const crater = fix(scene.add.image(cx, cy, sigartKey(id)));
+    if (add) crater.setBlendMode(Phaser.BlendModes.ADD);
+    crater.setScale(0.2);
+    scene.tweens.add({ targets: crater, scale: 260 / crater.width * 2, duration: 220, ease: 'Expo.Out' });
+    scene.tweens.add({ targets: crater, alpha: 0, delay: 900, duration: 500, onComplete: () => crater.destroy() });
+  }
+  // 충격파 3겹: 굵은 주황 고리 + 고리를 따라 갈라진 땅 띠(전장 효과 그림)가 둥글게 퍼짐
+  [0, 180, 360].forEach((d, i) => {
+    const ring = fix(scene.add.circle(cx, cy, 30, 0xffffff, 0).setStrokeStyle(16 - i * 4, color, 1).setBlendMode(Phaser.BlendModes.ADD));
+    scene.tweens.add({ targets: ring, scale: far / 30, alpha: { from: 1, to: 0 }, delay: d, duration: 650, ease: 'Cubic.Out', onComplete: () => ring.destroy() });
+    scene.time.delayedCall(d, () => scene.cameras.main.shake(160, 0.008));
+  });
+  for (let k = 0; k < 8; k++) {
+    const a = (k / 8) * Math.PI * 2;
+    const im = fix(scene.add.image(cx, cy, key).setOrigin(0, 0.5).setRotation(a));
+    if (add) im.setBlendMode(Phaser.BlendModes.ADD);
+    const sx = (far * 1.05) / im.width;
+    im.setScale(0, sx * 0.35);
+    scene.tweens.add({ targets: im, scaleX: sx, duration: 420, delay: 60, ease: 'Expo.Out' });
+    scene.tweens.add({ targets: im, alpha: 0, delay: 800, duration: 500, onComplete: () => im.destroy() });
+  }
+  // 바위 조각이 튀어 올랐다 떨어짐
+  for (let i = 0; i < 26; i++) {
+    const a = Math.random() * Math.PI * 2, d = Phaser.Math.Between(60, Math.round(far * 0.8));
+    const rock = fix(scene.add.rectangle(cx, cy, Phaser.Math.Between(8, 16), Phaser.Math.Between(8, 14), i % 3 ? 0x3e2723 : color, 1).setAngle(Phaser.Math.Between(0, 90)));
+    const tx = cx + Math.cos(a) * d, ty = cy + Math.sin(a) * d;
+    scene.tweens.add({ targets: rock, x: tx, y: ty - 60, angle: rock.angle + 200, duration: 360, delay: (d / far) * 300, ease: 'Quad.Out' });
+    scene.tweens.add({ targets: rock, y: ty, alpha: 0, delay: (d / far) * 300 + 360, duration: 300, ease: 'Quad.In', onComplete: () => rock.destroy() });
+  }
+}
+
+/** 바하무트 용왕의 숨결: 화면을 대각선으로 가로지르는 흑요석 브레스 빔 두 줄기가 뻗어 나가고(굵어졌다 얇아짐), 빔을 따라 금빛 불꽃이 터짐 */
+function fxBeam(scene: Phaser.Scene, key: string, color: number, add: boolean, W: number, H: number, fix: Fix): void {
+  const diag = Math.hypot(W, H) * 1.15;
+  fxTint(scene, 0x0a0806, 0.38, W, H, fix, 0, 700);
+  scene.cameras.main.shake(800, 0.007);
+  const beams = [
+    { x: -40, y: H * 0.18, a: Math.atan2(H * 0.75, W), w: 1, delay: 0 },
+    { x: W + 40, y: H * 0.42, a: Math.atan2(H * 0.45, -W), w: 0.7, delay: 220 },
+  ];
+  beams.forEach((b) => {
+    const im = fix(scene.add.image(b.x, b.y, key).setOrigin(0, 0.5).setRotation(b.a));
+    if (add) im.setBlendMode(Phaser.BlendModes.ADD);
+    const sx = diag / im.width;
+    const sy = sx * 0.9 * b.w;
+    im.setScale(0, sy * 0.5);
+    scene.tweens.add({ targets: im, scaleX: sx, delay: b.delay, duration: 360, ease: 'Expo.Out' });
+    scene.tweens.add({ targets: im, scaleY: sy, delay: b.delay + 200, duration: 260, yoyo: true, hold: 200 });
+    scene.tweens.add({ targets: im, alpha: 0, delay: b.delay + 900, duration: 450, onComplete: () => im.destroy() });
+    // 빔 가장자리 금빛 선
+    const edge = fix(scene.add.rectangle(b.x, b.y, diag, 10, color, 1).setOrigin(0, 0.5).setRotation(b.a).setBlendMode(Phaser.BlendModes.ADD));
+    edge.setScale(0, 1);
+    scene.tweens.add({ targets: edge, scaleX: 1, delay: b.delay, duration: 360, ease: 'Expo.Out' });
+    scene.tweens.add({ targets: edge, alpha: 0, scaleY: 4, delay: b.delay + 360, duration: 500, onComplete: () => edge.destroy() });
+    // 빔을 따라 금빛 폭발
+    for (let i = 0; i < 12; i++) {
+      const t = (i + 0.5) / 12;
+      const x = b.x + Math.cos(b.a) * diag * t, y = b.y + Math.sin(b.a) * diag * t;
+      const p = fix(scene.add.circle(x, y, Phaser.Math.Between(16, 30), i % 2 ? color : 0xfff1a8, 0.9).setBlendMode(Phaser.BlendModes.ADD));
+      p.setScale(0);
+      scene.tweens.add({ targets: p, scale: 1.6, alpha: { from: 1, to: 0 }, delay: b.delay + t * 360, duration: 420, ease: 'Quad.Out', onComplete: () => p.destroy() });
+    }
+  });
 }
 
 /** 영상이 있으면 컷신 길이 = 날아오름 0.45초 + 영상 구간 + 섬광 0.5초, 없으면 3초 */
