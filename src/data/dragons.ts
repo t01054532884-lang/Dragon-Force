@@ -548,8 +548,8 @@ export const DRAGON_RELEASED: Record<DragonId, boolean> = {
   sand: true, steel: true, bloom: true, howl: true, crimson: true,
   // 제작자 결정 2026-11-23 밤: 남은 4종(미러·크로노·보이드·오로라)도 첫 출시에 함께 → 19종 모두
   mirror: true, chrono: true, void: true, aurora: true,
-  // 신규 5종(2026-11-27): 그림(초상·전투·탄·필살기 영상)이 오기 전까지 숨김 — 시험은 ?newdragons
-  gears: false, silva: false, forge: false, crystal: false, bahamut: false,
+  // 신규 5종(2026-11-27 기획, 11/28 그림·영상·이펙트가 모두 와서 1.0.4에 공개)
+  gears: true, silva: true, forge: true, crystal: true, bahamut: true,
 };
 const PREVIEW_NEW = typeof location !== 'undefined' && new URLSearchParams(location.search).has('newdragons');
 /** 화면·뽑기에 쓰는 드래곤 목록(출시된 것 + 시험 주소면 전부) */

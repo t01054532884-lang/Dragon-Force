@@ -20,8 +20,8 @@ const dps = (id: DragonId, lv: number): number => {
 
 describe('출시 스위치', () => {
   it('데이터 19종 모두 첫 출시(2026-11-23 밤 제작자 결정: 미러·전설 3종도 함께)', () => {
-    expect(DRAGON_ORDER).toHaveLength(24); // 2026-11-27 신규 5종(그림 오기 전까지 숨김)
-    expect(releasedDragons()).toHaveLength(19);
+    expect(DRAGON_ORDER).toHaveLength(24); // 2026-11-27 신규 5종 — 1.0.4(11/28)에 공개
+    expect(releasedDragons()).toHaveLength(24);
     const added: DragonId[] = ['sand', 'steel', 'bloom', 'howl', 'crimson', 'mirror', 'chrono', 'void', 'aurora'];
     for (const id of added) {
       expect(DRAGON_RELEASED[id]).toBe(true);
@@ -29,7 +29,7 @@ describe('출시 스위치', () => {
     }
     expect(poolOf('common', false)).toContain('sand');
     expect(poolOf('epic', false)).toEqual(expect.arrayContaining(['crimson', 'mirror']));
-    expect(poolOf('legendary', false).sort()).toEqual(['arcane', 'aurora', 'chrono', 'void']);
+    expect(poolOf('legendary', false).sort()).toEqual(['arcane', 'aurora', 'bahamut', 'chrono', 'void']);
   });
   it('예전 저장(10종)을 열면 신규 드래곤은 잠긴 기본값으로 채워짐', () => {
     const old = defaultProgress() as unknown as { dragons: Record<string, unknown> };

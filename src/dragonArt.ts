@@ -327,6 +327,14 @@ const PROJECTILE_ART: [bolt: string, art: string, size: number][] = [
   ['bolt-sand', 'proj-sand', 32],
   ['bolt-steel', 'proj-steel', 34],
   ['bolt-seed', 'proj-bloom', 34],
+  // 신규 5종 전투 이펙트(2026-11-28 제작자 ChatGPT, scripts/process_art_newdragons_fx.py). 포탑·식물은 탄이 아니지만 같은 방식으로 작은 그림을 만든다
+  ['bolt-gear', 'proj-gears', 30],
+  ['turret-gear', 'proj-turret', 50],
+  ['turret-gear-2', 'proj-turret2', 56],
+  ['bolt-leaf', 'proj-silva', 32],
+  ['plant-silva', 'proj-plant', 48],
+  ['bolt-hammer', 'proj-forge', 42],
+  ['bolt-crystal', 'proj-crystal', 44],
 ];
 
 export function applyProjectileArt(scene: Phaser.Scene): void {

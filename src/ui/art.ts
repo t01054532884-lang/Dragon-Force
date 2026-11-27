@@ -214,6 +214,8 @@ export const ART_FILES: Record<string, string> = {
   // 20차분(2026-11-24, scripts/process_art_batch20.py): 탄 수정본(아래 같은 파일 덮어씀) + 신규 9종 전용 스킬 전투 연출 512px(Signature.ts SIGART)
   ...Object.fromEntries(['aurora', 'void', 'chrono', 'mirror', 'howl', 'crimson', 'sand', 'steel', 'bloom'].map((id) => [`sigart-${id}`, `sigfx/sigart-${id}.webp`])),
   ...Object.fromEntries(['proj-aurora', 'proj-mirror', 'proj-chrono', 'proj-void', 'proj-sand', 'proj-steel', 'proj-bloom', 'fx-sound-ring', 'fx-crimson-slash'].map((k) => [k, `proj/${k}.webp`])),
+  // 신규 5종 전투 이펙트(2026-11-28): 포탄·포탑·쌍포·잎·식물·망치·수정 창 + 바하무트 브레스(fx-breath, BasicAttack이 직접 씀)
+  ...Object.fromEntries(['proj-gears', 'proj-turret', 'proj-turret2', 'proj-silva', 'proj-plant', 'proj-forge', 'proj-crystal', 'fx-breath'].map((k) => [k, `proj/${k}.webp`])),
 };
 
 /** 필요한 그림만 읽는다(키가 ART_FILES에 없거나 이미 읽었으면 건너뜀). 화면별 preload()에서 쓴다 */

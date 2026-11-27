@@ -46,11 +46,10 @@ describe('신규 5종 데이터(제작자 기획)', () => {
     expect(t('red').focusBonus).toBe(0);
     expect(FOCUS_MAX_STACKS).toBe(5);
   });
-  it('그림이 오기 전까지 숨김: 상점 뽑기·도감에 안 나옴, 예전 19종 저장은 새 5종 잠긴 기본값으로 열림', () => {
+  it('1.0.4 공개: 상점 뽑기·도감에 나옴, 예전 19종 저장은 새 5종 잠긴 기본값으로 열림', () => {
     for (const id of NEW5) {
-      expect(DRAGON_RELEASED[id]).toBe(false);
-      expect(releasedDragons()).not.toContain(id);
-      expect(BOX_POOL).not.toContain(id);
+      expect(DRAGON_RELEASED[id]).toBe(true);
+      expect(releasedDragons()).toContain(id);
     }
     const old = defaultProgress() as unknown as { dragons: Record<string, unknown> };
     const dragons = { ...old.dragons };

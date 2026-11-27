@@ -859,7 +859,7 @@ export class BasicAttack {
       const shots = Array.from({ length: L.shots }, () => target);
       shots.forEach((s, i) => this.spawnBullet(s, volley, false, i, shots, false, tu));
       const ang = Phaser.Math.Angle.Between(tu.x, tu.y, target.x, target.y);
-      tu.img.setRotation(ang);
+      tu.img.setFlipX(Math.cos(ang) < 0); // 포탑 그림은 옆모습(포신이 오른쪽) — 돌리지 않고 좌우만 뒤집는다
       this.h.fx?.muzzle(tu.x, tu.y, ang, 18 * tu.img.scale); // 포구 섬광
       return true;
     });
