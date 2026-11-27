@@ -13,6 +13,7 @@ import { grantVerifiedPass } from './Pass';
 import { grantVerifiedRubyPass } from './RubyPass';
 import { grantVerifiedSkinKeys } from './Skins';
 import { dealPeriodKey, Progress, withTx, type PlayerProgress, type Result } from './Progress';
+import { addGift } from './Mailbox';
 
 // 인앱결제(제작자 결정 2026-11-20: Firebase + RevenueCat — docs/PAYMENTS.md).
 // 흐름: ① 서버에 "살 수 있나"(기간·계정당 횟수) 확인 → ② App Store 결제(RevenueCat) → ③ 서버가 RevenueCat에 거래를 확인하고
@@ -50,6 +51,8 @@ export interface PurchaseProvider {
   skinSpin(): Promise<ServerSkinState & { spin: ServerSpin }>;
   /** 서버 스킨 룰렛: 추첨 지급(저장) 끝났음 */
   skinAck(ids: string[]): Promise<void>;
+  /** 선물 코드(Apple 오퍼 코드) 입력 창 — iOS만(없으면 버튼을 숨김) */
+  redeemCode?(): Promise<void>;
 }
 
 /** 결제 없음(웹·토스·데모·서버 설정 전) */
@@ -79,6 +82,36 @@ export function grantVerifiedRubies(p: PlayerProgress, transactionId: string, ru
   if (!Number.isInteger(rubies) || rubies <= 0) return { ok: false, reason: 'amount' };
   if (RUBY_PRODUCTS.length === 0) return { ok: false, reason: 'disabled' };
   return withTx(p, `iap:${transactionId}`, () => ({ ok: true, progress: { ...p, rubies: p.rubies + rubies } }));
+}
+
+/**
+ * 선물 코드 보상(1.0.5): 루비를 바로 넣지 않고 선물함에 "선물 코드 보상"으로(받기를 눌러야 들어감, 만료 없음).
+ * 같은 거래는 한 번만 — 선물함 id(giftcode:<거래 ID>)와 거래 기록 둘 다로 막는다.
+ */
+export function grantGiftCode(p: PlayerProgress, transactionId: string, rubies: number, now: number): Result {
+  if (!Number.isInteger(rubies) || rubies <= 0) return { ok: false, reason: 'amount' };
+  return withTx(p, `gift:${transactionId}`, () => {
+    const r = addGift(p, {
+      id: `giftcode:${transactionId}`, kind: 'rubies', amount: rubies, title: '선물 코드 보상', body: `선물 코드 보상 루비 ${rubies.toLocaleString('ko-KR')}`,
+      source: '선물 코드', sender: 'system', createdAt: now, expiresAt: null,
+    });
+    return r.added ? { ok: true, progress: r.progress } : { ok: false, reason: 'duplicate' };
+  });
+}
+
+/** 선물 코드 입력: Apple 코드 창을 띄우고, 닫힌 뒤 몇 번에 걸쳐 지급을 확인한다(코드 처리에 몇 초 걸릴 수 있음) */
+export async function redeemGiftCode(onDelivered: (d: Delivered) => void): Promise<boolean> {
+  if (!purchases.available || !purchases.redeemCode) return false;
+  await purchases.redeemCode();
+  for (const ms of [3000, 8000, 20000]) {
+    await new Promise((r) => setTimeout(r, ms));
+    const d = await deliverPending().catch(() => null);
+    if (d?.applied.length) {
+      onDelivered(d);
+      break;
+    }
+  }
+  return true;
 }
 
 const allPackages = (): PackageDef[] => [...PACKAGES, ...DEALS];
@@ -134,6 +167,7 @@ export function applyServerGrant(p: PlayerProgress, g: ServerGrant, now: number)
   if (def.kind === 'package') return grantVerifiedPackage(p, g.transactionId, g.productId, now, false, g.purchasedAt);
   if (def.kind === 'skinkey') return grantVerifiedSkinKeys(p, g.transactionId, g.grant.skinKeys ?? def.grant.skinKeys ?? 1);
   if (def.kind === 'rubypass') return grantVerifiedRubyPass(p, g.transactionId);
+  if (def.kind === 'gift') return grantGiftCode(p, g.transactionId, g.grant.rubies, now);
   const season = g.season ?? passSeasonOf(g.purchasedAt);
   if (season !== passSeasonOf(now)) return { ok: false, reason: 'expired' };
   return grantVerifiedPass(p, g.transactionId, g.grant.pass ?? 'premium', now);

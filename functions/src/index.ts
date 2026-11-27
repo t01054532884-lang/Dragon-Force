@@ -90,7 +90,7 @@ export const iapSync = onCall({ secrets: [RC_SECRET] }, async (req): Promise<Ser
       periodKey: iapPeriodKey(def.period, t.purchasedAt),
       ...(def.kind === 'pass' ? { season: passSeasonOf(t.purchasedAt) } : {}),
       grant: def.grant,
-      paidRubies: def.grant.rubies,
+      paidRubies: def.kind === 'gift' ? 0 : def.grant.rubies, // 선물 코드(무료 오퍼)는 유료 루비로 세지 않음
       delivered: false,
       overLimit: !canBuy(t.productId, ledger, t.purchasedAt).ok,
       refunded: false,
