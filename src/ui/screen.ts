@@ -93,6 +93,7 @@ export function screenFrame(scene: Phaser.Scene, opts: { title: string; nav: str
     bar = topBar(scene, {
       portrait: `portrait-${d.id}`,
       level: accountLevel(p).level, // 계정 레벨(2026-11-23)
+      royalFrame: p.ndPass.bahamut, // 바하무트 패스 프로필 테두리(1.0.5)
       cp: loadout(p, d.id).cp.toLocaleString(),
       currencies: [
         // 2026-11-26 제작자: 행동력 + = 행동력 구매 창, 골드·루비 + = 상점의 그 칸으로(상점 안이면 그 칸으로 스크롤)

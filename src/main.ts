@@ -6,6 +6,7 @@ import { DragonsScene } from './scenes/DragonsScene';
 import { ShopScene } from './scenes/ShopScene';
 import { PassScene } from './scenes/PassScene';
 import { RubyPassScene } from './scenes/RubyPassScene';
+import { NdPassScene } from './scenes/NdPassScene';
 import { EquipScene } from './scenes/EquipScene';
 import { MissionScene } from './scenes/MissionScene';
 import { EventScene } from './scenes/EventScene';
@@ -60,7 +61,7 @@ async function boot(): Promise<void> {
     // 최적화(2026-11-26): 120Hz 화면(ProMotion 아이폰)에서도 초당 60번만 그린다 — 일이 절반, 발열로 느려지는 것(스로틀링) 예방.
     // Phaser는 시간을 쌓아 넘기므로 60이 아니라 62로(60Hz 화면에서 16.6ms 프레임이 건너뛰어지지 않게).
     fps: { limit: 62, ...(import.meta.env.DEV && new URLSearchParams(location.search).has('timer') ? { forceSetTimeOut: true, target: 30 } : {}) },
-    scene: [TitleScene, LobbyScene, GameScene, LabScene, DragonsScene, ShopScene, EquipScene, MissionScene, EventScene, SkinScene, GiftScene, PassScene, RubyPassScene], // 첫 화면은 시작 화면(로고) → 로비
+    scene: [TitleScene, LobbyScene, GameScene, LabScene, DragonsScene, ShopScene, EquipScene, MissionScene, EventScene, SkinScene, GiftScene, PassScene, RubyPassScene, NdPassScene], // 첫 화면은 시작 화면(로고) → 로비
   });
 
   // 메뉴 화면(전투 제외)은 시작할 때마다 기준 화면을 가운데로

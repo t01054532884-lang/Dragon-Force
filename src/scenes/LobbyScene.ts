@@ -34,6 +34,8 @@ import { goTab, navTabsWithAlerts } from '../ui/screen';
 import { accountLevel } from '../systems/AccountLevel';
 import { claimablePass, syncPass } from '../systems/Pass';
 import { claimableRubyPass } from '../systems/RubyPass';
+import { claimableNd, syncNd } from '../systems/NdPass';
+import { ND_PASS, ndEnd, ndOpen, ndValuePct } from '../data/ndPass';
 import { rubyPassValuePct } from '../data/rubyPass';
 import { ATTENDANCE_28, activityRewardIcon, activityRewardText } from '../data/activity';
 import { fullH } from '../ui/layout';
@@ -132,6 +134,7 @@ export class LobbyScene extends Phaser.Scene {
     const bar = topBar(this, {
       portrait: `portrait-${d.id}`,
       level: accountLevel(p).level, // 계정 레벨(2026-11-23, 드래곤 레벨 아님)
+      royalFrame: p.ndPass.bahamut, // 바하무트 패스 프로필 테두리(1.0.5)
       cp: lo.cp.toLocaleString(),
       currencies: [
         { icon: 'ui-energy', value: '', onPlus: () => (this.settingsUi = openStaminaShop(this, () => this.scene.restart())) },
@@ -193,7 +196,7 @@ export class LobbyScene extends Phaser.Scene {
     giftAlert(this, 658, 310, 76, pendingGifts(p.mailbox, now).map((g) => g.id));
     side(658, 1, 'ic-gear', '설정', () => this.openSettings());
     // 드래곤 패스(2026-11-23 제작자 요청: 설정 아래) — 받을 칸이 있으면 !
-    side(658, 2, this.textures.exists('pass-royal') ? 'pass-royal' : 'ic-crown', '패스', () => this.openPassMenu(), claimablePass(syncPass(p, t0)).length > 0 || claimableRubyPass(p).length > 0);
+    side(658, 2, this.textures.exists('pass-royal') ? 'pass-royal' : 'ic-crown', '패스', () => this.openPassMenu(), claimablePass(syncPass(p, t0)).length > 0 || claimableRubyPass(p).length > 0 || claimableNd(syncNd(p, t0), t0).length > 0);
 
     // ── 횃불 · 제단 · 출격 드래곤(숨쉬기 + 터치하면 살짝 뛰어오름)
     torch(this, 172, 560);
@@ -416,7 +419,11 @@ export class LobbyScene extends Phaser.Scene {
   /** 로비 "패스" → 드래곤 패스 / 루비 패스 고르기(2026-11-26 제작자) */
   private openPassMenu(): void {
     const p = Progress.load();
-    const m = modal(this, 640, 560, '패스', { closeOnBackdrop: true, ribbonColor: COLOR.gold, depth: 900 });
+    // 신규 드래곤 패스(1.0.5): 기간 안이면 세 번째 칸 — 창을 키우고 칸을 위로
+    const now = gameNow();
+    const nd = ndOpen(now);
+    const dy = nd ? -95 : 0;
+    const m = modal(this, 640, nd ? 750 : 560, '패스', { closeOnBackdrop: true, ribbonColor: COLOR.gold, depth: 900 });
     // free: 지금 받을 수 있는 무료 칸 수 — 있으면 가치 줄 아래에 초록 안내(2026-11-26 제작자: 유료라고 생각해 안 누를 수 있어서)
     const row = (y: number, icon: string, title: string, sub: string, alert: boolean, free: number, go: () => void) => {
       const g = this.add.graphics();
@@ -436,8 +443,17 @@ export class LobbyScene extends Phaser.Scene {
       hit.on('pointerup', () => { m.close(); go(); });
       m.body(hit);
     };
-    row(-100, this.textures.exists('pass-royal') ? 'pass-royal' : 'ic-crown', '드래곤 패스', `28일 시즌 · 최대 ${passValuePct('royal').toLocaleString()}% 가치`, claimablePass(syncPass(p, gameNow())).length > 0, claimablePass(syncPass(p, gameNow())).filter((c) => c.t === 'free').length, () => this.scene.start('pass'));
-    row(90, this.textures.exists('ruby-pack-5') ? 'ruby-pack-5' : 'ui-ruby', '루비 패스', `계정 레벨 보상 · ${rubyPassValuePct().toLocaleString()}% 가치`, claimableRubyPass(p).length > 0, claimableRubyPass(p).filter((c) => c.t === 'free').length, () => this.scene.start('rubypass'));
+    row(-100 + dy, this.textures.exists('pass-royal') ? 'pass-royal' : 'ic-crown', '드래곤 패스', `28일 시즌 · 최대 ${passValuePct('royal').toLocaleString()}% 가치`, claimablePass(syncPass(p, gameNow())).length > 0, claimablePass(syncPass(p, gameNow())).filter((c) => c.t === 'free').length, () => this.scene.start('pass'));
+    row(90 + dy, this.textures.exists('ruby-pack-5') ? 'ruby-pack-5' : 'ui-ruby', '루비 패스', `계정 레벨 보상 · ${rubyPassValuePct().toLocaleString()}% 가치`, claimableRubyPass(p).length > 0, claimableRubyPass(p).filter((c) => c.t === 'free').length, () => this.scene.start('rubypass'));
+    if (nd) {
+      const np = syncNd(p, now);
+      const ready = claimableNd(np, now);
+      const left = Math.max(0, Math.ceil((ndEnd() - now) / 86_400_000));
+      row(280 + dy, `portrait-${ND_PASS.legendary}`, '신규 드래곤 패스', `남은 ${left}일 · ${DRAGONS[ND_PASS.freeDragon].short} 무료 해금 · 최대 ${ndValuePct('pass').toLocaleString()}% 가치`, ready.length > 0, ready.filter((c) => c.t === 'free').length, () => this.scene.start('ndpass'));
+      const tag = text(this, 200, 280 + dy - 56, 'NEW', 22, 0xff5a5a, true, true).setOrigin(0.5);
+      m.body(tag);
+      this.tweens.add({ targets: tag, scale: 1.15, duration: 500, yoyo: true, repeat: -1 });
+    }
   }
 
   /**

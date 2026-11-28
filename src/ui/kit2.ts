@@ -67,7 +67,7 @@ export function wingBanner(scene: Phaser.Scene, x: number, y: number, w: number,
 }
 
 /** 맨 위 머리줄: 프로필(출격 드래곤 얼굴 + 레벨) + 재화 게이지(아이콘 · 짙은 칸 안 숫자 · 금색 +) + 전투력 */
-export function topBar(scene: Phaser.Scene, opts: { portrait: string; level: number; cp: string; currencies: { icon: string; value: number | string; sub?: string; onPlus?: () => void }[] }) {
+export function topBar(scene: Phaser.Scene, opts: { portrait: string; level: number; cp: string; currencies: { icon: string; value: number | string; sub?: string; onPlus?: () => void }[]; royalFrame?: boolean }) {
   const root = scene.add.container(0, 0);
   const bg = scene.add.graphics();
   bg.fillStyle(COLOR.outline, 1).fillRoundedRect(-20, -30, 760, 162, 28);
@@ -75,6 +75,18 @@ export function topBar(scene: Phaser.Scene, opts: { portrait: string; level: num
   root.add(bg);
   const pf = plate(scene, 70, 62, 108, 108, { gold: true, r: 22, fill: 0x3a2a6b });
   if (scene.textures.exists(opts.portrait)) pf.add(scene.add.image(0, 2, opts.portrait).setDisplaySize(124, 124));
+  if (opts.royalFrame) {
+    // 바하무트 패스 프로필 테두리(1.0.5, 꾸미기 전용): 금 선 사이 흑요석 띠 + 네 모서리 금·보라 보석(화면 밖으로 안 나가게 칸 안쪽)
+    const fr = scene.add.graphics();
+    fr.lineStyle(10, 0x15121c, 1).strokeRoundedRect(-55, -55, 110, 110, 22);
+    fr.lineStyle(3, 0xffd54f, 1).strokeRoundedRect(-60, -60, 120, 120, 25);
+    fr.lineStyle(3, 0xffd54f, 1).strokeRoundedRect(-50, -50, 100, 100, 18);
+    for (const [gx, gy] of [[-50, -50], [50, -50], [-50, 50], [50, 50]]) {
+      fr.fillStyle(0xffd54f, 1).fillTriangle(gx, gy - 11, gx + 11, gy, gx, gy + 11).fillTriangle(gx, gy - 11, gx - 11, gy, gx, gy + 11);
+      fr.fillStyle(0x7c4dff, 1).fillCircle(gx, gy, 4.5);
+    }
+    pf.add(fr);
+  }
   pf.add(badge(scene, 0, 52, `Lv.${opts.level}`, 0x3a2a6b));
   root.add(pf);
   const values: Phaser.GameObjects.Text[] = [];

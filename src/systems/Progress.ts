@@ -49,6 +49,16 @@ import { WINTER_2026, WINTER_DRAGON, type RouletteReward } from '../data/events'
 import { skinDef } from '../data/skins';
 import { store as platformStore } from '../platform';
 import { claimActivity, claimDailyAttendance, randomCardDragon } from './Activity';
+import { accountXp } from './AccountLevel';
+import { ND_PASS, ndOpen } from '../data/ndPass';
+
+/** 신규 드래곤 패스(1.0.5): 기간 안 첫 정산이면 이 판 전 경험치로 시작, 신규 드래곤으로 싸운 판은 그 판 경험치의 50%를 추가 포인트로 */
+function ndAfterRun(before: PlayerProgress, after: PlayerProgress, dragonId: DragonId | undefined, now: number): PlayerProgress {
+  if (!ndOpen(now)) return after;
+  const nd = before.ndPass.id === ND_PASS.id ? before.ndPass : { id: ND_PASS.id, baseXp: accountXp(before), bonusXp: 0, claimed: [], pass: false, bahamut: false, pick: null };
+  const bonus = dragonId && ND_PASS.newDragons.includes(dragonId) ? Math.floor((accountXp(after) - accountXp(before)) * ND_PASS.newDragonBonus) : 0;
+  return { ...after, ndPass: { ...nd, bonusXp: nd.bonusXp + Math.max(0, bonus) } };
+}
 
 // 계정 진행 저장. JSON 한 덩어리로 저장한다.
 // 실제 저장 위치는 플랫폼마다 다르다(src/platform): 웹 localStorage · iOS Preferences · 토스 SDK Storage.
@@ -169,6 +179,8 @@ export interface PlayerProgress {
   pass: PassState;
   /** 루비 패스(2026-11-26): 유료 줄 구매 여부 · 받은 칸('free-3'·'paid-12'). 시즌 없음(계정 레벨 1~30) */
   rubyPass: RubyPassState;
+  /** 신규 드래곤 패스(1.0.5, 기간 한정 'nd1'): 시작 때 계정 경험치 · 신규 드래곤 추가 포인트 · 받은 칸 · 구매 · 고른 영웅 */
+  ndPass: NdPassState;
   /** 스킨(2026-11-23 밤): 가진 스킨 · 장착(계정 공통) · 열쇠 · 이번 주 룰렛 판에서 뽑은 칸 */
   skins: SkinState;
 }
@@ -180,6 +192,20 @@ export interface SkinState {
   keys: number;
   /** 룰렛 판: 주 키('w2026-11-23') · 그 주에 뽑은 칸 아이디 · 지금까지 돌린 횟수(난수 회차) */
   board: { week: string; picked: string[]; spins: number };
+}
+
+export interface NdPassState {
+  /** 이 기록이 속한 패스('nd1'). 빈 문자열 = 아직 시작 안 함 */
+  id: string;
+  baseXp: number;
+  bonusXp: number;
+  claimed: string[];
+  /** 신규 패스 줄(₩11,000) — 바하무트 패스도 이 줄을 연다 */
+  pass: boolean;
+  /** 바하무트 패스(₩33,000): 바하무트 즉시 해금 + 프로필 테두리 */
+  bahamut: boolean;
+  /** 신규 패스로 고른 영웅(실바·포지·크리스탈). 패스를 산 뒤에는 바꿀 수 없음 */
+  pick: DragonId | null;
 }
 
 export interface RubyPassState {
@@ -212,6 +238,7 @@ export function defaultProgress(now = Date.now()): PlayerProgress {
     shopLog: [],
     pass: { season: 0, baseXp: 0, claimed: [], premium: false, royal: false },
     rubyPass: { owned: false, claimed: [] },
+    ndPass: { id: '', baseXp: 0, bonusXp: 0, claimed: [], pass: false, bahamut: false, pick: null },
     skins: { owned: [], cape: null, trail: null, keys: 0, board: { week: '', picked: [], spins: 0 } },
     saveVersion: SAVE_VERSION,
     gold: 0,
@@ -371,6 +398,19 @@ export function sanitize(raw: Record<string, unknown>): PlayerProgress {
     rubyPass: (() => {
       const rr = (raw.rubyPass ?? {}) as Partial<RubyPassState>;
       return { owned: rr.owned === true, claimed: strs(rr.claimed, 100) };
+    })(),
+    ndPass: (() => {
+      const nd = (raw.ndPass ?? {}) as Partial<NdPassState>;
+      const pick = typeof nd.pick === 'string' && (DRAGON_ORDER as string[]).includes(nd.pick) ? (nd.pick as DragonId) : null;
+      return {
+        id: typeof nd.id === 'string' ? nd.id.slice(0, 16) : '',
+        baseXp: int(nd.baseXp, 0, 1e12, 0),
+        bonusXp: int(nd.bonusXp, 0, 1e12, 0),
+        claimed: strs(nd.claimed, 100),
+        pass: nd.pass === true || nd.bahamut === true,
+        bahamut: nd.bahamut === true,
+        pick,
+      };
     })(),
     saveVersion: SAVE_VERSION,
     gold: int(raw.gold, 0, 999_999_999, 0),
@@ -670,6 +710,7 @@ export function settleRun(
     }
     next = addMissionProgress(next, { clears: run.cleared ? 1 : 0, normalKills: run.normalKills, eliteKills: run.eliteKills, sorties: run.elapsedMs >= 30_000 ? 1 : 0 }, now);
     next = addEventBattle(next, run, now);
+    next = ndAfterRun(p, next, run.dragonId, now); // 신규 드래곤 패스: 시작 + 신규 드래곤으로 싸운 판 추가 포인트(1.0.5)
   }
   const a = claimAchievements(next);
   return { progress: a.progress, paid: true, rewards: [...rewards, ...a.rewards] };

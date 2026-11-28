@@ -31,7 +31,8 @@ const DEPTH = 300;
  * 보상 획득 팝업: 배경을 어둡게 → 리본 제목 → 가운데 보상 카드(등급 테두리·수량) → 터치 또는 확인으로 닫기.
  * 여러 개(일괄 수령)는 한 화면에 모아서 보여 준다. 희귀 이상이 있으면 빛과 다른 소리.
  */
-export function rewardPopup(scene: Phaser.Scene, title: string, items: RewardItem[], onClose?: () => void, opts: { silent?: boolean } = {}): void {
+export function rewardPopup(scene: Phaser.Scene, title: string, items0: RewardItem[], onClose?: () => void, opts: { silent?: boolean } = {}): void {
+  const items = condenseRewards(items0);
   const layer: Phaser.GameObjects.GameObject[] = [];
   const add = <T extends Phaser.GameObjects.GameObject>(o: T): T => {
     layer.push(o);
@@ -96,6 +97,35 @@ export function rewardPopup(scene: Phaser.Scene, title: string, items: RewardIte
   const ok = button(scene, 360, 640 + panelH / 2 - 62, 300, 76, '확인', close, { kind: 'cta', size: TYPE.body });
   add(ok.root);
   add(text(scene, 360, 640 + panelH / 2 + 34, '화면을 눌러도 닫혀요', TYPE.tiny, COLOR.textSub, true).setOrigin(0.5));
+}
+
+/**
+ * 보상 카드가 많으면(일괄 수령 등) 화면 밖으로 넘치지 않게 줄인다(1.0.5): 12장 넘으면 같은 그림·이름·등급끼리 수량을 더해 한 장으로,
+ * 그래도 넘치면 11장 + "외 N개" 한 장. 수량 글자("×10" · "1,000" · "+150")의 숫자만 더하고 앞 기호는 그대로.
+ */
+export function condenseRewards(items: RewardItem[], max = 12): RewardItem[] {
+  if (items.length <= max) return items;
+  const num = (a?: string) => {
+    const m = /^([^\d]*)([\d,]+)$/.exec(a ?? '');
+    return m ? { pre: m[1], n: Number(m[2].replace(/,/g, '')) } : null;
+  };
+  const out: RewardItem[] = [];
+  const at = new Map<string, number>();
+  for (const it of items) {
+    const key = `${it.image ?? ''}|${it.portrait ?? ''}|${it.emoji ?? ''}|${it.label}|${it.grade ?? ''}`;
+    const i = at.get(key);
+    const a = num(it.amount);
+    if (i === undefined || !a) {
+      at.set(key, out.length);
+      out.push({ ...it });
+      continue;
+    }
+    const b = num(out[i].amount);
+    if (b && b.pre === a.pre) out[i] = { ...out[i], amount: `${a.pre}${(a.n + b.n).toLocaleString()}` };
+    else out.push({ ...it });
+  }
+  if (out.length <= max) return out;
+  return [...out.slice(0, max - 1), { emoji: '🎁', label: `외 ${out.length - (max - 1)}개`, grade: 'common' }];
 }
 
 /**

@@ -1,18 +1,19 @@
 import { DEALS, PACKAGES, RUBY_PRODUCTS, type PackageDef } from './economy';
+import { ND_PASS, ndOpen } from './ndPass';
 import { PASS } from './pass';
 import { RUBY_PASS } from './rubyPass';
 import { SKIN_ROULETTE } from './skins';
 
 /**
- * 인앱결제 상품표 17종(루비 5 · 패키지 3 · 특혜 6 · 패스 2 · 스킨 열쇠 1) — 앱과 서버(functions/)가 같이 쓴다(docs/PAYMENTS.md).
+ * 인앱결제 상품표 20종(루비 5 · 패키지 3 · 특혜 6 · 패스 2 · 루비 패스 1 · 스킨 열쇠 1 · 신규 드래곤 패스 2) — 앱과 서버(functions/)가 같이 쓴다(docs/PAYMENTS.md).
  * - 지급 내용·구매 제한은 economy.ts·pass.ts 값을 그대로 옮긴 것(숫자는 거기서만 바꾼다).
  * - 서버는 RevenueCat이 확인한 거래만 이 표로 지급 내용을 정해 장부에 적고, 앱은 그 장부 내용만 지급한다.
  * - 이 파일은 순수 데이터·함수만(Progress·플랫폼을 불러오지 않음 → 서버 번들에 그대로 들어감).
  */
 
-export type IapKind = 'ruby' | 'package' | 'pass' | 'skinkey' | 'rubypass';
-/** 구매 제한 기간: 일일·주간·월간(KST) · 계정당 1번(once) · 패스 시즌 · 제한 없음(루비) */
-export type IapPeriod = 'daily' | 'weekly' | 'monthly' | 'once' | 'season' | 'none';
+export type IapKind = 'ruby' | 'package' | 'pass' | 'skinkey' | 'rubypass' | 'ndpass';
+/** 구매 제한 기간: 일일·주간·월간(KST) · 계정당 1번(once) · 패스 시즌 · 신규 드래곤 패스 회차(ndpass) · 제한 없음(루비) */
+export type IapPeriod = 'daily' | 'weekly' | 'monthly' | 'once' | 'season' | 'ndpass' | 'none';
 
 /** 한 번 결제로 지급하는 것 */
 export interface IapGrant {
@@ -26,6 +27,8 @@ export interface IapGrant {
   skinKeys?: number;
   /** 루비 패스 유료 줄(2026-11-26) */
   rubyPass?: boolean;
+  /** 신규 드래곤 패스(1.0.5): 신규 패스 줄 · 바하무트 패스(줄 + 바하무트 즉시 해금) */
+  ndPass?: 'pass' | 'bahamut';
 }
 
 export interface IapProduct {
@@ -67,6 +70,9 @@ export const IAP_PRODUCTS: IapProduct[] = [
   // 루비 패스(2026-11-26 제작자: ₩25,000 · 가치 500% · 계정당 1번). 비소모성처럼 한 번만
   { productId: RUBY_PASS.productId, kind: 'rubypass', name: '루비 패스', krw: RUBY_PASS.price, grant: { ...emptyGrant, rubyPass: true }, period: 'once', limit: 1 },
   { productId: SKIN_ROULETTE.keyProductId, kind: 'skinkey', name: '스킨 룰렛 열쇠', krw: SKIN_ROULETTE.keyKrw, grant: { ...emptyGrant, skinKeys: 1 }, period: 'none', limit: Infinity },
+  // 신규 드래곤 패스(1.0.5 제작자 확정 2026-11-28): 계정당 1번, 패스 기간(ND_PASS) 안에만. 소모성으로 등록하고 서버 장부로 한 번만
+  { productId: ND_PASS.productId.pass, kind: 'ndpass', name: '신규 드래곤 패스', krw: ND_PASS.price.pass, grant: { ...emptyGrant, ndPass: 'pass' }, period: 'ndpass', limit: 1 },
+  { productId: ND_PASS.productId.bahamut, kind: 'ndpass', name: '바하무트 패스', krw: ND_PASS.price.bahamut, grant: { ...emptyGrant, ndPass: 'bahamut' }, period: 'ndpass', limit: 1 },
 ];
 
 export const iapProduct = (productId: string): IapProduct | undefined => IAP_PRODUCTS.find((x) => x.productId === productId);
@@ -81,6 +87,7 @@ export const passSeasonOf = (now: number) => Math.max(1, Math.floor((now - PASS.
 /** 구매 시각이 속한 제한 기간 키: 'YYYY-MM-DD' · 'wYYYY-MM-DD'(그 주 월요일) · 'YYYY-MM' · 'once' · 's<시즌>' · 'none' */
 export function iapPeriodKey(period: IapPeriod, at: number): string {
   if (period === 'once' || period === 'none') return period;
+  if (period === 'ndpass') return ND_PASS.id;
   if (period === 'season') return `s${passSeasonOf(at)}`;
   const d = new Date(at + KST_MS);
   if (period === 'daily') return ymd(d);
@@ -100,12 +107,19 @@ export interface LedgerLite {
  * 지금 이 상품을 더 살 수 있나(서버가 결제 창을 열기 전에 확인). 환불된 거래는 세지 않는다.
  * 패스: 프리미엄은 이번 시즌 프리미엄·로열 중 하나라도 있으면 막고, 로열은 로열이 있으면 막는다.
  */
-export function canBuy(productId: string, ledger: LedgerLite[], now: number): { ok: true } | { ok: false; reason: 'product' | 'limit' | 'owned' } {
+export function canBuy(productId: string, ledger: LedgerLite[], now: number): { ok: true } | { ok: false; reason: 'product' | 'limit' | 'owned' | 'closed' } {
   const def = iapProduct(productId);
   if (!def) return { ok: false, reason: 'product' };
   if (def.limit === Infinity) return { ok: true };
   const key = iapPeriodKey(def.period, now);
   const live = ledger.filter((e) => !e.refunded && e.periodKey === key);
+  if (def.kind === 'ndpass') {
+    // 신규 드래곤 패스: 기간 밖이면 못 삼. 바하무트 패스를 샀으면 둘 다 막고(신규 패스 줄 포함), 신규 패스만 샀으면 바하무트 패스는 살 수 있음
+    if (!ndOpen(now)) return { ok: false, reason: 'closed' };
+    const owned = (id: string) => live.some((e) => e.productId === id);
+    if (owned(ND_PASS.productId.bahamut) || (def.grant.ndPass === 'pass' && owned(ND_PASS.productId.pass))) return { ok: false, reason: 'owned' };
+    return { ok: true };
+  }
   if (def.kind === 'pass') {
     const owned = (id: string) => live.some((e) => e.productId === id);
     if (owned(PASS.productId.royal) || (def.grant.pass === 'premium' && owned(PASS.productId.premium))) return { ok: false, reason: 'owned' };

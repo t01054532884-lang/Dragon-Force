@@ -11,6 +11,7 @@ import { DEALS, FREE_DAILY_GIFT, PACKAGES, RUBY_PRODUCTS, type PackageDef } from
 import { iapProduct, passSeasonOf, type IapGrant, type ServerGrant } from '../data/iap';
 import { grantVerifiedPass } from './Pass';
 import { grantVerifiedRubyPass } from './RubyPass';
+import { grantVerifiedNdPass } from './NdPass';
 import { grantVerifiedSkinKeys } from './Skins';
 import { dealPeriodKey, Progress, withTx, type PlayerProgress, type Result } from './Progress';
 
@@ -28,7 +29,7 @@ export interface StoreProduct {
 /** 예전 이름(루비 충전 창) */
 export type RubyProduct = StoreProduct;
 
-export type CheckResult = { ok: true } | { ok: false; reason: 'limit' | 'owned' | 'product' | 'unavailable' | 'offline' };
+export type CheckResult = { ok: true } | { ok: false; reason: 'limit' | 'owned' | 'product' | 'unavailable' | 'offline' | 'closed' };
 
 export interface PurchaseProvider {
   /** 이 플랫폼에서 결제를 쓸 수 있나 */
@@ -134,6 +135,7 @@ export function applyServerGrant(p: PlayerProgress, g: ServerGrant, now: number)
   if (def.kind === 'package') return grantVerifiedPackage(p, g.transactionId, g.productId, now, false, g.purchasedAt);
   if (def.kind === 'skinkey') return grantVerifiedSkinKeys(p, g.transactionId, g.grant.skinKeys ?? def.grant.skinKeys ?? 1);
   if (def.kind === 'rubypass') return grantVerifiedRubyPass(p, g.transactionId);
+  if (def.kind === 'ndpass') return grantVerifiedNdPass(p, g.transactionId, g.grant.ndPass ?? def.grant.ndPass ?? 'pass', now);
   const season = g.season ?? passSeasonOf(g.purchasedAt);
   if (season !== passSeasonOf(now)) return { ok: false, reason: 'expired' };
   return grantVerifiedPass(p, g.transactionId, g.grant.pass ?? 'premium', now);
@@ -183,7 +185,7 @@ const emptyTotal = (): IapGrant => ({ rubies: 0, gold: 0, dragonTickets: 0, equi
 
 export type BuyResult =
   | { ok: true; delivered: Delivered }
-  | { ok: false; reason: 'unavailable' | 'busy' | 'cancelled' | 'pending' | 'limit' | 'owned' | 'product' | 'offline' | 'failed' | 'undelivered' };
+  | { ok: false; reason: 'unavailable' | 'busy' | 'cancelled' | 'pending' | 'limit' | 'owned' | 'product' | 'offline' | 'failed' | 'undelivered' | 'closed' };
 
 let buying = false;
 
@@ -232,6 +234,8 @@ export function buyFailText(reason: Exclude<BuyResult, { ok: true }>['reason']):
       return '이번 기간에 살 수 있는 횟수를 모두 샀어요';
     case 'owned':
       return '이미 가지고 있어요';
+    case 'closed':
+      return '판매 기간이 아니에요';
     case 'pending':
       return '결제 승인을 기다리는 중이에요. 승인되면 자동으로 지급돼요';
     case 'undelivered':
