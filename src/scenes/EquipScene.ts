@@ -4,7 +4,7 @@ import { RARITIES } from '../data/economy';
 import { EQUIP_BASE, EQUIP_BONUS, EQUIP_RULES, equipAuraRarity, equipBonus, equipDef, equipValue, NEXT_RARITY, SLOT_LABEL, SLOTS, type Slot } from '../data/equipment';
 import { fuseCandidates, isEquipped, Progress, type EquipmentItem, type PlayerProgress } from '../systems/Progress';
 import { loadout } from '../systems/Loadout';
-import { equipIcon, preloadArt } from '../ui/art';
+import { ART_FILES, equipIcon, preloadArt } from '../ui/art';
 import { badge, button, slot as slotBox, text, type KitButton } from '../ui/kit';
 import { altar, plate, tabs } from '../ui/kit2';
 import { popWord, screenFrame, toast, type ScreenFrame } from '../ui/screen';
@@ -42,6 +42,9 @@ export class EquipScene extends Phaser.Scene {
 
   preload(): void {
     preloadArt(this);
+    // 스킨 미리 보기의 출격 드래곤 전투 그림(top-*는 메뉴에서 미리 읽지 않음, 1.0.5 메모리)
+    const top = `top-${Progress.load().selectedDragonId}`;
+    if (ART_FILES[top] && !this.textures.exists(top)) this.load.image(top, `art/${ART_FILES[top]}`);
   }
 
   create(): void {

@@ -34,6 +34,33 @@ const BAR_H = 150;
 
 const daysLeft = (now: number) => Math.max(0, Math.ceil((ndEnd() - now) / 86_400_000));
 
+/** 미리 보기 영상 정리: 재생 멈춤 → 오브젝트·영상 텍스처 제거 → <video> 소스 비우기 → 캐시에서 빼기(다음에 볼 때 다시 읽음, 브라우저 캐시라 빠름) */
+function releasePreview(scene: Phaser.Scene, v: Phaser.GameObjects.Video | null, key: string): void {
+  if (v) {
+    const texKey = v.texture?.key;
+    const el = v.video;
+    if (v.active) {
+      v.stop();
+      v.destroy();
+    }
+    if (texKey && texKey !== '__MISSING' && texKey !== '__DEFAULT' && scene.textures.exists(texKey)) scene.textures.remove(texKey);
+    if (el) {
+      el.pause();
+      el.removeAttribute('src');
+      el.load();
+    }
+  }
+  if (scene.cache.video.exists(key)) {
+    const el = scene.cache.video.get(key) as HTMLVideoElement | undefined;
+    scene.cache.video.remove(key);
+    if (el && el.pause) {
+      el.pause();
+      el.removeAttribute('src');
+      el.load();
+    }
+  }
+}
+
 export class NdPassScene extends Phaser.Scene {
   private frame!: ScreenFrame;
   private scroll: Scroller | null = null;
@@ -67,7 +94,7 @@ export class NdPassScene extends Phaser.Scene {
     this.frame = screenFrame(this, { title: '신규 드래곤 패스', nav: '', ribbonColor: 0xb8860b, bg: 'scrbg-pass' });
     this.input.keyboard?.on('keydown-ESC', () => this.scene.start('lobby'));
     this.events.once('shutdown', () => {
-      for (const k of this.cache.video.getKeys()) if (k.startsWith('ndprev-')) this.cache.video.remove(k);
+      for (const k of this.cache.video.getKeys()) if (k.startsWith('ndprev-')) releasePreview(this, null, k);
     });
     const before = new Set(this.children.list);
 
@@ -163,14 +190,21 @@ export class NdPassScene extends Phaser.Scene {
     if (this.scroll?.dragged || this.popup) return;
     this.popup = true;
     const m = modal(this, 620, 1000, ULT_NAMES[id] ?? DRAGONS[id].name, { closeOnBackdrop: true, ribbonColor: 0xb8860b, depth: 900 });
-    m.box.once('destroy', () => (this.popup = false));
     const key = `ndprev-${id}`;
+    let v: Phaser.GameObjects.Video | null = null;
+    // 닫을 때 영상을 완전히 내린다(1.0.5 메모리 점검: 영상 오브젝트만 지우면 720×1280 영상 텍스처와 <video>가 한 번 볼 때마다 3.7MB씩 남았음)
+    m.box.once('destroy', () => {
+      this.popup = false;
+      releasePreview(this, v, key);
+      v = null;
+    });
     const show = () => {
-      if (!m.box.active) return;
-      const v = this.add.video(0, -40, key);
-      v.play(false);
-      v.once(Phaser.GameObjects.Events.VIDEO_PLAYING, () => v.setDisplaySize(540, 540 * (v.height / Math.max(1, v.width))));
-      m.body(v);
+      if (!m.box.active) return releasePreview(this, null, key);
+      v = this.add.video(0, -40, key);
+      const vv = v;
+      vv.play(false);
+      vv.once(Phaser.GameObjects.Events.VIDEO_PLAYING, () => vv.setDisplaySize(540, 540 * (vv.height / Math.max(1, vv.width))));
+      m.body(vv);
     };
     m.body(text(this, 0, 420, `${DRAGONS[id].name} · ${DRAGONS[id].role}`, TYPE.tiny, COLOR.textSub, true, true).setOrigin(0.5));
     if (this.cache.video.exists(key)) return show();

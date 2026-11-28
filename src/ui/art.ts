@@ -236,9 +236,10 @@ export const CHEST_LAYER_KEYS = [
  * 메뉴(타이틀·로비·드래곤·상점 등)에서는 미리 읽지 않는 그림(1.0.5 메모리: 로비 텍스처 추정 206~238MB → 180MB 이하 목표).
  * - 전투 전용: 전용 스킬 그림(sigart-)·효과(sigfx-)·전투 효과 그림(fx-, 해금 빛줄기만 메뉴에서 씀) — 전투 preload가 출격 드래곤 것만 읽음
  * - 속성 문양(sigil-, 24장 약 25MB): 새 드래곤 해금 축하에서만 씀 → 축하 직전에 그 한 장만 읽음(dragonUnlock)
+ * - 위에서 본 전투 그림(top-, 24장 약 14MB): 메뉴에서는 장비 화면 스킨 미리 보기의 출격 드래곤 한 장만 씀 → EquipScene이 그 한 장만 읽음
  * 투사체 그림(proj-)은 첫 화면에서 탄 그림(bolt-)으로 바꿔 쓰므로 그대로 미리 읽는다.
  */
-export const MENU_LAZY = /^(sigart-|sigfx-|sigil-|fx-(?!unlock-rays$))/;
+export const MENU_LAZY = /^(sigart-|sigfx-|sigil-|top-|fx-(?!unlock-rays$))/;
 
 export function preloadArt(scene: Phaser.Scene): void {
   for (const [key, file] of Object.entries(ART_FILES)) {
